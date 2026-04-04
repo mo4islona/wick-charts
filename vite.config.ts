@@ -31,7 +31,7 @@ export default defineConfig(({ command, mode }) => {
   if (command === 'build' && mode === 'docs') {
     return {
       root: 'docs',
-      base: '/wick/',
+      base: '/wick-charts/',
       build: {
         outDir: resolve(__dirname, 'docs-dist'),
         emptyOutDir: true,
