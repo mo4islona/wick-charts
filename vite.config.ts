@@ -10,7 +10,7 @@ export default defineConfig(({ command, mode }) => {
   };
 
   // Library build: npm run build (handled by per-package vite configs now)
-  if (command === 'build' && mode !== 'demo') {
+  if (command === 'build' && mode !== 'docs') {
     return {
       plugins: [dts({ rollupTypes: true })],
       build: {
@@ -27,13 +27,13 @@ export default defineConfig(({ command, mode }) => {
     };
   }
 
-  // Demo build (GitHub Pages): npm run build:demo
-  if (command === 'build' && mode === 'demo') {
+  // Docs build (GitHub Pages): npm run build:docs
+  if (command === 'build' && mode === 'docs') {
     return {
-      root: 'demo',
+      root: 'docs',
       base: '/wick/',
       build: {
-        outDir: resolve(__dirname, 'docs'),
+        outDir: resolve(__dirname, 'docs-dist'),
         emptyOutDir: true,
       },
       resolve: { alias: aliases },
@@ -42,7 +42,7 @@ export default defineConfig(({ command, mode }) => {
 
   // Dev server: npm run dev
   return {
-    root: 'demo',
+    root: 'docs',
     resolve: { alias: aliases },
   };
 });

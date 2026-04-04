@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm -r build",
-    "build:demo": "vite build --mode demo",
+    "build:docs": "vite build --mode docs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",

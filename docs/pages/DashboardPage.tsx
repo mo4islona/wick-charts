@@ -8,10 +8,10 @@ import {
   Crosshair,
   type LineData,
   LineSeries,
-  YAxis,
-  YLabel,
   TimeAxis,
   Tooltip,
+  YAxis,
+  YLabel,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -81,10 +81,7 @@ function BarChart({ theme }: { theme: ChartTheme }) {
   const { datasets } = useLineStreams([barData], 600);
   return (
     <ChartContainer theme={theme}>
-      <BarSeries
-        data={[datasets[0]]}
-        options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }}
-      />
+      <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -107,7 +104,7 @@ function WaveChart({ theme }: { theme: ChartTheme }) {
 
 // ── Feature pills ─────────────────────────────────────────────
 
-const FEATURES = ['Canvas 2D', 'React 18+', 'Realtime streaming'];
+const FEATURES = ['React · Svelte · Vue', 'Realtime', 'Themeable', 'MIT'];
 
 function FeaturePill({ text, theme }: { text: string; theme: ChartTheme }) {
   return (
@@ -267,7 +264,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
             lineHeight: 1,
           }}
         >
-          Wick
+          Wick charts
         </span>
       </div>
 
@@ -302,7 +299,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
           }}
         >
           Candlesticks, lines, areas, bars &mdash; all streaming in realtime. <br />
-          GPU-friendly Canvas 2D rendering. Tiny bundle, zero deps, fully themeable.
+          GPU-friendly rendering. Tiny bundle, zero deps, fully themeable and open source.
         </p>
       </div>
 
