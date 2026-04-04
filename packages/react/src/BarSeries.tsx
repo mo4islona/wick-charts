@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { BarSeriesOptions, LineData } from '@wick-charts/core';
+
 import { useChartInstance } from './context';
 
 export interface BarSeriesProps {
@@ -27,9 +28,11 @@ export function BarSeries({ data, options, onSeriesId }: BarSeriesProps) {
   useEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
+    chart.beginUpdate();
     for (let i = 0; i < data.length; i++) {
       chart.setBarLayerData(id, i, data[i]);
     }
+    chart.endUpdate();
   }, [chart, data]);
 
   useEffect(() => {

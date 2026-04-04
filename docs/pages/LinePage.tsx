@@ -7,6 +7,7 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  Legend,
   type LineData,
   LineSeries,
   Tooltip,
@@ -14,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from '@wick-charts/react';
+
 import { Cell } from '../components/Cell';
 import {
   BoundInput,
@@ -53,6 +55,8 @@ function SingleChart({
   areaFill,
   axis,
   sort,
+  legendPos,
+  legendMode,
 }: {
   theme: ChartTheme;
   allData: LineData[][];
@@ -60,6 +64,8 @@ function SingleChart({
   areaFill: boolean;
   axis?: AxisConfig;
   sort?: TooltipSort;
+  legendPos: 'off' | 'bottom' | 'right';
+  legendMode: 'toggle' | 'solo';
 }) {
   const { datasets } = useLineStreams(allData, 300);
   const data = streaming ? [datasets[0]] : [allData[0]];
@@ -67,10 +73,11 @@ function SingleChart({
   return (
     <ChartContainer theme={theme} axis={axis}>
       <LineSeries data={data} onSeriesId={setSid} options={{ areaFill, lineWidth: 1, pulse: streaming }} />
-      {sid && <Tooltip seriesId={sid} sort={sort} />}
+      {sid && <Tooltip seriesId={sid} sort={sort} legend={false} />}
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
+      {legendPos !== 'off' && <Legend position={legendPos} mode={legendMode} />}
     </ChartContainer>
   );
 }
@@ -83,7 +90,8 @@ function MultiChart({
   stacking,
   axis,
   sort,
-  legend,
+  legendPos,
+  legendMode,
 }: {
   theme: ChartTheme;
   allData: LineData[][];
@@ -92,7 +100,8 @@ function MultiChart({
   stacking: BarStacking;
   axis?: AxisConfig;
   sort?: TooltipSort;
-  legend?: boolean;
+  legendPos: 'off' | 'bottom' | 'right';
+  legendMode: 'toggle' | 'solo';
 }) {
   const { datasets } = useLineStreams(allData, 500);
   const display = streaming ? datasets : allData;
@@ -108,10 +117,11 @@ function MultiChart({
           stacking,
         }}
       />
-      <Tooltip sort={sort} legend={legend} />
+      <Tooltip sort={sort} legend={false} />
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
+      {legendPos !== 'off' && <Legend position={legendPos} mode={legendMode} />}
     </ChartContainer>
   );
 }
@@ -177,7 +187,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
   const [xAxisHeight, setXAxisHeight] = useState(30);
   const [showYAxis, setShowYAxis] = useState(true);
   const [showXAxis, setShowXAxis] = useState(true);
-  const [showLegend, setShowLegend] = useState(true);
+  const [legendPos, setLegendPos] = useState<'off' | 'bottom' | 'right'>('bottom');
+  const [legendMode, setLegendMode] = useState<'toggle' | 'solo'>('toggle');
 
   const chartTheme = useMemo<ChartTheme>(() => {
     if (gridStyle === 'none') return { ...theme, grid: { ...theme.grid, color: 'transparent' } };
@@ -215,6 +226,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             areaFill={areaFill}
             axis={axis}
             sort={tooltipSort}
+            legendPos={legendPos}
+            legendMode={legendMode}
           />
         </Cell>
         <Cell label={stackingLabel} sub={`${MULTI_COUNT} series · ${areaFill ? 'area' : 'line'}`} theme={chartTheme}>
@@ -227,7 +240,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             stacking={stacking}
             axis={axis}
             sort={tooltipSort}
-            legend={showLegend}
+            legendPos={legendPos}
+            legendMode={legendMode}
           />
         </Cell>
       </div>
@@ -307,7 +321,29 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             onChange={(v) => setTooltipSort(v as TooltipSort)}
             theme={theme}
           />
-          <Switch label="Legend" checked={showLegend} onChange={setShowLegend} theme={theme} />
+          <Select
+            label="Legend"
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'bottom', label: 'Bottom' },
+              { value: 'right', label: 'Right' },
+            ]}
+            value={legendPos}
+            onChange={(v) => setLegendPos(v as 'off' | 'bottom' | 'right')}
+            theme={theme}
+          />
+          {legendPos !== 'off' && (
+            <ToggleGroup
+              label="Click"
+              options={[
+                { value: 'toggle', label: 'Toggle' },
+                { value: 'solo', label: 'Solo' },
+              ]}
+              value={legendMode}
+              onChange={(v) => setLegendMode(v as 'toggle' | 'solo')}
+              theme={theme}
+            />
+          )}
           <SectionLabel theme={theme}>Axes</SectionLabel>
           <Switch label="Y Axis" checked={showYAxis} onChange={setShowYAxis} theme={theme} />
           <Switch label="X Axis" checked={showXAxis} onChange={setShowXAxis} theme={theme} />

@@ -1,7 +1,7 @@
+import { formatTime } from '@wick-charts/core';
+
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
-
-import { formatTime } from '@wick-charts/core';
 
 export function Crosshair() {
   const chart = useChartInstance();

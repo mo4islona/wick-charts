@@ -37,9 +37,7 @@ export interface ThemeConfig {
 /** Detect dark mode using ITU-R BT.601 luma from the background hex color. */
 function isDarkBg(bg: string): boolean {
   return (
-    parseInt(bg.slice(1, 3), 16) * 0.299 +
-      parseInt(bg.slice(3, 5), 16) * 0.587 +
-      parseInt(bg.slice(5, 7), 16) * 0.114 <
+    parseInt(bg.slice(1, 3), 16) * 0.299 + parseInt(bg.slice(3, 5), 16) * 0.587 + parseInt(bg.slice(5, 7), 16) * 0.114 <
     128
   );
 }
@@ -74,9 +72,8 @@ export function createTheme(config: ThemeConfig): ThemePreset {
 
   const theme: ChartTheme = {
     background: bg,
-    chartGradient: config.chartGradient ?? (dark
-      ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)]
-      : [lightenHex(bg, 0.06), bg]),
+    chartGradient:
+      config.chartGradient ?? (dark ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)] : [lightenHex(bg, 0.06), bg]),
     typography: {
       fontFamily: font,
       fontSize: config.typography?.fontSize ?? 12,
@@ -166,6 +163,7 @@ export const SOURCE_CODE_URL = 'https://fonts.googleapis.com/css2?family=Source+
 export const SPACE_MONO = "'Space Mono', monospace";
 export const SPACE_MONO_URL = 'https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap';
 export const JAKARTA = "'Plus Jakarta Sans', sans-serif";
-export const JAKARTA_URL = 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap';
+export const JAKARTA_URL =
+  'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap';
 export const CAVEAT = "'Caveat', 'Comic Sans MS', cursive";
 export const CAVEAT_URL = 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&display=swap';

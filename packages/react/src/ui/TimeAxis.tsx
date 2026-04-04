@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 
 import { formatTime } from '@wick-charts/core';
+
 import { useChartInstance } from '../context';
 import { useVisibleRange } from '../store-bridge';
 

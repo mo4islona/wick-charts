@@ -1,5 +1,5 @@
-import { binarySearch } from '../utils/math';
 import { EventEmitter } from '../events';
+import { binarySearch } from '../utils/math';
 
 interface StoreEvents {
   update: () => void;
@@ -7,6 +7,15 @@ interface StoreEvents {
 
 export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<StoreEvents> {
   private data: T[] = [];
+  private _visible = true;
+
+  setVisible(visible: boolean): void {
+    this._visible = visible;
+  }
+
+  isVisible(): boolean {
+    return this._visible;
+  }
 
   setData(data: T[]): void {
     this.data = [...data].sort((a, b) => a.time - b.time);

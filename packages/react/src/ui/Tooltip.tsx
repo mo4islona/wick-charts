@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { formatDate, formatTime, type LineData, type OHLCData } from '@wick-charts/core';
+import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
+
 import { useChartInstance } from '../context';
-import { useCrosshairPosition, useLastPrice } from '../store-bridge';
+import { useCrosshairPosition } from '../store-bridge';
 
 /** Sort order for multi-series tooltip values. */
 export type TooltipSort = 'none' | 'asc' | 'desc';
@@ -50,9 +51,13 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
   const allIds = chart.getSeriesIds();
   const targetIds = seriesId ? [seriesId] : allIds;
 
-  // Subscribe to last price of the first target to trigger re-renders on data updates
-  const primaryId = targetIds[0] ?? '';
-  const lastPrice = useLastPrice(chart, primaryId);
+  // Re-render on data updates (not viewport — tooltip content doesn't depend on pan/zoom)
+  const [, bumpTooltip] = useState(0);
+  useEffect(() => {
+    const handler = () => bumpTooltip((n) => n + 1);
+    chart.on('dataUpdate', handler);
+    return () => chart.off('dataUpdate', handler);
+  }, [chart]);
 
   // Gather hover data for all target series
   const hoverSnapshots: SeriesSnapshot[] = [];
@@ -71,32 +76,42 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
         }
       } else {
         const d = chart.getDataAtTime(id, crosshair.time);
-        if (d) hoverSnapshots.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+        if (d)
+          hoverSnapshots.push({
+            id,
+            label: chart.getSeriesLabel(id),
+            data: d,
+            color: chart.getSeriesColor(id) ?? '#888',
+          });
       }
     }
   }
 
-  // Gather last-known data for all target series (shown when not hovering)
-  const lastSnapshots: SeriesSnapshot[] = [];
-  for (const id of targetIds) {
-    const layers = chart.getLayerSnapshots(id, Date.now() / 1000);
-    if (layers) {
-      for (let i = 0; i < layers.length; i++) {
-        const d = chart.getLastData(id);
-        if (d) lastSnapshots.push({
-          id: `${id}_layer${i}`,
-          label: chart.getSeriesLabel(id),
-          data: { time: (d as any).time, value: layers[i].value } as LineData,
-          color: layers[i].color,
-        });
-      }
-    } else {
+  // Gather last-known data for all target series (shown when not hovering) — only when needed
+  let raw: SeriesSnapshot[];
+  if (hoverSnapshots.length > 0) {
+    raw = hoverSnapshots;
+  } else {
+    const lastSnapshots: SeriesSnapshot[] = [];
+    for (const id of targetIds) {
       const d = chart.getLastData(id);
-      if (d) lastSnapshots.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+      if (!d) continue;
+      const layers = chart.getLayerSnapshots(id, d.time);
+      if (layers) {
+        for (let i = 0; i < layers.length; i++) {
+          lastSnapshots.push({
+            id: `${id}_layer${i}`,
+            label: chart.getSeriesLabel(id),
+            data: { time: d.time, value: layers[i].value } as LineData,
+            color: layers[i].color,
+          });
+        }
+      } else {
+        lastSnapshots.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+      }
     }
+    raw = lastSnapshots;
   }
-
-  const raw = hoverSnapshots.length > 0 ? hoverSnapshots : lastSnapshots;
   const snapshots = sortSnapshots(raw, sort);
 
   const theme = chart.getTheme();
@@ -109,66 +124,68 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
   return (
     <>
       {/* ── Compact legend (below chart title) ── */}
-      {legend && <div
-        style={{
-          position: 'absolute',
-          top: 24,
-          left: 8,
-          pointerEvents: 'none',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          flexWrap: 'wrap',
-          maxWidth: '70%',
-          fontSize: theme.typography.fontSize,
-          fontFamily: theme.typography.fontFamily,
-          fontVariantNumeric: 'tabular-nums',
-          opacity: crosshair ? 1 : 0.6,
-          transition: 'opacity 0.2s ease',
-        }}
-      >
-        <span style={{ color: theme.axis.textColor, marginRight: 2 }}>{formatTime(displayTime, dataInterval)}</span>
-        {snapshots.map((s) => {
-          const isOHLC = 'open' in s.data;
-          if (isOHLC) {
-            const ohlc = s.data as OHLCData;
-            const isUp = ohlc.close >= ohlc.open;
-            const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor;
+      {legend && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 24,
+            left: 8,
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flexWrap: 'wrap',
+            maxWidth: '70%',
+            fontSize: theme.typography.fontSize,
+            fontFamily: theme.typography.fontFamily,
+            fontVariantNumeric: 'tabular-nums',
+            opacity: crosshair ? 1 : 0.6,
+            transition: 'opacity 0.2s ease',
+          }}
+        >
+          <span style={{ color: theme.axis.textColor, marginRight: 2 }}>{formatTime(displayTime, dataInterval)}</span>
+          {snapshots.map((s) => {
+            const isOHLC = 'open' in s.data;
+            if (isOHLC) {
+              const ohlc = s.data as OHLCData;
+              const isUp = ohlc.close >= ohlc.open;
+              const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor;
+              return (
+                <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <LegendItem label="O" value={ohlc.open} color={c} dim={theme.axis.textColor} />
+                  <LegendItem label="H" value={ohlc.high} color={c} dim={theme.axis.textColor} />
+                  <LegendItem label="L" value={ohlc.low} color={c} dim={theme.axis.textColor} />
+                  <LegendItem label="C" value={ohlc.close} color={c} dim={theme.axis.textColor} />
+                  {ohlc.volume != null && (
+                    <LegendItem
+                      label="V"
+                      value={ohlc.volume}
+                      color={theme.axis.textColor}
+                      dim={theme.axis.textColor}
+                      volume
+                    />
+                  )}
+                </span>
+              );
+            }
+            const line = s.data as LineData;
             return (
-              <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <LegendItem label="O" value={ohlc.open} color={c} dim={theme.axis.textColor} />
-                <LegendItem label="H" value={ohlc.high} color={c} dim={theme.axis.textColor} />
-                <LegendItem label="L" value={ohlc.low} color={c} dim={theme.axis.textColor} />
-                <LegendItem label="C" value={ohlc.close} color={c} dim={theme.axis.textColor} />
-                {ohlc.volume != null && (
-                  <LegendItem
-                    label="V"
-                    value={ohlc.volume}
-                    color={theme.axis.textColor}
-                    dim={theme.axis.textColor}
-                    volume
-                  />
-                )}
+              <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: s.color,
+                    flexShrink: 0,
+                  }}
+                />
+                <span style={{ color: s.color, fontWeight: 500 }}>{line.value.toFixed(2)}</span>
               </span>
             );
-          }
-          const line = s.data as LineData;
-          return (
-            <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: s.color,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ color: s.color, fontWeight: 500 }}>{line.value.toFixed(2)}</span>
-            </span>
-          );
-        })}
-      </div>}
+          })}
+        </div>
+      )}
 
       {/* ── Floating tooltip (near cursor, only on hover) ── */}
       {crosshair && hoverSnapshots.length > 0 && (

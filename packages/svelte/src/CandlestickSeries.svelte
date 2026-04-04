@@ -1,43 +1,44 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
-  import type { OHLCData, CandlestickSeriesOptions } from '@wick-charts/core';
-  import { syncSeriesData } from '@wick-charts/core';
-  import { getChartContext } from './context';
+import type { CandlestickSeriesOptions, OHLCData } from '@wick-charts/core';
+import { syncSeriesData } from '@wick-charts/core';
+import { onDestroy, onMount } from 'svelte';
+import { get } from 'svelte/store';
 
-  export let data: OHLCData[] = [];
-  export let options: Partial<CandlestickSeriesOptions> | undefined = undefined;
-  export let onSeriesId: ((id: string) => void) | undefined = undefined;
+import { getChartContext } from './context';
 
-  const chartStore = getChartContext();
-  let seriesId: string | null = null;
-  let prevLen = 0;
+export let data: OHLCData[] = [];
+export let options: Partial<CandlestickSeriesOptions> | undefined = undefined;
+export let onSeriesId: ((id: string) => void) | undefined = undefined;
 
-  onMount(() => {
-    const chart = get(chartStore);
-    if (!chart) return;
-    seriesId = chart.addCandlestickSeries(options);
-    onSeriesId?.(seriesId);
-  });
+const chartStore = getChartContext();
+let seriesId: string | null = null;
+let prevLen = 0;
 
-  onDestroy(() => {
-    const chart = get(chartStore);
-    if (seriesId && chart) chart.removeSeries(seriesId);
-    seriesId = null;
-    prevLen = 0;
-  });
+onMount(() => {
+  const chart = get(chartStore);
+  if (!chart) return;
+  seriesId = chart.addCandlestickSeries(options);
+  onSeriesId?.(seriesId);
+});
 
-  $: {
-    const chart = $chartStore;
-    if (seriesId && chart && data.length > 0) {
-      prevLen = syncSeriesData(chart, seriesId, data, prevLen);
-    }
+onDestroy(() => {
+  const chart = get(chartStore);
+  if (seriesId && chart) chart.removeSeries(seriesId);
+  seriesId = null;
+  prevLen = 0;
+});
+
+$: {
+  const chart = $chartStore;
+  if (seriesId && chart && data.length > 0) {
+    prevLen = syncSeriesData(chart, seriesId, data, prevLen);
   }
+}
 
-  $: {
-    const chart = $chartStore;
-    if (seriesId && chart && options) {
-      chart.updateSeriesOptions(seriesId, options);
-    }
+$: {
+  const chart = $chartStore;
+  if (seriesId && chart && options) {
+    chart.updateSeriesOptions(seriesId, options);
   }
+}
 </script>

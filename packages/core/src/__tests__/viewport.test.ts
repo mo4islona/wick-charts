@@ -3,20 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { Viewport } from '../viewport';
 
 describe('Viewport', () => {
-  it('setYRange adds padding', () => {
-    const v = new Viewport({ yPadding: 0.1 });
-    v.setYRange(100, 200);
+  it('setYRange adds pixel-based padding', () => {
+    const v = new Viewport({ yPadding: 20 });
+    // chartHeight=200, range=100, so 20px = 10% of range = 10 data units
+    v.setYRange(100, 200, 200);
     const r = v.yRange;
     expect(r.min).toBeLessThan(100);
     expect(r.max).toBeGreaterThan(200);
-    // 10% of 100 range = 10
     expect(r.min).toBeCloseTo(90);
     expect(r.max).toBeCloseTo(210);
   });
 
   it('setYRange skips padding when fixed', () => {
-    const v = new Viewport({ yPadding: 0.1 });
-    v.setYRange(0, 100, true, false);
+    const v = new Viewport({ yPadding: 20 });
+    v.setYRange(0, 100, 200, true, false);
     expect(v.yRange.min).toBe(0); // fixed, no padding
     expect(v.yRange.max).toBeGreaterThan(100); // not fixed, padded
   });
@@ -55,11 +55,13 @@ describe('Viewport', () => {
     expect(widthAfter).toBeCloseTo(widthBefore);
   });
 
-  it('scrollToEnd pins right edge', () => {
+  it('scrollToEnd pins right edge after animation', () => {
     const v = new Viewport();
     v.setDataInterval(60);
     v.fitToData(0, 18000);
     v.scrollToEnd(20000);
+    // Tick past the animation duration (150ms)
+    v.tick(performance.now() + 200);
     expect(v.visibleRange.to).toBeGreaterThanOrEqual(20000);
   });
 

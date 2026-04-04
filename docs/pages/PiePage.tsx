@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
-import { ChartContainer, type ChartTheme, type PieSliceData, PieSeries, PieTooltip } from '@wick-charts/react';
+import { ChartContainer, type ChartTheme, PieSeries, type PieSliceData, PieTooltip } from '@wick-charts/react';
+
 import { Cell } from '../components/Cell';
 
 const PORTFOLIO: PieSliceData[] = [

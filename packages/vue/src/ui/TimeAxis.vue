@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { formatTime } from '@wick-charts/core';
-import { useChartInstance } from '../context';
+import { computed } from 'vue';
+
 import { useVisibleRange } from '../composables';
+import { useChartInstance } from '../context';
 
 interface TrackedTick {
   opacity: number;

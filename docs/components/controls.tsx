@@ -1,6 +1,7 @@
 import { type CSSProperties, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
+
 import { hexToRgba } from '../utils';
 
 // ── Shared styles ────────────────────────────────────────────

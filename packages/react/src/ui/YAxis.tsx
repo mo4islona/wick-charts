@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 
 import { useChartInstance } from '../context';
+import { useYRange } from '../store-bridge';
 
 interface TrackedTick {
   opacity: number;
@@ -9,6 +10,7 @@ interface TrackedTick {
 
 export function YAxis() {
   const chart = useChartInstance();
+  useYRange(chart); // subscribe to viewport changes so ticks re-render
   const theme = chart.getTheme();
   const currentTicks = chart.yScale.niceTickValues();
   const currentSet = new Set(currentTicks);

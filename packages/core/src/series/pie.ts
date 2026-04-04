@@ -68,7 +68,7 @@ export class PieRenderer implements SeriesRenderer {
 
     const cx = bitmapWidth / 2;
     const cy = bitmapHeight / 2;
-    const maxR = Math.min(bitmapWidth, bitmapHeight) / 2 * 0.85;
+    const maxR = (Math.min(bitmapWidth, bitmapHeight) / 2) * 0.85;
     const outerR = maxR;
     const innerR = outerR * this.options.innerRadiusRatio;
 
@@ -122,7 +122,7 @@ export class PieRenderer implements SeriesRenderer {
     const palette = this.options.colors ?? theme.seriesColors;
     const cx = bitmapSize.width / 2;
     const cy = bitmapSize.height / 2;
-    const maxR = Math.min(bitmapSize.width, bitmapSize.height) / 2 * 0.85;
+    const maxR = (Math.min(bitmapSize.width, bitmapSize.height) / 2) * 0.85;
     const outerR = maxR;
     const innerR = outerR * this.options.innerRadiusRatio;
     const pad = this.options.padAngle;

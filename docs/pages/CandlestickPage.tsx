@@ -5,11 +5,12 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
-  YAxis,
-  YLabel,
   TimeAxis,
   Tooltip,
+  YAxis,
+  YLabel,
 } from '@wick-charts/react';
+
 import { Cell } from '../components/Cell';
 import { generateOHLCData } from '../data';
 import { useOHLCStream } from '../hooks';

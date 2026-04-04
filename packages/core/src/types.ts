@@ -153,7 +153,6 @@ export interface PieSeriesOptions {
   label?: string;
 }
 
-
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
   /** Width in pixels. Default: 55. */

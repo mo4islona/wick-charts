@@ -60,7 +60,7 @@ export class LineRenderer implements SeriesRenderer {
     if (this.stores.length <= 1) {
       return null; // single store — chart handles it via entry.store
     }
-    const layers = this.stores.map((s) => s.getVisibleData(from, to));
+    const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
 
     if (this.options.stacking === 'off') {
       // Union of all layers' individual ranges
@@ -115,6 +115,8 @@ export class LineRenderer implements SeriesRenderer {
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
 
     for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+
       let data = this.stores[li].getVisibleData(range.from, range.to);
       const pixelWidth = scope.mediaSize.width;
       if (data.length > pixelWidth * 2) {
@@ -154,7 +156,13 @@ export class LineRenderer implements SeriesRenderer {
       // Pulse dot on last point
       if (this.options.pulse) {
         const last = data[data.length - 1];
-        this.drawPulse(context, timeScale.timeToBitmapX(last.time), yScale.valueToBitmapY(last.value), color, horizontalPixelRatio);
+        this.drawPulse(
+          context,
+          timeScale.timeToBitmapX(last.time),
+          yScale.valueToBitmapY(last.value),
+          color,
+          horizontalPixelRatio,
+        );
       }
     }
   }
@@ -190,11 +198,13 @@ export class LineRenderer implements SeriesRenderer {
       const t = times[ti];
       let total = 0;
       if (percent) {
-        for (const vm of valueMaps) total += vm.get(t) ?? 0;
+        for (let li = 0; li < this.stores.length; li++) {
+          if (this.stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
+        }
       }
       let running = 0;
       for (let li = 0; li < this.stores.length; li++) {
-        const raw = valueMaps[li].get(t) ?? 0;
+        const raw = this.stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }
@@ -202,6 +212,7 @@ export class LineRenderer implements SeriesRenderer {
 
     // Draw from top layer to bottom so lower layers fill correctly
     for (let li = this.stores.length - 1; li >= 0; li--) {
+      if (!this.stores[li].isVisible()) continue;
       const color = this.options.colors[li % this.options.colors.length];
 
       // Upper edge = this layer's cumulative
@@ -246,13 +257,7 @@ export class LineRenderer implements SeriesRenderer {
     }
   }
 
-  private drawPulse(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    color: string,
-    pixelRatio: number,
-  ): void {
+  private drawPulse(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, pixelRatio: number): void {
     const dotRadius = 3 * pixelRatio;
     const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / 600));
     const glowRadius = dotRadius + 4 * pixelRatio * pulse;

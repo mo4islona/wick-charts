@@ -1,18 +1,23 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
-const props = withDefaults(defineProps<{
-  value: number;
-  format?: Intl.NumberFormatOptions;
-  locale?: string;
-  spinDuration?: number;
-}>(), {
-  locale: 'en-US',
-  spinDuration: 350,
-});
+const props = withDefaults(
+  defineProps<{
+    value: number;
+    format?: Intl.NumberFormatOptions;
+    locale?: string;
+    spinDuration?: number;
+  }>(),
+  {
+    locale: 'en-US',
+    spinDuration: 350,
+  },
+);
 
 const mounted = ref(false);
-onMounted(() => { mounted.value = true; });
+onMounted(() => {
+  mounted.value = true;
+});
 
 const formatter = computed(() => new Intl.NumberFormat(props.locale, props.format));
 

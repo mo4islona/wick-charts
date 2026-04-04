@@ -1,41 +1,49 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { ChartInstance, type ChartTheme, type AxisConfig, darkTheme } from '@wick-charts/core';
-  import { initChartContext, initThemeContext } from './context';
+import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
+import { onDestroy, onMount } from 'svelte';
 
-  export let theme: ChartTheme = darkTheme;
-  export let axis: AxisConfig | undefined = undefined;
-  export let style: string = '';
+import { initChartContext, initThemeContext } from './context';
 
-  let containerEl: HTMLDivElement;
+export let theme: ChartTheme = darkTheme;
+export let axis: AxisConfig | undefined = undefined;
+export let style: string = '';
 
-  const chartStore = initChartContext();
-  const themeStore = initThemeContext(theme);
+let containerEl: HTMLDivElement;
 
-  let instance: ChartInstance | null = null;
+const chartStore = initChartContext();
+const themeStore = initThemeContext(theme);
 
-  onMount(() => {
-    const options: any = {};
-    if (axis) options.axis = axis;
-    if (theme) options.theme = theme;
-    instance = new ChartInstance(containerEl, options);
-    chartStore.set(instance);
-  });
+let instance: ChartInstance | null = null;
 
-  onDestroy(() => {
-    instance?.destroy();
-    instance = null;
-    chartStore.set(null);
-  });
+onMount(() => {
+  const options: any = {};
+  if (axis) options.axis = axis;
+  if (theme) options.theme = theme;
+  instance = new ChartInstance(containerEl, options);
+  chartStore.set(instance);
+});
 
-  $: if (instance && theme) {
-    instance.setTheme(theme);
-    themeStore.set(theme);
-  }
+onDestroy(() => {
+  instance?.destroy();
+  instance = null;
+  chartStore.set(null);
+});
 
-  $: if (instance && axis) {
-    instance.setAxis(axis);
-  }
+$: if (instance && theme) {
+  instance.setTheme(theme);
+  themeStore.set(theme);
+}
+
+$: if (instance && axis) {
+  instance.setAxis(axis);
+}
+
+$: gradientBg = (() => {
+  const t = theme;
+  const [gtop, gbot] = t?.chartGradient ?? ['transparent', 'transparent'];
+  const bg = t?.background ?? 'transparent';
+  return `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)`;
+})();
 </script>
 
 <div
@@ -45,6 +53,7 @@
   style:width="100%"
   style:height="100%"
   style:overflow="hidden"
+  style:background={gradientBg}
 >
   {#if $chartStore}
     <div style="position:absolute;inset:0;pointer-events:none;z-index:2">

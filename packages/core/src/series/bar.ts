@@ -41,7 +41,7 @@ export class BarRenderer implements SeriesRenderer {
     if (this.stores.length <= 1) {
       return null; // single store — chart handles it via entry.store
     }
-    const layers = this.stores.map((s) => s.getVisibleData(from, to));
+    const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
 
     if (this.options.stacking === 'off') {
       // Union of all layers' individual ranges
@@ -110,6 +110,8 @@ export class BarRenderer implements SeriesRenderer {
     const isSingleLayer = this.stores.length === 1;
 
     if (isSingleLayer) {
+      if (!this.stores[0].isVisible()) return;
+
       // Single-layer: colors[0] = positive, colors[1] = negative
       const posColor = this.options.colors[0];
       const negColor = this.options.colors.length > 1 ? this.options.colors[1] : posColor;
@@ -129,12 +131,15 @@ export class BarRenderer implements SeriesRenderer {
       }
     } else {
       // Multi-layer: collect per-time, draw tallest first so shorter bars appear in front
-      const layers = this.stores.map((store) => store.getVisibleData(range.from, range.to));
+      const layers = this.stores.map((store) => (store.isVisible() ? store.getVisibleData(range.from, range.to) : []));
       const timeMap = new Map<number, { layer: number; value: number }[]>();
       for (let li = 0; li < layers.length; li++) {
         for (const d of layers[li]) {
           let arr = timeMap.get(d.time);
-          if (!arr) { arr = []; timeMap.set(d.time, arr); }
+          if (!arr) {
+            arr = [];
+            timeMap.set(d.time, arr);
+          }
           arr.push({ layer: li, value: d.value });
         }
       }
@@ -180,16 +185,18 @@ export class BarRenderer implements SeriesRenderer {
     const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
     const halfBody = Math.floor(bodyWidth / 2);
 
-    // Collect all visible data per layer
-    const layers = this.stores.map((store) => store.getVisibleData(range.from, range.to));
+    // Collect all visible data per layer (hidden layers contribute empty data)
+    const layers = this.stores.map((store) =>
+      store.isVisible() ? store.getVisibleData(range.from, range.to) : [],
+    );
     if (layers.every((l) => l.length === 0)) return;
 
-    // Build values per time
+    // Build values per time — hidden layers contribute 0
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
       for (const d of layers[li]) {
         if (!timeMap.has(d.time)) timeMap.set(d.time, new Array(layers.length).fill(0));
-        timeMap.get(d.time)![li] = d.value;
+        timeMap.get(d.time)![li] = this.stores[li].isVisible() ? d.value : 0;
       }
     }
 

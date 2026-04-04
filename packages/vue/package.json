@@ -5,9 +5,18 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "files": ["dist"],
-  "peerDependencies": { "vue": ">=3.3.0" },
-  "dependencies": { "@wick-charts/core": "workspace:*" }
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "vue": ">=3.3.0"
+  },
+  "dependencies": {
+    "@wick-charts/core": "workspace:*"
+  }
 }

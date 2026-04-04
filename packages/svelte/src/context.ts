@@ -1,6 +1,6 @@
-import { getContext, setContext } from 'svelte';
-import { writable, type Readable, type Writable } from 'svelte/store';
 import type { ChartInstance, ChartTheme } from '@wick-charts/core';
+import { getContext, setContext } from 'svelte';
+import { type Readable, type Writable, writable } from 'svelte/store';
 
 const CHART_KEY = Symbol('wick-chart');
 const THEME_KEY = Symbol('wick-theme');

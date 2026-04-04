@@ -6,9 +6,19 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "svelte": "./dist/index.js", "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+    ".": {
+      "svelte": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "files": ["dist"],
-  "peerDependencies": { "svelte": ">=4.0.0" },
-  "dependencies": { "@wick-charts/core": "workspace:*" }
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "svelte": ">=4.0.0"
+  },
+  "dependencies": {
+    "@wick-charts/core": "workspace:*"
+  }
 }

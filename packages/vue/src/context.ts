@@ -1,5 +1,5 @@
-import { inject, type InjectionKey, type ShallowRef } from 'vue';
 import type { ChartInstance, ChartTheme } from '@wick-charts/core';
+import { type InjectionKey, type ShallowRef, inject } from 'vue';
 
 export const ChartKey: InjectionKey<ShallowRef<ChartInstance | null>> = Symbol('wick-chart');
 export const ThemeKey: InjectionKey<ShallowRef<ChartTheme>> = Symbol('wick-theme');

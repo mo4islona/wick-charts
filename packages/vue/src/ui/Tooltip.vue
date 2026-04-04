@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { formatDate, formatTime, type LineData, type OHLCData } from '@wick-charts/core';
+import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
-import { useCrosshairPosition, useLastPrice } from '../composables';
 
 type TooltipSort = 'none' | 'asc' | 'desc';
 
@@ -13,12 +14,15 @@ interface SeriesSnapshot {
   color: string;
 }
 
-const props = withDefaults(defineProps<{
-  seriesId?: string;
-  sort?: TooltipSort;
-}>(), {
-  sort: 'none',
-});
+const props = withDefaults(
+  defineProps<{
+    seriesId?: string;
+    sort?: TooltipSort;
+  }>(),
+  {
+    sort: 'none',
+  },
+);
 
 const chart = useChartInstance();
 const crosshair = useCrosshairPosition(chart);
@@ -29,7 +33,16 @@ const targetIds = computed(() => {
 });
 
 const primaryId = computed(() => targetIds.value[0] ?? '');
-const lastPrice = useLastPrice(chart, primaryId.value);
+const lastY = ref<{ value: number; isLive: boolean } | null>(
+  primaryId.value ? chart.getLastValue(primaryId.value) : null,
+);
+const dataUpdateHandler = () => {
+  const id = primaryId.value;
+  lastY.value = id ? chart.getLastValue(id) : null;
+};
+onMounted(() => chart.on('dataUpdate', dataUpdateHandler));
+onUnmounted(() => chart.off('dataUpdate', dataUpdateHandler));
+watch(primaryId, () => dataUpdateHandler());
 
 const theme = computed(() => chart.getTheme());
 const dataInterval = computed(() => chart.getDataInterval());
@@ -50,42 +63,6 @@ function formatVolume(v: number): string {
   return v.toFixed(0);
 }
 
-const snapshots = computed(() => {
-  // Access reactive dependencies
-  void lastPrice.value;
-
-  const hoverSnapshots: SeriesSnapshot[] = [];
-  if (crosshair.value) {
-    for (const id of targetIds.value) {
-      const d = chart.getDataAtTime(id, crosshair.value.time);
-      if (d) {
-        hoverSnapshots.push({
-          id,
-          label: chart.getSeriesLabel(id),
-          data: d,
-          color: chart.getSeriesColor(id) ?? '#888',
-        });
-      }
-    }
-  }
-
-  const lastSnapshots: SeriesSnapshot[] = [];
-  for (const id of targetIds.value) {
-    const d = chart.getLastData(id);
-    if (d) {
-      lastSnapshots.push({
-        id,
-        label: chart.getSeriesLabel(id),
-        data: d,
-        color: chart.getSeriesColor(id) ?? '#888',
-      });
-    }
-  }
-
-  const raw = hoverSnapshots.length > 0 ? hoverSnapshots : lastSnapshots;
-  return sortSnapshots(raw, props.sort);
-});
-
 const hoverSnapshots = computed(() => {
   if (!crosshair.value) return [];
   const result: SeriesSnapshot[] = [];
@@ -100,7 +77,29 @@ const hoverSnapshots = computed(() => {
       });
     }
   }
-  return sortSnapshots(result, props.sort);
+  return result;
+});
+
+const snapshots = computed(() => {
+  void lastY.value;
+
+  if (hoverSnapshots.value.length > 0) {
+    return sortSnapshots(hoverSnapshots.value, props.sort);
+  }
+
+  const lastSnapshots: SeriesSnapshot[] = [];
+  for (const id of targetIds.value) {
+    const d = chart.getLastData(id);
+    if (d) {
+      lastSnapshots.push({
+        id,
+        label: chart.getSeriesLabel(id),
+        data: d,
+        color: chart.getSeriesColor(id) ?? '#888',
+      });
+    }
+  }
+  return sortSnapshots(lastSnapshots, props.sort);
 });
 
 const displayTime = computed(() => {

@@ -5,8 +5,8 @@ import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import { RenderScheduler } from './render-scheduler';
-import { YScale } from './scales/y-scale';
 import { TimeScale } from './scales/time-scale';
+import { YScale } from './scales/y-scale';
 import { BarRenderer } from './series/bar';
 import { CandlestickRenderer } from './series/candlestick';
 import { LineRenderer } from './series/line';
@@ -34,6 +34,7 @@ interface ChartEvents {
   crosshairMove: (pos: CrosshairPosition | null) => void;
   viewportChange: () => void;
   dataUpdate: () => void;
+  seriesChange: () => void;
 }
 
 /** Options passed when creating a new {@link ChartInstance}. */
@@ -49,6 +50,7 @@ interface SeriesEntry {
   renderer: SeriesRenderer;
   /** Null for non-time-series types like Pie. */
   store: TimeSeriesStore<any> | null;
+  visible: boolean;
 }
 
 let seriesIdCounter = 0;
@@ -74,6 +76,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   private _yBounds: { min?: AxisBound; max?: AxisBound } = {};
   private _hasYLabel = false;
   private _axis: AxisConfig = {};
+  /** Nesting depth for beginUpdate/endUpdate. Suppresses recomputes while > 0. */
+  private _batchDepth = 0;
+  /** True when batched operations include data changes (triggers full onDataChanged on end). */
+  private _batchDataDirty = false;
+  /** True when batched operations include visibility changes (triggers Y-range + redraw on end). */
+  private _batchVisualDirty = false;
 
   get yAxisWidth(): number {
     const y = this._axis.y;
@@ -102,12 +110,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.mainScheduler = new RenderScheduler(() => this.renderMain());
     this.overlayScheduler = new RenderScheduler(() => this.renderOverlay());
 
-    this.interactions = new InteractionHandler(
-      this.canvasManager.canvas,
-      this.viewport,
-      this.timeScale,
-      this.yScale,
-    );
+    this.interactions = new InteractionHandler(this.canvasManager.canvas, this.viewport, this.timeScale, this.yScale);
 
     this.viewport.on('change', () => {
       this.updateScales();
@@ -148,17 +151,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     store.on('update', () => {
       this.onDataChanged();
     });
-    this.series.push({ id, renderer, store });
+    this.series.push({ id, renderer, store, visible: true });
     this.updateViewportPadding();
+    this.emit('seriesChange');
     return id;
   }
 
   /** Add a line series and return its unique ID. */
   addLineSeries(layerCount: number, options?: Partial<LineSeriesOptions>): string {
     const renderer = new LineRenderer(layerCount, {
-      colors: layerCount === 1
-        ? [this.theme.line.color]
-        : this.theme.seriesColors.slice(0, layerCount),
+      colors: layerCount === 1 ? [this.theme.line.color] : this.theme.seriesColors.slice(0, layerCount),
       lineWidth: this.theme.line.width,
       areaFill: true,
       ...options,
@@ -167,8 +169,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.series.push({ id, label: options?.label, renderer, store: renderer.stores[0] });
+    this.series.push({ id, label: options?.label, renderer, store: renderer.stores[0], visible: true });
     this.updateViewportPadding();
+    this.emit('seriesChange');
     return id;
   }
 
@@ -191,8 +194,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.series.push({ id, renderer, store: renderer.stores[0] });
+    this.series.push({ id, renderer, store: renderer.stores[0], visible: true });
     this.updateViewportPadding();
+    this.emit('seriesChange');
     return id;
   }
 
@@ -208,8 +212,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   addPieSeries(options?: Partial<PieSeriesOptions>): string {
     const renderer = new PieRenderer(options);
     const id = `series_${++seriesIdCounter}`;
-    this.series.push({ id, label: options?.label, renderer, store: null });
+    this.series.push({ id, label: options?.label, renderer, store: null, visible: true });
     this.updateViewportPadding();
+    this.emit('seriesChange');
     return id;
   }
 
@@ -230,6 +235,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.series.splice(idx, 1);
       this.updateViewportPadding();
       this.mainScheduler.markDirty();
+      this.emit('seriesChange');
     }
   }
 
@@ -273,6 +279,67 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.mainScheduler.markDirty();
   }
 
+  /** Suppress recomputes until endUpdate(). Calls can nest. */
+  beginUpdate(): void {
+    this._batchDepth++;
+  }
+
+  endUpdate(): void {
+    if (--this._batchDepth <= 0) {
+      this._batchDepth = 0;
+      if (this._batchDataDirty) {
+        this._batchDataDirty = false;
+        this._batchVisualDirty = false;
+        this.onDataChanged();
+      } else if (this._batchVisualDirty) {
+        this._batchVisualDirty = false;
+        this.updateYRange(true);
+        this.mainScheduler.markDirty();
+      }
+    }
+  }
+
+  /** Show or hide a series. Hidden series are not rendered and excluded from Y-range. */
+  setSeriesVisible(seriesId: string, visible: boolean): void {
+    const entry = this.series.find((s) => s.id === seriesId);
+    if (!entry || entry.visible === visible) return;
+    entry.visible = visible;
+    if (this._batchDepth > 0) { this._batchVisualDirty = true; return; }
+    this.updateYRange(true);
+    this.mainScheduler.markDirty();
+  }
+
+  isSeriesVisible(seriesId: string): boolean {
+    return this.series.find((s) => s.id === seriesId)?.visible ?? true;
+  }
+
+  /** Show or hide a specific layer within a multi-layer series. */
+  setLayerVisible(seriesId: string, layerIndex: number, visible: boolean): void {
+    const entry = this.series.find((s) => s.id === seriesId);
+    if (!entry) return;
+    const renderer = entry.renderer;
+    if (renderer instanceof BarRenderer || renderer instanceof LineRenderer) {
+      const store = renderer.stores[layerIndex];
+      if (store) {
+        if (store.isVisible() === visible) return;
+        store.setVisible(visible);
+        if (this._batchDepth > 0) { this._batchVisualDirty = true; return; }
+        this.updateYRange(true);
+        this.mainScheduler.markDirty();
+      }
+    }
+  }
+
+  isLayerVisible(seriesId: string, layerIndex: number): boolean {
+    const entry = this.series.find((s) => s.id === seriesId);
+    if (!entry) return true;
+    const renderer = entry.renderer;
+    if (renderer instanceof BarRenderer || renderer instanceof LineRenderer) {
+      return renderer.stores[layerIndex]?.isVisible() ?? true;
+    }
+    return true;
+  }
+
   /** Auto-fit the viewport to show all data across every series. */
   fitContent(): void {
     const { first, last } = this.getDataBounds();
@@ -292,13 +359,28 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return this.crosshairPos;
   }
 
-  /** Get the most recent value (close for OHLC, value for line) of a series. */
-  getLastPrice(seriesId: string): number | null {
+  /** Get the last visible value and whether the absolute last point is on screen. */
+  getLastValue(seriesId: string): { value: number; isLive: boolean } | null {
     const entry = this.series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
+
     const last = entry.store.last();
     if (!last) return null;
-    return 'close' in last ? (last as OHLCData).close : (last as LineData).value;
+
+    const extractValue = (p: any): number =>
+      'close' in p ? (p as OHLCData).close : (p as LineData).value;
+
+    const { from, to } = this.viewport.visibleRange;
+
+    // Absolute last is on screen
+    if (last.time >= from && last.time <= to) {
+      return { value: extractValue(last), isLive: true };
+    }
+
+    // Find the last visible point
+    const visible = entry.store.getVisibleData(from, to);
+    if (visible.length === 0) return null;
+    return { value: extractValue(visible[visible.length - 1]), isLive: false };
   }
 
   /** Get the second-to-last value, useful for computing change. */
@@ -338,7 +420,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Get all layers' data at a given time for multi-layer series (Bar/Line with stacking). */
   getLayerSnapshots(seriesId: string, time: number): { value: number; color: string }[] | null {
     const entry = this.series.find((s) => s.id === seriesId);
-    if (!entry) return null;
+    if (!entry || !entry.visible) return null;
     const renderer = entry.renderer;
     if (!(renderer instanceof BarRenderer) && !(renderer instanceof LineRenderer)) return null;
     if (renderer.stores.length <= 1) return null;
@@ -346,13 +428,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const colors = (renderer as BarRenderer | LineRenderer).getColors();
     const results: { value: number; color: string }[] = [];
     for (let li = 0; li < renderer.stores.length; li++) {
+      if (!renderer.stores[li].isVisible()) continue;
       const data = renderer.stores[li].getVisibleData(time - this.dataInterval, time + this.dataInterval);
       if (data.length === 0) continue;
       let closest = data[0];
       let minDist = Math.abs(data[0].time - time);
       for (let i = 1; i < data.length; i++) {
         const dist = Math.abs(data[i].time - time);
-        if (dist < minDist) { minDist = dist; closest = data[i]; }
+        if (dist < minDist) {
+          minDist = dist;
+          closest = data[i];
+        }
       }
       results.push({
         value: closest.value,
@@ -378,6 +464,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   getSeriesLabel(seriesId: string): string | undefined {
     return this.series.find((s) => s.id === seriesId)?.label;
+  }
+
+  /** Get per-layer colors for a series. Returns null for non-bar/line series (e.g. candlestick, pie). */
+  getSeriesLayers(seriesId: string): { color: string }[] | null {
+    const entry = this.series.find((s) => s.id === seriesId);
+    if (!entry) return null;
+    const renderer = entry.renderer;
+    if (!(renderer instanceof BarRenderer) && !(renderer instanceof LineRenderer)) return null;
+    const colors = renderer.getColors();
+    return renderer.stores.map((_, i) => ({
+      color: colors[i % colors.length],
+    }));
+  }
+
+  /** Get all pie slices with computed colors and percentages. Returns null for non-pie series. */
+  getPieSlices(seriesId: string): { label: string; value: number; percent: number; color: string }[] | null {
+    const entry = this.series.find((s) => s.id === seriesId);
+    if (!entry || !(entry.renderer instanceof PieRenderer)) return null;
+    const data = entry.renderer.getData();
+    if (data.length === 0) return null;
+    const total = data.reduce((sum, d) => sum + d.value, 0);
+    const palette = this.theme.seriesColors;
+    return data.map((d, i) => ({
+      label: d.label,
+      value: d.value,
+      percent: total > 0 ? (d.value / total) * 100 : 0,
+      color: d.color ?? palette[i % palette.length],
+    }));
   }
 
   /** Get the hovered pie slice info (label, value, percentage, color). Returns null if no hover. */
@@ -465,7 +579,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.updateViewportPadding();
   }
 
-
   private updatePieHover(pos: CrosshairPosition | null): void {
     const size = this.canvasManager.size;
     for (const entry of this.series) {
@@ -501,6 +614,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     let first: number | undefined;
     let last: number | undefined;
     for (const entry of this.series) {
+      if (!entry.visible) continue;
       if (!entry.store) continue;
       const f = entry.store.first();
       const l = entry.store.last();
@@ -513,6 +627,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   private prevDataLength = 0;
 
   private onDataChanged(): void {
+    if (this._batchDepth > 0) {
+      this._batchDataDirty = true;
+      return;
+    }
+
     this.updateDataInterval();
 
     const { first, last } = this.getDataBounds();
@@ -528,12 +647,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const isBatchLoad = added > 5;
     this.prevDataLength = totalLength;
 
-    if (this.viewport.autoScroll && first !== undefined && last !== undefined) {
-      if (this.viewport.visibleRange.from === 0 && this.viewport.visibleRange.to === 0) {
+    if (first !== undefined && last !== undefined) {
+      const { from, to } = this.viewport.visibleRange;
+      const uninitialized = from === 0 && to === 0;
+
+      if (uninitialized) {
+        // First data load — fit immediately
         this.viewport.fitToData(first, last, false);
-      } else if (isBatchLoad) {
+      } else if (isBatchLoad && this.viewport.autoScroll) {
         this.viewport.fitToData(first, last, true);
-      } else {
+      } else if (!isBatchLoad && this.isLastPointVisible()) {
+        // Realtime tick: only scroll if the last point is currently on screen
         this.viewport.scrollToEnd(last);
       }
     }
@@ -543,6 +667,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     this.mainScheduler.markDirty();
     this.emit('dataUpdate');
+  }
+
+  /** Check whether the last data point of any series falls within the visible time range. */
+  private isLastPointVisible(): boolean {
+    const { from, to } = this.viewport.visibleRange;
+    for (const entry of this.series) {
+      if (!entry.visible) continue;
+      if (!entry.store) continue;
+      const last = entry.store.last();
+      if (last && last.time >= from && last.time <= to) return true;
+    }
+    return false;
   }
 
   private updateDataInterval(): void {
@@ -569,6 +705,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const allValues: number[] = [];
 
     for (const entry of this.series) {
+      if (!entry.visible) continue;
+
       // If the renderer provides a custom value range (e.g. stacked totals), use it
       if (entry.renderer.getValueRange) {
         const r = entry.renderer.getValueRange(range.from, range.to);
@@ -676,14 +814,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
 
-      // Full canvas gradient background
-      const [gtop, gbot] = this.theme.chartGradient;
-      const bgGrad = context.createLinearGradient(0, 0, 0, bitmapSize.height);
-      bgGrad.addColorStop(0, gtop);
-      bgGrad.addColorStop(0.7, this.theme.background);
-      bgGrad.addColorStop(1, gbot);
-      context.fillStyle = bgGrad;
-      context.fillRect(0, 0, bitmapSize.width, bitmapSize.height);
+      // Clear canvas (background gradient is applied via CSS on the container)
+      context.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
 
       context.save();
       context.beginPath();
@@ -693,6 +825,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       renderGrid(scope, this.timeScale, this.yScale, this.theme, this.dataInterval);
 
       for (const entry of this.series) {
+        if (!entry.visible) continue;
         entry.renderer.render({
           scope,
           timeScale: this.timeScale,
@@ -742,6 +875,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
       // Draw nearest-point dots for line series
       for (const entry of this.series) {
+        if (!entry.visible) continue;
         if (entry.renderer instanceof LineRenderer) {
           const renderer = entry.renderer as LineRenderer;
           const colors = renderer.getColors();
@@ -756,12 +890,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
               this.crosshairPos!.time - this.dataInterval,
               this.crosshairPos!.time + this.dataInterval,
             );
-            if (storeData.length === 0) { layerValues.push(0); layerTimes.push(0); continue; }
+            if (storeData.length === 0) {
+              layerValues.push(0);
+              layerTimes.push(0);
+              continue;
+            }
             let closest = storeData[0];
             let minDist = Math.abs(storeData[0].time - this.crosshairPos!.time);
             for (let i = 1; i < storeData.length; i++) {
               const dist = Math.abs(storeData[i].time - this.crosshairPos!.time);
-              if (dist < minDist) { minDist = dist; closest = storeData[i]; }
+              if (dist < minDist) {
+                minDist = dist;
+                closest = storeData[i];
+              }
             }
             layerValues.push(closest.value);
             layerTimes.push(closest.time);
@@ -785,6 +926,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
           for (let li = 0; li < renderer.stores.length; li++) {
             if (layerTimes[li] === 0) continue;
+            if (!renderer.stores[li].isVisible()) continue;
             const color = colors[li % colors.length];
             const px = this.timeScale.timeToBitmapX(layerTimes[li]);
             const py = this.yScale.valueToBitmapY(displayValues[li]);
