@@ -1,5 +1,5 @@
+import type { ChartInstance, CrosshairPosition, VisibleRange, YRange } from '@wick-charts/core';
 import { readable } from 'svelte/store';
-import type { ChartInstance, CrosshairPosition, YRange, VisibleRange } from '@wick-charts/core';
 
 export function createVisibleRange(chart: ChartInstance) {
   return readable<VisibleRange>(chart.getVisibleRange(), (set) => {
@@ -17,11 +17,22 @@ export function createYRange(chart: ChartInstance) {
   });
 }
 
-export function createLastPrice(chart: ChartInstance, seriesId: string) {
-  return readable<number | null>(chart.getLastPrice(seriesId), (set) => {
-    const handler = () => set(chart.getLastPrice(seriesId));
+export function createLastYValue(chart: ChartInstance, seriesId: string) {
+  let currentValue = chart.getLastValue(seriesId);
+  return readable<{ value: number; isLive: boolean } | null>(currentValue, (set) => {
+    const handler = () => {
+      const next = chart.getLastValue(seriesId);
+      const prev = currentValue;
+      if (prev?.value === next?.value && prev?.isLive === next?.isLive) return;
+      currentValue = next;
+      set(next);
+    };
     chart.on('dataUpdate', handler);
-    return () => chart.off('dataUpdate', handler);
+    chart.on('viewportChange', handler);
+    return () => {
+      chart.off('dataUpdate', handler);
+      chart.off('viewportChange', handler);
+    };
   });
 }
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { LineData, OHLCData } from '@wick-charts/react';
+
 import { LineStreamingSource, StreamingSource } from './data';
 
 const BATCH_SIZE = 50;

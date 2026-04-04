@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useChartInstance } from '../context';
+
 import { useVisibleRange } from '../composables';
+import { useChartInstance } from '../context';
 
 interface TrackedTick {
   opacity: number;

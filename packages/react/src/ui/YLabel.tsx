@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 
 import { useChartInstance } from '../context';
-import { useLastPrice, usePreviousClose } from '../store-bridge';
-
+import { useLastYValue, usePreviousClose } from '../store-bridge';
 import { NumberFlow } from './NumberFlow';
 
 export interface YLabelProps {
@@ -19,24 +18,27 @@ export function YLabel({ seriesId, color }: YLabelProps) {
     chart.setYLabel(true);
     return () => chart.setYLabel(false);
   }, [chart]);
-  const lastPrice = useLastPrice(chart, seriesId);
+  const last = useLastYValue(chart, seriesId);
   const previousClose = usePreviousClose(chart, seriesId);
 
-  if (lastPrice === null) return null;
+  if (!last) return null;
 
+  const { value, isLive } = last;
   const theme = chart.getTheme();
-  const y = chart.yScale.valueToY(lastPrice);
+  const y = chart.yScale.valueToY(value);
 
   let bgColor: string;
-  if (color) {
+  if (!isLive) {
+    bgColor = theme.axis.textColor;
+  } else if (color) {
     bgColor = color;
   } else {
     const direction =
       previousClose === null
         ? 'neutral'
-        : lastPrice > previousClose
+        : value > previousClose
           ? 'up'
-          : lastPrice < previousClose
+          : value < previousClose
             ? 'down'
             : 'neutral';
     bgColor =
@@ -87,7 +89,7 @@ export function YLabel({ seriesId, color }: YLabelProps) {
         }}
       >
         <NumberFlow
-          value={lastPrice}
+          value={value}
           format={{ minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits, useGrouping: false }}
           spinDuration={350}
         />

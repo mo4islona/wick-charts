@@ -1,9 +1,9 @@
-import { detectInterval, niceTimeIntervals } from '../utils/time';
 import type { VisibleRange } from '../types';
+import { detectInterval, niceTimeIntervals } from '../utils/time';
 
 export class TimeScale {
   private from = 0;
-  private to = 1;
+  private to = 0;
   private width = 1;
   private pixelRatio = 1;
 
@@ -15,6 +15,7 @@ export class TimeScale {
   }
 
   timeToX(time: number): number {
+    if (this.to <= this.from) return 0;
     return ((time - this.from) / (this.to - this.from)) * this.width;
   }
 
@@ -23,14 +24,17 @@ export class TimeScale {
   }
 
   xToTime(x: number): number {
+    if (this.to <= this.from) return this.from;
     return this.from + (x / this.width) * (this.to - this.from);
   }
 
   pixelDeltaToTimeDelta(pixelDelta: number): number {
+    if (this.to <= this.from) return 0;
     return (pixelDelta / this.width) * (this.to - this.from);
   }
 
   barWidthMedia(dataInterval: number): number {
+    if (this.to <= this.from) return 0;
     return (dataInterval / (this.to - this.from)) * this.width;
   }
 
@@ -39,6 +43,7 @@ export class TimeScale {
   }
 
   niceTickValues(dataInterval: number): { ticks: number[]; tickInterval: number } {
+    if (this.to <= this.from) return { ticks: [], tickInterval: 0 };
     const intervals = niceTimeIntervals(dataInterval);
     const minPixelSpacing = 80;
     const timePerPixel = (this.to - this.from) / this.width;

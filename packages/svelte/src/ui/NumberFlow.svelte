@@ -1,39 +1,39 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+import { onMount } from 'svelte';
 
-  export let value: number;
-  export let format: Intl.NumberFormatOptions | undefined = undefined;
-  export let locale: string = 'en-US';
-  export let spinDuration: number = 350;
+export let value: number;
+export let format: Intl.NumberFormatOptions | undefined = undefined;
+export let locale: string = 'en-US';
+export let spinDuration: number = 350;
 
-  const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
-  interface CharPart {
-    type: 'digit' | 'symbol';
-    value: string;
-  }
+interface CharPart {
+  type: 'digit' | 'symbol';
+  value: string;
+}
 
-  let mounted = false;
+let mounted = false;
 
-  onMount(() => {
-    mounted = true;
-  });
+onMount(() => {
+  mounted = true;
+});
 
-  function decompose(formatted: string): CharPart[] {
-    const parts: CharPart[] = [];
-    for (const char of formatted) {
-      if (char >= '0' && char <= '9') {
-        parts.push({ type: 'digit', value: char });
-      } else {
-        parts.push({ type: 'symbol', value: char });
-      }
+function decompose(formatted: string): CharPart[] {
+  const parts: CharPart[] = [];
+  for (const char of formatted) {
+    if (char >= '0' && char <= '9') {
+      parts.push({ type: 'digit', value: char });
+    } else {
+      parts.push({ type: 'symbol', value: char });
     }
-    return parts;
   }
+  return parts;
+}
 
-  $: formatter = new Intl.NumberFormat(locale, format);
-  $: formatted = formatter.format(value);
-  $: parts = decompose(formatted);
+$: formatter = new Intl.NumberFormat(locale, format);
+$: formatted = formatter.format(value);
+$: parts = decompose(formatted);
 </script>
 
 <span

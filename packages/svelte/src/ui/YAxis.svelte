@@ -1,64 +1,65 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import type { ChartInstance } from '@wick-charts/core';
-  import { getChartContext } from '../context';
-  import { createYRange } from '../stores';
+import type { ChartInstance } from '@wick-charts/core';
+import { onDestroy } from 'svelte';
 
-  interface TrackedTick {
-    opacity: number;
-    addedAt: number;
+import { getChartContext } from '../context';
+import { createYRange } from '../stores';
+
+interface TrackedTick {
+  opacity: number;
+  addedAt: number;
+}
+
+const chartStore = getChartContext();
+const tickMap = new Map<number, TrackedTick>();
+
+let yRangeUnsub: (() => void) | null = null;
+let allTicks: [number, TrackedTick][] = [];
+
+$: {
+  const chart = $chartStore;
+  if (chart && !yRangeUnsub) {
+    const yRangeStore = createYRange(chart);
+    yRangeUnsub = yRangeStore.subscribe(() => {
+      updateTicks(chart);
+    });
+  }
+}
+
+function updateTicks(chart: ChartInstance) {
+  const currentTicks = chart.yScale.niceTickValues();
+  const currentSet = new Set(currentTicks);
+  const now = performance.now();
+
+  for (const p of currentTicks) {
+    if (!tickMap.has(p)) {
+      tickMap.set(p, { opacity: 1, addedAt: now });
+    } else {
+      tickMap.get(p)!.opacity = 1;
+    }
   }
 
-  const chartStore = getChartContext();
-  const tickMap = new Map<number, TrackedTick>();
-
-  let yRangeUnsub: (() => void) | null = null;
-  let allTicks: [number, TrackedTick][] = [];
-
-  $: {
-    const chart = $chartStore;
-    if (chart && !yRangeUnsub) {
-      const yRangeStore = createYRange(chart);
-      yRangeUnsub = yRangeStore.subscribe(() => {
-        updateTicks(chart);
-      });
+  for (const [p, entry] of tickMap) {
+    if (!currentSet.has(p)) {
+      entry.opacity = 0;
     }
   }
 
-  function updateTicks(chart: ChartInstance) {
-    const currentTicks = chart.yScale.niceTickValues();
-    const currentSet = new Set(currentTicks);
-    const now = performance.now();
-
-    for (const p of currentTicks) {
-      if (!tickMap.has(p)) {
-        tickMap.set(p, { opacity: 1, addedAt: now });
-      } else {
-        tickMap.get(p)!.opacity = 1;
-      }
+  for (const [p, entry] of tickMap) {
+    if (entry.opacity === 0 && now - entry.addedAt > 5000) {
+      tickMap.delete(p);
     }
-
-    for (const [p, entry] of tickMap) {
-      if (!currentSet.has(p)) {
-        entry.opacity = 0;
-      }
-    }
-
-    for (const [p, entry] of tickMap) {
-      if (entry.opacity === 0 && now - entry.addedAt > 5000) {
-        tickMap.delete(p);
-      }
-    }
-
-    allTicks = Array.from(tickMap.entries());
   }
 
-  onDestroy(() => {
-    yRangeUnsub?.();
-  });
+  allTicks = Array.from(tickMap.entries());
+}
 
-  $: chart = $chartStore;
-  $: theme = chart?.getTheme();
+onDestroy(() => {
+  yRangeUnsub?.();
+});
+
+$: chart = $chartStore;
+$: theme = chart?.getTheme();
 </script>
 
 {#if chart && theme}

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue';
+
+import { useLastYValue, usePreviousClose } from '../composables';
 import { useChartInstance } from '../context';
-import { useLastPrice, usePreviousClose } from '../composables';
 import NumberFlow from './NumberFlow.vue';
 
 const props = defineProps<{
@@ -10,7 +11,7 @@ const props = defineProps<{
 }>();
 
 const chart = useChartInstance();
-const lastPrice = useLastPrice(chart, props.seriesId);
+const lastY = useLastYValue(chart, props.seriesId);
 const previousClose = usePreviousClose(chart, props.seriesId);
 
 onMounted(() => chart.setYLabel(true));
@@ -19,18 +20,18 @@ onUnmounted(() => chart.setYLabel(false));
 const theme = computed(() => chart.getTheme());
 
 const y = computed(() => {
-  if (lastPrice.value === null) return 0;
-  return chart.yScale.valueToY(lastPrice.value);
+  if (lastY.value === null) return 0;
+  return chart.yScale.valueToY(lastY.value);
 });
 
 const bgColor = computed(() => {
   if (props.color) return props.color;
   const t = theme.value;
-  if (previousClose.value === null || lastPrice.value === null) {
+  if (previousClose.value === null || lastY.value === null) {
     return t.yLabel.neutralBackground;
   }
-  if (lastPrice.value > previousClose.value) return t.yLabel.upBackground;
-  if (lastPrice.value < previousClose.value) return t.yLabel.downBackground;
+  if (lastY.value > previousClose.value) return t.yLabel.upBackground;
+  if (lastY.value < previousClose.value) return t.yLabel.downBackground;
   return t.yLabel.neutralBackground;
 });
 
@@ -51,7 +52,7 @@ const numberFormat = computed(() => ({
 </script>
 
 <template>
-  <template v-if="lastPrice !== null">
+  <template v-if="lastY !== null">
     <!-- Horizontal dashed line -->
     <div
       :style="{
@@ -86,7 +87,7 @@ const numberFormat = computed(() => ({
       }"
     >
       <NumberFlow
-        :value="lastPrice"
+        :value="lastY"
         :format="numberFormat"
         :spin-duration="350"
       />

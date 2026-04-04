@@ -8,13 +8,23 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  Legend,
   type LineData,
   Tooltip,
   XAxis,
   YAxis,
 } from '@wick-charts/react';
+
 import { Cell } from '../components/Cell';
-import { BoundInput, HighlightedCode, NumberInput, SectionLabel, Select, Switch, ToggleGroup } from '../components/controls';
+import {
+  BoundInput,
+  HighlightedCode,
+  NumberInput,
+  SectionLabel,
+  Select,
+  Switch,
+  ToggleGroup,
+} from '../components/controls';
 import { generateBarData } from '../data';
 import { useLineStreams } from '../hooks';
 
@@ -106,10 +116,11 @@ function MultiBarChart({
           stacking,
         }}
       />
-      <Tooltip />
+      <Tooltip legend={false} />
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
+      <Legend />
     </ChartContainer>
   );
 }
@@ -173,10 +184,13 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
     return theme;
   }, [theme, gridStyle]);
 
-  const axis = useMemo<AxisConfig>(() => ({
-    y: { width: yAxisWidth, min: parseBound(minBound), max: parseBound(maxBound), visible: showYAxis },
-    x: { height: xAxisHeight, visible: showXAxis },
-  }), [yAxisWidth, xAxisHeight, minBound, maxBound, showYAxis, showXAxis]);
+  const axis = useMemo<AxisConfig>(
+    () => ({
+      y: { width: yAxisWidth, min: parseBound(minBound), max: parseBound(maxBound), visible: showYAxis },
+      x: { height: xAxisHeight, visible: showXAxis },
+    }),
+    [yAxisWidth, xAxisHeight, minBound, maxBound, showYAxis, showXAxis],
+  );
 
   const barWidthRatio = BAR_WIDTH_MAP[barWidth];
   const streaming = streamMode === 'realtime';
@@ -191,10 +205,25 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
       {/* Charts */}
       <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 6 }}>
         <Cell label="Single" sub="Up/Down" theme={chartTheme}>
-          <SingleBarChart key={`single-${streamMode}`} theme={chartTheme} data={singleData} streaming={streaming} barWidthRatio={barWidthRatio} axis={axis} />
+          <SingleBarChart
+            key={`single-${streamMode}`}
+            theme={chartTheme}
+            data={singleData}
+            streaming={streaming}
+            barWidthRatio={barWidthRatio}
+            axis={axis}
+          />
         </Cell>
         <Cell label={stackingLabel} sub={`${LAYER_COUNT} layers`} theme={chartTheme}>
-          <MultiBarChart key={`multi-${streamMode}-${stacking}`} theme={chartTheme} layers={layers} streaming={streaming} barWidthRatio={barWidthRatio} stacking={stacking} axis={axis} />
+          <MultiBarChart
+            key={`multi-${streamMode}-${stacking}`}
+            theme={chartTheme}
+            layers={layers}
+            streaming={streaming}
+            barWidthRatio={barWidthRatio}
+            stacking={stacking}
+            axis={axis}
+          />
         </Cell>
       </div>
 
@@ -211,10 +240,48 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             background: theme.tooltip.background,
           }}
         >
-          <ToggleGroup label="Stacking" options={[{ value: 'off', label: 'Off' }, { value: 'normal', label: 'Normal' }, { value: 'percent', label: '100%' }]} value={stacking} onChange={(v) => setStacking(v as BarStacking)} theme={theme} />
-          <Switch label="Live" checked={streaming} onChange={(v) => setStreamMode(v ? 'realtime' : 'static')} theme={theme} accentColor={theme.candlestick.upColor} />
-          <ToggleGroup label="Width" options={[{ value: 'thin', label: 'Thin' }, { value: 'normal', label: 'Normal' }, { value: 'wide', label: 'Wide' }]} value={barWidth} onChange={(v) => setBarWidth(v as BarWidth)} theme={theme} accentColor={theme.seriesColors[1]} />
-          <Select label="Grid" options={[{ value: 'dashed', label: 'Dashed' }, { value: 'solid', label: 'Solid' }, { value: 'dotted', label: 'Dotted' }, { value: 'none', label: 'None' }]} value={gridStyle} onChange={(v) => setGridStyle(v as GridStyle)} theme={theme} />
+          <ToggleGroup
+            label="Stacking"
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'normal', label: 'Normal' },
+              { value: 'percent', label: '100%' },
+            ]}
+            value={stacking}
+            onChange={(v) => setStacking(v as BarStacking)}
+            theme={theme}
+          />
+          <Switch
+            label="Live"
+            checked={streaming}
+            onChange={(v) => setStreamMode(v ? 'realtime' : 'static')}
+            theme={theme}
+            accentColor={theme.candlestick.upColor}
+          />
+          <ToggleGroup
+            label="Width"
+            options={[
+              { value: 'thin', label: 'Thin' },
+              { value: 'normal', label: 'Normal' },
+              { value: 'wide', label: 'Wide' },
+            ]}
+            value={barWidth}
+            onChange={(v) => setBarWidth(v as BarWidth)}
+            theme={theme}
+            accentColor={theme.seriesColors[1]}
+          />
+          <Select
+            label="Grid"
+            options={[
+              { value: 'dashed', label: 'Dashed' },
+              { value: 'solid', label: 'Solid' },
+              { value: 'dotted', label: 'Dotted' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={gridStyle}
+            onChange={(v) => setGridStyle(v as GridStyle)}
+            theme={theme}
+          />
           <SectionLabel theme={theme}>Axes</SectionLabel>
           <Switch label="Y Axis" checked={showYAxis} onChange={setShowYAxis} theme={theme} />
           <Switch label="X Axis" checked={showXAxis} onChange={setShowXAxis} theme={theme} />
@@ -223,8 +290,24 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             <BoundInput label="Y Max" value={maxBound} onChange={setMaxBound} theme={theme} />
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <NumberInput label="Y Width" value={yAxisWidth} onChange={setYAxisWidth} min={20} max={120} step={5} theme={theme} />
-            <NumberInput label="X Height" value={xAxisHeight} onChange={setXAxisHeight} min={15} max={60} step={5} theme={theme} />
+            <NumberInput
+              label="Y Width"
+              value={yAxisWidth}
+              onChange={setYAxisWidth}
+              min={20}
+              max={120}
+              step={5}
+              theme={theme}
+            />
+            <NumberInput
+              label="X Height"
+              value={xAxisHeight}
+              onChange={setXAxisHeight}
+              min={15}
+              max={60}
+              step={5}
+              theme={theme}
+            />
           </div>
         </div>
         <CodePreview theme={theme} stacking={stacking} barWidthRatio={barWidthRatio} />

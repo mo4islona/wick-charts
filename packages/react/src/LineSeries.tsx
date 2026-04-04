@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { LineData, LineSeriesOptions } from '@wick-charts/core';
+
 import { useChartInstance } from './context';
 
 export interface LineSeriesProps {
@@ -28,9 +29,11 @@ export function LineSeries({ data, options, label, onSeriesId }: LineSeriesProps
   useEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
+    chart.beginUpdate();
     for (let i = 0; i < data.length; i++) {
       chart.setLineLayerData(id, i, data[i]);
     }
+    chart.endUpdate();
   }, [chart, data]);
 
   useEffect(() => {

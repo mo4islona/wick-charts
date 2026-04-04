@@ -1,52 +1,53 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
-  import { getChartContext } from '../context';
-  import { createCrosshairPosition } from '../stores';
+import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
+import { onDestroy } from 'svelte';
 
-  export let seriesId: string;
+import { getChartContext } from '../context';
+import { createCrosshairPosition } from '../stores';
 
-  const chartStore = getChartContext();
-  let crosshair: CrosshairPosition | null = null;
-  let crosshairUnsub: (() => void) | null = null;
+export let seriesId: string;
 
-  $: {
-    const chart = $chartStore;
-    if (chart && !crosshairUnsub) {
-      const posStore = createCrosshairPosition(chart);
-      crosshairUnsub = posStore.subscribe((v) => {
-        crosshair = v;
-      });
-    }
+const chartStore = getChartContext();
+let crosshair: CrosshairPosition | null = null;
+let crosshairUnsub: (() => void) | null = null;
+
+$: {
+  const chart = $chartStore;
+  if (chart && !crosshairUnsub) {
+    const posStore = createCrosshairPosition(chart);
+    crosshairUnsub = posStore.subscribe((v) => {
+      crosshair = v;
+    });
   }
+}
 
-  onDestroy(() => {
-    crosshairUnsub?.();
-  });
+onDestroy(() => {
+  crosshairUnsub?.();
+});
 
-  $: chart = $chartStore;
-  $: theme = chart?.getTheme();
-  $: info = chart ? chart.getPieHoverInfo(seriesId) : null;
-  $: mediaSize = chart?.getMediaSize();
+$: chart = $chartStore;
+$: theme = chart?.getTheme();
+$: info = chart ? chart.getPieHoverInfo(seriesId) : null;
+$: mediaSize = chart?.getMediaSize();
 
-  $: tooltipPos = (() => {
-    if (!crosshair || !mediaSize) return { left: 0, top: 0 };
-    const tooltipWidth = 160;
-    const tooltipHeight = 70;
-    const offsetX = 16;
-    const offsetY = 16;
+$: tooltipPos = (() => {
+  if (!crosshair || !mediaSize) return { left: 0, top: 0 };
+  const tooltipWidth = 160;
+  const tooltipHeight = 70;
+  const offsetX = 16;
+  const offsetY = 16;
 
-    const left =
-      crosshair.mediaX + offsetX + tooltipWidth > mediaSize.width
-        ? crosshair.mediaX - offsetX - tooltipWidth
-        : crosshair.mediaX + offsetX;
-    const top =
-      crosshair.mediaY + offsetY + tooltipHeight > mediaSize.height
-        ? crosshair.mediaY - offsetY - tooltipHeight
-        : crosshair.mediaY + offsetY;
+  const left =
+    crosshair.mediaX + offsetX + tooltipWidth > mediaSize.width
+      ? crosshair.mediaX - offsetX - tooltipWidth
+      : crosshair.mediaX + offsetX;
+  const top =
+    crosshair.mediaY + offsetY + tooltipHeight > mediaSize.height
+      ? crosshair.mediaY - offsetY - tooltipHeight
+      : crosshair.mediaY + offsetY;
 
-    return { left, top };
-  })();
+  return { left, top };
+})();
 </script>
 
 {#if info && crosshair && theme}

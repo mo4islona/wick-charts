@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
+
 import { useChartInstance } from './context';
 
 export interface PieSeriesProps {
@@ -28,7 +29,14 @@ export function PieSeries({ data, options, onSeriesId }: PieSeriesProps) {
     if (seriesRef.current && options) {
       chart.updateSeriesOptions(seriesRef.current, options);
     }
-  }, [chart, options?.innerRadiusRatio, options?.padAngle, options?.strokeColor, options?.strokeWidth, options?.colors]);
+  }, [
+    chart,
+    options?.innerRadiusRatio,
+    options?.padAngle,
+    options?.strokeColor,
+    options?.strokeWidth,
+    options?.colors,
+  ]);
 
   useEffect(() => {
     if (seriesRef.current && data.length > 0) {

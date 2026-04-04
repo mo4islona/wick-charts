@@ -1,6 +1,6 @@
-import { lerp } from './utils/math';
 import { EventEmitter } from './events';
-import type { YRange, VisibleRange } from './types';
+import type { VisibleRange, YRange } from './types';
+import { lerp } from './utils/math';
 
 interface ViewportEvents {
   change: () => void;
@@ -204,13 +204,18 @@ export class Viewport extends EventEmitter<ViewportEvents> {
 
   /** Keep the right edge pinned to the latest data (real-time auto-scroll). */
   scrollToEnd(lastTime: number): void {
-    // Don't interrupt a running animation — let it finish
-    if (this._animating) return;
-
     const range = this._visibleRange.to - this._visibleRange.from;
     const pr = this.dataInterval * this.options.padRight;
+    const targetTo = lastTime + pr;
+    const targetFrom = targetTo - range;
     this._autoScroll = true;
-    this.applyRange(lastTime + pr - range, lastTime + pr);
+
+    if (this._animating) {
+      // Update animation target without restarting
+      this.animTo = { from: targetFrom, to: targetTo };
+    } else {
+      this.animateTo(targetFrom, targetTo, 150);
+    }
   }
 
   /** Return the number of data bars (candles/points) currently visible. */

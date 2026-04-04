@@ -7,12 +7,7 @@ import type { ChartInstance } from '../chart';
  *
  * Returns the new prevLen to be stored for the next call.
  */
-export function syncSeriesData(
-  chart: ChartInstance,
-  id: string,
-  data: { time: number }[],
-  prevLen: number,
-): number {
+export function syncSeriesData(chart: ChartInstance, id: string, data: { time: number }[], prevLen: number): number {
   if (data.length === 0) return prevLen;
 
   if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {

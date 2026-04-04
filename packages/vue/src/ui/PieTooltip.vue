@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useChartInstance } from '../context';
+
 import { useCrosshairPosition } from '../composables';
+import { useChartInstance } from '../context';
 
 const props = defineProps<{
   seriesId: string;

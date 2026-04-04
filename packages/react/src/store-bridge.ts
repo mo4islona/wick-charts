@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-import type { ChartInstance, CrosshairPosition, YRange, VisibleRange } from '@wick-charts/core';
+import type { ChartInstance, CrosshairPosition, VisibleRange, YRange } from '@wick-charts/core';
 
 function createStore<T>(
   chart: ChartInstance,
@@ -26,8 +26,29 @@ export function useYRange(chart: ChartInstance): YRange {
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 
-export function useLastPrice(chart: ChartInstance, seriesId: string): number | null {
-  const store = useMemo(() => createStore(chart, 'dataUpdate', () => chart.getLastPrice(seriesId)), [chart, seriesId]);
+export function useLastYValue(chart: ChartInstance, seriesId: string): { value: number; isLive: boolean } | null {
+  const store = useMemo(() => {
+    let snapshot = chart.getLastValue(seriesId);
+    const getSnapshot = () => snapshot;
+    return {
+      subscribe: (callback: () => void) => {
+        const update = () => {
+          const next = chart.getLastValue(seriesId);
+          // Skip re-render if value/isLive unchanged
+          if (snapshot?.value === next?.value && snapshot?.isLive === next?.isLive) return;
+          snapshot = next;
+          callback();
+        };
+        chart.on('dataUpdate', update);
+        chart.on('viewportChange', update);
+        return () => {
+          chart.off('dataUpdate', update);
+          chart.off('viewportChange', update);
+        };
+      },
+      getSnapshot,
+    };
+  }, [chart, seriesId]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }
 

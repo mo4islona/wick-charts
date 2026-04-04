@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue';
 import type { LineData, LineSeriesOptions } from '@wick-charts/core';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+
 import { useChartInstance } from './context';
 
 const props = defineProps<{
@@ -24,18 +25,27 @@ onUnmounted(() => {
   if (seriesId.value) chart.removeSeries(seriesId.value);
 });
 
-watch(() => props.data, (data) => {
-  if (!seriesId.value) return;
-  for (let i = 0; i < data.length; i++) {
-    chart.setLineLayerData(seriesId.value, i, data[i]);
-  }
-});
+watch(
+  () => props.data,
+  (data) => {
+    if (!seriesId.value) return;
+    chart.beginUpdate();
+    for (let i = 0; i < data.length; i++) {
+      chart.setLineLayerData(seriesId.value, i, data[i]);
+    }
+    chart.endUpdate();
+  },
+);
 
-watch(() => props.options, (options) => {
-  if (seriesId.value && options) {
-    chart.updateSeriesOptions(seriesId.value, options);
-  }
-}, { deep: true });
+watch(
+  () => props.options,
+  (options) => {
+    if (seriesId.value && options) {
+      chart.updateSeriesOptions(seriesId.value, options);
+    }
+  },
+  { deep: true },
+);
 </script>
 
 <template><span v-if="false" /></template>

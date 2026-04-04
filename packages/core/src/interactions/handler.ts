@@ -1,6 +1,6 @@
 import { EventEmitter } from '../events';
-import type { YScale } from '../scales/y-scale';
 import type { TimeScale } from '../scales/time-scale';
+import type { YScale } from '../scales/y-scale';
 import type { CrosshairPosition } from '../types';
 import type { Viewport } from '../viewport';
 import { PanHandler } from './pan';

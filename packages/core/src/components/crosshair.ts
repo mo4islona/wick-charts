@@ -1,5 +1,5 @@
-import type { ChartTheme } from '../theme/types';
 import type { BitmapCoordinateSpace } from '../canvas-manager';
+import type { ChartTheme } from '../theme/types';
 
 export function renderCrosshair(
   scope: BitmapCoordinateSpace,

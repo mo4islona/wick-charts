@@ -41,10 +41,10 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
   constructor(container: HTMLElement) {
     super();
 
-    this.mainCanvas = createCanvas(container, 0, false);
+    this.mainCanvas = createCanvas(container, 0, true);
     this.overlayCanvas = createCanvas(container, 1, true);
 
-    this.mainCtx = this.mainCanvas.getContext('2d', { alpha: false })!;
+    this.mainCtx = this.mainCanvas.getContext('2d', { alpha: true })!;
     this.overlayCtx = this.overlayCanvas.getContext('2d', { alpha: true })!;
 
     const dpr = window.devicePixelRatio || 1;

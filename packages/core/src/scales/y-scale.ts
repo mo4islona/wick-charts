@@ -12,7 +12,7 @@ const NICE_INTERVALS = [
  */
 export class YScale {
   private min = 0;
-  private max = 1;
+  private max = 0;
   private height = 1;
   private pixelRatio = 1;
 
@@ -41,6 +41,7 @@ export class YScale {
 
   /** Generate evenly spaced "nice" tick values that fit the current range and chart height. */
   niceTickValues(): number[] {
+    if (this.max <= this.min) return [];
     const minPixelSpacing = 50;
     const valuePerPixel = (this.max - this.min) / this.height;
     const minValueSpacing = valuePerPixel * minPixelSpacing;

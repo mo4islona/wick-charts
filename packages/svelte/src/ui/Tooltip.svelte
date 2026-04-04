@@ -1,138 +1,143 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import type { ChartInstance, CrosshairPosition, LineData, OHLCData } from '@wick-charts/core';
-  import { formatDate, formatTime } from '@wick-charts/core';
-  import { getChartContext } from '../context';
-  import { createCrosshairPosition, createLastPrice } from '../stores';
+import type { ChartInstance, CrosshairPosition, LineData, OHLCData } from '@wick-charts/core';
+import { formatDate, formatTime } from '@wick-charts/core';
+import { onDestroy } from 'svelte';
 
-  /** Show only this series. When omitted, show all series. */
-  export let seriesId: string | undefined = undefined;
-  /** Sort order for line values when showing all series (default: 'none'). */
-  export let sort: 'none' | 'asc' | 'desc' = 'none';
+import { getChartContext } from '../context';
+import { createCrosshairPosition } from '../stores';
 
-  interface SeriesSnapshot {
-    id: string;
-    label?: string;
-    data: OHLCData | LineData;
-    color: string;
-  }
+/** Show only this series. When omitted, show all series. */
+export let seriesId: string | undefined = undefined;
+/** Sort order for line values when showing all series (default: 'none'). */
+export let sort: 'none' | 'asc' | 'desc' = 'none';
 
-  const chartStore = getChartContext();
-  let crosshair: CrosshairPosition | null = null;
-  let lastPrice: number | null = null;
-  let crosshairUnsub: (() => void) | null = null;
-  let lastPriceUnsub: (() => void) | null = null;
+interface SeriesSnapshot {
+  id: string;
+  label?: string;
+  data: OHLCData | LineData;
+  color: string;
+}
 
-  let prevPrimaryId = '';
+const chartStore = getChartContext();
+let crosshair: CrosshairPosition | null = null;
+let lastY: { value: number; isLive: boolean } | null = null;
+let crosshairUnsub: (() => void) | null = null;
+let lastYUnsub: (() => void) | null = null;
 
-  $: {
-    const chart = $chartStore;
-    if (chart) {
-      if (!crosshairUnsub) {
-        const posStore = createCrosshairPosition(chart);
-        crosshairUnsub = posStore.subscribe((v) => {
-          crosshair = v;
-        });
-      }
+let prevPrimaryId = '';
 
-      const allIds = chart.getSeriesIds();
-      const targetIds = seriesId ? [seriesId] : allIds;
-      const primaryId = targetIds[0] ?? '';
-
-      if (primaryId !== prevPrimaryId) {
-        lastPriceUnsub?.();
-        if (primaryId) {
-          const lpStore = createLastPrice(chart, primaryId);
-          lastPriceUnsub = lpStore.subscribe((v) => {
-            lastPrice = v;
-          });
-        }
-        prevPrimaryId = primaryId;
-      }
+$: {
+  const chart = $chartStore;
+  if (chart) {
+    if (!crosshairUnsub) {
+      const posStore = createCrosshairPosition(chart);
+      crosshairUnsub = posStore.subscribe((v) => {
+        crosshair = v;
+      });
     }
-  }
 
-  onDestroy(() => {
-    crosshairUnsub?.();
-    lastPriceUnsub?.();
-  });
-
-  function sortSnapshots(snapshots: SeriesSnapshot[], sortOrder: 'none' | 'asc' | 'desc'): SeriesSnapshot[] {
-    if (sortOrder === 'none' || snapshots.length <= 1) return snapshots;
-    return [...snapshots].sort((a, b) => {
-      const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
-      const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
-      return sortOrder === 'asc' ? av - bv : bv - av;
-    });
-  }
-
-  function formatVolume(v: number): string {
-    if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-    if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-    return v.toFixed(0);
-  }
-
-  $: chart = $chartStore;
-  $: theme = chart?.getTheme();
-  $: dataInterval = chart?.getDataInterval() ?? 86400;
-
-  $: targetIds = (() => {
-    if (!chart) return [];
     const allIds = chart.getSeriesIds();
-    return seriesId ? [seriesId] : allIds;
-  })();
+    const targetIds = seriesId ? [seriesId] : allIds;
+    const primaryId = targetIds[0] ?? '';
 
-  $: hoverSnapshots = (() => {
-    if (!chart || !crosshair) return [];
-    const result: SeriesSnapshot[] = [];
-    for (const id of targetIds) {
-      const d = chart.getDataAtTime(id, crosshair.time);
-      if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+    if (primaryId !== prevPrimaryId) {
+      lastYUnsub?.();
+      if (primaryId) {
+        const handler = () => {
+          lastY = chart.getLastValue(primaryId);
+        };
+        chart.on('dataUpdate', handler);
+        lastYUnsub = () => chart.off('dataUpdate', handler);
+        handler();
+      }
+      prevPrimaryId = primaryId;
     }
-    return result;
-  })();
+  }
+}
 
-  $: lastSnapshots = (() => {
-    if (!chart) return [];
-    // Reference lastPrice to trigger reactivity on data updates
-    void lastPrice;
-    const result: SeriesSnapshot[] = [];
-    for (const id of targetIds) {
-      const d = chart.getLastData(id);
-      if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-    }
-    return result;
-  })();
+onDestroy(() => {
+  crosshairUnsub?.();
+  lastYUnsub?.();
+});
 
-  $: rawSnapshots = hoverSnapshots.length > 0 ? hoverSnapshots : lastSnapshots;
-  $: snapshots = sortSnapshots(rawSnapshots, sort);
-  $: displayTime = snapshots.length > 0 ? snapshots[0].data.time : 0;
+function sortSnapshots(snapshots: SeriesSnapshot[], sortOrder: 'none' | 'asc' | 'desc'): SeriesSnapshot[] {
+  if (sortOrder === 'none' || snapshots.length <= 1) return snapshots;
+  return [...snapshots].sort((a, b) => {
+    const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
+    const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
+    return sortOrder === 'asc' ? av - bv : bv - av;
+  });
+}
 
-  $: mediaSize = chart?.getMediaSize();
+function formatVolume(v: number): string {
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return v.toFixed(0);
+}
 
-  $: floatingPos = (() => {
-    if (!crosshair || !chart || !mediaSize) return { left: 0, top: 0 };
-    const hasOHLC = snapshots.some((s) => 'open' in s.data);
-    const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
-    const tooltipWidth = 160;
-    const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
-    const offsetX = 16;
-    const offsetY = 16;
-    const chartWidth = mediaSize.width - chart.yAxisWidth;
-    const chartHeight = mediaSize.height - chart.xAxisHeight;
+$: chart = $chartStore;
+$: theme = chart?.getTheme();
+$: dataInterval = chart?.getDataInterval() ?? 86400;
 
-    const left = crosshair.mediaX + offsetX + tooltipWidth > chartWidth
+$: targetIds = (() => {
+  if (!chart) return [];
+  const allIds = chart.getSeriesIds();
+  return seriesId ? [seriesId] : allIds;
+})();
+
+$: hoverSnapshots = (() => {
+  if (!chart || !crosshair) return [];
+  const result: SeriesSnapshot[] = [];
+  for (const id of targetIds) {
+    const d = chart.getDataAtTime(id, crosshair.time);
+    if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+  }
+  return result;
+})();
+
+$: lastSnapshots = (() => {
+  if (!chart) return [];
+  // Reference lastY to trigger reactivity on data updates
+  void lastY;
+  const result: SeriesSnapshot[] = [];
+  for (const id of targetIds) {
+    const d = chart.getLastData(id);
+    if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
+  }
+  return result;
+})();
+
+$: rawSnapshots = hoverSnapshots.length > 0 ? hoverSnapshots : lastSnapshots;
+$: snapshots = sortSnapshots(rawSnapshots, sort);
+$: displayTime = snapshots.length > 0 ? snapshots[0].data.time : 0;
+
+$: mediaSize = chart?.getMediaSize();
+
+$: floatingPos = (() => {
+  if (!crosshair || !chart || !mediaSize) return { left: 0, top: 0 };
+  const hasOHLC = snapshots.some((s) => 'open' in s.data);
+  const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
+  const tooltipWidth = 160;
+  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  const offsetX = 16;
+  const offsetY = 16;
+  const chartWidth = mediaSize.width - chart.yAxisWidth;
+  const chartHeight = mediaSize.height - chart.xAxisHeight;
+
+  const left =
+    crosshair.mediaX + offsetX + tooltipWidth > chartWidth
       ? crosshair.mediaX - offsetX - tooltipWidth
       : crosshair.mediaX + offsetX;
-    const top = crosshair.mediaY + offsetY + tooltipHeight > chartHeight
+  const top =
+    crosshair.mediaY + offsetY + tooltipHeight > chartHeight
       ? crosshair.mediaY - offsetY - tooltipHeight
       : crosshair.mediaY + offsetY;
 
-    return { left, top };
-  })();
+  return { left, top };
+})();
 
-  $: showFloating = crosshair && hoverSnapshots.length > 0;
+$: showFloating = crosshair && hoverSnapshots.length > 0;
 </script>
 
 {#if snapshots.length > 0 && chart && theme}

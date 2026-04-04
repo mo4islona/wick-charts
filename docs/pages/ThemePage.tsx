@@ -8,10 +8,11 @@ import {
   type ChartTheme,
   Crosshair,
   LineSeries,
-  YAxis,
   TimeAxis,
   Tooltip,
+  YAxis,
 } from '@wick-charts/react';
+
 import { Cell } from '../components/Cell';
 import { generateOHLCData, generateWaveData } from '../data';
 import { hexToRgba } from '../utils';
