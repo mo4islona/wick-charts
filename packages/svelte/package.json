@@ -1,0 +1,14 @@
+{
+  "name": "@wick-charts/svelte",
+  "version": "0.1.0",
+  "type": "module",
+  "svelte": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "svelte": "./dist/index.js", "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+  },
+  "files": ["dist"],
+  "peerDependencies": { "svelte": ">=4.0.0" },
+  "dependencies": { "@wick-charts/core": "workspace:*" }
+}

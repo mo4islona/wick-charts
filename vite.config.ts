@@ -1,60 +1,48 @@
-import { resolve } from "node:path";
-import { defineConfig } from "vite";
-import dts from "vite-plugin-dts";
+import { resolve } from 'node:path';
+
+import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
 
 export default defineConfig(({ command, mode }) => {
-  // Library build: npm run build
-  if (command === "build" && mode !== "demo") {
+  const aliases = {
+    '@wick-charts/react': resolve(__dirname, 'packages/react/src/index.ts'),
+    '@wick-charts/core': resolve(__dirname, 'packages/core/src/index.ts'),
+  };
+
+  // Library build: npm run build (handled by per-package vite configs now)
+  if (command === 'build' && mode !== 'demo') {
     return {
       plugins: [dts({ rollupTypes: true })],
       build: {
         lib: {
-          entry: resolve(__dirname, "src/index.ts"),
-          formats: ["es", "cjs"],
-          fileName: (format) => `index.${format === "es" ? "js" : "cjs"}`,
+          entry: resolve(__dirname, 'packages/react/src/index.ts'),
+          formats: ['es', 'cjs'],
+          fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
         },
         rollupOptions: {
-          external: ["react", "react-dom", "react/jsx-runtime"],
+          external: ['react', 'react-dom', 'react/jsx-runtime'],
         },
       },
-      resolve: {
-        alias: {
-          "@core": resolve(__dirname, "src/core"),
-          "@react": resolve(__dirname, "src/react"),
-          "@ui": resolve(__dirname, "src/ui"),
-        },
-      },
+      resolve: { alias: aliases },
     };
   }
 
   // Demo build (GitHub Pages): npm run build:demo
-  if (command === "build" && mode === "demo") {
+  if (command === 'build' && mode === 'demo') {
     return {
-      root: "demo",
-      base: "/wick/",
+      root: 'demo',
+      base: '/wick/',
       build: {
-        outDir: resolve(__dirname, "docs"),
+        outDir: resolve(__dirname, 'docs'),
         emptyOutDir: true,
       },
-      resolve: {
-        alias: {
-          "@core": resolve(__dirname, "src/core"),
-          "@react": resolve(__dirname, "src/react"),
-          "@ui": resolve(__dirname, "src/ui"),
-        },
-      },
+      resolve: { alias: aliases },
     };
   }
 
   // Dev server: npm run dev
   return {
-    root: "demo",
-    resolve: {
-      alias: {
-        "@core": resolve(__dirname, "src/core"),
-        "@react": resolve(__dirname, "src/react"),
-        "@ui": resolve(__dirname, "src/ui"),
-      },
-    },
+    root: 'demo',
+    resolve: { alias: aliases },
   };
 });

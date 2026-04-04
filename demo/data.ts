@@ -1,4 +1,4 @@
-import type { LineData, OHLCData } from "../src/core/types";
+import type { LineData, OHLCData } from '@wick-charts/react';
 
 export function generateOHLCData(count: number, startPrice = 100, interval = 60): OHLCData[] {
   const data: OHLCData[] = [];

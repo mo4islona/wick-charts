@@ -1,16 +1,38 @@
-import { useMemo, useState } from "react";
-import { ChartContainer, Crosshair, LineSeries, PriceAxis, TimeAxis, Tooltip } from "../../src";
-import type { LineData } from "../../src/core/types";
-import type { ChartTheme } from "../../src/theme/types";
-import { Cell } from "../components/Cell";
-import { generateLineData, generateWaveData } from "../data";
-import { useLineStreams } from "../hooks";
+import { useMemo, useState } from 'react';
 
-type DataMode = "wave" | "line";
-type StreamMode = "realtime" | "static";
+import {
+  type AxisBound,
+  type AxisConfig,
+  type BarStacking,
+  ChartContainer,
+  type ChartTheme,
+  Crosshair,
+  type LineData,
+  LineSeries,
+  Tooltip,
+  type TooltipSort,
+  XAxis,
+  YAxis,
+} from '@wick-charts/react';
+import { Cell } from '../components/Cell';
+import {
+  BoundInput,
+  HighlightedCode,
+  NumberInput,
+  SectionLabel,
+  Select,
+  Switch,
+  ToggleGroup,
+} from '../components/controls';
+import { generateLineData, generateWaveData } from '../data';
+import { useLineStreams } from '../hooks';
+
+type DataMode = 'wave' | 'line';
+type StreamMode = 'realtime' | 'static';
+type GridStyle = 'dashed' | 'solid' | 'dotted' | 'none';
 
 function makeData(mode: DataMode, count: number, index: number): LineData[] {
-  if (mode === "wave") {
+  if (mode === 'wave') {
     return generateWaveData(count, {
       base: 5,
       amplitude: 100 + index * 40,
@@ -24,202 +46,297 @@ function makeData(mode: DataMode, count: number, index: number): LineData[] {
 
 // ── Chart wrappers ─────────────────────────────────────────────
 
-function SingleLine({ theme, allData, streaming }: { theme: ChartTheme; allData: LineData[][]; streaming: boolean }) {
-  const { datasets } = useLineStreams(allData, 300);
-  const data = streaming ? datasets[0] : allData[0];
-  const [sid, setSid] = useState<string | null>(null);
-  return (
-    <ChartContainer theme={theme}>
-      <LineSeries data={data} onSeriesId={setSid} options={{ areaFill: false, lineWidth: 1 }} />
-      {sid && <Tooltip seriesId={sid} />}
-      <Crosshair />
-      <PriceAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
-function SingleArea({ theme, allData, streaming }: { theme: ChartTheme; allData: LineData[][]; streaming: boolean }) {
-  const { datasets } = useLineStreams(allData, 400);
-  const data = streaming ? datasets[0] : allData[0];
-  const [sid, setSid] = useState<string | null>(null);
-  return (
-    <ChartContainer theme={theme}>
-      <LineSeries data={data} onSeriesId={setSid} options={{ areaFill: true, lineWidth: 1 }} />
-      {sid && <Tooltip seriesId={sid} />}
-      <Crosshair />
-      <PriceAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
-function MultiLine({ theme, allData, streaming }: { theme: ChartTheme; allData: LineData[][]; streaming: boolean }) {
-  const { datasets } = useLineStreams(allData, 500);
-  const display = streaming ? datasets : allData;
-  return (
-    <ChartContainer theme={theme}>
-      {display.map((d, i) => (
-        <LineSeries
-          key={i}
-          data={d}
-          options={{ color: theme.seriesColors[i % theme.seriesColors.length], areaFill: false, lineWidth: 1 }}
-        />
-      ))}
-      <Crosshair />
-      <PriceAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
-function MultiArea({ theme, allData, streaming }: { theme: ChartTheme; allData: LineData[][]; streaming: boolean }) {
-  const { datasets } = useLineStreams(allData, 500);
-  const display = streaming ? datasets : allData;
-  return (
-    <ChartContainer theme={theme}>
-      {display.map((d, i) => (
-        <LineSeries
-          key={i}
-          data={d}
-          options={{ color: theme.seriesColors[i % theme.seriesColors.length], areaFill: true, lineWidth: 1 }}
-        />
-      ))}
-      <Crosshair />
-      <PriceAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
-// ── Controls ───────────────────────────────────────────────────
-
-function Toggle({
-  label,
-  options,
-  value,
-  onChange,
+function SingleChart({
   theme,
+  allData,
+  streaming,
+  areaFill,
+  axis,
+  sort,
 }: {
-  label: string;
-  options: { value: string; label: string }[];
-  value: string;
-  onChange: (v: any) => void;
   theme: ChartTheme;
+  allData: LineData[][];
+  streaming: boolean;
+  areaFill: boolean;
+  axis?: AxisConfig;
+  sort?: TooltipSort;
 }) {
+  const { datasets } = useLineStreams(allData, 300);
+  const data = streaming ? [datasets[0]] : [allData[0]];
+  const [sid, setSid] = useState<string | null>(null);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <span
-        style={{
-          fontSize: theme.typography.axisFontSize,
-          color: theme.axis.textColor,
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-        }}
-      >
-        {label}
-      </span>
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          style={{
-            background: value === opt.value ? theme.crosshair.labelBackground : "transparent",
-            color: value === opt.value ? theme.tooltip.textColor : theme.axis.textColor,
-            border: "none",
-            padding: "3px 8px",
-            borderRadius: 3,
-            fontSize: theme.typography.axisFontSize,
-            fontFamily: "inherit",
-            fontWeight: value === opt.value ? 600 : 400,
-            cursor: "pointer",
-          }}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
+    <ChartContainer theme={theme} axis={axis}>
+      <LineSeries data={data} onSeriesId={setSid} options={{ areaFill, lineWidth: 1, pulse: streaming }} />
+      {sid && <Tooltip seriesId={sid} sort={sort} />}
+      <Crosshair />
+      {axis?.y?.visible !== false && <YAxis />}
+      {axis?.x?.visible !== false && <XAxis />}
+    </ChartContainer>
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────
+function MultiChart({
+  theme,
+  allData,
+  streaming,
+  areaFill,
+  stacking,
+  axis,
+  sort,
+  legend,
+}: {
+  theme: ChartTheme;
+  allData: LineData[][];
+  streaming: boolean;
+  areaFill: boolean;
+  stacking: BarStacking;
+  axis?: AxisConfig;
+  sort?: TooltipSort;
+  legend?: boolean;
+}) {
+  const { datasets } = useLineStreams(allData, 500);
+  const display = streaming ? datasets : allData;
+  return (
+    <ChartContainer theme={theme} axis={axis}>
+      <LineSeries
+        data={display}
+        options={{
+          colors: theme.seriesColors.slice(0, display.length),
+          areaFill,
+          lineWidth: 1,
+          pulse: streaming,
+          stacking,
+        }}
+      />
+      <Tooltip sort={sort} legend={legend} />
+      <Crosshair />
+      {axis?.y?.visible !== false && <YAxis />}
+      {axis?.x?.visible !== false && <XAxis />}
+    </ChartContainer>
+  );
+}
+
+// ── Code preview ─────────────────────────────────────────────
+
+function CodePreview({
+  theme,
+  areaFill,
+  streaming,
+  stacking,
+}: {
+  theme: ChartTheme;
+  areaFill: boolean;
+  streaming: boolean;
+  stacking: BarStacking;
+}) {
+  const opts: string[] = [];
+  if (areaFill) opts.push('areaFill: true');
+  if (streaming) opts.push('pulse: true');
+  if (stacking !== 'off') opts.push(`stacking: '${stacking}'`);
+
+  const optStr = opts.length > 0 ? `options={{ ${opts.join(', ')} }}` : '';
+
+  const code = `<ChartContainer theme={theme}>
+  <LineSeries
+    data={layers}${optStr ? `\n    ${optStr}` : ''}
+  />
+  <Tooltip />
+  <Crosshair />
+  <YAxis />
+  <XAxis />
+</ChartContainer>`;
+
+  return <HighlightedCode code={code} theme={theme} />;
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function parseBound(raw: string): AxisBound | undefined {
+  const s = raw.trim().toLowerCase();
+  if (!s || s === 'auto') return undefined;
+  if (s.endsWith('%')) return s;
+  const n = parseFloat(s);
+  if (!isNaN(n)) return n;
+  return undefined;
+}
+
+// ── Page ─────────────────────────────────────────────────────
 
 const MULTI_COUNT = 6;
 
 export function LinePage({ theme }: { theme: ChartTheme }) {
-  const [dataMode, setDataMode] = useState<DataMode>("wave");
-  const [streamMode, setStreamMode] = useState<StreamMode>("realtime");
+  const [dataMode, setDataMode] = useState<DataMode>('wave');
+  const [streamMode, setStreamMode] = useState<StreamMode>('static');
+  const [areaFill, setAreaFill] = useState(false);
+  const [stacking, setStacking] = useState<BarStacking>('off');
+  const [gridStyle, setGridStyle] = useState<GridStyle>('dashed');
+  const [tooltipSort, setTooltipSort] = useState<TooltipSort>('none');
+  const [minBound, setMinBound] = useState('auto');
+  const [maxBound, setMaxBound] = useState('auto');
+  const [yAxisWidth, setYAxisWidth] = useState(55);
+  const [xAxisHeight, setXAxisHeight] = useState(30);
+  const [showYAxis, setShowYAxis] = useState(true);
+  const [showXAxis, setShowXAxis] = useState(true);
+  const [showLegend, setShowLegend] = useState(true);
 
-  // Regenerate data when mode changes
+  const chartTheme = useMemo<ChartTheme>(() => {
+    if (gridStyle === 'none') return { ...theme, grid: { ...theme.grid, color: 'transparent' } };
+    if (gridStyle !== theme.grid.style) return { ...theme, grid: { ...theme.grid, style: gridStyle } };
+    return theme;
+  }, [theme, gridStyle]);
+
+  const axis = useMemo<AxisConfig>(
+    () => ({
+      y: { width: yAxisWidth, min: parseBound(minBound), max: parseBound(maxBound), visible: showYAxis },
+      x: { height: xAxisHeight, visible: showXAxis },
+    }),
+    [yAxisWidth, xAxisHeight, minBound, maxBound, showYAxis, showXAxis],
+  );
+
   const singleData = useMemo(() => [makeData(dataMode, 300, 0)], [dataMode]);
   const multiData = useMemo(
     () => Array.from({ length: MULTI_COUNT }, (_, i) => makeData(dataMode, 300, i)),
     [dataMode],
   );
 
-  const streaming = streamMode === "realtime";
+  const streaming = streamMode === 'realtime';
+  const stackingLabel = stacking === 'off' ? 'Overlapping' : stacking === 'normal' ? 'Stacked' : '100%';
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 6 }}>
-      {/* Toolbar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "4px 8px",
-          borderRadius: 6,
-          flexShrink: 0,
-          border: `1px solid ${theme.tooltip.borderColor}`,
-          background: theme.tooltip.background,
-        }}
-      >
-        <Toggle
-          label="Data"
-          options={[
-            { value: "wave", label: "Wave" },
-            { value: "line", label: "Random" },
-          ]}
-          value={dataMode}
-          onChange={setDataMode}
-          theme={theme}
-        />
-        <div style={{ width: 1, height: 16, background: theme.tooltip.borderColor }} />
-        <Toggle
-          label="Mode"
-          options={[
-            { value: "realtime", label: "Realtime" },
-            { value: "static", label: "Static" },
-          ]}
-          value={streamMode}
-          onChange={setStreamMode}
-          theme={theme}
-        />
+    <div style={{ display: 'flex', height: '100%', gap: 6 }}>
+      {/* Charts */}
+      <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 6 }}>
+        <Cell label="Single" sub={areaFill ? 'area' : 'line'} theme={chartTheme}>
+          <SingleChart
+            key={`${dataMode}-${streamMode}-s`}
+            theme={chartTheme}
+            allData={singleData}
+            streaming={streaming}
+            areaFill={areaFill}
+            axis={axis}
+            sort={tooltipSort}
+          />
+        </Cell>
+        <Cell label={stackingLabel} sub={`${MULTI_COUNT} series · ${areaFill ? 'area' : 'line'}`} theme={chartTheme}>
+          <MultiChart
+            key={`${dataMode}-${streamMode}-${stacking}-m`}
+            theme={chartTheme}
+            allData={multiData}
+            streaming={streaming}
+            areaFill={areaFill}
+            stacking={stacking}
+            axis={axis}
+            sort={tooltipSort}
+            legend={showLegend}
+          />
+        </Cell>
       </div>
 
-      {/* Charts 2x2 */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gridTemplateRows: "1fr 1fr",
-          gap: 6,
-        }}
-      >
-        <Cell label="Line" sub="Single" theme={theme}>
-          <SingleLine key={`${dataMode}-${streamMode}-sl`} theme={theme} allData={singleData} streaming={streaming} />
-        </Cell>
-        <Cell label="Area" sub="Single · fill" theme={theme}>
-          <SingleArea key={`${dataMode}-${streamMode}-sa`} theme={theme} allData={singleData} streaming={streaming} />
-        </Cell>
-        <Cell label="Multi-Line" sub={`${MULTI_COUNT} series`} theme={theme}>
-          <MultiLine key={`${dataMode}-${streamMode}-ml`} theme={theme} allData={multiData} streaming={streaming} />
-        </Cell>
-        <Cell label="Multi-Area" sub={`${MULTI_COUNT} series · fill`} theme={theme}>
-          <MultiArea key={`${dataMode}-${streamMode}-ma`} theme={theme} allData={multiData} streaming={streaming} />
-        </Cell>
+      {/* Right panel */}
+      <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: `1px solid ${theme.tooltip.borderColor}`,
+            background: theme.tooltip.background,
+          }}
+        >
+          <Select
+            label="Data"
+            options={[
+              { value: 'wave', label: 'Wave' },
+              { value: 'line', label: 'Random' },
+            ]}
+            value={dataMode}
+            onChange={(v) => setDataMode(v as DataMode)}
+            theme={theme}
+          />
+          <ToggleGroup
+            label="Stacking"
+            options={[
+              { value: 'off', label: 'Off' },
+              { value: 'normal', label: 'Normal' },
+              { value: 'percent', label: '100%' },
+            ]}
+            value={stacking}
+            onChange={(v) => setStacking(v as BarStacking)}
+            theme={theme}
+          />
+          <Switch
+            label="Live"
+            checked={streaming}
+            onChange={(v) => setStreamMode(v ? 'realtime' : 'static')}
+            theme={theme}
+            accentColor={theme.candlestick.upColor}
+          />
+          <ToggleGroup
+            label="Fill"
+            options={[
+              { value: 'line', label: 'Line' },
+              { value: 'area', label: 'Area' },
+            ]}
+            value={areaFill ? 'area' : 'line'}
+            onChange={(v) => setAreaFill(v === 'area')}
+            theme={theme}
+            accentColor={theme.seriesColors[1]}
+          />
+          <Select
+            label="Grid"
+            options={[
+              { value: 'dashed', label: 'Dashed' },
+              { value: 'solid', label: 'Solid' },
+              { value: 'dotted', label: 'Dotted' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={gridStyle}
+            onChange={(v) => setGridStyle(v as GridStyle)}
+            theme={theme}
+          />
+          <ToggleGroup
+            label="Tooltip"
+            options={[
+              { value: 'none', label: 'None' },
+              { value: 'asc', label: 'Asc' },
+              { value: 'desc', label: 'Desc' },
+            ]}
+            value={tooltipSort}
+            onChange={(v) => setTooltipSort(v as TooltipSort)}
+            theme={theme}
+          />
+          <Switch label="Legend" checked={showLegend} onChange={setShowLegend} theme={theme} />
+          <SectionLabel theme={theme}>Axes</SectionLabel>
+          <Switch label="Y Axis" checked={showYAxis} onChange={setShowYAxis} theme={theme} />
+          <Switch label="X Axis" checked={showXAxis} onChange={setShowXAxis} theme={theme} />
+          <div style={{ display: 'flex', gap: 6 }}>
+            <BoundInput label="Y Min" value={minBound} onChange={setMinBound} theme={theme} />
+            <BoundInput label="Y Max" value={maxBound} onChange={setMaxBound} theme={theme} />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <NumberInput
+              label="Y Width"
+              value={yAxisWidth}
+              onChange={setYAxisWidth}
+              min={20}
+              max={120}
+              step={5}
+              theme={theme}
+            />
+            <NumberInput
+              label="X Height"
+              value={xAxisHeight}
+              onChange={setXAxisHeight}
+              min={15}
+              max={60}
+              step={5}
+              theme={theme}
+            />
+          </div>
+        </div>
+        <CodePreview theme={theme} areaFill={areaFill} streaming={streaming} stacking={stacking} />
       </div>
     </div>
   );

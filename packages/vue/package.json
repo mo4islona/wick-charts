@@ -1,0 +1,13 @@
+{
+  "name": "@wick-charts/vue",
+  "version": "0.1.0",
+  "type": "module",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" }
+  },
+  "files": ["dist"],
+  "peerDependencies": { "vue": ">=3.3.0" },
+  "dependencies": { "@wick-charts/core": "workspace:*" }
+}

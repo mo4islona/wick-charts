@@ -1,0 +1,97 @@
+import { useEffect } from 'react';
+
+import { useChartInstance } from '../context';
+import { useLastPrice, usePreviousClose } from '../store-bridge';
+
+import { NumberFlow } from './NumberFlow';
+
+export interface YLabelProps {
+  seriesId: string;
+  /** Override badge color (e.g. line color). If not set, uses up/down/neutral from theme. */
+  color?: string;
+}
+
+export function YLabel({ seriesId, color }: YLabelProps) {
+  const chart = useChartInstance();
+
+  // Notify chart that YLabel is present (affects right padding)
+  useEffect(() => {
+    chart.setYLabel(true);
+    return () => chart.setYLabel(false);
+  }, [chart]);
+  const lastPrice = useLastPrice(chart, seriesId);
+  const previousClose = usePreviousClose(chart, seriesId);
+
+  if (lastPrice === null) return null;
+
+  const theme = chart.getTheme();
+  const y = chart.yScale.valueToY(lastPrice);
+
+  let bgColor: string;
+  if (color) {
+    bgColor = color;
+  } else {
+    const direction =
+      previousClose === null
+        ? 'neutral'
+        : lastPrice > previousClose
+          ? 'up'
+          : lastPrice < previousClose
+            ? 'down'
+            : 'neutral';
+    bgColor =
+      direction === 'up'
+        ? theme.yLabel.upBackground
+        : direction === 'down'
+          ? theme.yLabel.downBackground
+          : theme.yLabel.neutralBackground;
+  }
+
+  const yRange = chart.yScale.getRange();
+  const range = yRange.max - yRange.min;
+  const fractionDigits = range < 0.1 ? 6 : range < 10 ? 4 : range < 1000 ? 2 : 0;
+
+  return (
+    <>
+      {/* Horizontal dashed line */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: chart.yAxisWidth,
+          top: y,
+          height: 0,
+          borderTop: `1px dashed ${bgColor}`,
+          opacity: 0.5,
+          pointerEvents: 'none',
+          zIndex: 2,
+        }}
+      />
+      {/* Value badge */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 4,
+          top: y,
+          transform: 'translateY(-50%)',
+          pointerEvents: 'auto',
+          zIndex: 3,
+          background: bgColor,
+          color: theme.yLabel.textColor,
+          fontSize: theme.typography.yFontSize,
+          fontFamily: theme.typography.fontFamily,
+          padding: '3px 8px',
+          borderRadius: 3,
+          whiteSpace: 'nowrap',
+          transition: 'background-color 0.3s ease',
+        }}
+      >
+        <NumberFlow
+          value={lastPrice}
+          format={{ minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits, useGrouping: false }}
+          spinDuration={350}
+        />
+      </div>
+    </>
+  );
+}

@@ -14,10 +14,9 @@
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@core/*": ["./src/core/*"],
-      "@react/*": ["./src/react/*"],
-      "@ui/*": ["./src/ui/*"]
+      "@wick-charts/core": ["./packages/core/src/index.ts"],
+      "@wick-charts/react": ["./packages/react/src/index.ts"]
     }
   },
-  "include": ["src", "demo"]
+  "include": ["packages", "demo"]
 }

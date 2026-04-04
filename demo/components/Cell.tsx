@@ -1,4 +1,4 @@
-import type { ChartTheme } from "../../src/theme/types";
+import type { ChartTheme } from '@wick-charts/react';
 
 export function Cell({
   label,
@@ -14,28 +14,28 @@ export function Cell({
   return (
     <div
       style={{
-        position: "relative",
+        position: 'relative',
         minHeight: 0,
         minWidth: 0,
         borderRadius: 6,
-        overflow: "hidden",
+        overflow: 'hidden',
         border: `1px solid ${theme.tooltip.borderColor}`,
       }}
     >
       <div
         style={{
-          position: "absolute",
+          position: 'absolute',
           top: 6,
           left: 8,
           fontSize: theme.typography.fontSize,
           fontWeight: 600,
           color: theme.tooltip.textColor,
           zIndex: 3,
-          pointerEvents: "none",
+          pointerEvents: 'none',
           fontFamily: theme.typography.fontFamily,
         }}
       >
-        {label}{" "}
+        {label}{' '}
         <span style={{ fontWeight: 400, color: theme.axis.textColor, fontSize: theme.typography.axisFontSize }}>
           {sub}
         </span>

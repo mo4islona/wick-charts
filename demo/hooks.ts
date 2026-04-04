@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
-import type { LineData, OHLCData } from "../src/core/types";
-import { LineStreamingSource, StreamingSource } from "./data";
+import { useEffect, useState } from 'react';
+
+import type { LineData, OHLCData } from '@wick-charts/react';
+import { LineStreamingSource, StreamingSource } from './data';
 
 const BATCH_SIZE = 50;
 const BATCH_DELAY = 600;
 
 export function useOHLCStream(allData: OHLCData[], delay = 300) {
   const [data, setData] = useState<OHLCData[]>([]);
-  const [phase, setPhase] = useState<"loading" | "live">("loading");
+  const [phase, setPhase] = useState<'loading' | 'live'>('loading');
 
   useEffect(() => {
     const total = Math.ceil(allData.length / BATCH_SIZE);
@@ -16,13 +17,13 @@ export function useOHLCStream(allData: OHLCData[], delay = 300) {
       batch++;
       setData(allData.slice(0, batch * BATCH_SIZE));
       if (batch < total) setTimeout(loadNext, BATCH_DELAY);
-      else setPhase("live");
+      else setPhase('live');
     };
     setTimeout(loadNext, delay);
   }, []);
 
   useEffect(() => {
-    if (phase !== "live" || data.length === 0) return;
+    if (phase !== 'live' || data.length === 0) return;
     const source = new StreamingSource(data[data.length - 1], 60);
     const unsub = source.onTick((candle) => {
       setData((prev) => {
@@ -47,7 +48,7 @@ export function useOHLCStream(allData: OHLCData[], delay = 300) {
 
 export function useLineStreams(allData: LineData[][], delay = 500) {
   const [datasets, setDatasets] = useState<LineData[][]>(() => allData.map(() => []));
-  const [phase, setPhase] = useState<"loading" | "live">("loading");
+  const [phase, setPhase] = useState<'loading' | 'live'>('loading');
 
   useEffect(() => {
     const total = Math.ceil(allData[0].length / BATCH_SIZE);
@@ -57,13 +58,13 @@ export function useLineStreams(allData: LineData[][], delay = 500) {
       const end = batch * BATCH_SIZE;
       setDatasets(allData.map((line) => line.slice(0, end)));
       if (batch < total) setTimeout(loadNext, BATCH_DELAY);
-      else setPhase("live");
+      else setPhase('live');
     };
     setTimeout(loadNext, delay);
   }, []);
 
   useEffect(() => {
-    if (phase !== "live") return;
+    if (phase !== 'live') return;
     const sources = allData.map((line) => new LineStreamingSource(line[line.length - 1], 60));
     const unsubs = sources.map((source, i) =>
       source.onTick((point) => {
