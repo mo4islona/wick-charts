@@ -18,5 +18,5 @@
       "@wick-charts/react": ["./packages/react/src/index.ts"]
     }
   },
-  "include": ["packages", "demo"]
+  "include": ["packages", "docs"]
 }
