@@ -1,8 +1,23 @@
 import { useState } from 'react';
 
-import { ChartContainer, type ChartTheme, PieSeries, type PieSliceData, PieTooltip } from '@wick-charts/react';
+import {
+  ChartContainer,
+  type ChartTheme,
+  PieLegend,
+  PieSeries,
+  type PieSliceData,
+  PieTooltip,
+} from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import { Section, Switch } from '../components/controls';
+import { Playground, type PlaygroundChartProps } from '../components/Playground';
+
+interface PieSettings {
+  donut: boolean;
+  showTooltip: boolean;
+  showLegend: boolean;
+}
 
 const PORTFOLIO: PieSliceData[] = [
   { label: 'BTC', value: 42 },
@@ -37,44 +52,70 @@ const ALLOCATION: PieSliceData[] = [
   { label: 'Gaming', value: 5 },
 ];
 
-function PieChart({ theme, data, donut }: { theme: ChartTheme; data: PieSliceData[]; donut?: boolean }) {
+function PieChart({
+  theme,
+  data,
+  donut,
+  showTooltip,
+  showLegend,
+}: PlaygroundChartProps & PieSettings & { data: PieSliceData[] }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
-    <ChartContainer theme={theme} yAxisWidth={0} xAxisHeight={0}>
+    <ChartContainer theme={theme} axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}>
       <PieSeries
         data={data}
         onSeriesId={setSid}
         options={{ innerRadiusRatio: donut ? 0.55 : 0, padAngle: 0.03, strokeColor: theme.background, strokeWidth: 2 }}
       />
-      {sid && <PieTooltip seriesId={sid} />}
+      {sid && showTooltip && <PieTooltip seriesId={sid} />}
+      {sid && showLegend && <PieLegend seriesId={sid} />}
     </ChartContainer>
   );
 }
 
 export function PiePage({ theme }: { theme: ChartTheme }) {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gridTemplateRows: '1fr 1fr',
-        gap: 10,
-        height: '100%',
-        padding: 12,
-      }}
-    >
-      <Cell label="Portfolio" sub="pie" theme={theme}>
-        <PieChart theme={theme} data={PORTFOLIO} />
-      </Cell>
-      <Cell label="Revenue" sub="donut" theme={theme}>
-        <PieChart theme={theme} data={REVENUE} donut />
-      </Cell>
-      <Cell label="Chains" sub="pie" theme={theme}>
-        <PieChart theme={theme} data={CHAINS} />
-      </Cell>
-      <Cell label="Allocation" sub="donut" theme={theme}>
-        <PieChart theme={theme} data={ALLOCATION} donut />
-      </Cell>
-    </div>
+    <Playground<PieSettings>
+      id="pie"
+      theme={theme}
+      defaults={{ donut: false, showTooltip: true, showLegend: true }}
+      gridTemplate="1fr 1fr"
+      gridColumns="1fr 1fr"
+      hideCartesian
+      charts={(props) => (
+        <>
+          <Cell label="Portfolio" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
+            <PieChart {...props} data={PORTFOLIO} />
+          </Cell>
+          <Cell label="Revenue" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
+            <PieChart {...props} data={REVENUE} />
+          </Cell>
+          <Cell label="Chains" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
+            <PieChart {...props} data={CHAINS} />
+          </Cell>
+          <Cell label="Allocation" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
+            <PieChart {...props} data={ALLOCATION} />
+          </Cell>
+        </>
+      )}
+      settings={(s, set) => (
+        <Section title="Series" theme={theme} noBorder>
+          <Switch label="Donut" checked={s.donut} onChange={(v) => set({ donut: v })} theme={theme} />
+          <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
+          <Switch label="Legend" checked={s.showLegend} onChange={(v) => set({ showLegend: v })} theme={theme} />
+        </Section>
+      )}
+      codeConfig={(s) => ({
+        theme: 'darkTheme',
+        components: [
+          {
+            component: 'PieSeries',
+            props: { data: 'data', options: { innerRadiusRatio: s.donut ? 0.55 : 0, padAngle: 0.03 } },
+          },
+          ...(s.showTooltip ? [{ component: 'PieTooltip', props: { seriesId: 'sid' } }] : []),
+          ...(s.showLegend ? [{ component: 'PieLegend', props: { seriesId: 'sid' } }] : []),
+        ],
+      })}
+    />
   );
 }
