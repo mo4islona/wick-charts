@@ -284,7 +284,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
             justifyContent: 'center',
           }}
         >
-          <div style={{ marginRight: 8 }}>AI-first charting library for</div>
+          <div style={{ marginRight: 8 }}>Timeseries charts for</div>
           <div style={{ flex: '0 70px' }}>
             <FrameworkRotator />
           </div>
@@ -299,8 +299,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
             fontFamily: theme.typography.fontFamily,
           }}
         >
-          Candlesticks, lines, areas, bars &mdash; all streaming in realtime. <br />
-          Ships with an AI skill so your copilot knows the API. Zero deps, fully themeable, open source.
+          Realtime. AI&#8209;first. Tiny, zero deps, open source, fully themeable.
         </p>
       </div>
 
