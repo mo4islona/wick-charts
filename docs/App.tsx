@@ -217,7 +217,7 @@ export default function App() {
           </div>
 
           {/* Page content */}
-          <div style={{ flex: 1, minHeight: 0, padding: 6 }}>
+          <div style={{ flex: 1, minHeight: 0, padding: 6, overflow: 'auto' }}>
             <Page theme={theme} />
           </div>
         </div>

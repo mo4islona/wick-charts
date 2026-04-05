@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useRef, useState } from 'react';
 
 import {
   BarSeries,
@@ -15,6 +15,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import { HighlightedCode } from '../components/controls';
 import { generateBandLine, generateBarData, generateLineData, generateOHLCData, generateWaveData } from '../data';
 import { useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
@@ -104,7 +105,7 @@ function WaveChart({ theme }: { theme: ChartTheme }) {
 
 // ── Feature pills ─────────────────────────────────────────────
 
-const FEATURES = ['React · Svelte · Vue', 'Realtime', 'Themeable', 'MIT'];
+const FEATURES = ['AI-first', 'React · Svelte · Vue', 'Realtime', 'Themeable', 'MIT'];
 
 function FeaturePill({ text, theme }: { text: string; theme: ChartTheme }) {
   return (
@@ -283,9 +284,9 @@ function Hero({ theme }: { theme: ChartTheme }) {
             justifyContent: 'center',
           }}
         >
-          <div style={{ marginRight: 8 }}>High-performance charting library for</div>
+          <div style={{ marginRight: 8 }}>AI-first charting library for</div>
           <div style={{ flex: '0 70px' }}>
-            <FrameworkRotator theme={theme} />
+            <FrameworkRotator />
           </div>
         </h2>
         <p
@@ -299,7 +300,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
           }}
         >
           Candlesticks, lines, areas, bars &mdash; all streaming in realtime. <br />
-          GPU-friendly rendering. Tiny bundle, zero deps, fully themeable and open source.
+          Ships with an AI skill so your copilot knows the API. Zero deps, fully themeable, open source.
         </p>
       </div>
 
@@ -321,6 +322,339 @@ function Hero({ theme }: { theme: ChartTheme }) {
   );
 }
 
+// ── Getting Started ──────────────────────────────────────────
+
+type Framework = 'react' | 'vue' | 'svelte';
+
+const INSTALL_COMMANDS: Record<Framework, string> = {
+  react: 'npm install @wick-charts/react',
+  vue: 'npm install @wick-charts/vue',
+  svelte: 'npm install @wick-charts/svelte',
+};
+
+const CODE_EXAMPLES: Record<Framework, string> = {
+  react: `import { useState } from 'react';
+import {
+  ChartContainer, CandlestickSeries, Tooltip,
+  Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+} from '@wick-charts/react';
+
+function Chart({ data }) {
+  const [id, setId] = useState('');
+  return (
+    <ChartContainer theme={darkTheme}>
+      <CandlestickSeries data={data} onSeriesId={setId} />
+      <Tooltip />
+      <Crosshair />
+      <YAxis />
+      <TimeAxis />
+      {id && <YLabel seriesId={id} />}
+    </ChartContainer>
+  );
+}`,
+  vue: `<script setup>
+import { ref } from 'vue';
+import {
+  ChartContainer, CandlestickSeries, Tooltip,
+  Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+} from '@wick-charts/vue';
+
+const props = defineProps(['data']);
+const id = ref('');
+</script>
+
+<template>
+  <ChartContainer :theme="darkTheme">
+    <CandlestickSeries :data="props.data" @series-id="id = $event" />
+    <Tooltip />
+    <Crosshair />
+    <YAxis />
+    <TimeAxis />
+    <YLabel v-if="id" :series-id="id" />
+  </ChartContainer>
+</template>`,
+  svelte: `<script>
+  import {
+    ChartContainer, CandlestickSeries, Tooltip,
+    Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+  } from '@wick-charts/svelte';
+
+  export let data = [];
+  let id = '';
+</script>
+
+<ChartContainer theme={darkTheme}>
+  <CandlestickSeries {data} onSeriesId={(v) => id = v} />
+  <Tooltip />
+  <Crosshair />
+  <YAxis />
+  <TimeAxis />
+  {#if id}
+    <YLabel seriesId={id} />
+  {/if}
+</ChartContainer>`,
+};
+
+const FW_TABS: { value: Framework; label: string; color: string }[] = [
+  { value: 'react', label: 'React', color: '#61DAFB' },
+  { value: 'vue', label: 'Vue', color: '#42b883' },
+  { value: 'svelte', label: 'Svelte', color: '#FF3E00' },
+];
+
+function FrameworkTabs({ value, onChange, theme }: { value: Framework; onChange: (v: Framework) => void; theme: ChartTheme }) {
+  const btnsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const activeIndex = FW_TABS.findIndex((t) => t.value === value);
+  const [ind, setInd] = useState({ left: 0, width: 0 });
+
+  useEffect(() => {
+    const btn = btnsRef.current[activeIndex];
+    if (btn) setInd({ left: btn.offsetLeft, width: btn.offsetWidth });
+  }, [activeIndex]);
+
+  const accent = FW_TABS[activeIndex].color;
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        background: hexToRgba(theme.tooltip.borderColor, 0.2),
+        borderRadius: 7,
+        padding: 2,
+      }}
+    >
+      {ind.width > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 2,
+            bottom: 2,
+            left: ind.left,
+            width: ind.width,
+            background: hexToRgba(accent, 0.18),
+            border: `1px solid ${hexToRgba(accent, 0.22)}`,
+            borderRadius: 5,
+            transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.15s ease',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+      {FW_TABS.map((tab, i) => {
+        const active = tab.value === value;
+        return (
+          <button
+            key={tab.value}
+            ref={(el) => { btnsRef.current[i] = el; }}
+            onClick={() => onChange(tab.value)}
+            style={{
+              background: 'transparent',
+              color: active ? theme.tooltip.textColor : hexToRgba(theme.axis.textColor, 0.6),
+              border: 'none',
+              padding: '5px 16px',
+              borderRadius: 5,
+              fontSize: 12,
+              fontFamily: 'inherit',
+              fontWeight: active ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              position: 'relative',
+              zIndex: 1,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CopyButton({ text, theme }: { text: string; theme: ChartTheme }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: copied ? '#4ade80' : hexToRgba(theme.axis.textColor, 0.5),
+        cursor: 'pointer',
+        padding: '2px 6px',
+        fontSize: 11,
+        fontFamily: 'inherit',
+        borderRadius: 4,
+        transition: 'color 0.2s',
+      }}
+    >
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
+
+function SectionHeading({ children, theme }: { children: React.ReactNode; theme: ChartTheme }) {
+  return (
+    <h3
+      style={{
+        margin: 0,
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        color: hexToRgba(theme.axis.textColor, 0.6),
+        fontFamily: theme.typography.fontFamily,
+      }}
+    >
+      {children}
+    </h3>
+  );
+}
+
+function GettingStarted({ theme }: { theme: ChartTheme }) {
+  const [fw, setFw] = useState<Framework>('react');
+
+  const cardStyle: CSSProperties = {
+    background: hexToRgba(theme.crosshair.labelBackground, 0.25),
+    border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.4)}`,
+    borderRadius: 10,
+    padding: 20,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+  };
+
+  return (
+    <div
+      style={{
+        padding: '40px 20px 50px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 24,
+        fontFamily: theme.typography.fontFamily,
+      }}
+    >
+      {/* Section title */}
+      <div style={{ textAlign: 'center' }}>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 18,
+            fontWeight: 600,
+            color: theme.tooltip.textColor,
+            fontFamily: theme.typography.fontFamily,
+          }}
+        >
+          Get started
+        </h2>
+        <p
+          style={{
+            margin: '6px 0 0',
+            fontSize: theme.typography.fontSize,
+            color: theme.tooltip.textColor,
+            opacity: 0.5,
+            fontFamily: theme.typography.fontFamily,
+          }}
+        >
+          Install the package, add the AI skill, and start building charts.
+        </p>
+      </div>
+
+      {/* Framework selector */}
+      <FrameworkTabs value={fw} onChange={setFw} theme={theme} />
+
+      {/* Cards */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 16,
+          width: '100%',
+          maxWidth: 900,
+        }}
+      >
+        {/* Left: Install + AI skill */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Install */}
+          <div style={cardStyle}>
+            <SectionHeading theme={theme}>1. Install</SectionHeading>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: hexToRgba(theme.crosshair.labelBackground, 0.4),
+                border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.3)}`,
+                borderRadius: 6,
+                padding: '8px 10px',
+                fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
+                fontSize: 12,
+                color: theme.tooltip.textColor,
+              }}
+            >
+              <span>
+                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>$ </span>
+                {INSTALL_COMMANDS[fw]}
+              </span>
+              <CopyButton text={INSTALL_COMMANDS[fw]} theme={theme} />
+            </div>
+          </div>
+
+          {/* AI skill */}
+          <div style={cardStyle}>
+            <SectionHeading theme={theme}>2. AI Skill</SectionHeading>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 12,
+                color: theme.tooltip.textColor,
+                opacity: 0.7,
+                lineHeight: 1.5,
+              }}
+            >
+              Wick Charts ships with a built-in Claude Code skill. Your AI assistant will know every component, prop, and theme out of the box.
+            </p>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                background: hexToRgba(theme.crosshair.labelBackground, 0.4),
+                border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.3)}`,
+                borderRadius: 6,
+                padding: '8px 10px',
+                fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
+                fontSize: 11,
+                color: theme.tooltip.textColor,
+              }}
+            >
+              <div>
+                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>{'// '}</span>
+                <span style={{ color: hexToRgba(theme.axis.textColor, 0.7) }}>Skill auto-loaded from</span>
+              </div>
+              <span style={{ color: '#86efac' }}>.claude/skills/wick-charts/</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Code example */}
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <SectionHeading theme={theme}>3. Build a chart</SectionHeading>
+            <CopyButton text={CODE_EXAMPLES[fw]} theme={theme} />
+          </div>
+          <HighlightedCode code={CODE_EXAMPLES[fw]} theme={theme} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────
 
 export function DashboardPage({ theme }: { theme: ChartTheme }) {
@@ -329,7 +663,7 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
       style={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
+        minHeight: '100%',
         gap: 6,
       }}
     >
@@ -337,8 +671,7 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
 
       <div
         style={{
-          flex: 1,
-          minHeight: 0,
+          minHeight: 500,
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gridTemplateRows: '1fr 1fr',
@@ -359,6 +692,8 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
           <BarChart theme={theme} />
         </Cell>
       </div>
+
+      <GettingStarted theme={theme} />
     </div>
   );
 }
