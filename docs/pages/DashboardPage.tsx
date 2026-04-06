@@ -34,7 +34,7 @@ const barData = generateBarData(100, 180);
 // ── Chart components ──────────────────────────────────────────
 
 function CandleChart({ theme }: { theme: ChartTheme }) {
-  const { data } = useOHLCStream(ohlc, 300);
+  const { data } = useOHLCStream(ohlc);
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
@@ -49,7 +49,7 @@ function CandleChart({ theme }: { theme: ChartTheme }) {
 }
 
 function AreaBandsChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([areaLine, upperBand, lowerBand], 400);
+  const { datasets } = useLineStreams([areaLine, upperBand, lowerBand]);
   return (
     <ChartContainer theme={theme}>
       <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1 }} />
@@ -64,7 +64,7 @@ function AreaBandsChart({ theme }: { theme: ChartTheme }) {
 }
 
 function MultiLineChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams(lines, 500);
+  const { datasets } = useLineStreams(lines);
   return (
     <ChartContainer theme={theme}>
       <LineSeries
@@ -79,7 +79,7 @@ function MultiLineChart({ theme }: { theme: ChartTheme }) {
 }
 
 function BarChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([barData], 600);
+  const { datasets } = useLineStreams([barData]);
   return (
     <ChartContainer theme={theme}>
       <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />

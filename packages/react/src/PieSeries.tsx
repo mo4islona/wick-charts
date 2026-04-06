@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
 
@@ -15,7 +15,7 @@ export function PieSeries({ data, options, onSeriesId }: PieSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = chart.addPieSeries(options);
     seriesRef.current = id;
     onSeriesId?.(id);

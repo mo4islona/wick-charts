@@ -145,6 +145,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     });
 
     this.#canvasManager.on('resize', () => {
+      // Snap Y range on resize — canvas dimensions changed structurally,
+      // smooth lerp would cause visible drift across frames.
+      this.updateYRange(true);
       // Render synchronously — canvas.width/height assignment clears the canvas,
       // so we must redraw immediately in the same frame to avoid a black flash.
       this.updateScales();
@@ -706,6 +709,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     // Snap Y range on batch loads, smooth on ticks
     this.updateYRange(isBatchLoad);
+    // Re-sync scales so React components read correct yScale values.
+    // The earlier viewport 'change' (from fitToData) fired before updateYRange,
+    // so yScale was stale at that point.
+    this.syncScales();
 
     this.#mainScheduler.markDirty();
     this.emit('dataUpdate');

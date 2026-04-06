@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 
 import { useChartInstance } from '../context';
 import { useTheme } from '../ThemeContext';
@@ -33,20 +33,21 @@ export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendPr
   const [disabled, setDisabled] = useState<Set<number>>(new Set());
   const [, bump] = useState(0);
 
-  useEffect(() => {
-    const handler = () => {
+  useLayoutEffect(() => {
+    const onSeriesChange = () => {
       bump((n) => n + 1);
-      setDisabled(new Set()); // reset on series change — resolved list may have changed
+      setDisabled(new Set()); // reset toggles — series list changed
     };
-    chart.on('seriesChange', handler);
-    // Also re-render on first dataUpdate so the legend appears as soon as data loads
-    // (series are added via useEffect which runs after first paint, so on the very
-    // first render getSeriesIds() returns [] and we return null; dataUpdate fires
-    // after series + data are both registered, giving us a second chance to render).
-    chart.on('dataUpdate', handler);
+    const onDataUpdate = () => bump((n) => n + 1);
+    chart.on('seriesChange', onSeriesChange);
+    chart.on('dataUpdate', onDataUpdate);
+    // Catch-up: series may already be registered by sibling useLayoutEffects
+    // that fired earlier in tree order. Bump so the next synchronous re-render
+    // picks them up before the browser paints.
+    if (chart.getSeriesIds().length > 0) bump((n) => n + 1);
     return () => {
-      chart.off('seriesChange', handler);
-      chart.off('dataUpdate', handler);
+      chart.off('seriesChange', onSeriesChange);
+      chart.off('dataUpdate', onDataUpdate);
     };
   }, [chart]);
 

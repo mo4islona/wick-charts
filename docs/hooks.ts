@@ -13,7 +13,7 @@ export { useIsMobile } from './hooks/useIsMobile';
 const BATCH_SIZE = 50;
 const BATCH_DELAY = 600;
 
-export function useOHLCStream(allData: OHLCData[], delay = 300) {
+export function useOHLCStream(allData: OHLCData[], delay = 50) {
   const [data, setData] = useState<OHLCData[]>([]);
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
 
@@ -53,7 +53,7 @@ export function useOHLCStream(allData: OHLCData[], delay = 300) {
   return { data, phase };
 }
 
-export function useLineStreams(allData: LineData[][], delay = 500) {
+export function useLineStreams(allData: LineData[][], delay = 50) {
   const [datasets, setDatasets] = useState<LineData[][]>(() => allData.map(() => []));
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
 

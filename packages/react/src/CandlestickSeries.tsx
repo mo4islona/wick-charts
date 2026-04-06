@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { CandlestickSeriesOptions, OHLCData } from '@wick-charts/core';
 
@@ -15,7 +15,7 @@ export function CandlestickSeries({ data, options, onSeriesId }: CandlestickSeri
   const seriesRef = useRef<string | null>(null);
   const prevLenRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = chart.addCandlestickSeries(options);
     seriesRef.current = id;
     onSeriesId?.(id);
