@@ -92,7 +92,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
 
     const range = to - from;
     const bars = range / this.dataInterval;
-    if (bars < 10) return;
+    if (bars < 2) return;
 
     if (clampToData && this._dataStart !== null && this._dataEnd !== null) {
       const dataSpan = this._dataEnd - this._dataStart;
@@ -159,6 +159,9 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     const newFrom = centerTime - ratio * newRange;
     const newTo = newFrom + newRange;
 
+    // Prevent over-zooming past a minimum of 10 visible bars
+    if (newRange / this.dataInterval < 10) return;
+
     // Re-enable autoScroll when zoomed out enough to see all data
     if (factor > 1 && this._dataStart !== null && this._dataEnd !== null) {
       if (newFrom <= this._dataStart && newTo >= this._dataEnd) {
@@ -211,8 +214,11 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     this._autoScroll = true;
 
     if (this._animating) {
-      // Update animation target without restarting
+      // Re-anchor from current position so the animation continues smoothly to the new target
+      this.animFrom = { ...this._visibleRange };
       this.animTo = { from: targetFrom, to: targetTo };
+      this.animDuration = 150;
+      this.animStartTime = performance.now();
     } else {
       this.animateTo(targetFrom, targetTo, 150);
     }

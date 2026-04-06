@@ -113,9 +113,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.interactions = new InteractionHandler(this.canvasManager.canvas, this.viewport, this.timeScale, this.yScale);
 
     this.viewport.on('change', () => {
-      this.updateScales();
+      // Sync scales immediately so DOM axis components (TimeAxis, YAxis) read
+      // fresh coordinates when viewportChange triggers their re-render.
+      // Does NOT advance Y smoothing — that only happens inside renderMain().
+      this.syncScales();
       this.mainScheduler.markDirty();
-      this.overlayScheduler.markDirty();
       this.emit('viewportChange');
     });
 
@@ -231,7 +233,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   removeSeries(id: string): void {
     const idx = this.series.findIndex((s) => s.id === id);
     if (idx >= 0) {
-      this.series[idx].store?.removeAllListeners();
+      const { renderer, store } = this.series[idx];
+      // Remove listeners from ALL stores (multi-layer series have stores[1..n] too)
+      if (renderer instanceof LineRenderer || renderer instanceof BarRenderer) {
+        for (const s of renderer.stores) s.removeAllListeners();
+      } else {
+        store?.removeAllListeners();
+      }
       this.series.splice(idx, 1);
       this.updateViewportPadding();
       this.mainScheduler.markDirty();
@@ -344,7 +352,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   fitContent(): void {
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
-    this.viewport.fitToData(first, last);
+    this.viewport.fitToData(first, last, true);
   }
 
   getVisibleRange() {
@@ -641,7 +649,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     // Detect how much data changed — batch load vs single tick
     let totalLength = 0;
     for (const entry of this.series) {
-      if (entry.store) totalLength += entry.store.length;
+      // Multi-layer series (Line/Bar) have multiple stores; count them all
+      if (entry.renderer instanceof LineRenderer || entry.renderer instanceof BarRenderer) {
+        for (const s of entry.renderer.stores) totalLength += s.length;
+      } else if (entry.store) {
+        totalLength += entry.store.length;
+      }
     }
     const added = totalLength - this.prevDataLength;
     const isBatchLoad = added > 5;
@@ -734,7 +747,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       }
     }
 
-    if (min === Infinity || max === -Infinity) return;
+    if (min === Infinity || max === -Infinity) {
+      // No visible data — force a snap on next data appearance so stale range isn't reused
+      this.yInited = false;
+      return;
+    }
 
     // Apply Y bounds
     min = this.resolveBound(this._yBounds.min, min, max, allValues, 'min');
@@ -751,6 +768,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       // Never clip data — expand immediately if data exceeds smooth range
       if (min < this.smoothMin) this.smoothMin = min;
       if (max > this.smoothMax) this.smoothMax = max;
+      // Keep rendering until Y range has converged
+      const eps = Math.max(Math.abs(this.smoothMax - this.smoothMin) * 0.0001, 0.001);
+      if (Math.abs(this.smoothMin - min) > eps || Math.abs(this.smoothMax - max) > eps) {
+        this.mainScheduler.markDirty();
+      }
     }
 
     // Only add padding for sides without explicit bounds
@@ -782,6 +804,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return autoValue;
   }
 
+  /**
+   * Lightweight scale sync: updates timeScale/yScale from current viewport state
+   * without advancing the Y smoothing animation. Called from the viewport 'change'
+   * handler so DOM axis components always read fresh coordinates on re-render.
+   */
+  private syncScales(): void {
+    const size = this.canvasManager.size;
+    if (size.media.width === 0 || size.media.height === 0) return;
+
+    const chartWidth = size.media.width - this.yAxisWidth;
+    const chartHeight = size.media.height - this.xAxisHeight;
+
+    this.timeScale.update(this.viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
+    this.yScale.update(this.viewport.yRange, chartHeight, size.verticalPixelRatio);
+  }
+
   private updateScales(): void {
     const size = this.canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
@@ -804,7 +842,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const stillAnimating = this.viewport.tick(performance.now());
     if (stillAnimating) {
       this.mainScheduler.markDirty();
-      this.overlayScheduler.markDirty();
     }
 
     this.updateScales();

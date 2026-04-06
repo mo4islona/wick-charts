@@ -39,7 +39,15 @@ export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendPr
       setDisabled(new Set()); // reset on series change — resolved list may have changed
     };
     chart.on('seriesChange', handler);
-    return () => chart.off('seriesChange', handler);
+    // Also re-render on first dataUpdate so the legend appears as soon as data loads
+    // (series are added via useEffect which runs after first paint, so on the very
+    // first render getSeriesIds() returns [] and we return null; dataUpdate fires
+    // after series + data are both registered, giving us a second chance to render).
+    chart.on('dataUpdate', handler);
+    return () => {
+      chart.off('seriesChange', handler);
+      chart.off('dataUpdate', handler);
+    };
   }, [chart]);
 
   const resolved: ResolvedItem[] =
