@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
 
@@ -47,9 +47,8 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
-  // Determine which series to display — re-evaluate when series are added/removed
-  const allIds = chart.getSeriesIds();
-  const targetIds = seriesId ? [seriesId] : allIds;
+  // Determine which series to display — getSeriesIds() is internally cached
+  const targetIds = seriesId ? [seriesId] : chart.getSeriesIds();
 
   // Re-render on data updates (not viewport — tooltip content doesn't depend on pan/zoom)
   const [, bumpTooltip] = useState(0);
@@ -63,7 +62,6 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
   const hoverSnapshots: SeriesSnapshot[] = [];
   if (crosshair) {
     for (const id of targetIds) {
-      // Multi-layer series (stacked bar/line): expand into per-layer snapshots
       const layers = chart.getLayerSnapshots(id, crosshair.time);
       if (layers) {
         for (let i = 0; i < layers.length; i++) {

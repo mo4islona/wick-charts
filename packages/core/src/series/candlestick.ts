@@ -1,6 +1,7 @@
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
 import type { CandlestickSeriesOptions, OHLCData } from '../types';
+import { hexToRgba } from '../utils/color';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
@@ -101,6 +102,9 @@ export class CandlestickRenderer implements SeriesRenderer {
     const volBarWidth = Math.max(1, barWidth - 2);
     const halfBar = Math.floor(volBarWidth / 2);
 
+    const upVolumeColor = hexToRgba(this.options.upColor, 0.2);
+    const downVolumeColor = hexToRgba(this.options.downColor, 0.2);
+
     for (const c of data) {
       if (c.volume === undefined || c.volume === 0) continue;
 
@@ -108,7 +112,7 @@ export class CandlestickRenderer implements SeriesRenderer {
       const h = Math.max(1, (c.volume / maxVol) * volumeMaxHeight);
       const isUp = c.close >= c.open;
 
-      ctx.fillStyle = isUp ? hexToRgba(this.options.upColor, 0.2) : hexToRgba(this.options.downColor, 0.2);
+      ctx.fillStyle = isUp ? upVolumeColor : downVolumeColor;
 
       ctx.fillRect(cx - halfBar, chartHeight - h, volBarWidth, h);
     }
@@ -137,59 +141,15 @@ export class CandlestickRenderer implements SeriesRenderer {
       ctx.fillRect(wickX, highY, wickWidth, lowY - highY);
     }
 
-    // Bodies with gradient
-    const topColor = lighten(bodyColor, 0.2);
-    const bottomColor = darken(bodyColor, 0.15);
-
+    // Bodies with flat fill
+    ctx.fillStyle = bodyColor;
     for (const c of candles) {
       const cx = timeScale.timeToBitmapX(c.time);
       const openY = yScale.valueToBitmapY(c.open);
       const closeY = yScale.valueToBitmapY(c.close);
       const bodyTop = Math.min(openY, closeY);
       const bodyHeight = Math.max(1, Math.abs(closeY - openY));
-
-      if (bodyHeight <= 2) {
-        ctx.fillStyle = bodyColor;
-        ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
-      } else {
-        const grad = ctx.createLinearGradient(0, bodyTop, 0, bodyTop + bodyHeight);
-        grad.addColorStop(0, topColor);
-        grad.addColorStop(0.5, bodyColor);
-        grad.addColorStop(1, bottomColor);
-        ctx.fillStyle = grad;
-        ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
-      }
+      ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
     }
   }
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const [r, g, b] = parseHex(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function lighten(hex: string, amount: number): string {
-  const [r, g, b] = parseHex(hex);
-  return toHex(
-    Math.min(255, Math.round(r + (255 - r) * amount)),
-    Math.min(255, Math.round(g + (255 - g) * amount)),
-    Math.min(255, Math.round(b + (255 - b) * amount)),
-  );
-}
-
-function darken(hex: string, amount: number): string {
-  const [r, g, b] = parseHex(hex);
-  return toHex(
-    Math.max(0, Math.round(r * (1 - amount))),
-    Math.max(0, Math.round(g * (1 - amount))),
-    Math.max(0, Math.round(b * (1 - amount))),
-  );
-}
-
-function parseHex(hex: string): [number, number, number] {
-  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
-}
-
-function toHex(r: number, g: number, b: number): string {
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }

@@ -38,7 +38,7 @@ export function PieSeries({ data, options, onSeriesId }: PieSeriesProps) {
     options?.colors,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (seriesRef.current && data.length > 0) {
       chart.setPieData(seriesRef.current, data);
     }

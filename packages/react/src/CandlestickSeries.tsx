@@ -26,7 +26,7 @@ export function CandlestickSeries({ data, options, onSeriesId }: CandlestickSeri
     };
   }, [chart]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = seriesRef.current;
     if (!id || data.length === 0) return;
 

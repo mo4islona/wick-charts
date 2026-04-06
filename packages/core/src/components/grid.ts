@@ -22,22 +22,22 @@ export function renderGrid(
   }
 
   const yTicks = yScale.niceTickValues();
+  context.beginPath();
   for (const value of yTicks) {
     const y = Math.round(yScale.valueToBitmapY(value)) + 0.5;
-    context.beginPath();
     context.moveTo(0, y);
     context.lineTo(bitmapSize.width, y);
-    context.stroke();
   }
+  context.stroke();
 
   const { ticks: timeTicks } = timeScale.niceTickValues(dataInterval);
+  context.beginPath();
   for (const time of timeTicks) {
     const x = Math.round(timeScale.timeToBitmapX(time)) + 0.5;
-    context.beginPath();
     context.moveTo(x, 0);
     context.lineTo(x, bitmapSize.height);
-    context.stroke();
   }
+  context.stroke();
 
   context.setLineDash([]);
 }

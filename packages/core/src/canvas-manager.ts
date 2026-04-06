@@ -65,6 +65,27 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
     } catch {
       this.resizeObserver.observe(container, { box: 'content-box' });
     }
+
+    // Measure initial size synchronously — forces layout reflow but ensures
+    // yScale has valid dimensions before children's useLayoutEffects load data.
+    // Subsequent size changes arrive via ResizeObserver.
+    const rect = container.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const dprW = window.devicePixelRatio || 1;
+      const dprH = dprW;
+      const bw = Math.round(rect.width * dprW);
+      const bh = Math.round(rect.height * dprH);
+      this.mainCanvas.width = bw;
+      this.mainCanvas.height = bh;
+      this.overlayCanvas.width = bw;
+      this.overlayCanvas.height = bh;
+      this._size = {
+        media: { width: rect.width, height: rect.height },
+        bitmap: { width: bw, height: bh },
+        horizontalPixelRatio: bw / rect.width,
+        verticalPixelRatio: bh / rect.height,
+      };
+    }
   }
 
   private handleResize(entry: ResizeObserverEntry): void {

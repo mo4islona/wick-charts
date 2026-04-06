@@ -25,7 +25,7 @@ export function BarSeries({ data, options, onSeriesId }: BarSeriesProps) {
     };
   }, [chart, data.length]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
     chart.beginUpdate();

@@ -26,7 +26,7 @@ export function LineSeries({ data, options, label, onSeriesId }: LineSeriesProps
     };
   }, [chart, data.length]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
     chart.beginUpdate();

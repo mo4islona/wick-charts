@@ -8,6 +8,8 @@ interface StoreEvents {
 export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<StoreEvents> {
   private data: T[] = [];
   private _visible = true;
+  private cachedRange: { from: number; to: number } | null = null;
+  private cachedResult: T[] = [];
 
   setVisible(visible: boolean): void {
     this._visible = visible;
@@ -18,7 +20,12 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   }
 
   setData(data: T[]): void {
-    this.data = [...data].sort((a, b) => a.time - b.time);
+    let sorted = true;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i].time < data[i - 1].time) { sorted = false; break; }
+    }
+    this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
+    this.cachedRange = null;
     this.emit('update');
   }
 
@@ -28,12 +35,14 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       return;
     }
     this.data.push(point);
+    this.cachedRange = null;
     this.emit('update');
   }
 
   updateLast(point: T): void {
     if (this.data.length === 0) return;
     this.data[this.data.length - 1] = point;
+    this.cachedRange = null;
     this.emit('update');
   }
 
@@ -43,9 +52,13 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   getVisibleData(from: number, to: number): T[] {
     if (this.data.length === 0) return [];
+    if (this.cachedRange && this.cachedRange.from === from && this.cachedRange.to === to) return this.cachedResult;
+
     const startIdx = Math.max(0, binarySearch(this.data, from, (d) => d.time) - 1);
     const endIdx = Math.min(this.data.length, binarySearch(this.data, to, (d) => d.time) + 1);
-    return this.data.slice(startIdx, endIdx);
+    this.cachedResult = this.data.slice(startIdx, endIdx);
+    this.cachedRange = { from, to };
+    return this.cachedResult;
   }
 
   first(): T | undefined {
@@ -62,5 +75,20 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   isEmpty(): boolean {
     return this.data.length === 0;
+  }
+
+  findNearest(time: number, maxDist: number): T | null {
+    if (this.data.length === 0) return null;
+    const idx = binarySearch(this.data, time, (d) => d.time);
+    let best: T | null = null;
+    let bestDist = maxDist;
+    for (let i = Math.max(0, idx - 1); i <= Math.min(this.data.length - 1, idx + 1); i++) {
+      const dist = Math.abs(this.data[i].time - time);
+      if (dist <= bestDist) {
+        bestDist = dist;
+        best = this.data[i];
+      }
+    }
+    return best;
   }
 }

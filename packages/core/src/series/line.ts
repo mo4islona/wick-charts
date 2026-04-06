@@ -1,15 +1,9 @@
 import type { LineData, LineSeriesOptions } from '../types';
-
-function hexToRgba(hex: string, alpha: number): string {
-  if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
+import { hexToRgba } from '../utils/color';
 import { decimateLineData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
+import type { TimeScale } from '../scales/time-scale';
+import type { YScale } from '../scales/y-scale';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
@@ -23,6 +17,7 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
 export class LineRenderer implements SeriesRenderer {
   readonly stores: TimeSeriesStore<LineData>[];
   private options: LineSeriesOptions;
+  private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
     this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<LineData>());
@@ -50,7 +45,11 @@ export class LineRenderer implements SeriesRenderer {
   }
 
   get needsAnimation(): boolean {
-    return this.options.pulse && this.stores.some((s) => s.length > 0);
+    return false;
+  }
+
+  get hasPulse(): boolean {
+    return this.options.pulse && this.stores.some((s) => s.isVisible() && s.length > 0);
   }
 
   getValueRange(from: number, to: number): { min: number; max: number } | null {
@@ -146,23 +145,19 @@ export class LineRenderer implements SeriesRenderer {
         context.lineTo(lastX, bottomY);
         context.lineTo(firstX, bottomY);
         context.closePath();
-        const grad = context.createLinearGradient(0, 0, 0, bottomY);
-        grad.addColorStop(0, hexToRgba(color, 0.12));
-        grad.addColorStop(1, hexToRgba(color, 0.01));
+        const cacheKey = String(li);
+        const cached = this.areaGradientCache.get(cacheKey);
+        let grad: CanvasGradient;
+        if (cached && cached.bottomY === bottomY && cached.color === color) {
+          grad = cached.gradient;
+        } else {
+          grad = context.createLinearGradient(0, 0, 0, bottomY);
+          grad.addColorStop(0, hexToRgba(color, 0.12));
+          grad.addColorStop(1, hexToRgba(color, 0.01));
+          this.areaGradientCache.set(cacheKey, { gradient: grad, bottomY, color });
+        }
         context.fillStyle = grad;
         context.fill();
-      }
-
-      // Pulse dot on last point
-      if (this.options.pulse) {
-        const last = data[data.length - 1];
-        this.drawPulse(
-          context,
-          timeScale.timeToBitmapX(last.time),
-          yScale.valueToBitmapY(last.value),
-          color,
-          horizontalPixelRatio,
-        );
       }
     }
   }
@@ -176,7 +171,14 @@ export class LineRenderer implements SeriesRenderer {
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
 
     // Collect per-layer data
-    const layers = this.stores.map((s) => s.getVisibleData(range.from, range.to));
+    const pixelWidth = scope.mediaSize.width;
+    const layers = this.stores.map((s) => {
+      let data = s.getVisibleData(range.from, range.to);
+      if (data.length > pixelWidth * 2) {
+        data = decimateLineData(data, Math.round(pixelWidth * 1.5));
+      }
+      return data;
+    });
     // Get all unique times, sorted
     const timeSet = new Set<number>();
     for (const layer of layers) {
@@ -254,6 +256,23 @@ export class LineRenderer implements SeriesRenderer {
       context.lineJoin = 'round';
       context.lineCap = 'round';
       context.stroke();
+    }
+  }
+
+  drawPulseOverlay(ctx: CanvasRenderingContext2D, timeScale: TimeScale, yScale: YScale, pixelRatio: number): void {
+    if (!this.options.pulse) return;
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+      const last = this.stores[li].last();
+      if (!last) continue;
+      const color = this.options.colors[li % this.options.colors.length];
+      this.drawPulse(
+        ctx,
+        timeScale.timeToBitmapX(last.time),
+        yScale.valueToBitmapY(last.value),
+        color,
+        pixelRatio,
+      );
     }
   }
 

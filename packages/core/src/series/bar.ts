@@ -122,11 +122,11 @@ export class BarRenderer implements SeriesRenderer {
         if (d.value >= 0) {
           const topY = yScale.valueToBitmapY(d.value);
           const barHeight = Math.max(1, zeroY - topY);
-          this.fillBar(context, cx - halfBody, topY, bodyWidth, barHeight, posColor, lighten(posColor, 0.15));
+          this.fillBar(context, cx - halfBody, topY, bodyWidth, barHeight, posColor);
         } else {
           const bottomY = yScale.valueToBitmapY(d.value);
           const barHeight = Math.max(1, bottomY - zeroY);
-          this.fillBar(context, cx - halfBody, zeroY, bodyWidth, barHeight, negColor, lighten(negColor, 0.15));
+          this.fillBar(context, cx - halfBody, zeroY, bodyWidth, barHeight, negColor);
         }
       }
     } else {
@@ -154,11 +154,11 @@ export class BarRenderer implements SeriesRenderer {
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, zeroY - topY);
-            this.fillBar(context, cx - halfBody, topY, bodyWidth, barHeight, color, lighten(color, 0.15));
+            this.fillBar(context, cx - halfBody, topY, bodyWidth, barHeight, color);
           } else {
             const bottomY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, bottomY - zeroY);
-            this.fillBar(context, cx - halfBody, zeroY, bodyWidth, barHeight, color, lighten(color, 0.15));
+            this.fillBar(context, cx - halfBody, zeroY, bodyWidth, barHeight, color);
           }
         }
       }
@@ -203,7 +203,6 @@ export class BarRenderer implements SeriesRenderer {
     // Draw layer by layer, bottom to top
     for (let li = 0; li < layers.length; li++) {
       const color = this.options.colors[li % this.options.colors.length];
-      const topColor = lighten(color, 0.15);
 
       for (const [time, values] of timeMap) {
         const raw = values[li];
@@ -235,7 +234,7 @@ export class BarRenderer implements SeriesRenderer {
             const topY = yScale.valueToBitmapY(pctTop);
             const bottomY = yScale.valueToBitmapY(pctBase);
             const h = Math.max(1, bottomY - topY);
-            this.fillBar(context, cx - halfBody, topY, bodyWidth, h, color, topColor);
+            this.fillBar(context, cx - halfBody, topY, bodyWidth, h, color);
           } else if (raw < 0 && totalNegative < 0) {
             const pctBase = (baseNegative / totalNegative) * -100;
             const pctTop = ((baseNegative + raw) / totalNegative) * -100;
@@ -250,7 +249,7 @@ export class BarRenderer implements SeriesRenderer {
             const topY = yScale.valueToBitmapY(basePositive + raw);
             const bottomY = yScale.valueToBitmapY(basePositive);
             const h = Math.max(1, bottomY - topY);
-            this.fillBar(context, cx - halfBody, topY, bodyWidth, h, color, topColor);
+            this.fillBar(context, cx - halfBody, topY, bodyWidth, h, color);
           } else {
             const topY = yScale.valueToBitmapY(baseNegative);
             const bottomY = yScale.valueToBitmapY(baseNegative + raw);
@@ -270,29 +269,8 @@ export class BarRenderer implements SeriesRenderer {
     w: number,
     h: number,
     color: string,
-    topColor: string,
   ): void {
-    if (h > 2) {
-      const grad = context.createLinearGradient(0, y, 0, y + h);
-      grad.addColorStop(0, topColor);
-      grad.addColorStop(1, color);
-      context.fillStyle = grad;
-    } else {
-      context.fillStyle = color;
-    }
+    context.fillStyle = color;
     context.fillRect(x, y, w, h);
   }
-}
-
-function lighten(hex: string, amount: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `#${Math.min(255, Math.round(r + (255 - r) * amount))
-    .toString(16)
-    .padStart(2, '0')}${Math.min(255, Math.round(g + (255 - g) * amount))
-    .toString(16)
-    .padStart(2, '0')}${Math.min(255, Math.round(b + (255 - b) * amount))
-    .toString(16)
-    .padStart(2, '0')}`;
 }
