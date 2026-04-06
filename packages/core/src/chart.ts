@@ -92,6 +92,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   #crosshairPos: CrosshairPosition | null = null;
   /** User-specified Y-axis bounds (auto, fixed, percentage). */
   #yBounds: { min?: AxisBound; max?: AxisBound } = {};
+  /** Cached series ID list — invalidated on add/remove. */
+  #seriesIdCache: string[] | null = null;
   /** Whether a YLabel overlay is active (used for right-padding calculation). */
   #hasYLabel = false;
   /** Axis visibility and sizing configuration. */
@@ -180,6 +182,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.onDataChanged();
     });
     this.#series.push({ id, renderer, store, visible: true });
+    this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -198,6 +201,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       store.on('update', () => this.onDataChanged());
     }
     this.#series.push({ id, label: options?.label, renderer, store: renderer.stores[0], visible: true });
+    this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -223,6 +227,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       store.on('update', () => this.onDataChanged());
     }
     this.#series.push({ id, renderer, store: renderer.stores[0], visible: true });
+    this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -241,6 +246,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const renderer = new PieRenderer(options);
     const id = `series_${++seriesIdCounter}`;
     this.#series.push({ id, label: options?.label, renderer, store: null, visible: true });
+    this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -267,6 +273,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         store?.removeAllListeners();
       }
       this.#series.splice(idx, 1);
+      this.#seriesIdCache = null;
       this.updateViewportPadding();
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
@@ -488,7 +495,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   getSeriesIds(): string[] {
-    return this.#series.map((s) => s.id);
+    if (!this.#seriesIdCache) {
+      this.#seriesIdCache = this.#series.map((s) => s.id);
+    }
+    return this.#seriesIdCache.slice();
   }
 
   /** Get the primary display color for a series. */
@@ -622,6 +632,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const size = this.#canvasManager.size;
     for (const entry of this.#series) {
       if (entry.renderer instanceof PieRenderer) {
+        const prevIndex = entry.renderer.hoverIndex;
         if (pos) {
           const bx = pos.mediaX * size.horizontalPixelRatio;
           const by = pos.mediaY * size.verticalPixelRatio;
@@ -629,7 +640,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         } else {
           entry.renderer.hoverIndex = -1;
         }
-        this.#mainScheduler.markDirty();
+        if (entry.renderer.hoverIndex !== prevIndex) {
+          this.#mainScheduler.markDirty();
+        }
       }
     }
   }
@@ -754,7 +767,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     let min = Infinity;
     let max = -Infinity;
     const range = this.#viewport.visibleRange;
-    const allValues: number[] = [];
+    // Only collect individual values when bounds use a function/percentage (rare)
+    const needsAllValues =
+      (this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto' && typeof this.#yBounds.min !== 'number') ||
+      (this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto' && typeof this.#yBounds.max !== 'number');
+    let allValues: number[] | null = needsAllValues ? [] : null;
 
     for (const entry of this.#series) {
       if (!entry.visible) continue;
@@ -765,7 +782,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         if (r) {
           if (r.max > max) max = r.max;
           if (r.min < min) min = r.min;
-          allValues.push(r.min, r.max);
+          allValues?.push(r.min, r.max);
           continue;
         }
       }
@@ -776,12 +793,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           const ohlc = point as OHLCData;
           if (ohlc.high > max) max = ohlc.high;
           if (ohlc.low < min) min = ohlc.low;
-          allValues.push(ohlc.high, ohlc.low);
+          allValues?.push(ohlc.high, ohlc.low);
         } else {
           const line = point as LineData;
           if (line.value > max) max = line.value;
           if (line.value < min) min = line.value;
-          allValues.push(line.value);
+          allValues?.push(line.value);
         }
       }
     }
@@ -793,8 +810,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     }
 
     // Apply Y bounds
-    min = this.resolveBound(this.#yBounds.min, min, max, allValues, 'min');
-    max = this.resolveBound(this.#yBounds.max, max, min, allValues, 'max');
+    min = this.resolveBound(this.#yBounds.min, min, max, allValues ?? [], 'min');
+    max = this.resolveBound(this.#yBounds.max, max, min, allValues ?? [], 'max');
 
     if (!this.#yInited || snap) {
       this.#smoothMin = min;
@@ -916,12 +933,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       context.restore();
     });
 
-    // Keep rendering if any series needs animation (e.g. pulsing dots)
+    // Keep rendering while pie hover animation is in progress
     for (const entry of this.#series) {
-      if (
-        (entry.renderer instanceof LineRenderer || entry.renderer instanceof PieRenderer) &&
-        entry.renderer.needsAnimation
-      ) {
+      if (entry.renderer instanceof PieRenderer && entry.renderer.needsAnimation) {
         this.#mainScheduler.markDirty();
         break;
       }
@@ -931,13 +945,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.renderOverlay();
   }
 
-  /** Cheap: crosshair only. Redraws on every mousemove without touching series. */
+  /** Cheap overlay: crosshair, nearest-point dots, pulse animation. */
   private renderOverlay(): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
+    // Check if any line series needs pulse animation
+    let hasPulse = false;
+    for (const entry of this.#series) {
+      if (entry.visible && entry.renderer instanceof LineRenderer && entry.renderer.hasPulse) {
+        hasPulse = true;
+        break;
+      }
+    }
+
     this.#canvasManager.useOverlayLayer((scope) => {
-      if (!this.#crosshairPos) return;
+      // Guard inside callback — useOverlayLayer clears the canvas first,
+      // so we must always enter it to erase stale crosshair/dots on mouseleave.
+      if (!this.#crosshairPos && !hasPulse) return;
 
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
@@ -947,84 +972,103 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       scope.context.clip();
 
-      const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
-      const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
-      renderCrosshair(scope, bx, by, this.#theme);
+      // Crosshair + nearest-point dots
+      if (this.#crosshairPos) {
+        const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
+        const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
+        renderCrosshair(scope, bx, by, this.#theme);
 
-      // Draw nearest-point dots for line series
-      for (const entry of this.#series) {
-        if (!entry.visible) continue;
-        if (entry.renderer instanceof LineRenderer) {
-          const renderer = entry.renderer as LineRenderer;
-          const colors = renderer.getColors();
-          const stacking = renderer.getStacking();
-          const r = 4 * size.horizontalPixelRatio;
+        for (const entry of this.#series) {
+          if (!entry.visible) continue;
+          if (entry.renderer instanceof LineRenderer) {
+            const renderer = entry.renderer as LineRenderer;
+            const colors = renderer.getColors();
+            const stacking = renderer.getStacking();
+            const r = 4 * size.horizontalPixelRatio;
 
-          // Get closest value per layer
-          const layerValues: number[] = [];
-          const layerTimes: number[] = [];
-          for (let li = 0; li < renderer.stores.length; li++) {
-            const storeData = renderer.stores[li].getVisibleData(
-              this.#crosshairPos!.time - this.#dataInterval,
-              this.#crosshairPos!.time + this.#dataInterval,
-            );
-            if (storeData.length === 0) {
-              layerValues.push(0);
-              layerTimes.push(0);
-              continue;
-            }
-            let closest = storeData[0];
-            let minDist = Math.abs(storeData[0].time - this.#crosshairPos!.time);
-            for (let i = 1; i < storeData.length; i++) {
-              const dist = Math.abs(storeData[i].time - this.#crosshairPos!.time);
-              if (dist < minDist) {
-                minDist = dist;
-                closest = storeData[i];
+            const layerValues: number[] = [];
+            const layerTimes: number[] = [];
+            for (let li = 0; li < renderer.stores.length; li++) {
+              const closest = renderer.stores[li].findNearest(this.#crosshairPos!.time, this.#dataInterval);
+              if (!closest) {
+                layerValues.push(0);
+                layerTimes.push(0);
+              } else {
+                layerValues.push(closest.value);
+                layerTimes.push(closest.time);
               }
             }
-            layerValues.push(closest.value);
-            layerTimes.push(closest.time);
-          }
 
-          // Compute display Y values (cumulative for stacked modes)
-          const displayValues: number[] = [];
-          if (stacking === 'off') {
-            for (const v of layerValues) displayValues.push(v);
-          } else {
-            let total = 0;
-            if (stacking === 'percent') {
-              for (const v of layerValues) total += v;
+            const displayValues: number[] = [];
+            if (stacking === 'off') {
+              for (const v of layerValues) displayValues.push(v);
+            } else {
+              let total = 0;
+              if (stacking === 'percent') {
+                for (const v of layerValues) total += v;
+              }
+              let running = 0;
+              for (const v of layerValues) {
+                running += stacking === 'percent' && total > 0 ? (v / total) * 100 : v;
+                displayValues.push(running);
+              }
             }
-            let running = 0;
-            for (const v of layerValues) {
-              running += stacking === 'percent' && total > 0 ? (v / total) * 100 : v;
-              displayValues.push(running);
+
+            for (let li = 0; li < renderer.stores.length; li++) {
+              if (layerTimes[li] === 0) continue;
+              if (!renderer.stores[li].isVisible()) continue;
+              const color = colors[li % colors.length];
+              const px = this.timeScale.timeToBitmapX(layerTimes[li]);
+              const py = this.yScale.valueToBitmapY(displayValues[li]);
+
+              scope.context.beginPath();
+              scope.context.arc(px, py, r + 3 * size.horizontalPixelRatio, 0, Math.PI * 2);
+              const glowColor = color.startsWith('#')
+                ? color + '40'
+                : /^rgb\(/i.test(color)
+                  ? color.replace(/^rgb\((.*)\)$/i, 'rgba($1, 0.25)')
+                  : color.replace(/[\d.]+\)\s*$/, '0.25)');
+              scope.context.fillStyle = glowColor;
+              scope.context.fill();
+
+              scope.context.beginPath();
+              scope.context.arc(px, py, r, 0, Math.PI * 2);
+              scope.context.fillStyle = color;
+              scope.context.fill();
             }
           }
+        }
+      }
 
-          for (let li = 0; li < renderer.stores.length; li++) {
-            if (layerTimes[li] === 0) continue;
-            if (!renderer.stores[li].isVisible()) continue;
-            const color = colors[li % colors.length];
-            const px = this.timeScale.timeToBitmapX(layerTimes[li]);
-            const py = this.yScale.valueToBitmapY(displayValues[li]);
-
-            // Glow
-            scope.context.beginPath();
-            scope.context.arc(px, py, r + 3 * size.horizontalPixelRatio, 0, Math.PI * 2);
-            scope.context.fillStyle = color.startsWith('#') ? color + '40' : color.replace(/[\d.]+\)$/, '0.25)');
-            scope.context.fill();
-
-            // Solid dot
-            scope.context.beginPath();
-            scope.context.arc(px, py, r, 0, Math.PI * 2);
-            scope.context.fillStyle = color;
-            scope.context.fill();
-          }
+      // Pulse dots for line series (runs on overlay, not main layer)
+      for (const entry of this.#series) {
+        if (!entry.visible) continue;
+        if (entry.renderer instanceof LineRenderer && entry.renderer.hasPulse) {
+          entry.renderer.drawPulseOverlay(
+            scope.context,
+            this.timeScale,
+            this.yScale,
+            size.horizontalPixelRatio,
+          );
         }
       }
 
       scope.context.restore();
     });
+
+    // Keep overlay animating for pulse dots — but only if a pulse is actually visible
+    if (hasPulse) {
+      const { from, to } = this.timeScale.getRange();
+      let pulseVisible = false;
+      for (const entry of this.#series) {
+        if (!entry.visible || !(entry.renderer instanceof LineRenderer) || !entry.renderer.hasPulse) continue;
+        for (const store of entry.renderer.stores) {
+          const last = store.last();
+          if (last && last.time >= from && last.time <= to) { pulseVisible = true; break; }
+        }
+        if (pulseVisible) break;
+      }
+      if (pulseVisible) this.#overlayScheduler.markDirty();
+    }
   }
 }

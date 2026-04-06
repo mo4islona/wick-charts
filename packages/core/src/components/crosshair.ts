@@ -19,9 +19,6 @@ export function renderCrosshair(
   context.beginPath();
   context.moveTo(x, 0);
   context.lineTo(x, bitmapSize.height);
-  context.stroke();
-
-  context.beginPath();
   context.moveTo(0, y);
   context.lineTo(bitmapSize.width, y);
   context.stroke();

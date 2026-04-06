@@ -12,34 +12,27 @@ export function decimateLineData(data: LineData[], targetCount: number): LineDat
 
 export function decimateOHLCData(data: OHLCData[], targetCount: number): OHLCData[] {
   if (data.length <= targetCount) return data;
-
   const bucketSize = Math.ceil(data.length / targetCount);
   const result: OHLCData[] = [];
-
   for (let i = 0; i < data.length; i += bucketSize) {
     const end = Math.min(i + bucketSize, data.length);
-    const bucket = data.slice(i, end);
-
     let high = -Infinity;
     let low = Infinity;
     let volume = 0;
-
-    for (const candle of bucket) {
-      if (candle.high > high) high = candle.high;
-      if (candle.low < low) low = candle.low;
-      volume += candle.volume ?? 0;
+    for (let j = i; j < end; j++) {
+      if (data[j].high > high) high = data[j].high;
+      if (data[j].low < low) low = data[j].low;
+      volume += data[j].volume ?? 0;
     }
-
     result.push({
-      time: bucket[0].time,
-      open: bucket[0].open,
+      time: data[i].time,
+      open: data[i].open,
       high,
       low,
-      close: bucket[bucket.length - 1].close,
+      close: data[end - 1].close,
       volume,
     });
   }
-
   return result;
 }
 
