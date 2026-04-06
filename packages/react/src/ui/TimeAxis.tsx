@@ -8,6 +8,7 @@ import { useVisibleRange } from '../store-bridge';
 interface TrackedTick {
   opacity: number;
   addedAt: number;
+  fadedAt?: number;
 }
 
 export function TimeAxis() {
@@ -35,13 +36,16 @@ export function TimeAxis() {
   // Mark missing ticks for fade-out
   for (const [t, entry] of map) {
     if (!currentSet.has(t)) {
-      entry.opacity = 0;
+      if (entry.opacity !== 0) {
+        entry.opacity = 0;
+        entry.fadedAt = now;
+      }
     }
   }
 
-  // Clean up old faded-out ticks (keep for 400ms for CSS transition)
+  // Clean up ticks that have finished fading (400ms CSS transition + buffer)
   for (const [t, entry] of map) {
-    if (entry.opacity === 0 && now - entry.addedAt > 5000) {
+    if (entry.opacity === 0 && entry.fadedAt !== undefined && now - entry.fadedAt > 600) {
       map.delete(t);
     }
   }

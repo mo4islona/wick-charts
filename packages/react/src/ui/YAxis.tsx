@@ -6,6 +6,7 @@ import { useYRange } from '../store-bridge';
 interface TrackedTick {
   opacity: number;
   addedAt: number;
+  fadedAt?: number;
 }
 
 export function YAxis() {
@@ -29,12 +30,15 @@ export function YAxis() {
 
   for (const [p, entry] of map) {
     if (!currentSet.has(p)) {
-      entry.opacity = 0;
+      if (entry.opacity !== 0) {
+        entry.opacity = 0;
+        entry.fadedAt = now;
+      }
     }
   }
 
   for (const [p, entry] of map) {
-    if (entry.opacity === 0 && now - entry.addedAt > 5000) {
+    if (entry.opacity === 0 && entry.fadedAt !== undefined && now - entry.fadedAt > 600) {
       map.delete(p);
     }
   }
