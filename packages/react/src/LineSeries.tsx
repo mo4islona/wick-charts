@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { LineData, LineSeriesOptions } from '@wick-charts/core';
 
@@ -16,7 +16,7 @@ export function LineSeries({ data, options, label, onSeriesId }: LineSeriesProps
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = chart.addLineSeries(data.length, { ...options, label: label ?? options?.label });
     seriesRef.current = id;
     onSeriesId?.(id);

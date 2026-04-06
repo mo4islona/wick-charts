@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { BarSeriesOptions, LineData } from '@wick-charts/core';
 
@@ -15,7 +15,7 @@ export function BarSeries({ data, options, onSeriesId }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const id = chart.addBarSeries(data.length, options);
     seriesRef.current = id;
     onSeriesId?.(id);
