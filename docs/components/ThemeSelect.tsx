@@ -12,10 +12,12 @@ export function ThemeSelect({
   value,
   onChange,
   theme,
+  mobile = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   theme: ChartTheme;
+  mobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -40,6 +42,8 @@ export function ThemeSelect({
       <button
         onClick={() => setOpen(!open)}
         type="button"
+        aria-label={`Theme: ${value}`}
+        aria-expanded={open}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -57,8 +61,8 @@ export function ThemeSelect({
         }}
       >
         <ThemeDots t={themes[value].theme} />
-        {value}
-        <span style={{ opacity: 0.4, fontSize: theme.typography.axisFontSize, marginLeft: 2 }}>▾</span>
+        {!mobile && value}
+        <span style={{ opacity: 0.4, fontSize: theme.typography.axisFontSize, marginLeft: mobile ? 0 : 2 }}>▾</span>
       </button>
 
       {open && (
@@ -79,10 +83,12 @@ export function ThemeSelect({
               padding: 16,
               zIndex: 100,
               display: 'flex',
-              gap: 32,
+              flexDirection: mobile ? 'column' : 'row',
+              gap: mobile ? 16 : 32,
               maxHeight: 'calc(100vh - 80px)',
               overflowY: 'auto',
               paddingBottom: 36,
+              ...(mobile ? { left: 0, right: 0, position: 'fixed' as const, top: 50, marginTop: 0 } : {}),
             }}
           >
             <ThemeColumn
@@ -163,7 +169,7 @@ function ThemeColumn({
   theme: ChartTheme;
 }) {
   return (
-    <div style={{ minWidth: 260, display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div
         style={{
           fontSize: theme.typography.axisFontSize,

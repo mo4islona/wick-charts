@@ -1,8 +1,7 @@
-import { useState } from 'react';
-
 import type { ChartTheme } from '@wick-charts/react';
 
-import { HighlightedCode, ToggleGroup } from './controls';
+import { useFramework } from '../context/framework';
+import { HighlightedCode } from './controls';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -121,23 +120,12 @@ ${children.replace(/^/gm, '  ')}
 // ── Component ────────────────────────────────────────────────
 
 export function CodePreview({ config, theme }: { config: ChartCodeConfig; theme: ChartTheme }) {
-  const [fw, setFw] = useState<Framework>('react');
+  const [fw] = useFramework();
 
   const code = generateCode(config, fw);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <ToggleGroup
-        label=""
-        options={[
-          { value: 'react', label: 'React' },
-          { value: 'svelte', label: 'Svelte' },
-          { value: 'vue', label: 'Vue' },
-        ]}
-        value={fw}
-        onChange={(v) => setFw(v as Framework)}
-        theme={theme}
-      />
       <HighlightedCode code={code} theme={theme} />
     </div>
   );

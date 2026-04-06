@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 
 import {
   BarSeries,
@@ -16,8 +16,9 @@ import {
 
 import { Cell } from '../components/Cell';
 import { HighlightedCode } from '../components/controls';
-import { generateBandLine, generateBarData, generateLineData, generateOHLCData, generateWaveData } from '../data';
-import { useLineStreams, useOHLCStream } from '../hooks';
+import { FrameworkSelect } from '../components/FrameworkSelect';
+import { generateBandLine, generateBarData, generateLineData, generateOHLCData } from '../data';
+import { type Framework, useFramework, useIsMobile, useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
 
 // ── Data ──────────────────────────────────────────────────────
@@ -29,7 +30,6 @@ const upperBand = generateBandLine(ohlc2, 1.0);
 const lowerBand = generateBandLine(ohlc2, -1.0);
 const lines = Array.from({ length: 10 }, () => generateLineData(300, 100 + Math.random() * 200, 60));
 const barData = generateBarData(100, 180);
-const waveLine = generateWaveData(300, { base: 5, amplitude: 140, period: 60, phase: 0 });
 
 // ── Chart components ──────────────────────────────────────────
 
@@ -83,19 +83,6 @@ function BarChart({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme}>
       <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
-      <Crosshair />
-      <YAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
-function WaveChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([waveLine], 350);
-  return (
-    <ChartContainer theme={theme}>
-      <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1, pulse: true }} />
-      <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -239,24 +226,24 @@ function FrameworkRotator() {
   );
 }
 
-function Hero({ theme }: { theme: ChartTheme }) {
+function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
   return (
     <div
       style={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 12,
-        padding: '50px 20px',
+        gap: mobile ? 8 : 12,
+        padding: mobile ? '24px 12px' : '50px 20px',
         textAlign: 'center',
       }}
     >
       {/* Logo + Name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <img src="/wick-icon.svg" alt="" style={{ height: 40, position: 'relative', top: -4 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 8 : 12 }}>
+        <img src="/wick-icon.svg" alt="" style={{ height: mobile ? 28 : 40, position: 'relative', top: -4 }} />
         <span
           style={{
-            fontSize: 26,
+            fontSize: mobile ? 20 : 26,
             fontWeight: 500,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -274,7 +261,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
         <h2
           style={{
             margin: 0,
-            fontSize: 16,
+            fontSize: mobile ? 14 : 16,
             fontWeight: 600,
             color: theme.tooltip.textColor,
             lineHeight: 1.4,
@@ -284,8 +271,8 @@ function Hero({ theme }: { theme: ChartTheme }) {
             justifyContent: 'center',
           }}
         >
-          <div style={{ marginRight: 8 }}>Timeseries charts for</div>
-          <div style={{ flex: '0 70px' }}>
+          <div style={{ marginRight: 8, whiteSpace: 'nowrap' }}>High-performance charting library for</div>
+          <div style={{ flex: '0 auto' }}>
             <FrameworkRotator />
           </div>
         </h2>
@@ -299,7 +286,9 @@ function Hero({ theme }: { theme: ChartTheme }) {
             fontFamily: theme.typography.fontFamily,
           }}
         >
-          Realtime. AI&#8209;first. Tiny, zero deps, open source, fully themeable.
+          Candlesticks, lines, areas, bars &mdash; streaming in realtime.
+          <br />
+          AI&#8209;first, tiny bundle, zero deps, 20+ themes, fully open source.
         </p>
       </div>
 
@@ -309,7 +298,7 @@ function Hero({ theme }: { theme: ChartTheme }) {
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'center',
-          gap: 6,
+          gap: mobile ? 4 : 6,
           maxWidth: 540,
         }}
       >
@@ -322,8 +311,6 @@ function Hero({ theme }: { theme: ChartTheme }) {
 }
 
 // ── Getting Started ──────────────────────────────────────────
-
-type Framework = 'react' | 'vue' | 'svelte';
 
 const INSTALL_COMMANDS: Record<Framework, string> = {
   react: 'npm install @wick-charts/react',
@@ -394,81 +381,6 @@ const id = ref('');
 </ChartContainer>`,
 };
 
-const FW_TABS: { value: Framework; label: string; color: string }[] = [
-  { value: 'react', label: 'React', color: '#61DAFB' },
-  { value: 'vue', label: 'Vue', color: '#42b883' },
-  { value: 'svelte', label: 'Svelte', color: '#FF3E00' },
-];
-
-function FrameworkTabs({ value, onChange, theme }: { value: Framework; onChange: (v: Framework) => void; theme: ChartTheme }) {
-  const btnsRef = useRef<(HTMLButtonElement | null)[]>([]);
-  const activeIndex = FW_TABS.findIndex((t) => t.value === value);
-  const [ind, setInd] = useState({ left: 0, width: 0 });
-
-  useEffect(() => {
-    const btn = btnsRef.current[activeIndex];
-    if (btn) setInd({ left: btn.offsetLeft, width: btn.offsetWidth });
-  }, [activeIndex]);
-
-  const accent = FW_TABS[activeIndex].color;
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        display: 'inline-flex',
-        background: hexToRgba(theme.tooltip.borderColor, 0.2),
-        borderRadius: 7,
-        padding: 2,
-      }}
-    >
-      {ind.width > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 2,
-            bottom: 2,
-            left: ind.left,
-            width: ind.width,
-            background: hexToRgba(accent, 0.18),
-            border: `1px solid ${hexToRgba(accent, 0.22)}`,
-            borderRadius: 5,
-            transition: 'left 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.15s ease',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-      {FW_TABS.map((tab, i) => {
-        const active = tab.value === value;
-        return (
-          <button
-            key={tab.value}
-            ref={(el) => { btnsRef.current[i] = el; }}
-            onClick={() => onChange(tab.value)}
-            style={{
-              background: 'transparent',
-              color: active ? theme.tooltip.textColor : hexToRgba(theme.axis.textColor, 0.6),
-              border: 'none',
-              padding: '5px 16px',
-              borderRadius: 5,
-              fontSize: 12,
-              fontFamily: 'inherit',
-              fontWeight: active ? 600 : 400,
-              cursor: 'pointer',
-              transition: 'color 0.2s',
-              position: 'relative',
-              zIndex: 1,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function CopyButton({ text, theme }: { text: string; theme: ChartTheme }) {
   const [copied, setCopied] = useState(false);
 
@@ -479,19 +391,48 @@ function CopyButton({ text, theme }: { text: string; theme: ChartTheme }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
+      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
       style={{
         background: 'transparent',
         border: 'none',
         color: copied ? '#4ade80' : hexToRgba(theme.axis.textColor, 0.5),
         cursor: 'pointer',
-        padding: '2px 6px',
-        fontSize: 11,
-        fontFamily: 'inherit',
+        padding: 4,
         borderRadius: 4,
         transition: 'color 0.2s',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
-      {copied ? 'Copied!' : 'Copy'}
+      {copied ? (
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
     </button>
   );
 }
@@ -505,7 +446,8 @@ function SectionHeading({ children, theme }: { children: React.ReactNode; theme:
         fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
-        color: hexToRgba(theme.axis.textColor, 0.6),
+        color: theme.tooltip.textColor,
+        opacity: 0.5,
         fontFamily: theme.typography.fontFamily,
       }}
     >
@@ -514,8 +456,8 @@ function SectionHeading({ children, theme }: { children: React.ReactNode; theme:
   );
 }
 
-function GettingStarted({ theme }: { theme: ChartTheme }) {
-  const [fw, setFw] = useState<Framework>('react');
+function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
+  const [fw, setFw] = useFramework();
 
   const cardStyle: CSSProperties = {
     background: hexToRgba(theme.crosshair.labelBackground, 0.25),
@@ -530,11 +472,11 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
   return (
     <div
       style={{
-        padding: '40px 20px 50px',
+        padding: mobile ? '20px 10px 30px' : '40px 20px 50px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 24,
+        gap: mobile ? 16 : 24,
         fontFamily: theme.typography.fontFamily,
       }}
     >
@@ -565,20 +507,20 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
       </div>
 
       {/* Framework selector */}
-      <FrameworkTabs value={fw} onChange={setFw} theme={theme} />
+      <FrameworkSelect theme={theme} />
 
       {/* Cards */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 16,
+          gridTemplateColumns: mobile ? '1fr' : '1fr 1fr',
+          gap: mobile ? 12 : 16,
           width: '100%',
           maxWidth: 900,
         }}
       >
         {/* Left: Install + AI skill */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
           {/* Install */}
           <div style={cardStyle}>
             <SectionHeading theme={theme}>1. Install</SectionHeading>
@@ -594,6 +536,7 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
                 fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
                 fontSize: 12,
                 color: theme.tooltip.textColor,
+                overflow: 'hidden',
               }}
             >
               <span>
@@ -616,7 +559,8 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
                 lineHeight: 1.5,
               }}
             >
-              Wick Charts ships with a built-in Claude Code skill. Your AI assistant will know every component, prop, and theme out of the box.
+              Wick Charts ships with a built-in Claude Code skill. Your AI assistant will know every component, prop,
+              and theme out of the box.
             </p>
             <div
               style={{
@@ -632,17 +576,16 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
                 color: theme.tooltip.textColor,
               }}
             >
-              <div>
-                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>{'// '}</span>
-                <span style={{ color: hexToRgba(theme.axis.textColor, 0.7) }}>Skill auto-loaded from</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>$</span>
+                <span style={{ color: '#86efac', wordBreak: 'break-all' }}>npx skills add mo4islona/wick-charts</span>
               </div>
-              <span style={{ color: '#86efac' }}>.claude/skills/wick-charts/</span>
             </div>
           </div>
         </div>
 
         {/* Right: Code example */}
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <SectionHeading theme={theme}>3. Build a chart</SectionHeading>
             <CopyButton text={CODE_EXAMPLES[fw]} theme={theme} />
@@ -657,6 +600,8 @@ function GettingStarted({ theme }: { theme: ChartTheme }) {
 // ── Page ──────────────────────────────────────────────────────
 
 export function DashboardPage({ theme }: { theme: ChartTheme }) {
+  const mobile = useIsMobile();
+
   return (
     <div
       style={{
@@ -666,33 +611,37 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
         gap: 6,
       }}
     >
-      <Hero theme={theme} />
+      <Hero theme={theme} mobile={mobile} />
 
       <div
         style={{
-          minHeight: 500,
+          minHeight: mobile ? undefined : 500,
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gridTemplateRows: '1fr 1fr',
-          gap: 10,
-          padding: 12,
+          gridTemplateColumns: mobile ? '1fr' : '1fr 1fr',
+          gridTemplateRows: mobile ? undefined : '1fr 1fr',
+          gap: mobile ? 6 : 10,
+          padding: mobile ? 6 : 12,
         }}
       >
-        <Cell label="BTC/USD" sub="1m Candlestick" theme={theme}>
+        <Cell label="BTC/USD" sub="1m Candlestick" theme={theme} style={mobile ? { height: 220 } : undefined}>
           <CandleChart theme={theme} />
         </Cell>
-        <Cell label="ETH/USD" sub="1m Area + Bands" theme={theme}>
+        <Cell label="ETH/USD" sub="1m Area + Bands" theme={theme} style={mobile ? { height: 220 } : undefined}>
           <AreaBandsChart theme={theme} />
         </Cell>
-        <Cell label="Portfolio" sub="10 assets · 1m" theme={theme}>
-          <MultiLineChart theme={theme} />
-        </Cell>
-        <Cell label="P&L Delta" sub="1m Bar" theme={theme}>
-          <BarChart theme={theme} />
-        </Cell>
+        {!mobile && (
+          <>
+            <Cell label="Portfolio" sub="10 assets · 1m" theme={theme}>
+              <MultiLineChart theme={theme} />
+            </Cell>
+            <Cell label="P&L Delta" sub="1m Bar" theme={theme}>
+              <BarChart theme={theme} />
+            </Cell>
+          </>
+        )}
       </div>
 
-      <GettingStarted theme={theme} />
+      <GettingStarted theme={theme} mobile={mobile} />
     </div>
   );
 }

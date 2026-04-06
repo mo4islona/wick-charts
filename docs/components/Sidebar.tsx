@@ -1,6 +1,7 @@
 import type { ChartTheme } from '@wick-charts/react';
 import { BarChart3, CandlestickChart, LayoutDashboard, Palette, PieChart, TrendingUp } from 'lucide-react';
 
+import { FrameworkSelect } from './FrameworkSelect';
 import { hexToRgba } from '../utils';
 
 export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'theme';
@@ -98,6 +99,18 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      {/* Framework selector */}
+      <div
+        style={{
+          padding: collapsed ? '6px 4px' : '6px 10px',
+          borderTop: `1px solid ${border}`,
+          display: 'flex',
+          justifyContent: 'center',
+        }}
+      >
+        <FrameworkSelect theme={theme} compact />
+      </div>
 
       {/* Collapse toggle */}
       <button
