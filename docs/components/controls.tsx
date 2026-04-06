@@ -1,4 +1,7 @@
-import { type CSSProperties, useEffect, useRef, useState } from 'react';
+import Prism from 'prismjs';
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-jsx';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 import { ChevronDown } from 'lucide-react';
@@ -698,34 +701,75 @@ export function SectionLabel({ children, theme }: { children: React.ReactNode; t
 
 // ── Syntax-highlighted code ──────────────────────────────────
 
-type TokenType = 'tag' | 'attr' | 'string' | 'punct' | 'brace' | 'text';
-
-function tokenizeJSX(code: string): { type: TokenType; text: string }[] {
-  const tokens: { type: TokenType; text: string }[] = [];
-  const re = /(<\/?[A-Z]\w*)|(\w+)(?==)|("[^"]*")|(\{[^{}]*\})|([<>/={}])|(\s+)|([^<>"{}=\s/]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(code)) !== null) {
-    if (m[1]) tokens.push({ type: 'tag', text: m[1] });
-    else if (m[2]) tokens.push({ type: 'attr', text: m[2] });
-    else if (m[3]) tokens.push({ type: 'string', text: m[3] });
-    else if (m[4]) tokens.push({ type: 'brace', text: m[4] });
-    else if (m[5]) tokens.push({ type: 'punct', text: m[5] });
-    else tokens.push({ type: 'text', text: m[0] });
-  }
-  return tokens;
+interface FlatToken {
+  type: string;
+  text: string;
 }
 
-const syntaxColors: Record<TokenType, string> = {
+function flattenTokens(tokens: (string | Prism.Token)[]): FlatToken[] {
+  const result: FlatToken[] = [];
+  for (const t of tokens) {
+    if (typeof t === 'string') {
+      result.push({ type: 'text', text: t });
+    } else if (Array.isArray(t.content)) {
+      for (const child of flattenTokens(t.content as (string | Prism.Token)[])) {
+        result.push({ type: child.type === 'text' ? t.type : child.type, text: child.text });
+      }
+    } else {
+      result.push({ type: t.type, text: String(t.content) });
+    }
+  }
+  return result;
+}
+
+function isDark(bg: string): boolean {
+  if (!bg.startsWith('#') || bg.length < 7) return true;
+  const r = parseInt(bg.slice(1, 3), 16);
+  const g = parseInt(bg.slice(3, 5), 16);
+  const b = parseInt(bg.slice(5, 7), 16);
+  return r * 0.299 + g * 0.587 + b * 0.114 < 128;
+}
+
+const DARK_COLORS: Record<string, string> = {
   tag: '#7dd3fc',
-  attr: '#c4b5fd',
+  'class-name': '#7dd3fc',
+  'attr-name': '#c4b5fd',
+  'attr-value': '#86efac',
   string: '#86efac',
-  punct: '#94a3b8',
-  brace: '#fbbf24',
-  text: '#e2e8f0',
+  punctuation: '#64748b',
+  'script-punctuation': '#64748b',
+  keyword: '#c4b5fd',
+  function: '#fbbf24',
+  operator: '#94a3b8',
+  comment: '#64748b',
+  text: '#cbd5e1',
+};
+
+const LIGHT_COLORS: Record<string, string> = {
+  tag: '#0369a1',
+  'class-name': '#0369a1',
+  'attr-name': '#6d28d9',
+  'attr-value': '#16653a',
+  string: '#16653a',
+  punctuation: '#64748b',
+  'script-punctuation': '#64748b',
+  keyword: '#7c3aed',
+  function: '#b45309',
+  operator: '#475569',
+  comment: '#94a3b8',
+  text: '#1e293b',
 };
 
 export function HighlightedCode({ code, theme }: { code: string; theme: ChartTheme }) {
-  const tokens = tokenizeJSX(code);
+  const dark = isDark(theme.background);
+  const palette = dark ? DARK_COLORS : LIGHT_COLORS;
+
+  const tokens = useMemo(() => {
+    const isJSX = code.includes('import ') && !code.includes('<template>') && !code.includes('<script>');
+    const grammar = isJSX ? Prism.languages.jsx : Prism.languages.markup;
+    return flattenTokens(Prism.tokenize(code, grammar));
+  }, [code]);
+
   return (
     <pre
       style={{
@@ -745,7 +789,7 @@ export function HighlightedCode({ code, theme }: { code: string; theme: ChartThe
       }}
     >
       {tokens.map((t, i) => (
-        <span key={i} style={{ color: syntaxColors[t.type] }}>
+        <span key={i} style={{ color: palette[t.type] ?? palette.text }}>
           {t.text}
         </span>
       ))}

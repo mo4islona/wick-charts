@@ -4,6 +4,12 @@ import type { LineData, OHLCData } from '@wick-charts/react';
 
 import { LineStreamingSource, StreamingSource } from './data';
 
+// Re-exports for convenience
+export { type Framework, useFramework } from './context/framework';
+export { useIsMobile } from './hooks/useIsMobile';
+
+// ── Streaming ───────────────────────────────────────────────
+
 const BATCH_SIZE = 50;
 const BATCH_DELAY = 600;
 

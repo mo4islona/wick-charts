@@ -15,6 +15,7 @@ import {
 
 import { Cell } from '../components/Cell';
 import { generateOHLCData, generateWaveData } from '../data';
+import { useIsMobile } from '../hooks';
 import { hexToRgba } from '../utils';
 
 // ── Data ──────────────────────────────────────────────────────
@@ -280,10 +281,10 @@ function colorsFromTheme(theme: ChartTheme): ThemeColors {
 }
 
 export function ThemePage({ theme }: { theme: ChartTheme }) {
+  const mobile = useIsMobile();
   const [colors, setColors] = useState<ThemeColors>(() => colorsFromTheme(theme));
   const [prevThemeBg, setPrevThemeBg] = useState(theme.background);
 
-  // Sync colors when parent theme changes (user switched theme in header)
   if (theme.background !== prevThemeBg) {
     setPrevThemeBg(theme.background);
     setColors(colorsFromTheme(theme));
@@ -293,18 +294,80 @@ export function ThemePage({ theme }: { theme: ChartTheme }) {
 
   const customTheme = useMemo(() => buildCustomTheme(theme, colors), [theme, colors]);
 
-  return (
-    <div style={{ display: 'flex', height: '100%', gap: 6 }}>
-      {/* Charts */}
-      <div
+  const colorEditor = (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '10px 12px',
+        borderRadius: 6,
+        border: `1px solid ${theme.tooltip.borderColor}`,
+        background: theme.tooltip.background,
+      }}
+    >
+      <SectionLabel theme={theme}>General</SectionLabel>
+      <ColorRow label="Background" value={colors.background} onChange={set('background')} theme={theme} />
+      <ColorRow label="Grid" value={colors.gridColor} onChange={set('gridColor')} theme={theme} />
+      <ColorRow label="Text" value={colors.textColor} onChange={set('textColor')} theme={theme} />
+
+      <SectionLabel theme={theme}>Candlestick</SectionLabel>
+      <ColorRow label="Up" value={colors.upColor} onChange={set('upColor')} theme={theme} />
+      <ColorRow label="Down" value={colors.downColor} onChange={set('downColor')} theme={theme} />
+
+      <SectionLabel theme={theme}>Series</SectionLabel>
+      <ColorRow label="Line / Series 1" value={colors.series1} onChange={set('series1')} theme={theme} />
+      <ColorRow label="Series 2" value={colors.series2} onChange={set('series2')} theme={theme} />
+      <ColorRow label="Series 3" value={colors.series3} onChange={set('series3')} theme={theme} />
+    </div>
+  );
+
+  const codeSnippet = (
+    <div
+      style={{
+        flex: mobile ? undefined : 1,
+        minHeight: mobile ? 200 : 0,
+        borderRadius: 6,
+        border: `1px solid ${theme.tooltip.borderColor}`,
+        background: theme.tooltip.background,
+        padding: '8px 10px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+      }}
+    >
+      <span
         style={{
-          flex: 1,
-          minWidth: 0,
-          display: 'grid',
-          gridTemplateRows: '1fr 1fr',
-          gap: 6,
+          fontSize: theme.typography.axisFontSize,
+          color: theme.axis.textColor,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
         }}
       >
+        Code
+      </span>
+      <HighlightedCode code={generateThemeCode(colors)} theme={theme} />
+    </div>
+  );
+
+  if (mobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: '100%' }}>
+        <Cell label="Candlestick" sub="custom theme" theme={customTheme} style={{ height: 220 }}>
+          <CandlestickPreview theme={customTheme} />
+        </Cell>
+        <Cell label="Line" sub="3 series" theme={customTheme} style={{ height: 220 }}>
+          <LinePreview theme={customTheme} />
+        </Cell>
+        {colorEditor}
+        {codeSnippet}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', height: '100%', gap: 6 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 6 }}>
         <Cell label="Candlestick" sub="custom theme" theme={customTheme}>
           <CandlestickPreview theme={customTheme} />
         </Cell>
@@ -312,70 +375,11 @@ export function ThemePage({ theme }: { theme: ChartTheme }) {
           <LinePreview theme={customTheme} />
         </Cell>
       </div>
-
-      {/* Color editor */}
       <div
-        style={{
-          width: '30vw',
-          flexShrink: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 6,
-          overflowY: 'auto',
-        }}
+        style={{ width: '30vw', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-            padding: '10px 12px',
-            borderRadius: 6,
-            border: `1px solid ${theme.tooltip.borderColor}`,
-            background: theme.tooltip.background,
-          }}
-        >
-          <SectionLabel theme={theme}>General</SectionLabel>
-          <ColorRow label="Background" value={colors.background} onChange={set('background')} theme={theme} />
-          <ColorRow label="Grid" value={colors.gridColor} onChange={set('gridColor')} theme={theme} />
-          <ColorRow label="Text" value={colors.textColor} onChange={set('textColor')} theme={theme} />
-
-          <SectionLabel theme={theme}>Candlestick</SectionLabel>
-          <ColorRow label="Up" value={colors.upColor} onChange={set('upColor')} theme={theme} />
-          <ColorRow label="Down" value={colors.downColor} onChange={set('downColor')} theme={theme} />
-
-          <SectionLabel theme={theme}>Series</SectionLabel>
-          <ColorRow label="Line / Series 1" value={colors.series1} onChange={set('series1')} theme={theme} />
-          <ColorRow label="Series 2" value={colors.series2} onChange={set('series2')} theme={theme} />
-          <ColorRow label="Series 3" value={colors.series3} onChange={set('series3')} theme={theme} />
-        </div>
-
-        {/* Export snippet */}
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            borderRadius: 6,
-            border: `1px solid ${theme.tooltip.borderColor}`,
-            background: theme.tooltip.background,
-            padding: '8px 10px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-          }}
-        >
-          <span
-            style={{
-              fontSize: theme.typography.axisFontSize,
-              color: theme.axis.textColor,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-          >
-            Code
-          </span>
-          <HighlightedCode code={generateThemeCode(colors)} theme={theme} />
-        </div>
+        {colorEditor}
+        {codeSnippet}
       </div>
     </div>
   );

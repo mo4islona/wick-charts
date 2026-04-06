@@ -5,11 +5,13 @@ export function Cell({
   sub,
   children,
   theme,
+  style,
 }: {
   label: string;
   sub: string;
   children: React.ReactNode;
   theme: ChartTheme;
+  style?: React.CSSProperties;
 }) {
   return (
     <div
@@ -20,6 +22,7 @@ export function Cell({
         borderRadius: 6,
         overflow: 'hidden',
         border: `1px solid ${theme.tooltip.borderColor}`,
+        ...style,
       }}
     >
       <div

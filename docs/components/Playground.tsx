@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { AxisBound, AxisConfig, ChartTheme } from '@wick-charts/react';
 
+import { useIsMobile } from '../hooks';
 import { hexToRgba } from '../utils';
 import type { ChartCodeConfig } from './CodePreview';
 import { CodePreview } from './CodePreview';
 import { BoundInput, Section, Select, Slider, Switch } from './controls';
+import { FrameworkSelect } from './FrameworkSelect';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -153,7 +155,12 @@ export function Playground<T extends Record<string, any>>({
   const [state, setStateRaw] = useState<T & CommonState>(() => loadState(id, fullDefaults));
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
 
   const set = (partial: Partial<T & CommonState>) => {
     setStateRaw((prev) => {
@@ -201,6 +208,171 @@ export function Playground<T extends Record<string, any>>({
 
   const codeConfigValue = codeConfig?.(chartProps);
   const { pct, containerRef, onMouseDown } = usePanelWidth();
+  const mobile = useIsMobile();
+
+  const settingsPanel = (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        padding: '6px 10px 8px',
+        borderRadius: 10,
+        border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.7)}`,
+        background: theme.tooltip.background,
+      }}
+    >
+      {settings && settings(state as unknown as T, setCustom)}
+
+      {!hideCartesian && (
+        <Section title="Grid" theme={theme} accent={theme.axis.textColor}>
+          <Switch
+            label="Visible"
+            checked={state.showGrid}
+            onChange={(v) => set({ showGrid: v } as any)}
+            theme={theme}
+          />
+          {state.showGrid && (
+            <Select
+              label="Style"
+              options={[
+                { value: 'solid', label: 'Solid' },
+                { value: 'dashed', label: 'Dashed' },
+                { value: 'dotted', label: 'Dotted' },
+              ]}
+              value={state.gridStyle}
+              onChange={(v) => set({ gridStyle: v as GridStyle } as any)}
+              theme={theme}
+            />
+          )}
+        </Section>
+      )}
+
+      {!hideCartesian && (
+        <Section title="Axes" theme={theme} accent={theme.axis.textColor} defaultOpen={false}>
+          <Switch
+            label="Y Axis"
+            checked={state.showYAxis}
+            onChange={(v) => set({ showYAxis: v } as any)}
+            theme={theme}
+          />
+          {state.showYAxis && (
+            <>
+              <Slider
+                label="Width"
+                value={state.yAxisWidth}
+                onChange={(v) => set({ yAxisWidth: v } as any)}
+                min={20}
+                max={120}
+                step={5}
+                theme={theme}
+                suffix="px"
+              />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <BoundInput
+                  label="Min"
+                  value={state.minBound}
+                  onChange={(v) => set({ minBound: v } as any)}
+                  theme={theme}
+                />
+                <BoundInput
+                  label="Max"
+                  value={state.maxBound}
+                  onChange={(v) => set({ maxBound: v } as any)}
+                  theme={theme}
+                />
+              </div>
+            </>
+          )}
+          <div style={{ borderTop: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.2)}`, marginTop: 2 }} />
+          <Switch
+            label="X Axis"
+            checked={state.showXAxis}
+            onChange={(v) => set({ showXAxis: v } as any)}
+            theme={theme}
+          />
+          {state.showXAxis && (
+            <Slider
+              label="Height"
+              value={state.xAxisHeight}
+              onChange={(v) => set({ xAxisHeight: v } as any)}
+              min={15}
+              max={60}
+              step={5}
+              theme={theme}
+              suffix="px"
+            />
+          )}
+        </Section>
+      )}
+
+      {!hideCartesian && (
+        <Section title="Data" theme={theme} accent={theme.seriesColors?.[4] ?? theme.line.color}>
+          <Switch
+            label="Live"
+            checked={state.streaming}
+            onChange={(v) => set({ streaming: v } as any)}
+            theme={theme}
+            accentColor={theme.candlestick.upColor}
+          />
+        </Section>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
+        <button
+          type="button"
+          onClick={reset}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.axis.textColor,
+            fontSize: 9,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            opacity: 0.35,
+            transition: 'opacity 0.15s',
+            padding: '2px 4px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.8';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '0.35';
+          }}
+        >
+          Reset defaults
+        </button>
+      </div>
+    </div>
+  );
+
+  if (mobile) {
+    // On mobile everything stacks — use auto rows with a fixed min-height per cell
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: '100%' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateRows: undefined,
+            gridAutoRows: 200,
+            gridTemplateColumns: '1fr',
+            gap: 6,
+          }}
+        >
+          {charts(chartProps)}
+        </div>
+        {settingsPanel}
+        {codeConfigValue && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <FrameworkSelect theme={theme} compact />
+            </div>
+            <CodePreview config={codeConfigValue} theme={theme} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} style={{ display: 'flex', height: '100%', gap: 0 }}>
@@ -248,164 +420,19 @@ export function Playground<T extends Record<string, any>>({
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 0,
+          gap: 6,
           overflowY: 'auto',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0,
-            padding: '6px 10px 8px',
-            borderRadius: 10,
-            border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.7)}`,
-            background: theme.tooltip.background,
-          }}
-        >
-          {/* Custom settings */}
-          {settings && settings(state as unknown as T, setCustom)}
-
-          {/* Grid */}
-          {!hideCartesian && (
-            <Section title="Grid" theme={theme} accent={theme.axis.textColor}>
-              <Switch
-                label="Visible"
-                checked={state.showGrid}
-                onChange={(v) => set({ showGrid: v } as any)}
-                theme={theme}
-              />
-
-              {state.showGrid && (
-                <>
-                  <Select
-                    label="Style"
-                    options={[
-                      { value: 'solid', label: 'Solid' },
-                      { value: 'dashed', label: 'Dashed' },
-                      { value: 'dotted', label: 'Dotted' },
-                    ]}
-                    value={state.gridStyle}
-                    onChange={(v) => set({ gridStyle: v as GridStyle } as any)}
-                    theme={theme}
-                  />
-                </>
-              )}
-            </Section>
-          )}
-
-          {/* Axes */}
-          {!hideCartesian && (
-            <Section title="Axes" theme={theme} accent={theme.axis.textColor} defaultOpen={false}>
-              {/* Y axis */}
-              <Switch
-                label="Y Axis"
-                checked={state.showYAxis}
-                onChange={(v) => set({ showYAxis: v } as any)}
-                theme={theme}
-              />
-              {state.showYAxis && (
-                <>
-                  <Slider
-                    label="Width"
-                    value={state.yAxisWidth}
-                    onChange={(v) => set({ yAxisWidth: v } as any)}
-                    min={20}
-                    max={120}
-                    step={5}
-                    theme={theme}
-                    suffix="px"
-                  />
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <BoundInput
-                      label="Min"
-                      value={state.minBound}
-                      onChange={(v) => set({ minBound: v } as any)}
-                      theme={theme}
-                    />
-                    <BoundInput
-                      label="Max"
-                      value={state.maxBound}
-                      onChange={(v) => set({ maxBound: v } as any)}
-                      theme={theme}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Divider */}
-              <div
-                style={{
-                  borderTop: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.2)}`,
-                  marginTop: 2,
-                }}
-              />
-
-              {/* X axis */}
-              <Switch
-                label="X Axis"
-                checked={state.showXAxis}
-                onChange={(v) => set({ showXAxis: v } as any)}
-                theme={theme}
-              />
-              {state.showXAxis && (
-                <Slider
-                  label="Height"
-                  value={state.xAxisHeight}
-                  onChange={(v) => set({ xAxisHeight: v } as any)}
-                  min={15}
-                  max={60}
-                  step={5}
-                  theme={theme}
-                  suffix="px"
-                />
-              )}
-            </Section>
-          )}
-
-          {/* Display */}
-          {!hideCartesian && (
-            <Section title="Data" theme={theme} accent={theme.seriesColors?.[4] ?? theme.line.color}>
-              <Switch
-                label="Live"
-                checked={state.streaming}
-                onChange={(v) => set({ streaming: v } as any)}
-                theme={theme}
-                accentColor={theme.candlestick.upColor}
-              />
-            </Section>
-          )}
-
-          {/* Reset */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 4 }}>
-            <button
-              type="button"
-              onClick={reset}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: theme.axis.textColor,
-                fontSize: 9,
-                fontFamily: 'inherit',
-                cursor: 'pointer',
-                opacity: 0.35,
-                transition: 'opacity 0.15s',
-                padding: '2px 4px',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '0.35';
-              }}
-            >
-              Reset defaults
-            </button>
+        {settingsPanel}
+        {codeConfigValue && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <FrameworkSelect theme={theme} compact />
+            </div>
+            <CodePreview config={codeConfigValue} theme={theme} />
           </div>
-        </div>
-
-        {/* Code preview */}
-        {codeConfigValue && <CodePreview config={codeConfigValue} theme={theme} />}
+        )}
       </div>
     </div>
   );
