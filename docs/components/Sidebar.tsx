@@ -1,10 +1,10 @@
 import type { ChartTheme } from '@wick-charts/react';
-import { BarChart3, CandlestickChart, LayoutDashboard, Palette, PieChart, TrendingUp } from 'lucide-react';
+import { Activity, BarChart3, CandlestickChart, LayoutDashboard, Palette, PieChart, TrendingUp } from 'lucide-react';
 
 import { FrameworkSelect } from './FrameworkSelect';
 import { hexToRgba } from '../utils';
 
-export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'theme';
+export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'sparkline' | 'theme';
 
 const NAV: { route: Route; label: string; icon: React.ReactNode }[] = [
   { route: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
@@ -12,6 +12,7 @@ const NAV: { route: Route; label: string; icon: React.ReactNode }[] = [
   { route: 'line', label: 'Line & Area', icon: <TrendingUp size={16} /> },
   { route: 'bar', label: 'Bar Chart', icon: <BarChart3 size={16} /> },
   { route: 'pie', label: 'Pie & Donut', icon: <PieChart size={16} /> },
+  { route: 'sparkline', label: 'Sparkline', icon: <Activity size={16} /> },
   { route: 'theme', label: 'Custom Theme', icon: <Palette size={16} /> },
 ];
 

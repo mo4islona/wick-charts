@@ -4,7 +4,7 @@ import { Viewport } from '../viewport';
 
 describe('Viewport', () => {
   it('setYRange adds pixel-based padding', () => {
-    const v = new Viewport({ yPadding: 20 });
+    const v = new Viewport({ padding: { top: 20, bottom: 20 } });
     // chartHeight=200, range=100, so 20px = 10% of range = 10 data units
     v.setYRange(100, 200, 200);
     const r = v.yRange;
@@ -15,7 +15,7 @@ describe('Viewport', () => {
   });
 
   it('setYRange skips padding when fixed', () => {
-    const v = new Viewport({ yPadding: 20 });
+    const v = new Viewport({ padding: { top: 20, bottom: 20 } });
     v.setYRange(0, 100, 200, true, false);
     expect(v.yRange.min).toBe(0); // fixed, no padding
     expect(v.yRange.max).toBeGreaterThan(100); // not fixed, padded
@@ -65,10 +65,10 @@ describe('Viewport', () => {
     expect(v.visibleRange.to).toBeGreaterThanOrEqual(20000);
   });
 
-  it('setPadding changes pad values', () => {
+  it('setHorizontalPadding changes pad values', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.setPadding(0, 0);
+    v.setHorizontalPadding(0, 0);
     v.fitToData(0, 18000);
     // with 0 padding, to should be exactly 18000
     expect(v.visibleRange.to).toBe(18000);

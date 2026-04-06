@@ -17,6 +17,7 @@ interface CommonState {
   streaming: boolean;
   showGrid: boolean;
   gridStyle: GridStyle;
+  showGradient: boolean;
   showYAxis: boolean;
   showXAxis: boolean;
   minBound: string;
@@ -29,6 +30,7 @@ const COMMON_DEFAULTS: CommonState = {
   streaming: false,
   showGrid: true,
   gridStyle: 'dashed',
+  showGradient: true,
   showYAxis: true,
   showXAxis: true,
   minBound: 'auto',
@@ -41,6 +43,7 @@ export interface PlaygroundChartProps {
   theme: ChartTheme;
   axis: AxisConfig;
   streaming: boolean;
+  gradient: boolean;
 }
 
 export interface PlaygroundProps<T extends Record<string, any>> {
@@ -204,6 +207,7 @@ export function Playground<T extends Record<string, any>>({
     theme: chartTheme,
     axis,
     streaming: state.streaming,
+    gradient: state.showGradient,
   };
 
   const codeConfigValue = codeConfig?.(chartProps);
@@ -247,6 +251,15 @@ export function Playground<T extends Record<string, any>>({
           )}
         </Section>
       )}
+
+      <Section title="Background" theme={theme} accent={theme.axis.textColor}>
+        <Switch
+          label="Gradient"
+          checked={state.showGradient}
+          onChange={(v) => set({ showGradient: v } as any)}
+          theme={theme}
+        />
+      </Section>
 
       {!hideCartesian && (
         <Section title="Axes" theme={theme} accent={theme.axis.textColor} defaultOpen={false}>
