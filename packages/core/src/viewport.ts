@@ -8,18 +8,21 @@ interface ViewportEvents {
 
 /** Configuration options for the {@link Viewport}. */
 export interface ViewportOptions {
-  /** Pixels of padding above and below the Y range (default 20). */
-  yPadding: number;
-  /** Number of bars to pad on the left (default 0). */
-  padLeft: number;
-  /** Number of bars to pad on the right (default 3). */
-  padRight: number;
+  padding?: { top?: number; right?: number; bottom?: number; left?: number };
 }
 
-const DEFAULT_OPTIONS: ViewportOptions = {
-  yPadding: 20,
-  padLeft: 0,
-  padRight: 3,
+interface ResolvedPadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+const DEFAULT_PADDING: ResolvedPadding = {
+  top: 20,
+  right: 3,
+  bottom: 20,
+  left: 0,
 };
 
 /**
@@ -31,7 +34,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private _visibleRange: VisibleRange = { from: 0, to: 0 };
   private _yRange: YRange = { min: 0, max: 0 };
   private _autoScroll = true;
-  private options: ViewportOptions;
+  private padding: ResolvedPadding;
   private dataInterval = 60;
   private _dataStart: number | null = null;
   private _dataEnd: number | null = null;
@@ -43,9 +46,14 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private animFrom: VisibleRange = { from: 0, to: 0 };
   private animTo: VisibleRange = { from: 0, to: 0 };
 
-  constructor(options?: Partial<ViewportOptions>) {
+  constructor({ padding }: ViewportOptions = {}) {
     super();
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.padding = {
+      top: padding?.top ?? DEFAULT_PADDING.top,
+      right: padding?.right ?? DEFAULT_PADDING.right,
+      bottom: padding?.bottom ?? DEFAULT_PADDING.bottom,
+      left: padding?.left ?? DEFAULT_PADDING.left,
+    };
   }
 
   get visibleRange(): VisibleRange {
@@ -56,10 +64,10 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     return this._yRange;
   }
 
-  /** Update left/right bar padding dynamically. */
-  setPadding(left: number, right: number): void {
-    this.options.padLeft = left;
-    this.options.padRight = right;
+  /** Update left/right bar-count padding dynamically. */
+  setHorizontalPadding(left: number, right: number): void {
+    this.padding.left = left;
+    this.padding.right = right;
   }
 
   get autoScroll(): boolean {
@@ -140,10 +148,11 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   /** Set the Y-axis range. Adds pixel-based padding unless a side has a fixed (explicit) bound. */
   setYRange(min: number, max: number, chartHeight: number, fixedMin = false, fixedMax = false): void {
     const dataRange = max - min;
-    const paddingData = chartHeight > 0 ? (this.options.yPadding / chartHeight) * dataRange : 0;
+    const padTop = chartHeight > 0 ? (this.padding.top / chartHeight) * dataRange : 0;
+    const padBottom = chartHeight > 0 ? (this.padding.bottom / chartHeight) * dataRange : 0;
     this._yRange = {
-      min: fixedMin ? min : min - paddingData,
-      max: fixedMax ? max : max + paddingData,
+      min: fixedMin ? min : min - padBottom,
+      max: fixedMax ? max : max + padTop,
     };
   }
 
@@ -192,8 +201,8 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     this._autoScroll = true;
 
     const maxBars = 400;
-    const pl = this.dataInterval * this.options.padLeft;
-    const pr = this.dataInterval * this.options.padRight;
+    const pl = this.dataInterval * this.padding.left;
+    const pr = this.dataInterval * this.padding.right;
 
     const targetTo = lastTime + pr;
     const targetFrom = Math.max(firstTime - pl, targetTo - maxBars * this.dataInterval);
@@ -208,7 +217,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   /** Keep the right edge pinned to the latest data (real-time auto-scroll). */
   scrollToEnd(lastTime: number): void {
     const range = this._visibleRange.to - this._visibleRange.from;
-    const pr = this.dataInterval * this.options.padRight;
+    const pr = this.dataInterval * this.padding.right;
     const targetTo = lastTime + pr;
     const targetFrom = targetTo - range;
     this._autoScroll = true;
@@ -231,7 +240,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
 
   private getRightLimit(): number | null {
     if (this._dataEnd === null) return null;
-    return this._dataEnd + this.dataInterval * this.options.padRight;
+    return this._dataEnd + this.dataInterval * this.padding.right;
   }
 
   destroy(): void {

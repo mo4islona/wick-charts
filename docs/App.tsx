@@ -12,6 +12,7 @@ import { CandlestickPage } from './pages/CandlestickPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LinePage } from './pages/LinePage';
 import { PiePage } from './pages/PiePage';
+import { SparklinePage } from './pages/SparklinePage';
 import { ThemePage } from './pages/ThemePage';
 
 const PAGES: Record<Route, React.FC<{ theme: ChartTheme }>> = {
@@ -20,6 +21,7 @@ const PAGES: Record<Route, React.FC<{ theme: ChartTheme }>> = {
   line: LinePage,
   bar: BarPage,
   pie: PiePage,
+  sparkline: SparklinePage,
   theme: ThemePage,
 };
 
@@ -29,6 +31,7 @@ const TITLES: Record<Route, string> = {
   line: 'Line & Area Charts',
   bar: 'Bar Charts',
   pie: 'Pie & Donut Charts',
+  sparkline: 'Sparklines',
   theme: 'Custom Theme',
 };
 

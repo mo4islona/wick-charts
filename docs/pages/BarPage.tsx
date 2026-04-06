@@ -46,7 +46,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   const { datasets } = useLineStreams([singleData], 300);
   const display = props.streaming ? datasets[0] : singleData;
   return (
-    <ChartContainer theme={props.theme} axis={props.axis}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <BarSeries
         data={[display]}
         options={{
@@ -71,7 +71,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings) {
     return props.axis ?? {};
   }, [props.axis, props.stacking]);
   return (
-    <ChartContainer theme={props.theme} axis={chartAxis}>
+    <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient}>
       <BarSeries
         data={display}
         options={{

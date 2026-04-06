@@ -31,6 +31,7 @@ function CandleChart({
   theme,
   axis,
   streaming,
+  gradient,
   data,
   showYLabel,
   showTooltip,
@@ -40,7 +41,7 @@ function CandleChart({
   const display = streaming ? d : data;
   const [sid, setSid] = useState<string | null>(null);
   return (
-    <ChartContainer theme={theme} axis={axis}>
+    <ChartContainer theme={theme} axis={axis} gradient={gradient}>
       <CandlestickSeries data={display} onSeriesId={setSid} />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}

@@ -51,7 +51,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const [sid, setSid] = useState<string | null>(null);
   return (
-    <ChartContainer theme={props.theme} axis={props.axis}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <LineSeries
         data={data}
         onSeriesId={setSid}
@@ -70,7 +70,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   const { datasets } = useLineStreams(props.allData, 500);
   const display = props.streaming ? datasets : props.allData;
   return (
-    <ChartContainer theme={props.theme} axis={props.axis}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <LineSeries
         data={display}
         options={{

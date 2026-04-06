@@ -25,6 +25,18 @@ export interface ChartContainerProps {
   theme?: ChartTheme;
   /** Grouped axis configuration (Y/X visibility, bounds, sizing). */
   axis?: AxisConfig;
+  /**
+   * Viewport padding: { top, right, bottom, left }.
+   * `top`/`bottom` are in pixels; `left`/`right` are in bar counts.
+   * Set all to 0 for edge-to-edge sparklines. Applied on mount only.
+   */
+  padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Show the chart background gradient. Defaults to true. */
+  gradient?: boolean;
+  /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+  interactive?: boolean;
+  /** Show the background grid. Defaults to true. */
+  grid?: boolean;
   style?: CSSProperties;
   className?: string;
 }
@@ -34,7 +46,7 @@ export interface ChartContainerProps {
  * Owns the DOM container and canvas lifecycle; renders children as an overlay layer.
  * Detects `<Legend>` children and renders them outside the chart area.
  */
-export function ChartContainer({ children, theme, axis, style, className }: ChartContainerProps) {
+export function ChartContainer({ children, theme, axis, padding, gradient = true, interactive, grid, style, className }: ChartContainerProps) {
   const contextTheme = useThemeOptional();
   const resolvedTheme = theme ?? contextTheme ?? undefined;
 
@@ -50,6 +62,9 @@ export function ChartContainer({ children, theme, axis, style, className }: Char
     const options: ChartOptions = {};
     if (axis) options.axis = axis;
     if (resolvedTheme) options.theme = resolvedTheme;
+    if (padding) options.padding = padding;
+    if (interactive !== undefined) options.interactive = interactive;
+    if (grid !== undefined) options.grid = grid;
     chartRef.current = new ChartInstance(containerRef.current, options);
     setRevision((r) => r + 1);
 
@@ -98,6 +113,9 @@ export function ChartContainer({ children, theme, axis, style, className }: Char
   const effectiveTheme = resolvedTheme ?? chart?.getTheme();
   const [gtop, gbot] = effectiveTheme?.chartGradient ?? ['transparent', 'transparent'];
   const bg = effectiveTheme?.background ?? 'transparent';
+  const backgroundStyle = gradient
+    ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)`
+    : bg;
 
   return (
     <div
@@ -108,7 +126,7 @@ export function ChartContainer({ children, theme, axis, style, className }: Char
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        background: `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)`,
+        background: backgroundStyle,
         ...style,
       }}
     >

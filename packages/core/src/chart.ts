@@ -41,6 +41,12 @@ interface ChartEvents {
 export interface ChartOptions {
   theme?: ChartTheme;
   axis?: AxisConfig;
+  /** Viewport padding: { top, right, bottom, left } in pixels (top/bottom) or bars (left/right). */
+  padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+  interactive?: boolean;
+  /** Show the background grid. Defaults to true. */
+  grid?: boolean;
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -60,36 +66,50 @@ let seriesIdCounter = 0;
  * Create one per chart container and call {@link destroy} on unmount.
  */
 export class ChartInstance extends EventEmitter<ChartEvents> {
-  private container: HTMLElement;
-  private canvasManager: CanvasManager;
-  private viewport: Viewport;
-  private mainScheduler: RenderScheduler;
-  private overlayScheduler: RenderScheduler;
+  /** Canvas lifecycle and DPR-aware sizing. */
+  #canvasManager: CanvasManager;
+  /** Manages visible range, Y range, panning, zooming, and animated transitions. */
+  readonly #viewport: Viewport;
+  /** Schedules main-layer redraws (background, grid, series). */
+  #mainScheduler: RenderScheduler;
+  /** Schedules overlay redraws (crosshair). */
+  #overlayScheduler: RenderScheduler;
+  /** Maps time values to horizontal pixel coordinates. */
   readonly timeScale: TimeScale;
+  /** Maps price/value to vertical pixel coordinates. */
   readonly yScale: YScale;
-  private interactions: InteractionHandler;
-  private series: SeriesEntry[] = [];
-  private theme: ChartTheme;
-  private dataInterval = 60;
-  private crosshairPos: CrosshairPosition | null = null;
-  private _previousClose: number | null = null;
-  private _yBounds: { min?: AxisBound; max?: AxisBound } = {};
-  private _hasYLabel = false;
-  private _axis: AxisConfig = {};
+  /** Zoom, pan, crosshair — null when interactive=false. */
+  #interactions: InteractionHandler | null;
+  /** All registered series (candlestick, line, bar, pie). */
+  #series: SeriesEntry[] = [];
+  /** Active visual theme (colors, fonts, grid style). */
+  #theme: ChartTheme;
+  /** Whether to render the background grid. */
+  readonly #grid: boolean;
+  /** Detected time interval between data points (seconds). */
+  #dataInterval = 60;
+  /** Current crosshair position, null when cursor is outside the chart. */
+  #crosshairPos: CrosshairPosition | null = null;
+  /** User-specified Y-axis bounds (auto, fixed, percentage). */
+  #yBounds: { min?: AxisBound; max?: AxisBound } = {};
+  /** Whether a YLabel overlay is active (used for right-padding calculation). */
+  #hasYLabel = false;
+  /** Axis visibility and sizing configuration. */
+  #axis: AxisConfig = {};
   /** Nesting depth for beginUpdate/endUpdate. Suppresses recomputes while > 0. */
-  private _batchDepth = 0;
+  #batchDepth = 0;
   /** True when batched operations include data changes (triggers full onDataChanged on end). */
-  private _batchDataDirty = false;
+  #batchDataDirty = false;
   /** True when batched operations include visibility changes (triggers Y-range + redraw on end). */
-  private _batchVisualDirty = false;
+  #batchVisualDirty = false;
 
   get yAxisWidth(): number {
-    const y = this._axis.y;
+    const y = this.#axis.y;
     return y?.visible === false ? 0 : (y?.width ?? 55);
   }
 
   get xAxisHeight(): number {
-    const x = this._axis.x;
+    const x = this.#axis.x;
     return x?.visible === false ? 0 : (x?.height ?? 30);
   }
 
@@ -97,40 +117,43 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     super();
     // Support both new `axis` API and legacy flat props
     if (options?.axis) {
-      this._axis = options.axis;
-      this._yBounds = { min: options.axis.y?.min, max: options.axis.y?.max };
+      this.#axis = options.axis;
+      this.#yBounds = { min: options.axis.y?.min, max: options.axis.y?.max };
     }
-    this.container = container;
-    this.theme = options?.theme ?? darkTheme;
+    this.#theme = options?.theme ?? darkTheme;
+    this.#grid = options?.grid !== false;
 
-    this.canvasManager = new CanvasManager(container);
-    this.viewport = new Viewport();
+    this.#canvasManager = new CanvasManager(container);
+    this.#viewport = new Viewport({ padding: options?.padding });
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
-    this.mainScheduler = new RenderScheduler(() => this.renderMain());
-    this.overlayScheduler = new RenderScheduler(() => this.renderOverlay());
+    this.#mainScheduler = new RenderScheduler(() => this.renderMain());
+    this.#overlayScheduler = new RenderScheduler(() => this.renderOverlay());
 
-    this.interactions = new InteractionHandler(this.canvasManager.canvas, this.viewport, this.timeScale, this.yScale);
+    const interactive = options?.interactive !== false;
+    this.#interactions = interactive
+      ? new InteractionHandler(this.#canvasManager.canvas, this.#viewport, this.timeScale, this.yScale)
+      : null;
 
-    this.viewport.on('change', () => {
+    this.#viewport.on('change', () => {
       // Sync scales immediately so DOM axis components (TimeAxis, YAxis) read
       // fresh coordinates when viewportChange triggers their re-render.
       // Does NOT advance Y smoothing — that only happens inside renderMain().
       this.syncScales();
-      this.mainScheduler.markDirty();
+      this.#mainScheduler.markDirty();
       this.emit('viewportChange');
     });
 
-    this.canvasManager.on('resize', () => {
+    this.#canvasManager.on('resize', () => {
       // Render synchronously — canvas.width/height assignment clears the canvas,
       // so we must redraw immediately in the same frame to avoid a black flash.
       this.updateScales();
       this.renderMain();
     });
 
-    this.interactions.on('crosshairMove', (pos) => {
-      this.crosshairPos = pos;
-      this.overlayScheduler.markDirty();
+    this.#interactions?.on('crosshairMove', (pos) => {
+      this.#crosshairPos = pos;
+      this.#overlayScheduler.markDirty();
       this.emit('crosshairMove', pos);
 
       // Update pie hover state
@@ -142,10 +165,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   addCandlestickSeries(options?: Partial<CandlestickSeriesOptions>): string {
     const store = new TimeSeriesStore<OHLCData>();
     const renderer = new CandlestickRenderer(store, {
-      upColor: this.theme.candlestick.upColor,
-      downColor: this.theme.candlestick.downColor,
-      wickUpColor: this.theme.candlestick.wickUpColor,
-      wickDownColor: this.theme.candlestick.wickDownColor,
+      upColor: this.#theme.candlestick.upColor,
+      downColor: this.#theme.candlestick.downColor,
+      wickUpColor: this.#theme.candlestick.wickUpColor,
+      wickDownColor: this.#theme.candlestick.wickDownColor,
       bodyWidthRatio: 0.6,
       ...options,
     });
@@ -153,7 +176,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     store.on('update', () => {
       this.onDataChanged();
     });
-    this.series.push({ id, renderer, store, visible: true });
+    this.#series.push({ id, renderer, store, visible: true });
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -162,8 +185,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Add a line series and return its unique ID. */
   addLineSeries(layerCount: number, options?: Partial<LineSeriesOptions>): string {
     const renderer = new LineRenderer(layerCount, {
-      colors: layerCount === 1 ? [this.theme.line.color] : this.theme.seriesColors.slice(0, layerCount),
-      lineWidth: this.theme.line.width,
+      colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
+      lineWidth: this.#theme.line.width,
       areaFill: true,
       ...options,
     });
@@ -171,7 +194,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.series.push({ id, label: options?.label, renderer, store: renderer.stores[0], visible: true });
+    this.#series.push({ id, label: options?.label, renderer, store: renderer.stores[0], visible: true });
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -179,7 +202,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Set data for a specific layer within a line series. */
   setLineLayerData(id: string, layerIndex: number, data: LineData[]): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry || !(entry.renderer instanceof LineRenderer)) return;
     const store = entry.renderer.stores[layerIndex];
     if (store) store.setData(data);
@@ -188,7 +211,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Add a bar series and return its unique ID. */
   addBarSeries(layerCount: number, options?: Partial<BarSeriesOptions>): string {
     const renderer = new BarRenderer(layerCount, {
-      colors: this.theme.seriesColors.slice(0, layerCount),
+      colors: this.#theme.seriesColors.slice(0, layerCount),
       barWidthRatio: 0.6,
       ...options,
     });
@@ -196,7 +219,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.series.push({ id, renderer, store: renderer.stores[0], visible: true });
+    this.#series.push({ id, renderer, store: renderer.stores[0], visible: true });
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -204,7 +227,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Set data for a specific layer within a bar series. */
   setBarLayerData(id: string, layerIndex: number, data: LineData[]): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry || !(entry.renderer instanceof BarRenderer)) return;
     const store = entry.renderer.stores[layerIndex];
     if (store) store.setData(data);
@@ -214,7 +237,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   addPieSeries(options?: Partial<PieSeriesOptions>): string {
     const renderer = new PieRenderer(options);
     const id = `series_${++seriesIdCounter}`;
-    this.series.push({ id, label: options?.label, renderer, store: null, visible: true });
+    this.#series.push({ id, label: options?.label, renderer, store: null, visible: true });
     this.updateViewportPadding();
     this.emit('seriesChange');
     return id;
@@ -222,48 +245,48 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Set data for a pie/donut series. */
   setPieData(id: string, data: PieSliceData[]): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry || !(entry.renderer instanceof PieRenderer)) return;
     entry.renderer.setData(data);
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
     this.emit('dataUpdate');
   }
 
   /** Remove a series by ID and clean up its resources. */
   removeSeries(id: string): void {
-    const idx = this.series.findIndex((s) => s.id === id);
+    const idx = this.#series.findIndex((s) => s.id === id);
     if (idx >= 0) {
-      const { renderer, store } = this.series[idx];
+      const { renderer, store } = this.#series[idx];
       // Remove listeners from ALL stores (multi-layer series have stores[1..n] too)
       if (renderer instanceof LineRenderer || renderer instanceof BarRenderer) {
         for (const s of renderer.stores) s.removeAllListeners();
       } else {
         store?.removeAllListeners();
       }
-      this.series.splice(idx, 1);
+      this.#series.splice(idx, 1);
       this.updateViewportPadding();
-      this.mainScheduler.markDirty();
+      this.#mainScheduler.markDirty();
       this.emit('seriesChange');
     }
   }
 
   /** Replace all data for a series (batch load). */
   setSeriesData(id: string, data: OHLCData[] | LineData[]): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.setData(data);
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
   appendData(id: string, point: OHLCData | LineData): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.append(point);
   }
 
   /** Update the last data point of a series in place (e.g. live candle update). */
   updateData(id: string, point: OHLCData | LineData): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.updateLast(point);
   }
@@ -273,7 +296,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     id: string,
     options: Partial<CandlestickSeriesOptions> | Partial<LineSeriesOptions> | Partial<BarSeriesOptions>,
   ): void {
-    const entry = this.series.find((s) => s.id === id);
+    const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
     if (entry.renderer instanceof CandlestickRenderer) {
       entry.renderer.updateOptions(options as Partial<CandlestickSeriesOptions>);
@@ -284,46 +307,49 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     } else if (entry.renderer instanceof PieRenderer) {
       entry.renderer.updateOptions(options as Partial<PieSeriesOptions>);
     }
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
   }
 
   /** Suppress recomputes until endUpdate(). Calls can nest. */
   beginUpdate(): void {
-    this._batchDepth++;
+    this.#batchDepth++;
   }
 
   endUpdate(): void {
-    if (--this._batchDepth <= 0) {
-      this._batchDepth = 0;
-      if (this._batchDataDirty) {
-        this._batchDataDirty = false;
-        this._batchVisualDirty = false;
+    if (--this.#batchDepth <= 0) {
+      this.#batchDepth = 0;
+      if (this.#batchDataDirty) {
+        this.#batchDataDirty = false;
+        this.#batchVisualDirty = false;
         this.onDataChanged();
-      } else if (this._batchVisualDirty) {
-        this._batchVisualDirty = false;
+      } else if (this.#batchVisualDirty) {
+        this.#batchVisualDirty = false;
         this.updateYRange(true);
-        this.mainScheduler.markDirty();
+        this.#mainScheduler.markDirty();
       }
     }
   }
 
   /** Show or hide a series. Hidden series are not rendered and excluded from Y-range. */
   setSeriesVisible(seriesId: string, visible: boolean): void {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || entry.visible === visible) return;
     entry.visible = visible;
-    if (this._batchDepth > 0) { this._batchVisualDirty = true; return; }
+    if (this.#batchDepth > 0) {
+      this.#batchVisualDirty = true;
+      return;
+    }
     this.updateYRange(true);
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
   }
 
   isSeriesVisible(seriesId: string): boolean {
-    return this.series.find((s) => s.id === seriesId)?.visible ?? true;
+    return this.#series.find((s) => s.id === seriesId)?.visible ?? true;
   }
 
   /** Show or hide a specific layer within a multi-layer series. */
   setLayerVisible(seriesId: string, layerIndex: number, visible: boolean): void {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return;
     const renderer = entry.renderer;
     if (renderer instanceof BarRenderer || renderer instanceof LineRenderer) {
@@ -331,15 +357,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       if (store) {
         if (store.isVisible() === visible) return;
         store.setVisible(visible);
-        if (this._batchDepth > 0) { this._batchVisualDirty = true; return; }
+        if (this.#batchDepth > 0) {
+          this.#batchVisualDirty = true;
+          return;
+        }
         this.updateYRange(true);
-        this.mainScheduler.markDirty();
+        this.#mainScheduler.markDirty();
       }
     }
   }
 
   isLayerVisible(seriesId: string, layerIndex: number): boolean {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return true;
     const renderer = entry.renderer;
     if (renderer instanceof BarRenderer || renderer instanceof LineRenderer) {
@@ -352,33 +381,32 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   fitContent(): void {
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
-    this.viewport.fitToData(first, last, true);
+    this.#viewport.fitToData(first, last, true);
   }
 
   getVisibleRange() {
-    return this.viewport.visibleRange;
+    return this.#viewport.visibleRange;
   }
 
   getYRange() {
-    return this.viewport.yRange;
+    return this.#viewport.yRange;
   }
 
   getCrosshairPosition(): CrosshairPosition | null {
-    return this.crosshairPos;
+    return this.#crosshairPos;
   }
 
   /** Get the last visible value and whether the absolute last point is on screen. */
   getLastValue(seriesId: string): { value: number; isLive: boolean } | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
 
     const last = entry.store.last();
     if (!last) return null;
 
-    const extractValue = (p: any): number =>
-      'close' in p ? (p as OHLCData).close : (p as LineData).value;
+    const extractValue = (p: any): number => ('close' in p ? (p as OHLCData).close : (p as LineData).value);
 
-    const { from, to } = this.viewport.visibleRange;
+    const { from, to } = this.#viewport.visibleRange;
 
     // Absolute last is on screen
     if (last.time >= from && last.time <= to) {
@@ -393,7 +421,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Get the second-to-last value, useful for computing change. */
   getPreviousClose(seriesId: string): number | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
     const all = entry.store.getAll();
     if (all.length < 2) return null;
@@ -402,16 +430,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   getLastData(seriesId: string): OHLCData | LineData | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
     return entry.store.last() ?? null;
   }
 
   /** Find the data point closest to the given timestamp within one data interval. */
   getDataAtTime(seriesId: string, time: number): OHLCData | LineData | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
-    const data = entry.store.getVisibleData(time - this.dataInterval, time + this.dataInterval);
+    const data = entry.store.getVisibleData(time - this.#dataInterval, time + this.#dataInterval);
     if (data.length === 0) return null;
     let closest = data[0];
     let minDist = Math.abs(data[0].time - time);
@@ -427,7 +455,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Get all layers' data at a given time for multi-layer series (Bar/Line with stacking). */
   getLayerSnapshots(seriesId: string, time: number): { value: number; color: string }[] | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || !entry.visible) return null;
     const renderer = entry.renderer;
     if (!(renderer instanceof BarRenderer) && !(renderer instanceof LineRenderer)) return null;
@@ -437,7 +465,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const results: { value: number; color: string }[] = [];
     for (let li = 0; li < renderer.stores.length; li++) {
       if (!renderer.stores[li].isVisible()) continue;
-      const data = renderer.stores[li].getVisibleData(time - this.dataInterval, time + this.dataInterval);
+      const data = renderer.stores[li].getVisibleData(time - this.#dataInterval, time + this.#dataInterval);
       if (data.length === 0) continue;
       let closest = data[0];
       let minDist = Math.abs(data[0].time - time);
@@ -450,33 +478,33 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       }
       results.push({
         value: closest.value,
-        color: colors?.[li % (colors?.length ?? 1)] ?? this.theme.seriesColors[li % this.theme.seriesColors.length],
+        color: colors?.[li % (colors?.length ?? 1)] ?? this.#theme.seriesColors[li % this.#theme.seriesColors.length],
       });
     }
     return results.length > 0 ? results : null;
   }
 
   getSeriesIds(): string[] {
-    return this.series.map((s) => s.id);
+    return this.#series.map((s) => s.id);
   }
 
   /** Get the primary display color for a series. */
   getSeriesColor(seriesId: string): string | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
     if ('getColor' in entry.renderer && typeof entry.renderer.getColor === 'function') {
       return (entry.renderer as any).getColor();
     }
-    return this.theme.line.color;
+    return this.#theme.line.color;
   }
 
   getSeriesLabel(seriesId: string): string | undefined {
-    return this.series.find((s) => s.id === seriesId)?.label;
+    return this.#series.find((s) => s.id === seriesId)?.label;
   }
 
   /** Get per-layer colors for a series. Returns null for non-bar/line series (e.g. candlestick, pie). */
   getSeriesLayers(seriesId: string): { color: string }[] | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
     const renderer = entry.renderer;
     if (!(renderer instanceof BarRenderer) && !(renderer instanceof LineRenderer)) return null;
@@ -488,12 +516,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Get all pie slices with computed colors and percentages. Returns null for non-pie series. */
   getPieSlices(seriesId: string): { label: string; value: number; percent: number; color: string }[] | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || !(entry.renderer instanceof PieRenderer)) return null;
     const data = entry.renderer.getData();
     if (data.length === 0) return null;
     const total = data.reduce((sum, d) => sum + d.value, 0);
-    const palette = this.theme.seriesColors;
+    const palette = this.#theme.seriesColors;
     return data.map((d, i) => ({
       label: d.label,
       value: d.value,
@@ -504,7 +532,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Get the hovered pie slice info (label, value, percentage, color). Returns null if no hover. */
   getPieHoverInfo(seriesId: string): { label: string; value: number; percent: number; color: string } | null {
-    const entry = this.series.find((s) => s.id === seriesId);
+    const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || !(entry.renderer instanceof PieRenderer)) return null;
     const renderer = entry.renderer;
     if (renderer.hoverIndex < 0) return null;
@@ -512,7 +540,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const slice = data[renderer.hoverIndex];
     if (!slice) return null;
     const total = data.reduce((sum, d) => sum + d.value, 0);
-    const palette = this.theme.seriesColors;
+    const palette = this.#theme.seriesColors;
     return {
       label: slice.label,
       value: slice.value,
@@ -523,9 +551,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Apply a new theme and update candlestick series colors. Line series keep their individual colors. */
   setTheme(theme: ChartTheme): void {
-    const oldLineColor = this.theme.line.color;
-    this.theme = theme;
-    for (const entry of this.series) {
+    const oldLineColor = this.#theme.line.color;
+    this.#theme = theme;
+    for (const entry of this.#series) {
       if (entry.renderer instanceof CandlestickRenderer) {
         entry.renderer.updateOptions({
           upColor: theme.candlestick.upColor,
@@ -550,46 +578,46 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         }
       }
     }
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
   }
 
   getTheme(): ChartTheme {
-    return this.theme;
+    return this.#theme;
   }
 
   /** Update axis configuration and re-render. */
   setAxis(config: AxisConfig): void {
     const prevYW = this.yAxisWidth;
     const prevXH = this.xAxisHeight;
-    this._axis = config;
+    this.#axis = config;
     // Sync Y bounds from axis config
     const newBounds: { min?: AxisBound; max?: AxisBound } = { min: config.y?.min, max: config.y?.max };
-    this._yBounds = newBounds;
-    this.yInited = false;
+    this.#yBounds = newBounds;
+    this.#yInited = false;
     this.updateYRange(true);
     if (this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH) {
       this.updateScales();
     }
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
   }
 
   getMediaSize() {
-    return this.canvasManager.size.media;
+    return this.#canvasManager.size.media;
   }
 
   getDataInterval(): number {
-    return this.dataInterval;
+    return this.#dataInterval;
   }
 
   /** Notify chart that a YLabel is present (affects right padding). */
   setYLabel(has: boolean): void {
-    this._hasYLabel = has;
+    this.#hasYLabel = has;
     this.updateViewportPadding();
   }
 
   private updatePieHover(pos: CrosshairPosition | null): void {
-    const size = this.canvasManager.size;
-    for (const entry of this.series) {
+    const size = this.#canvasManager.size;
+    for (const entry of this.#series) {
       if (entry.renderer instanceof PieRenderer) {
         if (pos) {
           const bx = pos.mediaX * size.horizontalPixelRatio;
@@ -598,7 +626,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         } else {
           entry.renderer.hoverIndex = -1;
         }
-        this.mainScheduler.markDirty();
+        this.#mainScheduler.markDirty();
       }
     }
   }
@@ -609,11 +637,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Tear down the chart: cancel animations, remove listeners, and detach the canvas. */
   destroy(): void {
-    this.viewport.destroy();
-    this.mainScheduler.destroy();
-    this.overlayScheduler.destroy();
-    this.interactions.destroy();
-    this.canvasManager.destroy();
+    this.#viewport.destroy();
+    this.#mainScheduler.destroy();
+    this.#overlayScheduler.destroy();
+    this.#interactions?.destroy();
+    this.#canvasManager.destroy();
     this.removeAllListeners();
   }
 
@@ -621,7 +649,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   private getDataBounds(): { first: number | undefined; last: number | undefined } {
     let first: number | undefined;
     let last: number | undefined;
-    for (const entry of this.series) {
+    for (const entry of this.#series) {
       if (!entry.visible) continue;
       if (!entry.store) continue;
       const f = entry.store.first();
@@ -632,23 +660,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return { first, last };
   }
 
-  private prevDataLength = 0;
+  /** Total data points across all series at last onDataChanged — used to detect batch vs tick. */
+  #prevDataLength = 0;
 
   private onDataChanged(): void {
-    if (this._batchDepth > 0) {
-      this._batchDataDirty = true;
+    if (this.#batchDepth > 0) {
+      this.#batchDataDirty = true;
       return;
     }
 
     this.updateDataInterval();
 
     const { first, last } = this.getDataBounds();
-    if (first !== undefined) this.viewport.setDataStart(first);
-    if (last !== undefined) this.viewport.setDataEnd(last);
+    if (first !== undefined) this.#viewport.setDataStart(first);
+    if (last !== undefined) this.#viewport.setDataEnd(last);
 
     // Detect how much data changed — batch load vs single tick
     let totalLength = 0;
-    for (const entry of this.series) {
+    for (const entry of this.#series) {
       // Multi-layer series (Line/Bar) have multiple stores; count them all
       if (entry.renderer instanceof LineRenderer || entry.renderer instanceof BarRenderer) {
         for (const s of entry.renderer.stores) totalLength += s.length;
@@ -656,36 +685,36 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         totalLength += entry.store.length;
       }
     }
-    const added = totalLength - this.prevDataLength;
+    const added = totalLength - this.#prevDataLength;
     const isBatchLoad = added > 5;
-    this.prevDataLength = totalLength;
+    this.#prevDataLength = totalLength;
 
     if (first !== undefined && last !== undefined) {
-      const { from, to } = this.viewport.visibleRange;
+      const { from, to } = this.#viewport.visibleRange;
       const uninitialized = from === 0 && to === 0;
 
       if (uninitialized) {
         // First data load — fit immediately
-        this.viewport.fitToData(first, last, false);
-      } else if (isBatchLoad && this.viewport.autoScroll) {
-        this.viewport.fitToData(first, last, true);
+        this.#viewport.fitToData(first, last, false);
+      } else if (isBatchLoad && this.#viewport.autoScroll) {
+        this.#viewport.fitToData(first, last, true);
       } else if (!isBatchLoad && this.isLastPointVisible()) {
         // Realtime tick: only scroll if the last point is currently on screen
-        this.viewport.scrollToEnd(last);
+        this.#viewport.scrollToEnd(last);
       }
     }
 
     // Snap Y range on batch loads, smooth on ticks
     this.updateYRange(isBatchLoad);
 
-    this.mainScheduler.markDirty();
+    this.#mainScheduler.markDirty();
     this.emit('dataUpdate');
   }
 
   /** Check whether the last data point of any series falls within the visible time range. */
   private isLastPointVisible(): boolean {
-    const { from, to } = this.viewport.visibleRange;
-    for (const entry of this.series) {
+    const { from, to } = this.#viewport.visibleRange;
+    for (const entry of this.#series) {
       if (!entry.visible) continue;
       if (!entry.store) continue;
       const last = entry.store.last();
@@ -695,29 +724,32 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   private updateDataInterval(): void {
-    for (const entry of this.series) {
+    for (const entry of this.#series) {
       if (!entry.store) continue;
       const all = entry.store.getAll();
       if (all.length >= 2) {
         const times = all.slice(0, 20).map((d: any) => d.time);
-        this.dataInterval = detectInterval(times);
-        this.viewport.setDataInterval(this.dataInterval);
+        this.#dataInterval = detectInterval(times);
+        this.#viewport.setDataInterval(this.#dataInterval);
         break;
       }
     }
   }
 
-  private smoothMin = 0;
-  private smoothMax = 0;
-  private yInited = false;
+  /** Smoothed Y-axis minimum for animated transitions. */
+  #smoothMin = 0;
+  /** Smoothed Y-axis maximum for animated transitions. */
+  #smoothMax = 0;
+  /** Whether the Y range has been initialized (first snap vs smooth lerp). */
+  #yInited = false;
 
   private updateYRange(snap = false): void {
     let min = Infinity;
     let max = -Infinity;
-    const range = this.viewport.visibleRange;
+    const range = this.#viewport.visibleRange;
     const allValues: number[] = [];
 
-    for (const entry of this.series) {
+    for (const entry of this.#series) {
       if (!entry.visible) continue;
 
       // If the renderer provides a custom value range (e.g. stacked totals), use it
@@ -749,37 +781,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     if (min === Infinity || max === -Infinity) {
       // No visible data — force a snap on next data appearance so stale range isn't reused
-      this.yInited = false;
+      this.#yInited = false;
       return;
     }
 
     // Apply Y bounds
-    min = this.resolveBound(this._yBounds.min, min, max, allValues, 'min');
-    max = this.resolveBound(this._yBounds.max, max, min, allValues, 'max');
+    min = this.resolveBound(this.#yBounds.min, min, max, allValues, 'min');
+    max = this.resolveBound(this.#yBounds.max, max, min, allValues, 'max');
 
-    if (!this.yInited || snap) {
-      this.smoothMin = min;
-      this.smoothMax = max;
-      this.yInited = true;
+    if (!this.#yInited || snap) {
+      this.#smoothMin = min;
+      this.#smoothMax = max;
+      this.#yInited = true;
     } else {
       const speed = 0.2;
-      this.smoothMin += (min - this.smoothMin) * speed;
-      this.smoothMax += (max - this.smoothMax) * speed;
+      this.#smoothMin += (min - this.#smoothMin) * speed;
+      this.#smoothMax += (max - this.#smoothMax) * speed;
       // Never clip data — expand immediately if data exceeds smooth range
-      if (min < this.smoothMin) this.smoothMin = min;
-      if (max > this.smoothMax) this.smoothMax = max;
+      if (min < this.#smoothMin) this.#smoothMin = min;
+      if (max > this.#smoothMax) this.#smoothMax = max;
       // Keep rendering until Y range has converged
-      const eps = Math.max(Math.abs(this.smoothMax - this.smoothMin) * 0.0001, 0.001);
-      if (Math.abs(this.smoothMin - min) > eps || Math.abs(this.smoothMax - max) > eps) {
-        this.mainScheduler.markDirty();
+      const eps = Math.max(Math.abs(this.#smoothMax - this.#smoothMin) * 0.0001, 0.001);
+      if (Math.abs(this.#smoothMin - min) > eps || Math.abs(this.#smoothMax - max) > eps) {
+        this.#mainScheduler.markDirty();
       }
     }
 
     // Only add padding for sides without explicit bounds
-    const hasMinBound = this._yBounds.min !== undefined && this._yBounds.min !== 'auto';
-    const hasMaxBound = this._yBounds.max !== undefined && this._yBounds.max !== 'auto';
-    const chartHeight = this.canvasManager.size.media.height - this.xAxisHeight;
-    this.viewport.setYRange(this.smoothMin, this.smoothMax, chartHeight, hasMinBound, hasMaxBound);
+    const hasMinBound = this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto';
+    const hasMaxBound = this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto';
+    const chartHeight = this.#canvasManager.size.media.height - this.xAxisHeight;
+    this.#viewport.setYRange(this.#smoothMin, this.#smoothMax, chartHeight, hasMinBound, hasMaxBound);
   }
 
   /** Resolve an {@link AxisBound} to a concrete numeric value. */
@@ -810,43 +842,43 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
    * handler so DOM axis components always read fresh coordinates on re-render.
    */
   private syncScales(): void {
-    const size = this.canvasManager.size;
+    const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
     const chartWidth = size.media.width - this.yAxisWidth;
     const chartHeight = size.media.height - this.xAxisHeight;
 
-    this.timeScale.update(this.viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
-    this.yScale.update(this.viewport.yRange, chartHeight, size.verticalPixelRatio);
+    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
+    this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);
   }
 
   private updateScales(): void {
-    const size = this.canvasManager.size;
+    const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
     const chartWidth = size.media.width - this.yAxisWidth; // Y axis
     const chartHeight = size.media.height - this.xAxisHeight; // time axis
 
-    this.timeScale.update(this.viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
-    this.yScale.update(this.viewport.yRange, chartHeight, size.verticalPixelRatio);
+    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
+    this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);
     this.updateYRange();
-    this.yScale.update(this.viewport.yRange, chartHeight, size.verticalPixelRatio);
+    this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);
   }
 
   /** Expensive: background, grid, all series. Only on data/viewport/resize change. */
   private renderMain(): void {
-    const size = this.canvasManager.size;
+    const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
     // Advance viewport animation in the same frame as render
-    const stillAnimating = this.viewport.tick(performance.now());
+    const stillAnimating = this.#viewport.tick(performance.now());
     if (stillAnimating) {
-      this.mainScheduler.markDirty();
+      this.#mainScheduler.markDirty();
     }
 
     this.updateScales();
 
-    this.canvasManager.useMainLayer((scope) => {
+    this.#canvasManager.useMainLayer((scope) => {
       const { context, bitmapSize } = scope;
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
@@ -859,16 +891,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       context.clip();
 
-      renderGrid(scope, this.timeScale, this.yScale, this.theme, this.dataInterval);
+      if (this.#grid) {
+        renderGrid(scope, this.timeScale, this.yScale, this.#theme, this.#dataInterval);
+      }
 
-      for (const entry of this.series) {
+      for (const entry of this.#series) {
         if (!entry.visible) continue;
         entry.renderer.render({
           scope,
           timeScale: this.timeScale,
           yScale: this.yScale,
-          theme: this.theme,
-          dataInterval: this.dataInterval,
+          theme: this.#theme,
+          dataInterval: this.#dataInterval,
         });
       }
 
@@ -876,12 +910,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     });
 
     // Keep rendering if any series needs animation (e.g. pulsing dots)
-    for (const entry of this.series) {
+    for (const entry of this.#series) {
       if (
         (entry.renderer instanceof LineRenderer || entry.renderer instanceof PieRenderer) &&
         entry.renderer.needsAnimation
       ) {
-        this.mainScheduler.markDirty();
+        this.#mainScheduler.markDirty();
         break;
       }
     }
@@ -892,11 +926,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Cheap: crosshair only. Redraws on every mousemove without touching series. */
   private renderOverlay(): void {
-    const size = this.canvasManager.size;
+    const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
-    this.canvasManager.useOverlayLayer((scope) => {
-      if (!this.crosshairPos) return;
+    this.#canvasManager.useOverlayLayer((scope) => {
+      if (!this.#crosshairPos) return;
 
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
@@ -906,12 +940,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       scope.context.clip();
 
-      const bx = this.crosshairPos.mediaX * size.horizontalPixelRatio;
-      const by = this.crosshairPos.mediaY * size.verticalPixelRatio;
-      renderCrosshair(scope, bx, by, this.theme);
+      const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
+      const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
+      renderCrosshair(scope, bx, by, this.#theme);
 
       // Draw nearest-point dots for line series
-      for (const entry of this.series) {
+      for (const entry of this.#series) {
         if (!entry.visible) continue;
         if (entry.renderer instanceof LineRenderer) {
           const renderer = entry.renderer as LineRenderer;
@@ -924,8 +958,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           const layerTimes: number[] = [];
           for (let li = 0; li < renderer.stores.length; li++) {
             const storeData = renderer.stores[li].getVisibleData(
-              this.crosshairPos!.time - this.dataInterval,
-              this.crosshairPos!.time + this.dataInterval,
+              this.#crosshairPos!.time - this.#dataInterval,
+              this.#crosshairPos!.time + this.#dataInterval,
             );
             if (storeData.length === 0) {
               layerValues.push(0);
@@ -933,9 +967,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
               continue;
             }
             let closest = storeData[0];
-            let minDist = Math.abs(storeData[0].time - this.crosshairPos!.time);
+            let minDist = Math.abs(storeData[0].time - this.#crosshairPos!.time);
             for (let i = 1; i < storeData.length; i++) {
-              const dist = Math.abs(storeData[i].time - this.crosshairPos!.time);
+              const dist = Math.abs(storeData[i].time - this.#crosshairPos!.time);
               if (dist < minDist) {
                 minDist = dist;
                 closest = storeData[i];
