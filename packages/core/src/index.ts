@@ -2,8 +2,8 @@
 
 export type { ChartOptions } from './chart';
 export { ChartInstance } from './chart';
+export type { HorizontalPadding } from './viewport';
 // Data
-export { syncSeriesData } from './data/sync';
 export { darkTheme } from './theme/dark';
 export { lightTheme } from './theme/light';
 export type { ThemeConfig, ThemePreset } from './theme/palettes';
@@ -38,20 +38,25 @@ export type { ChartTheme, Typography } from './theme/types';
 export type {
   AxisBound,
   AxisConfig,
-  BarSeriesOptions,
+  /** @deprecated Use {@link StackingMode} instead. */
   BarStacking,
+  BarSeriesOptions,
   CandlestickSeriesOptions,
+  ChartLayout,
   CrosshairPosition,
+  /** @deprecated Use {@link TimePoint} instead. */
   LineData,
   LineSeriesOptions,
   OHLCData,
   PieSeriesOptions,
   PieSliceData,
+  SeriesType,
+  StackingMode,
+  TimePoint,
   VisibleRange,
   XAxisConfig,
   YAxisConfig,
   YRange,
 } from './types';
-export { binarySearch, clamp, lerp } from './utils/math';
 // Utils
-export { detectInterval, formatDate, formatTime, niceTimeIntervals } from './utils/time';
+export { detectInterval, formatDate, formatTime } from './utils/time';

@@ -9,10 +9,13 @@ export interface OHLCData {
 }
 
 /** A single time-value data point for line and bar series. */
-export interface LineData {
+export interface TimePoint {
   time: number;
   value: number;
 }
+
+/** @deprecated Use {@link TimePoint} instead. */
+export type LineData = TimePoint;
 
 /** Time range (Unix timestamps) of the currently visible portion of the chart. */
 export interface VisibleRange {
@@ -77,7 +80,7 @@ export interface ChartLayout {
 }
 
 /** Supported primary series types. */
-export type SeriesType = 'candlestick' | 'line';
+export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie';
 
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
@@ -89,6 +92,8 @@ export interface CandlestickSeriesOptions {
   wickDownColor: string;
   /** Width of candle body as a fraction of the available bar slot (0-1). */
   bodyWidthRatio: number;
+  /** Apply a subtle vertical gradient to candle bodies. Default: true. */
+  candleGradient?: boolean;
 }
 
 /** Visual options for a line series. */
@@ -103,19 +108,24 @@ export interface LineSeriesOptions {
   /** Whether to show an animated pulsing dot at the last data point. */
   pulse: boolean;
   /** Stacking mode. Default: 'off'. */
-  stacking: BarStacking;
+  stacking: StackingMode;
 }
 
-/** Stacking mode for bar series: off (overlap), normal (stacked), percent (100% stacked). */
-export type BarStacking = 'off' | 'normal' | 'percent';
+/** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */
+export type StackingMode = 'off' | 'normal' | 'percent';
+
+/** @deprecated Use {@link StackingMode} instead. */
+export type BarStacking = StackingMode;
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
+  /** Display label shown in the tooltip (e.g. "Volume"). */
+  label?: string;
   /** One color per layer. */
   colors: string[];
   barWidthRatio: number;
   /** Stacking mode. Default: 'off'. */
-  stacking: BarStacking;
+  stacking: StackingMode;
 }
 
 /**

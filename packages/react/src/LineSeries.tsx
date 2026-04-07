@@ -1,39 +1,42 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import type { LineData, LineSeriesOptions } from '@wick-charts/core';
+import type { LineSeriesOptions, TimePoint } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
 export interface LineSeriesProps {
   /** Array of datasets — one per layer. A single line uses `[data]`. */
-  data: LineData[][];
+  data: TimePoint[][];
   options?: Partial<LineSeriesOptions>;
   label?: string;
+  /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
+  id?: string;
+  /** @deprecated Use the `id` prop instead. */
   onSeriesId?: (id: string) => void;
 }
 
-export function LineSeries({ data, options, label, onSeriesId }: LineSeriesProps) {
+export function LineSeries({ data, options, label, id: idProp, onSeriesId }: LineSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    const id = chart.addLineSeries(data.length, { ...options, label: label ?? options?.label });
+    const id = chart.addLineSeries({ ...options, label: label ?? options?.label, layers: data.length, id: idProp });
     seriesRef.current = id;
     onSeriesId?.(id);
     return () => {
       chart.removeSeries(id);
       seriesRef.current = null;
     };
-  }, [chart, data.length]);
+  }, [chart, data.length, idProp]);
 
   useLayoutEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
-    chart.beginUpdate();
-    for (let i = 0; i < data.length; i++) {
-      chart.setLineLayerData(id, i, data[i]);
-    }
-    chart.endUpdate();
+    chart.batch(() => {
+      for (let i = 0; i < data.length; i++) {
+        chart.setLineLayerData(id, i, data[i]);
+      }
+    });
   }, [chart, data]);
 
   useEffect(() => {

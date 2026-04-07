@@ -8,6 +8,15 @@
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body, #root { width: 100%; height: 100%; overflow: hidden; background: #0a0e17; }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background: radial-gradient(ellipse 120% 60% at 50% -10%, var(--page-glow, transparent), transparent);
+      }
+      #root { position: relative; z-index: 1; }
       /* Prism token colors */
       .token.keyword { color: #c678dd; }
       .token.string, .token.template-string { color: #98c379; }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
+import { type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
@@ -18,6 +18,8 @@ export interface TooltipProps {
   /** Sort order for line values when showing all series (default: 'none'). */
   sort?: TooltipSort;
   /** Show the compact legend strip in the top-left corner (default: true). */
+  showLegend?: boolean;
+  /** @deprecated Use `showLegend` instead. */
   legend?: boolean;
 }
 
@@ -25,15 +27,15 @@ export interface TooltipProps {
 interface SeriesSnapshot {
   id: string;
   label?: string;
-  data: OHLCData | LineData;
+  data: OHLCData | TimePoint;
   color: string;
 }
 
 function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSnapshot[] {
   if (sort === 'none' || snapshots.length <= 1) return snapshots;
   return [...snapshots].sort((a, b) => {
-    const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
-    const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
+    const av = 'value' in a.data ? (a.data as TimePoint).value : (a.data as OHLCData).close;
+    const bv = 'value' in b.data ? (b.data as TimePoint).value : (b.data as OHLCData).close;
     return sort === 'asc' ? av - bv : bv - av;
   });
 }
@@ -43,7 +45,8 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * 1. Compact legend always visible in top-left
  * 2. Floating glass tooltip near cursor on hover
  */
-export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps) {
+export function Tooltip({ seriesId, sort = 'none', showLegend, legend }: TooltipProps) {
+  const showLegendResolved = showLegend ?? legend ?? true;
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
@@ -68,7 +71,7 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
           hoverSnapshots.push({
             id: `${id}_layer${i}`,
             label: chart.getSeriesLabel(id),
-            data: { time: crosshair.time, value: layers[i].value } as LineData,
+            data: { time: crosshair.time, value: layers[i].value } as TimePoint,
             color: layers[i].color,
           });
         }
@@ -100,7 +103,7 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
           lastSnapshots.push({
             id: `${id}_layer${i}`,
             label: chart.getSeriesLabel(id),
-            data: { time: d.time, value: layers[i].value } as LineData,
+            data: { time: d.time, value: layers[i].value } as TimePoint,
             color: layers[i].color,
           });
         }
@@ -122,7 +125,7 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
   return (
     <>
       {/* ── Compact legend (below chart title) ── */}
-      {legend && (
+      {showLegendResolved && (
         <div
           style={{
             position: 'absolute',
@@ -166,7 +169,7 @@ export function Tooltip({ seriesId, sort = 'none', legend = true }: TooltipProps
                 </span>
               );
             }
-            const line = s.data as LineData;
+            const line = s.data as TimePoint;
             return (
               <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 <span
@@ -313,7 +316,7 @@ function FloatingTooltip({
             </div>
           );
         }
-        const line = s.data as LineData;
+        const line = s.data as TimePoint;
         return (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
             <span

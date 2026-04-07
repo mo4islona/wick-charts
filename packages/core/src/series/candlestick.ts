@@ -1,7 +1,7 @@
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
 import type { CandlestickSeriesOptions, OHLCData } from '../types';
-import { hexToRgba } from '../utils/color';
+import { darken, hexToRgba, lighten } from '../utils/color';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
@@ -141,14 +141,27 @@ export class CandlestickRenderer implements SeriesRenderer {
       ctx.fillRect(wickX, highY, wickWidth, lowY - highY);
     }
 
-    // Bodies with flat fill
-    ctx.fillStyle = bodyColor;
+    // Bodies
+    const useGradient = this.options.candleGradient !== false;
+    const topColor = useGradient ? lighten(bodyColor, 0.2) : bodyColor;
+    const bottomColor = useGradient ? darken(bodyColor, 0.15) : bodyColor;
+
+    if (!useGradient) ctx.fillStyle = bodyColor;
+
     for (const c of candles) {
       const cx = timeScale.timeToBitmapX(c.time);
       const openY = yScale.valueToBitmapY(c.open);
       const closeY = yScale.valueToBitmapY(c.close);
       const bodyTop = Math.min(openY, closeY);
       const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+
+      if (useGradient && bodyHeight > 2) {
+        const grad = ctx.createLinearGradient(0, bodyTop, 0, bodyTop + bodyHeight);
+        grad.addColorStop(0, topColor);
+        grad.addColorStop(0.5, bodyColor);
+        grad.addColorStop(1, bottomColor);
+        ctx.fillStyle = grad;
+      }
       ctx.fillRect(cx - halfBody, bodyTop, bodyWidth, bodyHeight);
     }
   }

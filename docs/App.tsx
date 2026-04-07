@@ -98,7 +98,9 @@ export default function App() {
     }
     document.documentElement.style.fontSize = `${theme.typography.fontSize}px`;
     document.documentElement.style.fontFamily = theme.typography.fontFamily;
-    document.body.style.background = theme.background;
+    document.body.style.backgroundColor = theme.background;
+    const glow = preset.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
+    document.body.style.setProperty('--page-glow', glow);
   }, [themeName]);
 
   const Page = PAGES[route];

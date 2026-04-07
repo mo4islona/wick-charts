@@ -3,4 +3,5 @@ dist
 docs-dist
 .DS_Store
 *.local
-.idea/
+.idea
+.claude/settings.local.json

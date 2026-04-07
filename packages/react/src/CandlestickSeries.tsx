@@ -7,16 +7,19 @@ import { useChartInstance } from './context';
 export interface CandlestickSeriesProps {
   data: OHLCData[];
   options?: Partial<CandlestickSeriesOptions>;
+  /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
+  id?: string;
+  /** @deprecated Use the `id` prop instead. */
   onSeriesId?: (id: string) => void;
 }
 
-export function CandlestickSeries({ data, options, onSeriesId }: CandlestickSeriesProps) {
+export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: CandlestickSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLenRef = useRef(0);
 
   useLayoutEffect(() => {
-    const id = chart.addCandlestickSeries(options);
+    const id = chart.addCandlestickSeries({ ...options, id: idProp });
     seriesRef.current = id;
     onSeriesId?.(id);
     return () => {
@@ -24,11 +27,18 @@ export function CandlestickSeries({ data, options, onSeriesId }: CandlestickSeri
       seriesRef.current = null;
       prevLenRef.current = 0;
     };
-  }, [chart]);
+  }, [chart, idProp]);
 
   useLayoutEffect(() => {
     const id = seriesRef.current;
-    if (!id || data.length === 0) return;
+    if (!id) return;
+
+    if (data.length === 0) {
+      // Explicit clear
+      chart.setSeriesData(id, []);
+      prevLenRef.current = 0;
+      return;
+    }
 
     const prevLen = prevLenRef.current;
 
@@ -47,6 +57,20 @@ export function CandlestickSeries({ data, options, onSeriesId }: CandlestickSeri
 
     prevLenRef.current = data.length;
   }, [chart, data]);
+
+  useEffect(() => {
+    if (seriesRef.current && options) {
+      chart.updateSeriesOptions(seriesRef.current, options);
+    }
+  }, [
+    chart,
+    options?.upColor,
+    options?.downColor,
+    options?.wickUpColor,
+    options?.wickDownColor,
+    options?.bodyWidthRatio,
+    options?.candleGradient,
+  ]);
 
   return null;
 }

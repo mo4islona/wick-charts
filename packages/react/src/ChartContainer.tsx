@@ -26,11 +26,11 @@ export interface ChartContainerProps {
   /** Grouped axis configuration (Y/X visibility, bounds, sizing). */
   axis?: AxisConfig;
   /**
-   * Viewport padding: { top, right, bottom, left }.
-   * `top`/`bottom` are in pixels; `left`/`right` are in bar counts.
-   * Set all to 0 for edge-to-edge sparklines. Applied on mount only.
+   * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
+   * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Applied on mount only.
+   * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
    */
-  padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  padding?: { top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number } };
   /** Show the chart background gradient. Defaults to true. */
   gradient?: boolean;
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
@@ -90,6 +90,23 @@ export function ChartContainer({ children, theme, axis, padding, gradient = true
       chartRef.current.setAxis(axis);
     }
   }, [axis?.y?.width, axis?.y?.min, axis?.y?.max, axis?.y?.visible, axis?.x?.height, axis?.x?.visible]);
+
+  useEffect(() => {
+    if (chartRef.current && padding) {
+      chartRef.current.setPadding(padding);
+    }
+  }, [
+    padding?.top,
+    padding?.bottom,
+    typeof padding?.right === 'object' ? padding.right.intervals : padding?.right,
+    typeof padding?.left === 'object' ? padding.left.intervals : padding?.left,
+  ]);
+
+  useEffect(() => {
+    if (chartRef.current && grid !== undefined) {
+      chartRef.current.setGrid(grid);
+    }
+  }, [grid]);
 
   const chart = chartRef.current;
 
