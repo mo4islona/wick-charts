@@ -5,113 +5,120 @@ description: Build charts with Wick Charts library. Use when creating candlestic
 
 # Wick Charts
 
-Canvas-based charting library with integrations for React, Vue 3, and Svelte.
+Canvas-based charting library for React, Vue 3, and Svelte.
 
 ## Packages
 
-- `@wick-charts/core` — Framework-agnostic chart engine
-- `@wick-charts/react` — React components and hooks
-- `@wick-charts/vue` — Vue 3 components and composables
-- `@wick-charts/svelte` — Svelte components and stores
+Install only the one you need. Each re-exports all types and themes from core.
 
-All framework packages re-export types and themes from core. Install only the one you need.
+- `@wick-charts/react` — Components, hooks, ThemeProvider
+- `@wick-charts/vue` — Components, composables, provide/inject
+- `@wick-charts/svelte` — Components, stores, context
 
 ## Chart types
 
-- **Candlestick** — OHLCV financial data
-- **Line / Area** — Multi-layer, stacking, area fill, pulse animation
-- **Bar / Histogram** — Multi-layer, stacking (off / normal / percent)
-- **Pie / Donut** — `innerRadiusRatio > 0` for donut
+Each type has a dedicated reference page:
 
-## Data types
+- [Candlestick](candlestick.md) — OHLCV financial data with volume bars
+- [Line / Area](line.md) — Multi-layer, stacking, area fill, pulse animation
+- [Bar / Histogram](bar.md) — Multi-layer, stacking (off / normal / percent)
+- [Pie / Donut](pie.md) — Donut via `innerRadiusRatio`, hover animations
 
-```ts
-// Candlestick — time is Unix timestamp in SECONDS
-interface OHLCData { time: number; open: number; high: number; low: number; close: number; volume?: number }
+## ChartContainer
 
-// Line and Bar
-interface LineData { time: number; value: number }
+The root component. Must have a defined width and height.
 
-// Pie
-interface PieSliceData { label: string; value: number; color?: string }
+### React
+
+```tsx
+import { ChartContainer, darkTheme } from '@wick-charts/react';
+
+<ChartContainer
+  theme={darkTheme}
+  axis={{ y: { min: 0, max: 'auto' }, x: { visible: true } }}
+  padding={{ top: 20, bottom: 20, right: { intervals: 3 } }}
+  gradient={true}
+  interactive={true}
+  grid={true}
+  style={{ width: '100%', height: 400 }}
+  className="my-chart"
+>
+  {/* Series + overlays */}
+</ChartContainer>
 ```
 
-## Series options
+### Vue
 
-### CandlestickSeriesOptions
+```vue
+<ChartContainer :theme="darkTheme" :axis="axis">
+  <!-- Series + overlays -->
+</ChartContainer>
+```
+
+### Svelte
+
+```svelte
+<ChartContainer theme={darkTheme} {axis} style="width:100%;height:400px">
+  <!-- Series + overlays -->
+</ChartContainer>
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `theme` | `ChartTheme` | `darkTheme` | Visual theme |
+| `axis` | `AxisConfig` | — | Axis visibility, bounds, sizing |
+| `padding` | `PaddingConfig` | see below | Chart padding |
+| `gradient` | `boolean` | `true` | Background gradient (React only) |
+| `interactive` | `boolean` | `true` | Zoom/pan/crosshair (React only) |
+| `grid` | `boolean` | `true` | Background grid (React only) |
+
+### Padding
+
 ```ts
-{
-  label?: string;
-  upColor: string;
-  downColor: string;
-  wickUpColor: string;
-  wickDownColor: string;
-  bodyWidthRatio: number; // 0-1
+padding?: {
+  top?: number;                          // pixels, default: 20
+  bottom?: number;                       // pixels, default: 20
+  right?: number | { intervals: number }; // default: { intervals: 3 }
+  left?: number | { intervals: number };  // default: { intervals: 0 }
 }
 ```
 
-### LineSeriesOptions
-```ts
-{
-  label?: string;
-  colors: string[];       // one color per layer
-  lineWidth: number;
-  areaFill: boolean;      // gradient area fill below line
-  pulse: boolean;         // animated pulsing dot at last point
-  stacking: 'off' | 'normal' | 'percent';
-}
-```
+`{ intervals: N }` adds N empty data intervals of space. Applied on mount only.
 
-### BarSeriesOptions
-```ts
-{
-  colors: string[];
-  barWidthRatio: number;
-  stacking: 'off' | 'normal' | 'percent';
-}
-```
-
-### PieSeriesOptions
-```ts
-{
-  colors?: string[];          // palette fallback (defaults to theme.seriesColors)
-  innerRadiusRatio: number;   // 0 = pie, >0 = donut
-  padAngle: number;           // gap in radians (default 0.02)
-  strokeColor: string;
-  strokeWidth: number;
-  label?: string;
-}
-```
-
-## Axis configuration
+### Axis configuration
 
 ```ts
 interface AxisConfig {
   y?: { width?: number; min?: AxisBound; max?: AxisBound; visible?: boolean }
   x?: { height?: number; visible?: boolean }
 }
+
 // AxisBound: 'auto' | number | "+10%" | ((values: number[]) => number)
 ```
 
 ## UI overlay components
 
-All frameworks have the same overlay components:
+Placed as children inside `ChartContainer`. Same API across all frameworks.
 
-| Component | Props | Description |
-|-----------|-------|-------------|
-| `Tooltip` | `seriesId?`, `sort?: 'none'\|'asc'\|'desc'`, `legend?: boolean` | Compact legend + floating tooltip |
-| `Crosshair` | none | Price and time labels at cursor |
-| `YAxis` | none | Animated Y axis |
-| `TimeAxis` | none | Animated time axis (alias: `XAxis`) |
-| `YLabel` | `seriesId`, `color?` | Horizontal dashed line + price badge |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Interactive legend (rendered outside chart) |
-| `PieLegend` | `seriesId`, `format?: 'value'\|'percent'` | Pie chart legend |
-| `PieTooltip` | `seriesId` | Hover tooltip for pie slices |
-| `NumberFlow` | `value`, `format?`, `spinDuration?` | Animated number display |
+| Component | Props | Use with |
+|-----------|-------|----------|
+| `Tooltip` | `seriesId?`, `sort?: 'none'\|'asc'\|'desc'`, `legend?: boolean` | All time-based charts |
+| `Crosshair` | — | All time-based charts |
+| `YAxis` | — | All time-based charts |
+| `TimeAxis` | — (alias: `XAxis`) | All time-based charts |
+| `YLabel` | `seriesId`, `color?` | Candlestick, Line, Bar |
+| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Multi-layer Line, Bar |
+| `PieLegend` | `seriesId`, `format?: 'value'\|'percent'` | Pie only |
+| `PieTooltip` | `seriesId` | Pie only |
+| `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
+
+`Legend` renders outside the chart canvas — the viewport adjusts automatically.
 
 ## Themes
 
-### Built-in themes (20+)
+### Built-in (20+)
 
 **Dark:** `darkTheme`, `dracula`, `oneDarkPro`, `monokaiPro`, `nightOwl`, `materialPalenight`, `gruvbox`, `catppuccin`, `ayuMirage`, `panda`, `andromeda`, `highContrast`, `handwritten`
 
@@ -122,22 +129,91 @@ All frameworks have the same overlay components:
 ```ts
 import { createTheme } from '@wick-charts/react'; // or /vue or /svelte
 
-// Only background is required — everything else is auto-derived
 const custom = createTheme({
-  background: '#0f172a',
+  background: '#0f172a',  // only required field — rest auto-derived
   candlestick: { upColor: '#10b981', downColor: '#ef4444' },
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
 
-// Or build by name
+// Or by name
 import { buildTheme } from '@wick-charts/react';
 const theme = buildTheme('Dracula');
 ```
 
-## Framework-specific guides
+### ThemeProvider (React)
 
-See the framework-specific reference files for component APIs, hooks/composables/stores, and usage examples:
+```tsx
+<ThemeProvider value={catppuccin}>
+  <ChartContainer>...</ChartContainer>
+  <ChartContainer>...</ChartContainer>
+</ThemeProvider>
+```
 
-- [React](react.md) — Components, hooks, ThemeProvider
-- [Vue](vue.md) — Components, composables, provide/inject
-- [Svelte](svelte.md) — Components, stores, context
+## Hooks / Composables / Stores
+
+### React hooks
+
+```ts
+import { useChartInstance, useVisibleRange, useYRange, useLastYValue, usePreviousClose, useCrosshairPosition, useTheme } from '@wick-charts/react';
+
+const chart = useChartInstance();                    // ChartInstance
+const range = useVisibleRange(chart);                // { from, to }
+const yRange = useYRange(chart);                     // { min, max }
+const last = useLastYValue(chart, seriesId);         // { value, isLive } | null
+const prevClose = usePreviousClose(chart, seriesId); // number | null
+const crosshair = useCrosshairPosition(chart);       // { mediaX, mediaY, time, y } | null
+const theme = useTheme();                            // ChartTheme
+```
+
+### Vue composables
+
+```ts
+import { useChartInstance, useVisibleRange, useYRange, useLastYValue, usePreviousClose, useCrosshairPosition, useTheme } from '@wick-charts/vue';
+// Same API — all return Ref<T>
+```
+
+### Svelte stores
+
+```ts
+import { getChartContext, getThemeContext, createVisibleRange, createYRange, createLastYValue, createPreviousClose, createCrosshairPosition } from '@wick-charts/svelte';
+
+const chartStore = getChartContext();   // Readable<ChartInstance | null>
+const themeStore = getThemeContext();    // Readable<ChartTheme>
+// create* functions return Readable<T> — use $store syntax
+```
+
+## Multiple series overlay
+
+Combine any time-based series in one `ChartContainer`:
+
+```tsx
+<ChartContainer theme={darkTheme}>
+  <CandlestickSeries data={ohlcData} onSeriesId={setCandleId} />
+  <LineSeries
+    data={[smaData]}
+    options={{ colors: ['#ffd700'], lineWidth: 1, areaFill: false, pulse: false }}
+    label="SMA 20"
+  />
+  <Tooltip />
+  <Crosshair />
+  <YAxis />
+  <TimeAxis />
+  {candleId && <YLabel seriesId={candleId} />}
+</ChartContainer>
+```
+
+## Real-time updates
+
+Update the `data` prop — framework reactivity handles the rest. Smart diffing applies automatically:
+
+- Same array length → updates last point only
+- Grew by 1-5 items → appends incrementally
+- Otherwise → full replace
+
+## Critical rules
+
+- **Time is in milliseconds** (`Date.now()` style) — or pass a `Date` object
+- `OHLCData` / `TimePoint` have `time: number` (ms). Use `OHLCInput` / `TimePointInput` when passing `Date` objects
+- `TimePoint` is the canonical type (`LineData` is a deprecated alias)
+- Line and Bar `data` is always `TimePoint[][]` — wrap single datasets: `[myData]`
+- Pie `data` is `PieSliceData[]` (not nested)

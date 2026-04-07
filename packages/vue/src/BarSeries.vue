@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { BarSeriesOptions, LineData } from '@wick-charts/core';
+import type { BarSeriesOptions, TimePoint } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
 const props = defineProps<{
-  data: LineData[][];
+  data: TimePoint[][];
   options?: Partial<BarSeriesOptions>;
+  label?: string;
 }>();
 
 const emit = defineEmits<{ seriesId: [id: string] }>();
@@ -15,7 +16,7 @@ const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addBarSeries(props.data.length, props.options);
+  const id = chart.addBarSeries({ ...props.options, label: props.label ?? props.options?.label, layers: props.data.length });
   seriesId.value = id;
   emit('seriesId', id);
 });
@@ -28,11 +29,11 @@ watch(
   () => props.data,
   (data) => {
     if (!seriesId.value) return;
-    chart.beginUpdate();
-    for (let i = 0; i < data.length; i++) {
-      chart.setBarLayerData(seriesId.value, i, data[i]);
-    }
-    chart.endUpdate();
+    chart.batch(() => {
+      for (let i = 0; i < data.length; i++) {
+        chart.setBarLayerData(seriesId.value!, i, data[i]);
+      }
+    });
   },
 );
 

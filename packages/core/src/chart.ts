@@ -19,12 +19,13 @@ import type {
   AxisConfig,
   BarSeriesOptions,
   CandlestickSeriesOptions,
+  ChartLayout,
   CrosshairPosition,
-  LineData,
   LineSeriesOptions,
   OHLCData,
   PieSeriesOptions,
   PieSliceData,
+  TimePoint,
 } from './types';
 import { detectInterval } from './utils/time';
 import { Viewport } from './viewport';
@@ -41,8 +42,11 @@ interface ChartEvents {
 export interface ChartOptions {
   theme?: ChartTheme;
   axis?: AxisConfig;
-  /** Viewport padding: { top, right, bottom, left } in pixels (top/bottom) or bars (left/right). */
-  padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  /**
+   * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
+   * or data intervals (`{ intervals: 3 }`). Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
+   */
+  padding?: { top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number } };
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
   /** Show the background grid. Defaults to true. */
@@ -85,7 +89,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Active visual theme (colors, fonts, grid style). */
   #theme: ChartTheme;
   /** Whether to render the background grid. */
-  readonly #grid: boolean;
+  #grid: boolean;
   /** Detected time interval between data points (seconds). */
   #dataInterval = 60;
   /** Current crosshair position, null when cursor is outside the chart. */
@@ -167,8 +171,25 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     });
   }
 
+  /**
+   * Return a series ID: use the provided hint if it's non-empty and not already taken,
+   * otherwise generate a new auto ID. Auto-generated IDs never collide with each other
+   * or with user-provided IDs because they use a monotonically increasing counter.
+   */
+  #resolveId(hint?: string): string {
+    if (hint && !this.#series.some((s) => s.id === hint)) {
+      return hint;
+    }
+    // Keep incrementing until we find a free slot (skip any custom IDs that match)
+    let candidate: string;
+    do {
+      candidate = `series_${++seriesIdCounter}`;
+    } while (this.#series.some((s) => s.id === candidate));
+    return candidate;
+  }
+
   /** Add a candlestick (OHLC) series and return its unique ID. */
-  addCandlestickSeries(options?: Partial<CandlestickSeriesOptions>): string {
+  addCandlestickSeries(options?: Partial<CandlestickSeriesOptions & { id?: string }>): string {
     const store = new TimeSeriesStore<OHLCData>();
     const renderer = new CandlestickRenderer(store, {
       upColor: this.#theme.candlestick.upColor,
@@ -178,7 +199,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       bodyWidthRatio: 0.6,
       ...options,
     });
-    const id = `series_${++seriesIdCounter}`;
+    const id = this.#resolveId(options?.id);
     store.on('update', () => {
       this.onDataChanged();
     });
@@ -190,18 +211,36 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Add a line series and return its unique ID. */
-  addLineSeries(layerCount: number, options?: Partial<LineSeriesOptions>): string {
+  addLineSeries(options?: Partial<LineSeriesOptions & { layers?: number; id?: string }>): string;
+  /** @deprecated Pass options as first argument: `addLineSeries({ layers: N, ...options })` */
+  addLineSeries(layerCount: number, options?: Partial<LineSeriesOptions>): string;
+  addLineSeries(
+    layerCountOrOptions?: number | Partial<LineSeriesOptions & { layers?: number; id?: string }>,
+    maybeOptions?: Partial<LineSeriesOptions>,
+  ): string {
+    let layerCount: number;
+    let opts: Partial<LineSeriesOptions & { id?: string }> | undefined;
+
+    if (typeof layerCountOrOptions === 'number') {
+      layerCount = layerCountOrOptions;
+      opts = maybeOptions;
+    } else {
+      const { layers, ...rest } = layerCountOrOptions ?? {};
+      layerCount = layers ?? 1;
+      opts = rest;
+    }
+
     const renderer = new LineRenderer(layerCount, {
       colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
       lineWidth: this.#theme.line.width,
       areaFill: true,
-      ...options,
+      ...opts,
     });
-    const id = `series_${++seriesIdCounter}`;
+    const id = this.#resolveId(opts?.id);
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.#series.push({ id, label: options?.label, renderer, store: renderer.stores[0], visible: true });
+    this.#series.push({ id, label: opts?.label, renderer, store: renderer.stores[0], visible: true });
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
@@ -209,7 +248,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Set data for a specific layer within a line series. */
-  setLineLayerData(id: string, layerIndex: number, data: LineData[]): void {
+  setLineLayerData(id: string, layerIndex: number, data: TimePoint[]): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry || !(entry.renderer instanceof LineRenderer)) return;
     const store = entry.renderer.stores[layerIndex];
@@ -217,17 +256,35 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Add a bar series and return its unique ID. */
-  addBarSeries(layerCount: number, options?: Partial<BarSeriesOptions>): string {
+  addBarSeries(options?: Partial<BarSeriesOptions & { layers?: number; id?: string }>): string;
+  /** @deprecated Pass options as first argument: `addBarSeries({ layers: N, ...options })` */
+  addBarSeries(layerCount: number, options?: Partial<BarSeriesOptions>): string;
+  addBarSeries(
+    layerCountOrOptions?: number | Partial<BarSeriesOptions & { layers?: number; id?: string }>,
+    maybeOptions?: Partial<BarSeriesOptions>,
+  ): string {
+    let layerCount: number;
+    let opts: Partial<BarSeriesOptions & { id?: string }> | undefined;
+
+    if (typeof layerCountOrOptions === 'number') {
+      layerCount = layerCountOrOptions;
+      opts = maybeOptions;
+    } else {
+      const { layers, ...rest } = layerCountOrOptions ?? {};
+      layerCount = layers ?? 1;
+      opts = rest;
+    }
+
     const renderer = new BarRenderer(layerCount, {
       colors: this.#theme.seriesColors.slice(0, layerCount),
       barWidthRatio: 0.6,
-      ...options,
+      ...opts,
     });
-    const id = `series_${++seriesIdCounter}`;
+    const id = this.#resolveId(opts?.id);
     for (const store of renderer.stores) {
       store.on('update', () => this.onDataChanged());
     }
-    this.#series.push({ id, renderer, store: renderer.stores[0], visible: true });
+    this.#series.push({ id, label: opts?.label, renderer, store: renderer.stores[0], visible: true });
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
@@ -235,7 +292,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Set data for a specific layer within a bar series. */
-  setBarLayerData(id: string, layerIndex: number, data: LineData[]): void {
+  setBarLayerData(id: string, layerIndex: number, data: TimePoint[]): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry || !(entry.renderer instanceof BarRenderer)) return;
     const store = entry.renderer.stores[layerIndex];
@@ -243,9 +300,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Add a pie/donut series. Set `innerRadiusRatio > 0` for donut. */
-  addPieSeries(options?: Partial<PieSeriesOptions>): string {
+  addPieSeries(options?: Partial<PieSeriesOptions & { id?: string }>): string {
     const renderer = new PieRenderer(options);
-    const id = `series_${++seriesIdCounter}`;
+    const id = this.#resolveId(options?.id);
     this.#series.push({ id, label: options?.label, renderer, store: null, visible: true });
     this.#seriesIdCache = null;
     this.updateViewportPadding();
@@ -282,21 +339,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Replace all data for a series (batch load). */
-  setSeriesData(id: string, data: OHLCData[] | LineData[]): void {
+  setSeriesData(id: string, data: OHLCData[] | TimePoint[]): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.setData(data);
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
-  appendData(id: string, point: OHLCData | LineData): void {
+  appendData(id: string, point: OHLCData | TimePoint): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.append(point);
   }
 
   /** Update the last data point of a series in place (e.g. live candle update). */
-  updateData(id: string, point: OHLCData | LineData): void {
+  updateData(id: string, point: OHLCData | TimePoint): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
     entry.store.updateLast(point);
@@ -305,7 +362,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Update visual options (color, width, etc.) for an existing series. */
   updateSeriesOptions(
     id: string,
-    options: Partial<CandlestickSeriesOptions> | Partial<LineSeriesOptions> | Partial<BarSeriesOptions>,
+    options:
+      | Partial<CandlestickSeriesOptions>
+      | Partial<LineSeriesOptions>
+      | Partial<BarSeriesOptions>
+      | Partial<PieSeriesOptions>,
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
@@ -318,14 +379,32 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     } else if (entry.renderer instanceof PieRenderer) {
       entry.renderer.updateOptions(options as Partial<PieSeriesOptions>);
     }
+    // Keep stored label in sync with options (affects tooltip/legend)
+    if ('label' in options && typeof options.label === 'string') {
+      entry.label = options.label;
+    }
     this.#mainScheduler.markDirty();
   }
 
-  /** Suppress recomputes until endUpdate(). Calls can nest. */
+  /**
+   * Batch multiple updates: suppress recomputes until `fn` returns.
+   * Equivalent to `beginUpdate()` / `endUpdate()` but safer (always calls endUpdate even on throw).
+   */
+  batch(fn: () => void): void {
+    this.beginUpdate();
+    try {
+      fn();
+    } finally {
+      this.endUpdate();
+    }
+  }
+
+  /** @deprecated Use {@link batch} instead. */
   beginUpdate(): void {
     this.#batchDepth++;
   }
 
+  /** @deprecated Use {@link batch} instead. */
   endUpdate(): void {
     if (--this.#batchDepth <= 0) {
       this.#batchDepth = 0;
@@ -392,7 +471,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   fitContent(): void {
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
-    this.#viewport.fitToData(first, last, true);
+    const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+    this.#viewport.fitToData(first, last, chartWidth, true);
   }
 
   getVisibleRange() {
@@ -415,7 +495,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const last = entry.store.last();
     if (!last) return null;
 
-    const extractValue = (p: any): number => ('close' in p ? (p as OHLCData).close : (p as LineData).value);
+    const extractValue = (p: OHLCData | TimePoint): number => ('close' in p ? p.close : p.value);
 
     const { from, to } = this.#viewport.visibleRange;
 
@@ -437,17 +517,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const all = entry.store.getAll();
     if (all.length < 2) return null;
     const prev = all[all.length - 2];
-    return 'close' in prev ? (prev as OHLCData).close : (prev as LineData).value;
+    return 'close' in prev ? (prev as OHLCData).close : (prev as TimePoint).value;
   }
 
-  getLastData(seriesId: string): OHLCData | LineData | null {
+  getLastData(seriesId: string): OHLCData | TimePoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
     return entry.store.last() ?? null;
   }
 
   /** Find the data point closest to the given timestamp within one data interval. */
-  getDataAtTime(seriesId: string, time: number): OHLCData | LineData | null {
+  getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.store) return null;
     const data = entry.store.getVisibleData(time - this.#dataInterval, time + this.#dataInterval);
@@ -619,8 +699,38 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return this.#canvasManager.size.media;
   }
 
+  /** Returns layout metrics for the chart area, Y axis, and time axis. */
+  getLayout(): ChartLayout {
+    const media = this.#canvasManager.size.media;
+    const yAxisWidth = this.yAxisWidth;
+    const xAxisHeight = this.xAxisHeight;
+    return {
+      chartArea: { x: 0, y: 0, width: media.width - yAxisWidth, height: media.height - xAxisHeight },
+      yAxisWidth,
+      xAxisHeight,
+    };
+  }
+
   getDataInterval(): number {
     return this.#dataInterval;
+  }
+
+  /** Update viewport padding at runtime. Refits the visible range to current data bounds. */
+  setPadding(padding: ChartOptions['padding']): void {
+    this.#viewport.setPadding(padding);
+    const { first, last } = this.getDataBounds();
+    if (first !== undefined && last !== undefined) {
+      const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+      this.#viewport.fitToData(first, last, chartWidth, false);
+    }
+    this.syncScales();
+    this.#mainScheduler.markDirty();
+  }
+
+  /** Show or hide the background grid. Takes effect on the next render frame. */
+  setGrid(grid: boolean): void {
+    this.#grid = grid;
+    this.#mainScheduler.markDirty();
   }
 
   /** Notify chart that a YLabel is present (affects right padding). */
@@ -709,15 +819,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if (first !== undefined && last !== undefined) {
       const { from, to } = this.#viewport.visibleRange;
       const uninitialized = from === 0 && to === 0;
+      const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
 
       if (uninitialized) {
         // First data load — fit immediately
-        this.#viewport.fitToData(first, last, false);
+        this.#viewport.fitToData(first, last, chartWidth, false);
       } else if (isBatchLoad && this.#viewport.autoScroll) {
-        this.#viewport.fitToData(first, last, true);
+        this.#viewport.fitToData(first, last, chartWidth, true);
       } else if (!isBatchLoad && this.isLastPointVisible()) {
         // Realtime tick: only scroll if the last point is currently on screen
-        this.#viewport.scrollToEnd(last);
+        this.#viewport.scrollToEnd(last, chartWidth);
       }
     }
 
@@ -796,7 +907,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           if (ohlc.low < min) min = ohlc.low;
           allValues?.push(ohlc.high, ohlc.low);
         } else {
-          const line = point as LineData;
+          const line = point as TimePoint;
           if (line.value > max) max = line.value;
           if (line.value < min) min = line.value;
           allValues?.push(line.value);

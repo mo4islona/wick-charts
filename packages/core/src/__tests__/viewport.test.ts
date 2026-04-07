@@ -24,16 +24,39 @@ describe('Viewport', () => {
   it('fitToData sets visible range', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(1000, 19000);
+    v.fitToData(1000, 19000, 800);
     const r = v.visibleRange;
     expect(r.from).toBeLessThanOrEqual(1000);
     expect(r.to).toBeGreaterThanOrEqual(19000);
   });
 
+  it('fitToData with zero padding places last time exactly at right edge', () => {
+    const v = new Viewport({ padding: { right: { intervals: 0 }, left: { intervals: 0 } } });
+    v.setDataInterval(60);
+    v.fitToData(0, 18000, 800);
+    expect(v.visibleRange.to).toBe(18000);
+    expect(v.visibleRange.from).toBe(0);
+  });
+
+  it('fitToData right padding as pixels is proportional to chart width', () => {
+    // right: 80px on 800px wide chart = 10% of dataSpan → pr = (80/800)*18000 = 1800
+    const v = new Viewport({ padding: { right: 80, left: 0 } });
+    v.setDataInterval(60);
+    v.fitToData(0, 18000, 800);
+    expect(v.visibleRange.to).toBeCloseTo(18000 + 1800, 0);
+  });
+
+  it('fitToData right padding as intervals adds N*dataInterval', () => {
+    const v = new Viewport({ padding: { right: { intervals: 3 }, left: { intervals: 0 } } });
+    v.setDataInterval(60);
+    v.fitToData(0, 18000, 800);
+    expect(v.visibleRange.to).toBeCloseTo(18000 + 3 * 60, 0);
+  });
+
   it('zoomAt changes range', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(0, 18000);
+    v.fitToData(0, 18000, 800);
     const before = { ...v.visibleRange };
 
     v.zoomAt(9000, 0.5); // zoom in
@@ -43,7 +66,7 @@ describe('Viewport', () => {
   it('pan shifts range', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(0, 18000);
+    v.fitToData(0, 18000, 800);
     const before = { ...v.visibleRange };
 
     v.pan(1000);
@@ -58,27 +81,18 @@ describe('Viewport', () => {
   it('scrollToEnd pins right edge after animation', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(0, 18000);
-    v.scrollToEnd(20000);
+    v.fitToData(0, 18000, 800);
+    v.scrollToEnd(20000, 800);
     // Tick past the animation duration (150ms)
     v.tick(performance.now() + 200);
     expect(v.visibleRange.to).toBeGreaterThanOrEqual(20000);
-  });
-
-  it('setHorizontalPadding changes pad values', () => {
-    const v = new Viewport();
-    v.setDataInterval(60);
-    v.setHorizontalPadding(0, 0);
-    v.fitToData(0, 18000);
-    // with 0 padding, to should be exactly 18000
-    expect(v.visibleRange.to).toBe(18000);
   });
 
   it('applyRange accepts small datasets (< 10 bars)', () => {
     const v = new Viewport();
     v.setDataInterval(60);
     // 5 bars = 300s range — should be accepted (was rejected before fix)
-    v.fitToData(0, 300);
+    v.fitToData(0, 300, 800);
     const r = v.visibleRange;
     expect(r.to - r.from).toBeGreaterThan(0);
   });
@@ -86,7 +100,7 @@ describe('Viewport', () => {
   it('zoomAt refuses to go below 10 bars', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(0, 18000);
+    v.fitToData(0, 18000, 800);
     const before = { ...v.visibleRange };
     // Try to zoom in to less than 10 bars
     v.zoomAt(9000, 0.01);
@@ -99,13 +113,13 @@ describe('Viewport', () => {
     const v = new Viewport();
     v.setDataInterval(60);
     // Set a non-zero initial range so fitToData animated branch triggers
-    v.fitToData(1000, 18000);
+    v.fitToData(1000, 18000, 800);
     // Start a long animation (450ms via fitToData animated)
-    v.fitToData(1000, 20000, true);
+    v.fitToData(1000, 20000, 800, true);
     expect(v.animating).toBe(true);
 
     // Retarget mid-animation — should use 150ms, not inherit 450ms
-    v.scrollToEnd(22000);
+    v.scrollToEnd(22000, 800);
     // Tick at 200ms — past 150ms but before 450ms
     v.tick(performance.now() + 200);
     expect(v.animating).toBe(false); // should have finished
@@ -115,7 +129,7 @@ describe('Viewport', () => {
   it('getVisibleBarsCount returns correct count', () => {
     const v = new Viewport();
     v.setDataInterval(60);
-    v.fitToData(0, 18000);
+    v.fitToData(0, 18000, 800);
     const bars = v.getVisibleBarsCount();
     expect(bars).toBeGreaterThan(0);
   });

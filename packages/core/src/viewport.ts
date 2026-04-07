@@ -6,23 +6,41 @@ interface ViewportEvents {
   change: () => void;
 }
 
+/** Horizontal padding expressed as a fixed pixel offset or a number of data intervals. */
+export type HorizontalPadding = number | { intervals: number };
+
 /** Configuration options for the {@link Viewport}. */
 export interface ViewportOptions {
-  padding?: { top?: number; right?: number; bottom?: number; left?: number };
+  padding?: {
+    /** Top padding in pixels. Default: 20 */
+    top?: number;
+    /** Bottom padding in pixels. Default: 20 */
+    bottom?: number;
+    /**
+     * Right-side padding. Accepts pixels (`50`) or data intervals (`{ intervals: 3 }`).
+     * Default: `{ intervals: 3 }` — 3 empty data points to the right of the last point.
+     */
+    right?: HorizontalPadding;
+    /**
+     * Left-side padding. Accepts pixels (`50`) or data intervals (`{ intervals: 0 }`).
+     * Default: `{ intervals: 0 }`.
+     */
+    left?: HorizontalPadding;
+  };
 }
 
 interface ResolvedPadding {
   top: number;
-  right: number;
   bottom: number;
-  left: number;
+  right: HorizontalPadding;
+  left: HorizontalPadding;
 }
 
 const DEFAULT_PADDING: ResolvedPadding = {
   top: 20,
-  right: 3,
   bottom: 20,
-  left: 0,
+  right: { intervals: 3 },
+  left: { intervals: 0 },
 };
 
 /**
@@ -50,10 +68,23 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     super();
     this.padding = {
       top: padding?.top ?? DEFAULT_PADDING.top,
-      right: padding?.right ?? DEFAULT_PADDING.right,
       bottom: padding?.bottom ?? DEFAULT_PADDING.bottom,
+      right: padding?.right ?? DEFAULT_PADDING.right,
       left: padding?.left ?? DEFAULT_PADDING.left,
     };
+  }
+
+  /**
+   * Resolve a HorizontalPadding value to a time offset.
+   * - `{ intervals: N }` → N * dataInterval (zoom-independent bar count)
+   * - `number` (pixels) → (px / chartWidth) * visibleRange (zoom-dependent)
+   */
+  private resolveHPad(pad: HorizontalPadding, range: number, chartWidth: number): number {
+    if (typeof pad === 'object') {
+      return pad.intervals * this.dataInterval;
+    }
+    if (chartWidth <= 0) return 0;
+    return (pad / chartWidth) * range;
   }
 
   get visibleRange(): VisibleRange {
@@ -62,12 +93,6 @@ export class Viewport extends EventEmitter<ViewportEvents> {
 
   get yRange(): YRange {
     return this._yRange;
-  }
-
-  /** Update left/right bar-count padding dynamically. */
-  setHorizontalPadding(left: number, right: number): void {
-    this.padding.left = left;
-    this.padding.right = right;
   }
 
   get autoScroll(): boolean {
@@ -80,6 +105,16 @@ export class Viewport extends EventEmitter<ViewportEvents> {
 
   setDataInterval(interval: number): void {
     this.dataInterval = interval;
+  }
+
+  /** Replace padding configuration. Only updates fields that are provided; others keep defaults. */
+  setPadding(padding?: ViewportOptions['padding']): void {
+    this.padding = {
+      top: padding?.top ?? DEFAULT_PADDING.top,
+      bottom: padding?.bottom ?? DEFAULT_PADDING.bottom,
+      right: padding?.right ?? DEFAULT_PADDING.right,
+      left: padding?.left ?? DEFAULT_PADDING.left,
+    };
   }
 
   setDataStart(time: number): void {
@@ -197,15 +232,31 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   }
 
   /** Fit the viewport to show data from first to last timestamp, with optional animation. */
-  fitToData(firstTime: number, lastTime: number, animated = false): void {
+  fitToData(firstTime: number, lastTime: number, chartWidth = 0, animated = false): void {
     this._autoScroll = true;
 
     const maxBars = 400;
-    const pl = this.dataInterval * this.padding.left;
-    const pr = this.dataInterval * this.padding.right;
+    const maxRange = maxBars * this.dataInterval;
+    const dataSpan = lastTime - firstTime;
 
-    const targetTo = lastTime + pr;
-    const targetFrom = Math.max(firstTime - pl, targetTo - maxBars * this.dataInterval);
+    // Compute a representative range for resolving pixel-based padding.
+    // For interval-based padding this value is unused; for pixel-based it
+    // must be a reasonable estimate — we use the data span as the base and
+    // expand it below once we have targetFrom/targetTo.
+    // For a single point, use a small multiple of dataInterval as the base range
+    const estimatedRange = dataSpan > 0 ? dataSpan : this.dataInterval * 10;
+
+    const pr = this.resolveHPad(this.padding.right, estimatedRange, chartWidth);
+    const pl = this.resolveHPad(this.padding.left, estimatedRange, chartWidth);
+
+    let targetTo = lastTime + pr;
+    let targetFrom = firstTime - pl;
+
+    // Cap to maxBars — anchor right edge and trim left
+    if (targetTo - targetFrom > maxRange) {
+      targetTo = lastTime + pr;
+      targetFrom = targetTo - maxRange;
+    }
 
     if (animated && this._visibleRange.from !== 0 && this._visibleRange.to !== 0) {
       this.animateTo(targetFrom, targetTo, 450);
@@ -215,15 +266,14 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   }
 
   /** Keep the right edge pinned to the latest data (real-time auto-scroll). */
-  scrollToEnd(lastTime: number): void {
+  scrollToEnd(lastTime: number, chartWidth = 0): void {
     const range = this._visibleRange.to - this._visibleRange.from;
-    const pr = this.dataInterval * this.padding.right;
+    const pr = this.resolveHPad(this.padding.right, range, chartWidth);
     const targetTo = lastTime + pr;
     const targetFrom = targetTo - range;
     this._autoScroll = true;
 
     if (this._animating) {
-      // Re-anchor from current position so the animation continues smoothly to the new target
       this.animFrom = { ...this._visibleRange };
       this.animTo = { from: targetFrom, to: targetTo };
       this.animDuration = 150;
@@ -236,11 +286,6 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   /** Return the number of data bars (candles/points) currently visible. */
   getVisibleBarsCount(): number {
     return (this._visibleRange.to - this._visibleRange.from) / this.dataInterval;
-  }
-
-  private getRightLimit(): number | null {
-    if (this._dataEnd === null) return null;
-    return this._dataEnd + this.dataInterval * this.padding.right;
   }
 
   destroy(): void {

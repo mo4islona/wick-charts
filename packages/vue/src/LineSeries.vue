@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { LineData, LineSeriesOptions } from '@wick-charts/core';
+import type { LineSeriesOptions, TimePoint } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
 const props = defineProps<{
-  data: LineData[][];
+  data: TimePoint[][];
   options?: Partial<LineSeriesOptions>;
   label?: string;
 }>();
@@ -16,7 +16,7 @@ const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addLineSeries(props.data.length, { ...props.options, label: props.label ?? props.options?.label });
+  const id = chart.addLineSeries({ ...props.options, label: props.label ?? props.options?.label, layers: props.data.length });
   seriesId.value = id;
   emit('seriesId', id);
 });
@@ -29,11 +29,11 @@ watch(
   () => props.data,
   (data) => {
     if (!seriesId.value) return;
-    chart.beginUpdate();
-    for (let i = 0; i < data.length; i++) {
-      chart.setLineLayerData(seriesId.value, i, data[i]);
-    }
-    chart.endUpdate();
+    chart.batch(() => {
+      for (let i = 0; i < data.length; i++) {
+        chart.setLineLayerData(seriesId.value!, i, data[i]);
+      }
+    });
   },
 );
 

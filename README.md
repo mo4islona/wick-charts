@@ -1,170 +1,209 @@
-# Framework Integrations
+# Wick Charts
 
-WickChart provides self-contained packages for **React**, **Svelte**, and **Vue**. Install only the one you need — each package includes the core engine, types, and themes.
+High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, ~25KB gzipped.
 
-## Installation
+[Live Demo](https://mo4islona.github.io/wick-charts/)
+
+## Features
+
+- **Candlestick, Line, Bar, Pie** — all from one package
+- **Real-time streaming** — append/update data at 60fps
+- **25 built-in themes** — dark, light, and custom
+- **Interactive** — zoom, pan, crosshair, tooltips
+- **Stacking** — normal and percent modes for line/bar
+- **Tree-shakeable** — import only what you use
+- **Zero dependencies** — just your framework
+
+## Install
 
 ```bash
-# React
-npm install @wick-charts/react
-
-# Svelte
-npm install @wick-charts/svelte
-
-# Vue
-npm install @wick-charts/vue
+npm install @wick-charts/react   # React
+npm install @wick-charts/vue     # Vue
+npm install @wick-charts/svelte  # Svelte
 ```
 
 ## Quick Start
 
-### React
-
 ```tsx
-import { ChartContainer, LineSeries, darkTheme, Tooltip } from '@wick-charts/react';
+import {
+  ChartContainer, CandlestickSeries, Tooltip,
+  Crosshair, YAxis, TimeAxis
+} from '@wick-charts/react';
 
-function App() {
-  const data = [
-    { time: 1700000000, value: 100 },
-    { time: 1700003600, value: 105 },
-  ];
-
+function Chart({ data }) {
   return (
-    <div style={{ width: 800, height: 400 }}>
-      <ChartContainer theme={darkTheme}>
-        <LineSeries data={data} options={{ color: '#00d4aa', pulse: true }} />
-        <Tooltip />
-      </ChartContainer>
-    </div>
+    <ChartContainer>
+      <CandlestickSeries data={data} />
+      <Tooltip />
+      <Crosshair />
+      <YAxis />
+      <TimeAxis />
+    </ChartContainer>
   );
 }
 ```
 
-### Svelte
-
-```svelte
-<script>
-  import { ChartContainer, LineSeries, Tooltip, darkTheme } from '@wick-charts/svelte';
-
-  const data = [
-    { time: 1700000000, value: 100 },
-    { time: 1700003600, value: 105 },
-  ];
-</script>
-
-<div style="width: 800px; height: 400px">
-  <ChartContainer theme={darkTheme}>
-    <LineSeries {data} options={{ color: '#00d4aa', pulse: true }} />
-    <Tooltip />
-  </ChartContainer>
-</div>
-```
-
-### Vue
+<details>
+<summary>Vue</summary>
 
 ```vue
 <script setup>
-import { ChartContainer, LineSeries, Tooltip, darkTheme } from '@wick-charts/vue';
+import {
+  ChartContainer, CandlestickSeries, Tooltip,
+  Crosshair, YAxis, TimeAxis
+} from '@wick-charts/vue';
 
-const data = [
-  { time: 1700000000, value: 100 },
-  { time: 1700003600, value: 105 },
-];
+const props = defineProps(['data']);
 </script>
 
 <template>
-  <div style="width: 800px; height: 400px">
-    <ChartContainer :theme="darkTheme">
-      <LineSeries :data="data" :options="{ color: '#00d4aa', pulse: true }" />
-      <Tooltip />
-    </ChartContainer>
-  </div>
+  <ChartContainer>
+    <CandlestickSeries :data="props.data" />
+    <Tooltip />
+    <Crosshair />
+    <YAxis />
+    <TimeAxis />
+  </ChartContainer>
 </template>
 ```
 
-## Components
+</details>
 
-All packages provide the same set of components:
+<details>
+<summary>Svelte</summary>
 
-| Component | Description |
-|---|---|
-| `ChartContainer` | Root container. Creates chart instance, provides context, manages canvas. |
-| `LineSeries` | Line/area chart series |
-| `BarSeries` | Histogram/bar chart series |
-| `CandlestickSeries` | OHLC candlestick series |
-| `StackedBarSeries` | Multi-layer stacked bar series |
-| `PieSeries` | Pie/donut chart series |
+```svelte
+<script>
+  import {
+    ChartContainer, CandlestickSeries, Tooltip,
+    Crosshair, YAxis, TimeAxis
+  } from '@wick-charts/svelte';
 
-## Reactive State
+  export let data = [];
+</script>
 
-| State | React | Svelte | Vue |
-|---|---|---|---|
-| Chart instance | `useChartInstance()` | `getChartContext()` | `useChartInstance()` |
-| Visible range | `useVisibleRange(chart)` | `createVisibleRange(chart)` | `useVisibleRange(chart)` |
-| Price range | `usePriceRange(chart)` | `createPriceRange(chart)` | `usePriceRange(chart)` |
-| Last price | `useLastPrice(chart, id)` | `createLastPrice(chart, id)` | `useLastPrice(chart, id)` |
-| Previous close | `usePreviousClose(chart, id)` | `createPreviousClose(chart, id)` | `usePreviousClose(chart, id)` |
-| Crosshair | `useCrosshairPosition(chart)` | `createCrosshairPosition(chart)` | `useCrosshairPosition(chart)` |
-
-## Themes
-
-All themes are re-exported from each package:
-
-```ts
-import { darkTheme, lightTheme, catppuccin, dracula } from '@wick-charts/react';
-// or '@wick-charts/svelte' or '@wick-charts/vue' — same exports
+<ChartContainer>
+  <CandlestickSeries {data} />
+  <Tooltip />
+  <Crosshair />
+  <YAxis />
+  <TimeAxis />
+</ChartContainer>
 ```
 
-## Smart Data Diffing
+</details>
 
-All series components implement efficient data synchronization:
+## Series Types
 
-- **First load / data shrunk / large batch (>5 new points):** full replace
-- **Same length:** updates last point in place (live ticks)
-- **Small growth (1-5 points):** appends only new points
-
-Pass the full data array each time — the component picks the optimal strategy.
+| Component | Data Format | Description |
+|---|---|---|
+| `CandlestickSeries` | `{ time, open, high, low, close, volume? }[]` | OHLC candlesticks with volume bars |
+| `LineSeries` | `{ time, value }[][]` | Line/area charts, multi-layer, stacking |
+| `BarSeries` | `{ time, value }[][]` | Histogram/bar charts, stacking |
+| `PieSeries` | `{ label, value, color? }[]` | Pie and donut charts |
 
 ## UI Overlays
 
-All packages include the same set of pre-built overlay components:
-
 | Component | Description |
 |---|---|
-| `Tooltip` | Compact legend (top-left) + floating tooltip near cursor with glass morphism |
-| `Crosshair` | Price label (right axis) + time label (bottom axis) |
-| `PriceLabel` | Horizontal dashed line + animated price badge at current price |
-| `PriceAxis` | Y-axis with smooth tick fade-in/out animations |
-| `TimeAxis` | X-axis with smooth tick fade-in/out animations |
-| `PieTooltip` | Floating tooltip for pie/donut series showing label, value, and percentage |
-| `NumberFlow` | Animated number display with digit spin transitions |
+| `Tooltip` | Compact legend + floating tooltip near cursor |
+| `Crosshair` | Axis labels at cursor position |
+| `YAxis` | Vertical price/value axis with animated ticks |
+| `TimeAxis` | Horizontal time axis with animated ticks |
+| `YLabel` | Floating price badge with dashed line |
+| `Legend` | Clickable legend with toggle/solo modes |
+| `PieTooltip` | Tooltip for pie/donut hover |
+
+## Themes
+
+25 built-in themes. Pass to `ChartContainer` or use `ThemeProvider` for global theming.
 
 ```tsx
-// React
-import { Tooltip, Crosshair, PriceAxis, TimeAxis } from '@wick-charts/react';
+import { themes } from '@wick-charts/react';
+
+// Dark: andromeda, ayu-mirage, catppuccin, dracula, gruvbox, material-palenight,
+//       monokai-pro, night-owl, one-dark-pro, panda
+// Light: github-light, handwritten, lavender-mist, light-pink, minimal-light,
+//        mint-breeze, peach-cream, quiet-light, rose-pine-dawn, sand-dune, solarized-light
+// Special: high-contrast
+
+<ChartContainer theme={themes['catppuccin'].theme}>
 ```
 
-```svelte
-<!-- Svelte -->
-<script>
-  import { Tooltip, Crosshair, PriceAxis, TimeAxis } from '@wick-charts/svelte';
-</script>
+Create custom themes with `createTheme()`:
+
+```tsx
+import { createTheme } from '@wick-charts/react';
+
+const myTheme = createTheme({
+  background: '#1a1b2e',
+  upColor: '#00d4aa',
+  downColor: '#ff5577',
+  textColor: '#8888aa',
+});
 ```
 
-```vue
-<!-- Vue -->
-<script setup>
-import { Tooltip, Crosshair, PriceAxis, TimeAxis } from '@wick-charts/vue';
-</script>
+## Real-Time Data
+
+```tsx
+// Full replace (initial load)
+<CandlestickSeries data={allCandles} />
+
+// The component auto-detects changes:
+// - data.length grew by 1-5 → append
+// - data.length same → update last point
+// - data.length shrunk or grew by >5 → full replace
 ```
 
-## Adding a New Series Type
+## Batch Updates
 
-1. Implement renderer in `packages/core/src/series/`
-2. Add `addXxxSeries()` to `ChartInstance`
-3. Add wrapper to each package:
-   - `packages/react/src/XxxSeries.tsx`
-   - `packages/svelte/src/XxxSeries.svelte`
-   - `packages/vue/src/XxxSeries.vue`
-4. Export from each package's `index.ts`
+```tsx
+const chart = useChartInstance();
 
-Use `LineSeries` as reference implementation.
+chart.batch(() => {
+  chart.setLineLayerData(id, 0, layer0);
+  chart.setLineLayerData(id, 1, layer1);
+  // Y-range and render happen once after batch
+});
+```
+
+## Configuration
+
+```tsx
+<ChartContainer
+  theme={theme}
+  axis={{
+    y: { visible: true, width: 55, min: 0, max: 'auto' },
+    x: { visible: true, height: 30 },
+  }}
+  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
+  gradient={true}
+  interactive={true}
+  grid={true}
+>
+```
+
+## Hooks
+
+| Hook | Description |
+|---|---|
+| `useChartInstance()` | Access the `ChartInstance` from context |
+| `useVisibleRange(chart)` | Current visible time range |
+| `useYRange(chart)` | Current Y-axis min/max |
+| `useLastYValue(chart, id)` | Last value + live status for a series |
+| `usePreviousClose(chart, id)` | Previous close price |
+| `useCrosshairPosition(chart)` | Crosshair coordinates and snapped time |
+
+## Bundle Size
+
+| Package | Gzip | Brotli |
+|---|---|---|
+| `@wick-charts/react` | 29 KB | 25 KB |
+| `@wick-charts/vue` | 28 KB | 24 KB |
+| `@wick-charts/svelte` | 35 KB | 30 KB |
+
+Tree-shaking reduces this further — a candlestick-only chart is ~20 KB gzip.
+
+## License
+
+MIT

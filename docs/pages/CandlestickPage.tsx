@@ -21,6 +21,7 @@ import { useOHLCStream } from '../hooks';
 interface CandleSettings {
   showYLabel: boolean;
   showTooltip: boolean;
+  candleGradient: boolean;
 }
 
 const steadyData = generateOHLCData(300, 42000, 60);
@@ -35,6 +36,7 @@ function CandleChart({
   data,
   showYLabel,
   showTooltip,
+  candleGradient,
   interval,
 }: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; interval: number }) {
   const { data: d } = useOHLCStream(data, { delay: interval });
@@ -42,7 +44,7 @@ function CandleChart({
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
-      <CandlestickSeries data={display} onSeriesId={setSid} />
+      <CandlestickSeries data={display} onSeriesId={setSid} options={{ candleGradient }} />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}
       <Crosshair />
@@ -57,7 +59,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
     <Playground<CandleSettings>
       id="candlestick"
       theme={theme}
-      defaults={{ showYLabel: true, showTooltip: true }}
+      defaults={{ showYLabel: true, showTooltip: true, candleGradient: true }}
       gridTemplate="1fr 1fr 1fr"
       charts={(props) => (
         <>
@@ -76,6 +78,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         <Section title="Series" theme={theme} noBorder>
           <Switch label="Price label" checked={s.showYLabel} onChange={(v) => set({ showYLabel: v })} theme={theme} />
           <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
+          <Switch label="Gradient" checked={s.candleGradient} onChange={(v) => set({ candleGradient: v })} theme={theme} />
         </Section>
       )}
       codeConfig={(s) => ({
