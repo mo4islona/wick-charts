@@ -85,7 +85,7 @@ export function FrameworkSelect({ theme, compact }: { theme: ChartTheme; compact
               gap: compact ? 4 : 8,
               padding: compact ? '4px 8px' : '8px 20px',
               borderRadius: compact ? 5 : 8,
-              border: `1.5px solid ${active ? hexToRgba(theme.tooltip.textColor, 0.3) : hexToRgba(theme.tooltip.borderColor, 0.4)}`,
+              border: `1px solid ${hexToRgba(theme.tooltip.borderColor, active ? 0.2 : 0.4)}`,
               background: active ? hexToRgba(theme.crosshair.labelBackground, 0.5) : 'transparent',
               color: active ? theme.tooltip.textColor : hexToRgba(theme.axis.textColor, 0.5),
               cursor: 'pointer',

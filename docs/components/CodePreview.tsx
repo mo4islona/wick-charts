@@ -5,15 +5,20 @@ import { HighlightedCode } from './controls';
 
 // ── Types ────────────────────────────────────────────────────
 
+interface PropObject {
+  [key: string]: PropValue;
+}
+type PropValue = string | number | boolean | undefined | PropValue[] | PropObject;
+
 export interface ChartCodeChild {
   component: string;
-  props?: Record<string, any>;
+  props?: Record<string, PropValue>;
 }
 
 export interface ChartCodeConfig {
   components: ChartCodeChild[];
   theme?: string;
-  containerProps?: Record<string, any>;
+  containerProps?: Record<string, PropValue>;
 }
 
 type Framework = 'react' | 'svelte' | 'vue';
@@ -26,7 +31,7 @@ const PACKAGES: Record<Framework, string> = {
 
 // ── Code generation ──────────────────────────────────────────
 
-function formatValue(v: any, indent: number): string {
+function formatValue(v: PropValue, indent: number): string {
   if (typeof v === 'string') return `'${v}'`;
   if (typeof v === 'boolean' || typeof v === 'number') return String(v);
   if (Array.isArray(v)) return `[${v.map((x) => formatValue(x, indent)).join(', ')}]`;
@@ -45,11 +50,11 @@ function formatValue(v: any, indent: number): string {
   return String(v);
 }
 
-function isVarRef(v: any): boolean {
+function isVarRef(v: PropValue): boolean {
   return typeof v === 'string' && /^[a-zA-Z_$][\w$.]*$/.test(v) && !v.includes(' ');
 }
 
-function renderProps(props: Record<string, any>, fw: Framework, indent: number): string {
+function renderProps(props: Record<string, PropValue>, fw: Framework, indent: number): string {
   const parts: string[] = [];
   for (const [key, val] of Object.entries(props)) {
     if (val === undefined) continue;

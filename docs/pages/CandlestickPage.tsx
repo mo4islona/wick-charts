@@ -37,7 +37,7 @@ function CandleChart({
   showTooltip,
   interval,
 }: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; interval: number }) {
-  const { data: d } = useOHLCStream(data, interval);
+  const { data: d } = useOHLCStream(data, { delay: interval });
   const display = streaming ? d : data;
   const [sid, setSid] = useState<string | null>(null);
   return (

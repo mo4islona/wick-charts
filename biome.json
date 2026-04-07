@@ -8,6 +8,15 @@
       },
       "style": {
         "noNonNullAssertion": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useButtonType": "off",
+        "useKeyWithClickEvents": "off",
+        "noStaticElementInteractions": "off"
       }
     }
   },

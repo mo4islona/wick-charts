@@ -10,7 +10,7 @@ export const handwritten: ThemePreset = {
     chartGradient: ['#fef6e3', '#fdf5e6'],
     typography: {
       fontFamily: CAVEAT,
-      fontSize: 16,
+      fontSize: 18,
       axisFontSize: 13,
       yFontSize: 15,
       tooltipFontSize: 14,

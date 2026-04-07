@@ -27,7 +27,7 @@ interface CommonState {
 }
 
 const COMMON_DEFAULTS: CommonState = {
-  streaming: false,
+  streaming: true,
   showGrid: true,
   gridStyle: 'dashed',
   showGradient: true,
@@ -46,7 +46,7 @@ export interface PlaygroundChartProps {
   gradient: boolean;
 }
 
-export interface PlaygroundProps<T extends Record<string, any>> {
+export interface PlaygroundProps<T extends object> {
   id: string;
   theme: ChartTheme;
   defaults: T;
@@ -142,7 +142,7 @@ function usePanelWidth() {
 
 // ── Component ────────────────────────────────────────────────
 
-export function Playground<T extends Record<string, any>>({
+export function Playground<T extends object>({
   id,
   theme,
   defaults,
@@ -175,6 +175,7 @@ export function Playground<T extends Record<string, any>>({
   };
 
   const setCustom = (partial: Partial<T>) => set(partial as Partial<T & CommonState>);
+  const setCommon = (partial: Partial<CommonState>) => set(partial as Partial<T & CommonState>);
 
   const reset = () => {
     setStateRaw(fullDefaults);
@@ -226,16 +227,11 @@ export function Playground<T extends Record<string, any>>({
         background: theme.tooltip.background,
       }}
     >
-      {settings && settings(state as unknown as T, setCustom)}
+      {settings?.(state as unknown as T, setCustom)}
 
       {!hideCartesian && (
         <Section title="Grid" theme={theme} accent={theme.axis.textColor}>
-          <Switch
-            label="Visible"
-            checked={state.showGrid}
-            onChange={(v) => set({ showGrid: v } as any)}
-            theme={theme}
-          />
+          <Switch label="Visible" checked={state.showGrid} onChange={(v) => setCommon({ showGrid: v })} theme={theme} />
           {state.showGrid && (
             <Select
               label="Style"
@@ -245,7 +241,7 @@ export function Playground<T extends Record<string, any>>({
                 { value: 'dotted', label: 'Dotted' },
               ]}
               value={state.gridStyle}
-              onChange={(v) => set({ gridStyle: v as GridStyle } as any)}
+              onChange={(v) => setCommon({ gridStyle: v as GridStyle })}
               theme={theme}
             />
           )}
@@ -256,7 +252,7 @@ export function Playground<T extends Record<string, any>>({
         <Switch
           label="Gradient"
           checked={state.showGradient}
-          onChange={(v) => set({ showGradient: v } as any)}
+          onChange={(v) => setCommon({ showGradient: v })}
           theme={theme}
         />
       </Section>
@@ -266,7 +262,7 @@ export function Playground<T extends Record<string, any>>({
           <Switch
             label="Y Axis"
             checked={state.showYAxis}
-            onChange={(v) => set({ showYAxis: v } as any)}
+            onChange={(v) => setCommon({ showYAxis: v })}
             theme={theme}
           />
           {state.showYAxis && (
@@ -274,7 +270,7 @@ export function Playground<T extends Record<string, any>>({
               <Slider
                 label="Width"
                 value={state.yAxisWidth}
-                onChange={(v) => set({ yAxisWidth: v } as any)}
+                onChange={(v) => setCommon({ yAxisWidth: v })}
                 min={20}
                 max={120}
                 step={5}
@@ -285,13 +281,13 @@ export function Playground<T extends Record<string, any>>({
                 <BoundInput
                   label="Min"
                   value={state.minBound}
-                  onChange={(v) => set({ minBound: v } as any)}
+                  onChange={(v) => setCommon({ minBound: v })}
                   theme={theme}
                 />
                 <BoundInput
                   label="Max"
                   value={state.maxBound}
-                  onChange={(v) => set({ maxBound: v } as any)}
+                  onChange={(v) => setCommon({ maxBound: v })}
                   theme={theme}
                 />
               </div>
@@ -301,14 +297,14 @@ export function Playground<T extends Record<string, any>>({
           <Switch
             label="X Axis"
             checked={state.showXAxis}
-            onChange={(v) => set({ showXAxis: v } as any)}
+            onChange={(v) => setCommon({ showXAxis: v })}
             theme={theme}
           />
           {state.showXAxis && (
             <Slider
               label="Height"
               value={state.xAxisHeight}
-              onChange={(v) => set({ xAxisHeight: v } as any)}
+              onChange={(v) => setCommon({ xAxisHeight: v })}
               min={15}
               max={60}
               step={5}
@@ -324,7 +320,7 @@ export function Playground<T extends Record<string, any>>({
           <Switch
             label="Live"
             checked={state.streaming}
-            onChange={(v) => set({ streaming: v } as any)}
+            onChange={(v) => setCommon({ streaming: v })}
             theme={theme}
             accentColor={theme.candlestick.upColor}
           />

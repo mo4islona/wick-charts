@@ -2,9 +2,9 @@ import { useMemo } from 'react';
 
 import type { ChartTheme, LineData } from '@wick-charts/react';
 
-import { Sparkline, type SparklineVariant, type ValuePosition } from '../components/Sparkline';
 import { Section, Select, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import { Sparkline, type SparklineVariant, type ValuePosition } from '../components/Sparkline';
 import { generateBarData, generateLineData, generateWaveData } from '../data';
 import { useIsMobile } from '../hooks';
 
@@ -126,7 +126,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
         const presetData = datasets[props.preset];
         const rows: MetricRow[] = presetData.map((d, i) => ({
           ...d,
-          color: ('variant' in d && d.variant === 'bar') ? undefined : theme.seriesColors[i % theme.seriesColors.length],
+          color: 'variant' in d && d.variant === 'bar' ? undefined : theme.seriesColors[i % theme.seriesColors.length],
         }));
         return <SparklineGrid {...props} rows={rows} mobile={mobile} />;
       }}

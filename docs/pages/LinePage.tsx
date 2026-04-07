@@ -47,7 +47,7 @@ function makeData(mode: DataMode, count: number, index: number): LineData[] {
 }
 
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
-  const { datasets } = useLineStreams(props.allData, 300);
+  const { datasets } = useLineStreams(props.allData, { delay: 300 });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const [sid, setSid] = useState<string | null>(null);
   return (
@@ -67,7 +67,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
 }
 
 function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
-  const { datasets } = useLineStreams(props.allData, 500);
+  const { datasets } = useLineStreams(props.allData, { delay: 500 });
   const display = props.streaming ? datasets : props.allData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>

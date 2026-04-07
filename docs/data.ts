@@ -2,7 +2,7 @@ import type { LineData, OHLCData } from '@wick-charts/react';
 
 export function generateOHLCData(count: number, startPrice = 100, interval = 60): OHLCData[] {
   const data: OHLCData[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000 / interval) * interval;
   const startTime = now - count * interval;
   let price = startPrice;
 
@@ -47,7 +47,7 @@ export function generateBandLine(ohlc: OHLCData[], offset: number, noiseScale = 
 /** Generate bar chart data (positive/negative values like P&L or delta) */
 export function generateBarData(count: number, interval = 60): LineData[] {
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000 / interval) * interval;
   const startTime = now - count * interval;
 
   for (let i = 0; i < count; i++) {
@@ -60,7 +60,7 @@ export function generateBarData(count: number, interval = 60): LineData[] {
 
 export function generateLineData(count: number, startValue = 100, interval = 60): LineData[] {
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000 / interval) * interval;
   const startTime = now - count * interval;
   let value = startValue;
 
@@ -92,7 +92,7 @@ export function generateWaveData(
   const { base = 0, amplitude = 100, period = 80, phase = 0, onset = 0, interval = 60 } = opts;
 
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000 / interval) * interval;
   const startTime = now - count * interval;
 
   for (let i = 0; i < count; i++) {
@@ -108,6 +108,17 @@ export function generateWaveData(
     data.push({ time: startTime + i * interval, value: round(value) });
   }
 
+  return data;
+}
+
+/** Generate a layer of bar-like data with a given base value and jitter */
+export function generateLayerData(count: number, base: number, interval = 60): LineData[] {
+  const data: LineData[] = [];
+  const now = Math.floor(Date.now() / 1000);
+  const start = now - count * interval;
+  for (let i = 0; i < count; i++) {
+    data.push({ time: start + i * interval, value: Math.round(base + Math.random() * base * 0.8) });
+  }
   return data;
 }
 

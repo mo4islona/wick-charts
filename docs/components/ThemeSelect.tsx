@@ -52,7 +52,8 @@ export function ThemeSelect({
           color: theme.tooltip.textColor,
           border: `1px solid ${theme.tooltip.borderColor}`,
           borderRadius: 6,
-          padding: '8px 16px',
+          height: 36,
+          padding: '0 16px',
           fontSize: theme.typography.fontSize,
           fontFamily: 'inherit',
           fontWeight: 500,
@@ -85,6 +86,7 @@ export function ThemeSelect({
               display: 'flex',
               flexDirection: mobile ? 'column' : 'row',
               gap: mobile ? 16 : 32,
+              minWidth: mobile ? undefined : 520,
               maxHeight: 'calc(100vh - 80px)',
               overflowY: 'auto',
               paddingBottom: 36,
@@ -169,7 +171,7 @@ function ThemeColumn({
   theme: ChartTheme;
 }) {
   return (
-    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div
         style={{
           fontSize: theme.typography.axisFontSize,

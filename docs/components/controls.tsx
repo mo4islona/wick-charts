@@ -585,7 +585,7 @@ export function NumberInput({
         step={step}
         onChange={(e) => {
           const n = parseFloat(e.target.value);
-          if (!isNaN(n)) onChange(n);
+          if (!Number.isNaN(n)) onChange(n);
         }}
         style={inputStyle(theme)}
         onFocus={(e) => {
@@ -763,6 +763,7 @@ const LIGHT_COLORS: Record<string, string> = {
 export function HighlightedCode({ code, theme }: { code: string; theme: ChartTheme }) {
   const dark = isDark(theme.background);
   const palette = dark ? DARK_COLORS : LIGHT_COLORS;
+  const [copied, setCopied] = useState(false);
 
   const tokens = useMemo(() => {
     const isJSX = code.includes('import ') && !code.includes('<template>') && !code.includes('<script>');
@@ -771,28 +772,83 @@ export function HighlightedCode({ code, theme }: { code: string; theme: ChartThe
   }, [code]);
 
   return (
-    <pre
-      style={{
-        flex: 1,
-        margin: 0,
-        padding: 10,
-        borderRadius: 8,
-        background: hexToRgba(theme.crosshair.labelBackground, 0.3),
-        border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.4)}`,
-        fontSize: 10,
-        fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-        lineHeight: 1.6,
-        overflow: 'auto',
-        whiteSpace: 'pre',
-        tabSize: 2,
-        minHeight: 0,
-      }}
-    >
-      {tokens.map((t, i) => (
-        <span key={i} style={{ color: palette[t.type] ?? palette.text }}>
-          {t.text}
-        </span>
-      ))}
-    </pre>
+    <div style={{ position: 'relative', flex: 1, minHeight: 0 }}>
+      <pre
+        style={{
+          margin: 0,
+          padding: 10,
+          borderRadius: 8,
+          background: hexToRgba(theme.crosshair.labelBackground, 0.3),
+          border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.4)}`,
+          fontSize: 10,
+          fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
+          lineHeight: 1.6,
+          overflow: 'auto',
+          whiteSpace: 'pre',
+          tabSize: 2,
+          minHeight: 0,
+          height: '100%',
+          boxSizing: 'border-box',
+        }}
+      >
+        {tokens.map((t, i) => (
+          <span key={i} style={{ color: palette[t.type] ?? palette.text }}>
+            {t.text}
+          </span>
+        ))}
+      </pre>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(code).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+        type="button"
+        aria-label={copied ? 'Copied' : 'Copy code'}
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          background: 'transparent',
+          border: 'none',
+          borderRadius: 4,
+          padding: 4,
+          cursor: 'pointer',
+          color: copied ? theme.candlestick.upColor : hexToRgba(theme.axis.textColor, 0.5),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'color 0.2s, opacity 0.2s',
+          opacity: 0.7,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = '0.7';
+        }}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {copied ? (
+            <polyline points="20 6 9 17 4 12" />
+          ) : (
+            <>
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </>
+          )}
+        </svg>
+      </button>
+    </div>
   );
 }

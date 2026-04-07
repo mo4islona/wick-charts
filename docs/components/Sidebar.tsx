@@ -1,8 +1,8 @@
 import type { ChartTheme } from '@wick-charts/react';
 import { Activity, BarChart3, CandlestickChart, LayoutDashboard, Palette, PieChart, TrendingUp } from 'lucide-react';
 
-import { FrameworkSelect } from './FrameworkSelect';
 import { hexToRgba } from '../utils';
+import { FrameworkSelect } from './FrameworkSelect';
 
 export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'sparkline' | 'theme';
 

@@ -8,7 +8,6 @@ import {
   type ChartTheme,
   Crosshair,
   Legend,
-  type LineData,
   Tooltip,
   XAxis,
   YAxis,
@@ -17,7 +16,7 @@ import {
 import { Cell } from '../components/Cell';
 import { Section, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
-import { generateBarData } from '../data';
+import { generateBarData, generateLayerData } from '../data';
 import { useLineStreams } from '../hooks';
 
 type BarWidth = 'thin' | 'normal' | 'wide';
@@ -29,21 +28,11 @@ interface BarSettings {
   barWidth: BarWidth;
 }
 
-function genLayer(count: number, base: number, interval: number): LineData[] {
-  const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000);
-  const start = now - count * interval;
-  for (let i = 0; i < count; i++) {
-    data.push({ time: start + i * interval, value: Math.round(base + Math.random() * base * 0.8) });
-  }
-  return data;
-}
-
 const singleData = generateBarData(80, 240);
-const layers = Array.from({ length: LAYER_COUNT }, (_, i) => genLayer(80, [60, 40, 25, 15][i], 240));
+const layers = Array.from({ length: LAYER_COUNT }, (_, i) => generateLayerData(80, [60, 40, 25, 15][i], 240));
 
 function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
-  const { datasets } = useLineStreams([singleData], 300);
+  const { datasets } = useLineStreams([singleData], { delay: 300, interval: 240 });
   const display = props.streaming ? datasets[0] : singleData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
@@ -64,7 +53,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
 }
 
 function MultiBarChart(props: PlaygroundChartProps & BarSettings) {
-  const { datasets } = useLineStreams(layers, 500);
+  const { datasets } = useLineStreams(layers, { delay: 500, interval: 240 });
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
     if (props.stacking === 'off') return { ...props.axis, y: { min: 0, ...props.axis?.y } };

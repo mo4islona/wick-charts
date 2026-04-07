@@ -62,7 +62,11 @@ function PieChart({
 }: PlaygroundChartProps & PieSettings & { data: PieSliceData[] }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
-    <ChartContainer theme={theme} axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }} gradient={gradient}>
+    <ChartContainer
+      theme={theme}
+      axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}
+      gradient={gradient}
+    >
       <PieSeries
         data={data}
         onSeriesId={setSid}

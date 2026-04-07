@@ -14,6 +14,7 @@ export function useIsMobile(breakpoint = 768) {
       return () => mq.removeEventListener('change', handler);
     }
     mq.addListener(handler);
+
     return () => mq.removeListener(handler);
   }, [breakpoint]);
 

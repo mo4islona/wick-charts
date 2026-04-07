@@ -1,12 +1,6 @@
 import { type CSSProperties, useMemo } from 'react';
 
-import {
-  BarSeries,
-  ChartContainer,
-  type ChartTheme,
-  type LineData,
-  LineSeries,
-} from '@wick-charts/react';
+import { BarSeries, ChartContainer, type ChartTheme, type LineData, LineSeries } from '@wick-charts/react';
 
 import { hexToRgba } from '../utils';
 

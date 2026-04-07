@@ -171,8 +171,8 @@ function buildCustomTheme(base: ChartTheme, c: ThemeColors): ChartTheme {
       labelBackground: lighten(c.background, 0.12),
     },
     axis: { textColor: c.textColor },
-    priceLabel: {
-      ...base.priceLabel,
+    yLabel: {
+      ...base.yLabel,
       upBackground: c.upColor,
       downBackground: c.downColor,
       neutralBackground: lighten(c.background, 0.12),

@@ -6,7 +6,6 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
-  type LineData,
   LineSeries,
   TimeAxis,
   Tooltip,
@@ -17,24 +16,14 @@ import {
 import { Cell } from '../components/Cell';
 import { HighlightedCode } from '../components/controls';
 import { FrameworkSelect } from '../components/FrameworkSelect';
-import { generateBandLine, generateBarData, generateLineData, generateOHLCData } from '../data';
+import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
 import { type Framework, useFramework, useIsMobile, useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
-
-// ── Data ──────────────────────────────────────────────────────
-
-const ohlc = generateOHLCData(300, 42000, 60);
-const ohlc2 = generateOHLCData(300, 3200, 60);
-const areaLine: LineData[] = ohlc2.map((c) => ({ time: c.time, value: c.close }));
-const upperBand = generateBandLine(ohlc2, 1.0);
-const lowerBand = generateBandLine(ohlc2, -1.0);
-const lines = Array.from({ length: 10 }, () => generateLineData(300, 100 + Math.random() * 200, 60));
-const barData = generateBarData(100, 180);
 
 // ── Chart components ──────────────────────────────────────────
 
 function CandleChart({ theme }: { theme: ChartTheme }) {
-  const { data } = useOHLCStream(ohlc);
+  const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL });
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
@@ -49,7 +38,7 @@ function CandleChart({ theme }: { theme: ChartTheme }) {
 }
 
 function AreaBandsChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([areaLine, upperBand, lowerBand]);
+  const { datasets } = useLineStreams([areaLine, upperBand, lowerBand], { interval: DEMO_INTERVAL });
   return (
     <ChartContainer theme={theme}>
       <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1 }} />
@@ -64,7 +53,7 @@ function AreaBandsChart({ theme }: { theme: ChartTheme }) {
 }
 
 function MultiLineChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams(lines);
+  const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL });
   return (
     <ChartContainer theme={theme}>
       <LineSeries
@@ -79,7 +68,7 @@ function MultiLineChart({ theme }: { theme: ChartTheme }) {
 }
 
 function BarChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([barData]);
+  const { datasets } = useLineStreams([barSingle], { interval: DEMO_INTERVAL });
   return (
     <ChartContainer theme={theme}>
       <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
@@ -319,65 +308,55 @@ const INSTALL_COMMANDS: Record<Framework, string> = {
 };
 
 const CODE_EXAMPLES: Record<Framework, string> = {
-  react: `import { useState } from 'react';
-import {
+  react: `import {
   ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+  Crosshair, YAxis, TimeAxis
 } from '@wick-charts/react';
 
 function Chart({ data }) {
-  const [id, setId] = useState('');
   return (
-    <ChartContainer theme={darkTheme}>
-      <CandlestickSeries data={data} onSeriesId={setId} />
+    <ChartContainer>
+      <CandlestickSeries data={data} />
       <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />
-      {id && <YLabel seriesId={id} />}
     </ChartContainer>
   );
 }`,
   vue: `<script setup>
-import { ref } from 'vue';
 import {
   ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+  Crosshair, YAxis, TimeAxis
 } from '@wick-charts/vue';
 
 const props = defineProps(['data']);
-const id = ref('');
 </script>
 
 <template>
-  <ChartContainer :theme="darkTheme">
-    <CandlestickSeries :data="props.data" @series-id="id = $event" />
+  <ChartContainer>
+    <CandlestickSeries :data="props.data" />
     <Tooltip />
     <Crosshair />
     <YAxis />
     <TimeAxis />
-    <YLabel v-if="id" :series-id="id" />
   </ChartContainer>
 </template>`,
   svelte: `<script>
   import {
     ChartContainer, CandlestickSeries, Tooltip,
-    Crosshair, YAxis, TimeAxis, YLabel, darkTheme
+    Crosshair, YAxis, TimeAxis
   } from '@wick-charts/svelte';
 
   export let data = [];
-  let id = '';
 </script>
 
-<ChartContainer theme={darkTheme}>
-  <CandlestickSeries {data} onSeriesId={(v) => id = v} />
+<ChartContainer>
+  <CandlestickSeries {data} />
   <Tooltip />
   <Crosshair />
   <YAxis />
   <TimeAxis />
-  {#if id}
-    <YLabel seriesId={id} />
-  {/if}
 </ChartContainer>`,
 };
 
@@ -387,15 +366,16 @@ function CopyButton({ text, theme }: { text: string; theme: ChartTheme }) {
   return (
     <button
       onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
       }}
       aria-label={copied ? 'Copied' : 'Copy to clipboard'}
       style={{
         background: 'transparent',
         border: 'none',
-        color: copied ? '#4ade80' : hexToRgba(theme.axis.textColor, 0.5),
+        color: copied ? theme.candlestick.upColor : hexToRgba(theme.axis.textColor, 0.5),
         cursor: 'pointer',
         padding: 4,
         borderRadius: 4,
@@ -457,7 +437,7 @@ function SectionHeading({ children, theme }: { children: React.ReactNode; theme:
 }
 
 function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
-  const [fw, setFw] = useFramework();
+  const [fw, _setFw] = useFramework();
 
   const cardStyle: CSSProperties = {
     background: hexToRgba(theme.crosshair.labelBackground, 0.25),
@@ -578,7 +558,10 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>$</span>
-                <span style={{ color: '#86efac', wordBreak: 'break-all' }}>npx skills add mo4islona/wick-charts</span>
+                <span style={{ color: theme.tooltip.textColor, wordBreak: 'break-all', flex: 1 }}>
+                  npx skills add mo4islona/wick-charts
+                </span>
+                <CopyButton text="npx skills add mo4islona/wick-charts" theme={theme} />
               </div>
             </div>
           </div>
@@ -586,10 +569,7 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 
         {/* Right: Code example */}
         <div style={{ ...cardStyle, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <SectionHeading theme={theme}>3. Build a chart</SectionHeading>
-            <CopyButton text={CODE_EXAMPLES[fw]} theme={theme} />
-          </div>
+          <SectionHeading theme={theme}>3. Build a chart</SectionHeading>
           <HighlightedCode code={CODE_EXAMPLES[fw]} theme={theme} />
         </div>
       </div>
@@ -623,18 +603,18 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
           padding: mobile ? 6 : 12,
         }}
       >
-        <Cell label="BTC/USD" sub="1m Candlestick" theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell label="BTC/USD" sub="Live Candlestick" theme={theme} style={mobile ? { height: 220 } : undefined}>
           <CandleChart theme={theme} />
         </Cell>
-        <Cell label="ETH/USD" sub="1m Area + Bands" theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell label="ETH/USD" sub="Live Area + Bands" theme={theme} style={mobile ? { height: 220 } : undefined}>
           <AreaBandsChart theme={theme} />
         </Cell>
         {!mobile && (
           <>
-            <Cell label="Portfolio" sub="10 assets · 1m" theme={theme}>
+            <Cell label="Portfolio" sub="10 assets · Live" theme={theme}>
               <MultiLineChart theme={theme} />
             </Cell>
-            <Cell label="P&L Delta" sub="1m Bar" theme={theme}>
+            <Cell label="P&L Delta" sub="Live Bar" theme={theme}>
               <BarChart theme={theme} />
             </Cell>
           </>
