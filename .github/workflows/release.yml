@@ -10,8 +10,7 @@ on:
         required: true
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   check:
@@ -36,6 +35,9 @@ jobs:
   publish:
     needs: check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v4
 
@@ -62,33 +64,41 @@ jobs:
             echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Bump all package versions
-      - name: Set versions
+      # Require package versions to already be committed in source so that
+      # the tagged commit is the source of truth for what was published.
+      - name: Verify versions
         run: |
           VERSION=${{ steps.version.outputs.version }}
           for pkg in react vue svelte; do
-            jq --arg v "$VERSION" '.version = $v' packages/$pkg/package.json > tmp.json && mv tmp.json packages/$pkg/package.json
+            PACKAGE_VERSION=$(jq -r '.version' "packages/$pkg/package.json")
+            if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+              echo "packages/$pkg/package.json has version $PACKAGE_VERSION, expected $VERSION."
+              echo "Version bumps must be committed before running the release workflow."
+              exit 1
+            fi
           done
 
       # Publish each public package
       - name: Publish @wick-charts/react
-        run: pnpm publish packages/react --access public --no-git-checks
+        run: pnpm publish packages/react --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @wick-charts/vue
-        run: pnpm publish packages/vue --access public --no-git-checks
+        run: pnpm publish packages/vue --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @wick-charts/svelte
-        run: pnpm publish packages/svelte --access public --no-git-checks
+        run: pnpm publish packages/svelte --access public --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create release
     steps:
       - uses: actions/checkout@v4
 
