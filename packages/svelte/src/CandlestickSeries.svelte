@@ -1,6 +1,5 @@
 <script lang="ts">
 import type { CandlestickSeriesOptions, OHLCData } from '@wick-charts/core';
-import { syncSeriesData } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -30,8 +29,22 @@ onDestroy(() => {
 
 $: {
   const chart = $chartStore;
-  if (seriesId && chart && data.length > 0) {
-    prevLen = syncSeriesData(chart, seriesId, data, prevLen);
+  const id = seriesId;
+  if (id && chart) {
+    if (data.length === 0) {
+      chart.setSeriesData(id, []);
+      prevLen = 0;
+    } else if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {
+      chart.setSeriesData(id, data);
+      prevLen = data.length;
+    } else if (data.length === prevLen) {
+      chart.updateData(id, data[data.length - 1]);
+    } else {
+      for (let i = prevLen; i < data.length; i++) {
+        chart.appendData(id, data[i]);
+      }
+      prevLen = data.length;
+    }
   }
 }
 

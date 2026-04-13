@@ -13,10 +13,14 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "build": "vite build",
+    "prepublishOnly": "pnpm build"
+  },
   "peerDependencies": {
     "vue": ">=3.3.0"
   },
-  "dependencies": {
+  "devDependencies": {
     "@wick-charts/core": "workspace:*"
   }
 }

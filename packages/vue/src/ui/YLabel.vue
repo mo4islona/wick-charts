@@ -20,18 +20,20 @@ onUnmounted(() => chart.setYLabel(false));
 const theme = computed(() => chart.getTheme());
 
 const y = computed(() => {
-  if (lastY.value === null) return 0;
-  return chart.yScale.valueToY(lastY.value);
+  const last = lastY.value;
+  if (last === null) return 0;
+  return chart.yScale.valueToY(last.value);
 });
 
 const bgColor = computed(() => {
   if (props.color) return props.color;
   const t = theme.value;
-  if (previousClose.value === null || lastY.value === null) {
+  const last = lastY.value;
+  if (previousClose.value === null || last === null) {
     return t.yLabel.neutralBackground;
   }
-  if (lastY.value > previousClose.value) return t.yLabel.upBackground;
-  if (lastY.value < previousClose.value) return t.yLabel.downBackground;
+  if (last.value > previousClose.value) return t.yLabel.upBackground;
+  if (last.value < previousClose.value) return t.yLabel.downBackground;
   return t.yLabel.neutralBackground;
 });
 
@@ -87,7 +89,7 @@ const numberFormat = computed(() => ({
       }"
     >
       <NumberFlow
-        :value="lastY"
+        :value="lastY.value"
         :format="numberFormat"
         :spin-duration="350"
       />

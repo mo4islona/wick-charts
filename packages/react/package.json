@@ -15,11 +15,15 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "build": "vite build",
+    "prepublishOnly": "pnpm build"
+  },
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
-  "dependencies": {
+  "devDependencies": {
     "@wick-charts/core": "workspace:*"
   }
 }
