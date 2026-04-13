@@ -23,6 +23,7 @@ Each type has a dedicated reference page:
 - [Line / Area](line.md) — Multi-layer, stacking, area fill, pulse animation
 - [Bar / Histogram](bar.md) — Multi-layer, stacking (off / normal / percent)
 - [Pie / Donut](pie.md) — Donut via `innerRadiusRatio`, hover animations
+- [Sparkline](sparkline.md) — Compact inline chart + value label (React only)
 
 ## ChartContainer
 

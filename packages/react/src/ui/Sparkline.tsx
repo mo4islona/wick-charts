@@ -1,24 +1,26 @@
 import { type CSSProperties, useMemo } from 'react';
 
-import { BarSeries, ChartContainer, type ChartTheme, type LineData, LineSeries } from '@wick-charts/react';
+import type { ChartTheme, TimePoint } from '@wick-charts/core';
 
-import { hexToRgba } from '../utils';
+import { BarSeries } from '../BarSeries';
+import { ChartContainer } from '../ChartContainer';
+import { LineSeries } from '../LineSeries';
 
 export type SparklineVariant = 'line' | 'bar';
-export type ValuePosition = 'left' | 'right' | 'none';
+export type SparklineValuePosition = 'left' | 'right' | 'none';
 
 export interface SparklineProps {
-  data: LineData[];
+  data: TimePoint[];
   theme: ChartTheme;
   /** 'line' (default) or 'bar' */
   variant?: SparklineVariant;
   /** Where to show the value label */
-  valuePosition?: ValuePosition;
+  valuePosition?: SparklineValuePosition;
   /** Custom format for the value */
   formatValue?: (value: number) => string;
   /** Label text above the value */
   label?: string;
-  /** Sublabel text below the value */
+  /** Sublabel text below the value (defaults to the change %) */
   sublabel?: string;
   /** Line/bar color override (defaults to theme) */
   color?: string;
@@ -38,6 +40,15 @@ export interface SparklineProps {
   style?: CSSProperties;
 }
 
+function hexToRgba(color: string, alpha: number): string {
+  if (color.startsWith('rgba')) return color;
+  if (!color.startsWith('#')) return color;
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function formatDefault(v: number): string {
   if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 10_000) return `${(v / 1_000).toFixed(1)}K`;
@@ -47,7 +58,7 @@ function formatDefault(v: number): string {
   return v.toFixed(1);
 }
 
-function computeChange(data: LineData[]): { value: number; pct: number; positive: boolean } {
+function computeChange(data: TimePoint[]): { value: number; pct: number; positive: boolean } {
   if (data.length < 2) return { value: 0, pct: 0, positive: true };
   const first = data[0].value;
   const last = data[data.length - 1].value;

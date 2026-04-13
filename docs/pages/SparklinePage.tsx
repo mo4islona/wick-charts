@@ -1,10 +1,15 @@
 import { useMemo } from 'react';
 
-import type { ChartTheme, LineData } from '@wick-charts/react';
+import {
+  type ChartTheme,
+  type LineData,
+  Sparkline,
+  type SparklineValuePosition,
+  type SparklineVariant,
+} from '@wick-charts/react';
 
 import { Section, Select, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
-import { Sparkline, type SparklineVariant, type ValuePosition } from '../components/Sparkline';
 import { generateBarData, generateLineData, generateWaveData } from '../data';
 import { useIsMobile } from '../hooks';
 
@@ -45,7 +50,7 @@ const METRIC_LABELS = ['Revenue', 'Users', 'Conversion', 'Latency', 'Throughput'
 
 interface SparklineSettings {
   variant: SparklineVariant;
-  valuePos: ValuePosition;
+  valuePos: SparklineValuePosition;
   areaFill: boolean;
   preset: 'crypto' | 'servers' | 'metrics';
 }
@@ -163,7 +168,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
                 { value: 'none', label: 'None' },
               ]}
               value={s.valuePos}
-              onChange={(v) => set({ valuePos: v as ValuePosition })}
+              onChange={(v) => set({ valuePos: v as SparklineValuePosition })}
               theme={theme}
             />
           </Section>

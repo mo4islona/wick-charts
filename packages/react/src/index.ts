@@ -15,6 +15,7 @@ export type {
   LineData,
   LineSeriesOptions,
   OHLCData,
+  OHLCInput,
   PieSeriesOptions,
   PieSliceData,
   SeriesType,
@@ -22,6 +23,8 @@ export type {
   ThemeConfig,
   ThemePreset,
   TimePoint,
+  TimePointInput,
+  TimeValue,
   Typography,
   VisibleRange,
   XAxisConfig,
@@ -40,6 +43,7 @@ export {
   dracula,
   formatDate,
   formatTime,
+  normalizeTime,
   githubLight,
   gruvbox,
   handwritten,
@@ -86,6 +90,8 @@ export { NumberFlow } from './ui/NumberFlow';
 export { PieLegend } from './ui/PieLegend';
 export type { PieLegendFormat, PieLegendProps } from './ui/PieLegend';
 export { PieTooltip } from './ui/PieTooltip';
+export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
+export { Sparkline } from './ui/Sparkline';
 export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
 export type { TooltipSort } from './ui/Tooltip';
 // UI overlays
