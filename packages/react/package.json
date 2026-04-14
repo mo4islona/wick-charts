@@ -19,11 +19,14 @@
     "build": "vite build",
     "prepublishOnly": "pnpm build"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
-  "devDependencies": {
-    "@wick-charts/core": "workspace:*"
+  "dependencies": {
+    "@wick-charts/core": "workspace:^"
   }
 }

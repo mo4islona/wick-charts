@@ -17,10 +17,13 @@
     "build": "vite build",
     "prepublishOnly": "pnpm build"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "vue": ">=3.3.0"
   },
-  "devDependencies": {
-    "@wick-charts/core": "workspace:*"
+  "dependencies": {
+    "@wick-charts/core": "workspace:^"
   }
 }
