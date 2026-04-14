@@ -1,16 +1,5 @@
 import type { ChartTheme } from './types';
 
-export interface ThemePreset {
-  name: string;
-  description?: string;
-  fontUrl: string | null;
-  theme: ChartTheme;
-  dark: boolean;
-  /** Optional CSS background-image for the page */
-  backgroundImage?: string;
-  backgroundSize?: string;
-}
-
 /**
  * Input config for {@link createTheme}. Mirrors the structure of {@link ChartTheme}
  * but everything is optional except `background`. Missing values are derived automatically.
@@ -32,6 +21,9 @@ export interface ThemeConfig {
   tooltip?: Partial<ChartTheme['tooltip']>;
   /** URL to load the font (e.g. Google Fonts). */
   fontUrl?: string | null;
+  /** Optional CSS `background-image` for the page surrounding the chart. */
+  backgroundImage?: string;
+  backgroundSize?: string;
 }
 
 /** Detect dark mode using ITU-R BT.601 luma from the background hex color. */
@@ -43,11 +35,13 @@ function isDarkBg(bg: string): boolean {
 }
 
 /**
- * Build a complete {@link ThemePreset} from a partial config.
+ * Build a complete {@link ChartTheme} from a partial config.
  * Only `background` is required — everything else is derived from it.
+ * Metadata (`name`, `dark`, `fontUrl`) is attached as optional fields on the
+ * returned theme so it can be passed directly to `ChartContainer`.
  */
-export function createTheme(config: ThemeConfig): ThemePreset {
-  const { background: bg, name = 'Custom', description, fontUrl = null } = config;
+export function createTheme(config: ThemeConfig): ChartTheme {
+  const { background: bg, name = 'Custom', description, fontUrl = null, backgroundImage, backgroundSize } = config;
   const dark = isDarkBg(bg);
 
   // Default palette based on dark/light
@@ -71,6 +65,12 @@ export function createTheme(config: ThemeConfig): ThemePreset {
   const font = config.typography?.fontFamily ?? defFont;
 
   const theme: ChartTheme = {
+    name,
+    description,
+    dark,
+    fontUrl,
+    backgroundImage,
+    backgroundSize,
     background: bg,
     chartGradient:
       config.chartGradient ?? (dark ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)] : [lightenHex(bg, 0.06), bg]),
@@ -121,7 +121,7 @@ export function createTheme(config: ThemeConfig): ThemePreset {
     },
   };
 
-  return { name, description, fontUrl, dark, theme };
+  return theme;
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

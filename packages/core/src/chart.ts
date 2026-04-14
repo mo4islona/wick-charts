@@ -23,11 +23,13 @@ import type {
   CrosshairPosition,
   LineSeriesOptions,
   OHLCData,
+  OHLCInput,
   PieSeriesOptions,
   PieSliceData,
   TimePoint,
+  TimePointInput,
 } from './types';
-import { detectInterval } from './utils/time';
+import { detectInterval, normalizeOHLCArray, normalizeTime, normalizeTimePointArray } from './utils/time';
 import { Viewport } from './viewport';
 
 /** Events emitted by {@link ChartInstance}. */
@@ -91,7 +93,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Whether to render the background grid. */
   #grid: boolean;
   /** Detected time interval between data points (seconds). */
-  #dataInterval = 60;
+  #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
   #crosshairPos: CrosshairPosition | null = null;
   /** User-specified Y-axis bounds (auto, fixed, percentage). */
@@ -338,25 +340,30 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     }
   }
 
-  /** Replace all data for a series (batch load). */
-  setSeriesData(id: string, data: OHLCData[] | TimePoint[]): void {
+  /** Replace all data for a series (batch load). Accepts `Date` objects for time fields. */
+  setSeriesData(id: string, data: OHLCInput[] | TimePointInput[]): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
-    entry.store.setData(data);
+    const normalized = data.length > 0 && 'open' in data[0]
+      ? normalizeOHLCArray(data as OHLCInput[])
+      : normalizeTimePointArray(data as TimePointInput[]);
+    entry.store.setData(normalized as any);
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
-  appendData(id: string, point: OHLCData | TimePoint): void {
+  appendData(id: string, point: OHLCInput | TimePointInput): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
-    entry.store.append(point);
+    const normalized = { ...point, time: normalizeTime(point.time) };
+    entry.store.append(normalized as any);
   }
 
   /** Update the last data point of a series in place (e.g. live candle update). */
-  updateData(id: string, point: OHLCData | TimePoint): void {
+  updateData(id: string, point: OHLCInput | TimePointInput): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry?.store) return;
-    entry.store.updateLast(point);
+    const normalized = { ...point, time: normalizeTime(point.time) };
+    entry.store.updateLast(normalized as any);
   }
 
   /** Update visual options (color, width, etc.) for an existing series. */

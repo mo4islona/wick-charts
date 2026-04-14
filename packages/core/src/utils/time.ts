@@ -1,6 +1,27 @@
-const MINUTE = 60;
-const HOUR = 3600;
-const DAY = 86400;
+import type { OHLCData, OHLCInput, TimePoint, TimePointInput, TimeValue } from '../types';
+
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
+/** Convert a {@link TimeValue} (number ms or Date) to a millisecond timestamp. */
+export function normalizeTime(t: TimeValue): number {
+  return t instanceof Date ? t.getTime() : t;
+}
+
+/** Normalize the `time` field of every element in an {@link OHLCInput} array to produce {@link OHLCData}. */
+export function normalizeOHLCArray(data: OHLCInput[]): OHLCData[] {
+  if (data.length === 0) return data as OHLCData[];
+  if (typeof data[0].time === 'number') return data as OHLCData[];
+  return data.map((d) => ({ ...d, time: (d.time as Date).getTime() }));
+}
+
+/** Normalize the `time` field of every element in a {@link TimePointInput} array to produce {@link TimePoint}. */
+export function normalizeTimePointArray(data: TimePointInput[]): TimePoint[] {
+  if (data.length === 0) return data as TimePoint[];
+  if (typeof data[0].time === 'number') return data as TimePoint[];
+  return data.map((d) => ({ ...d, time: (d.time as Date).getTime() }));
+}
 
 export function detectInterval(times: number[]): number {
   if (times.length < 2) return DAY;
@@ -13,7 +34,7 @@ export function detectInterval(times: number[]): number {
 }
 
 export function formatTime(timestamp: number, interval: number): string {
-  const d = new Date(timestamp * 1000);
+  const d = new Date(timestamp);
   if (interval >= DAY) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
@@ -29,12 +50,12 @@ export function formatTime(timestamp: number, interval: number): string {
 }
 
 export function formatDate(timestamp: number): string {
-  const d = new Date(timestamp * 1000);
+  const d = new Date(timestamp);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function niceTimeIntervals(interval: number): number[] {
-  const sub_minute = [1, 5, 10, 15, 30];
+  const sub_minute = [1_000, 5_000, 10_000, 15_000, 30_000];
   const sub_hour = [MINUTE, 5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 30 * MINUTE];
   const sub_day = [HOUR, 2 * HOUR, 4 * HOUR, 6 * HOUR, 12 * HOUR];
   const days = [DAY, 7 * DAY, 30 * DAY, 90 * DAY, 365 * DAY];

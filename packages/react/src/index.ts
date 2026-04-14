@@ -21,7 +21,6 @@ export type {
   SeriesType,
   StackingMode,
   ThemeConfig,
-  ThemePreset,
   TimePoint,
   TimePointInput,
   TimeValue,

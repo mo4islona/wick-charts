@@ -1,4 +1,10 @@
-/** A single OHLC(V) candlestick data point. Time is a Unix timestamp (seconds). */
+/**
+ * Accepted time input: a timestamp in **milliseconds** (like `Date.now()`) or a `Date` object.
+ * `Date` values are converted to milliseconds internally via `Date.getTime()`.
+ */
+export type TimeValue = number | Date;
+
+/** A single OHLC(V) candlestick data point. Time is a timestamp in milliseconds. */
 export interface OHLCData {
   time: number;
   open: number;
@@ -8,16 +14,22 @@ export interface OHLCData {
   volume?: number;
 }
 
-/** A single time-value data point for line and bar series. */
+/** {@link OHLCData} that also accepts `Date` for the time field. */
+export type OHLCInput = Omit<OHLCData, 'time'> & { time: TimeValue };
+
+/** A single time-value data point for line and bar series. Time is a timestamp in milliseconds. */
 export interface TimePoint {
   time: number;
   value: number;
 }
 
+/** {@link TimePoint} that also accepts `Date` for the time field. */
+export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
+
 /** @deprecated Use {@link TimePoint} instead. */
 export type LineData = TimePoint;
 
-/** Time range (Unix timestamps) of the currently visible portion of the chart. */
+/** Time range (timestamps in milliseconds) of the currently visible portion of the chart. */
 export interface VisibleRange {
   from: number;
   to: number;
@@ -66,7 +78,7 @@ export interface CrosshairPosition {
   mediaX: number;
   /** Y position in CSS pixels relative to the chart container. */
   mediaY: number;
-  /** Snapped time value (Unix timestamp) under the crosshair. */
+  /** Snapped time value (timestamp in milliseconds) under the crosshair. */
   time: number;
   /** Y (value) under the crosshair. */
   y: number;

@@ -81,25 +81,24 @@ export default function App() {
     localStorage.setItem('sidebar-collapsed', String(collapsed));
   }, [collapsed]);
 
-  const preset = themes[themeName];
-  const theme = preset.theme;
+  const theme = themes[themeName];
 
   // Load font + set root styles
   useEffect(() => {
-    if (preset.fontUrl) {
+    if (theme.fontUrl) {
       const id = `font-${themeName.replace(/\s/g, '-')}`;
       if (!document.getElementById(id)) {
         const link = document.createElement('link');
         link.id = id;
         link.rel = 'stylesheet';
-        link.href = preset.fontUrl;
+        link.href = theme.fontUrl;
         document.head.appendChild(link);
       }
     }
     document.documentElement.style.fontSize = `${theme.typography.fontSize}px`;
     document.documentElement.style.fontFamily = theme.typography.fontFamily;
     document.body.style.backgroundColor = theme.background;
-    const glow = preset.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
+    const glow = theme.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
     document.body.style.setProperty('--page-glow', glow);
   }, [themeName]);
 
@@ -107,10 +106,10 @@ export default function App() {
   const pageTitle = TITLES[route];
 
   const bgImage = (() => {
-    const major = preset.dark ? 0.06 : 0.12;
-    const minor = preset.dark ? 0.03 : 0.06;
+    const major = theme.dark ? 0.06 : 0.12;
+    const minor = theme.dark ? 0.03 : 0.06;
     return [
-      preset.backgroundImage,
+      theme.backgroundImage,
       `repeating-linear-gradient(0deg, transparent, transparent 129px, rgba(150,150,150,${major}) 129px, rgba(150,150,150,${major}) 130px)`,
       `repeating-linear-gradient(90deg, transparent, transparent 129px, rgba(150,150,150,${major}) 129px, rgba(150,150,150,${major}) 130px)`,
       `repeating-linear-gradient(0deg, transparent, transparent 25px, rgba(150,150,150,${minor}) 25px, rgba(150,150,150,${minor}) 26px)`,

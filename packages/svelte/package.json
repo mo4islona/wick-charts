@@ -25,7 +25,7 @@
   "peerDependencies": {
     "svelte": ">=4.0.0"
   },
-  "dependencies": {
+  "devDependencies": {
     "@wick-charts/core": "workspace:^"
   }
 }

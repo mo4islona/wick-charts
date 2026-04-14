@@ -12,6 +12,19 @@ export interface Typography {
  * Controls colors for every visual element: background, series, axes, crosshair, tooltip, etc.
  */
 export interface ChartTheme {
+  /** Optional preset display name (used by theme selectors). */
+  name?: string;
+  /** Optional short description of the theme. */
+  description?: string;
+  /** True when background is dark — used by theme selectors for grouping. */
+  dark?: boolean;
+  /** Optional URL for a web font (e.g. Google Fonts) associated with this theme. */
+  fontUrl?: string | null;
+  /** Optional CSS `background-image` for the page surrounding the chart. */
+  backgroundImage?: string;
+  /** Optional CSS `background-size` paired with {@link backgroundImage}. */
+  backgroundSize?: string;
+
   /** Page/container background */
   background: string;
   /** Chart area gradient [top, bottom] — subtle vignette for depth */

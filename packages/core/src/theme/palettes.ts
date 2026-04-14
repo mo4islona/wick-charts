@@ -1,7 +1,7 @@
 import type { ChartTheme } from './types';
 
 // Re-export types and utilities
-export type { ThemeConfig, ThemePreset } from './create';
+export type { ThemeConfig } from './create';
 export { createTheme } from './create';
 // Re-export individual themes for ESM tree-shaking
 export {
@@ -29,7 +29,6 @@ export {
   solarizedLight,
 } from './themes';
 
-import type { ThemePreset } from './create';
 import {
   andromeda,
   ayuMirage,
@@ -56,7 +55,7 @@ import {
 } from './themes';
 
 /** All built-in themes keyed by display name */
-export const themes: Record<string, ThemePreset> = {
+export const themes: Record<string, ChartTheme> = {
   Dracula: dracula,
   'One Dark Pro': oneDarkPro,
   'Monokai Pro': monokaiPro,
@@ -85,5 +84,5 @@ export const themes: Record<string, ThemePreset> = {
 
 /** Lookup a theme by name (defaults to "One Dark Pro") */
 export function buildTheme(themeName: string): ChartTheme {
-  return (themes[themeName] ?? themes['One Dark Pro']).theme;
+  return themes[themeName] ?? themes['One Dark Pro'];
 }

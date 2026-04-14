@@ -16,7 +16,7 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: ['svelte', 'svelte/store', 'svelte/internal', /^svelte\//, '@wick-charts/core'],
+      external: ['svelte', 'svelte/store', 'svelte/internal', /^svelte\//],
     },
   },
 });

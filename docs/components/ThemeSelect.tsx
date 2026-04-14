@@ -61,7 +61,7 @@ export function ThemeSelect({
           outline: 'none',
         }}
       >
-        <ThemeDots t={themes[value].theme} />
+        <ThemeDots t={themes[value]} />
         {!mobile && value}
         <span style={{ opacity: 0.4, fontSize: theme.typography.axisFontSize, marginLeft: mobile ? 0 : 2 }}>▾</span>
       </button>
@@ -187,8 +187,7 @@ function ThemeColumn({
         {label}
       </div>
       {names.map((name) => {
-        const preset = themes[name];
-        const t = preset.theme;
+        const t = themes[name];
         const active = name === value;
         return (
           <button

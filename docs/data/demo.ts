@@ -6,11 +6,11 @@ import type { LineData } from '@wick-charts/react';
 
 import { generateBandLine, generateBarData, generateLineData, generateOHLCData, generateWaveData } from '../data';
 
-// ── Intervals (seconds) ──────────────────────────────────────
+// ── Intervals (milliseconds) ────────────────────────────────
 /** Fast interval for demos — new points appear every 5 seconds */
-export const DEMO_INTERVAL = 5;
+export const DEMO_INTERVAL = 5_000;
 /** Standard 1-minute interval */
-export const STANDARD_INTERVAL = 60;
+export const STANDARD_INTERVAL = 60_000;
 
 // ── OHLC ─────────────────────────────────────────────────────
 export const ohlcBTC = generateOHLCData(300, 42000, DEMO_INTERVAL);

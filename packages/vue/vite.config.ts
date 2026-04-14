@@ -16,7 +16,7 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: ['vue', /^vue\//, '@wick-charts/core'],
+      external: ['vue', /^vue\//],
     },
   },
 });
