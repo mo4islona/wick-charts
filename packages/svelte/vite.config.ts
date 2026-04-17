@@ -8,7 +8,7 @@ import dts from 'vite-plugin-dts';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [svelte({ preprocess: vitePreprocess() }), dts({ rollupTypes: true })],
+  plugins: [svelte({ preprocess: vitePreprocess() }), dts({ rollupTypes: true, bundledPackages: ['@wick-charts/core'] })],
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),

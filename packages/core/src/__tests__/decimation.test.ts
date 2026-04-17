@@ -13,7 +13,7 @@ function makeLine(count: number, valueFn: (i: number) => number = (i) => i): Lin
 
 function makeOHLC(count: number): OHLCData[] {
   return Array.from({ length: count }, (_, i) => ({
-    time: i * 60,
+    time: i * 60_000,
     open: 100 + i,
     high: 110 + i,
     low: 90 + i,
@@ -122,7 +122,7 @@ describe('decimateOHLCData', () => {
 
   it('volume aggregated correctly', () => {
     const data: OHLCData[] = Array.from({ length: 6 }, (_, i) => ({
-      time: i * 60,
+      time: i * 60_000,
       open: 100,
       high: 110,
       low: 90,
@@ -139,7 +139,7 @@ describe('decimateOHLCData', () => {
 
   it('volume defaults to 0 for undefined volume', () => {
     const data: OHLCData[] = Array.from({ length: 4 }, (_, i) => ({
-      time: i * 60,
+      time: i * 60_000,
       open: 100,
       high: 110,
       low: 90,

@@ -21,7 +21,7 @@ const theme = computed(() => chart.getTheme());
 
 const y = computed(() => {
   if (lastY.value === null) return 0;
-  return chart.yScale.valueToY(lastY.value);
+  return chart.yScale.valueToY(lastY.value.value);
 });
 
 const bgColor = computed(() => {
@@ -30,8 +30,8 @@ const bgColor = computed(() => {
   if (previousClose.value === null || lastY.value === null) {
     return t.yLabel.neutralBackground;
   }
-  if (lastY.value > previousClose.value) return t.yLabel.upBackground;
-  if (lastY.value < previousClose.value) return t.yLabel.downBackground;
+  if (lastY.value.value > previousClose.value) return t.yLabel.upBackground;
+  if (lastY.value.value < previousClose.value) return t.yLabel.downBackground;
   return t.yLabel.neutralBackground;
 });
 
@@ -87,7 +87,7 @@ const numberFormat = computed(() => ({
       }"
     >
       <NumberFlow
-        :value="lastY"
+        :value="lastY.value"
         :format="numberFormat"
         :spin-duration="350"
       />

@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g. 0.2.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  publish:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Resolve version from tag or manual input. User-controlled values
+      # flow through env: — never interpolated into the run: script.
+      - name: Resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # Strict semver-ish validation — reject anything that could smuggle
+          # shell metacharacters into later steps.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Invalid version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Require package versions to already be committed in source so that
+      # the tagged commit is the source of truth for what was published.
+      - name: Verify versions
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          for pkg in react vue svelte; do
+            PACKAGE_VERSION=$(jq -r '.version' "packages/$pkg/package.json")
+            if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+              echo "packages/$pkg/package.json has version $PACKAGE_VERSION, expected $VERSION."
+              echo "Version bumps must be committed before running the release workflow."
+              exit 1
+            fi
+          done
+
+      # Auth happens via npm Trusted Publishing (OIDC) — no NPM_TOKEN.
+      # Each package must have a trusted publisher configured on npmjs.com
+      # pointing at this workflow (mo4islona/wick-charts/.github/workflows/release.yml).
+
+      # @wick-charts/core is private (workspace-internal) — its sources are
+      # inlined into the wrappers at build time (JS bundles + .d.ts rollup).
+
+      - name: Publish @wick-charts/react
+        run: pnpm publish packages/react --access public --provenance --no-git-checks
+
+      - name: Publish @wick-charts/vue
+        run: pnpm publish packages/vue --access public --provenance --no-git-checks
+
+      - name: Publish @wick-charts/svelte
+        run: pnpm publish packages/svelte --access public --provenance --no-git-checks
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Invalid version: $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          draft: false

@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import type { CandlestickSeriesOptions, OHLCData } from '@wick-charts/core';
+import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
 export interface CandlestickSeriesProps {
-  data: OHLCData[];
+  data: OHLCInput[];
   options?: Partial<CandlestickSeriesOptions>;
   /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
   id?: string;
