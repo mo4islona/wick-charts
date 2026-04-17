@@ -96,5 +96,7 @@ export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
 export type { TooltipSort } from './ui/Tooltip';
 // UI overlays
 export { Tooltip } from './ui/Tooltip';
+export type { TooltipLegendProps } from './ui/TooltipLegend';
+export { TooltipLegend } from './ui/TooltipLegend';
 export { YAxis } from './ui/YAxis';
 export { YLabel } from './ui/YLabel';

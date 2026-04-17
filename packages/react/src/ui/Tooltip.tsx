@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useLayoutEffect, useState } from 'react';
 
-import { type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
+import { type ChartInstance, type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
 
-import { useChartInstance } from '../context';
+import { TooltipLegendPresenceContext, useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 
 /** Sort order for multi-series tooltip values. */
@@ -45,20 +45,51 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * 1. Compact legend always visible in top-left
  * 2. Floating glass tooltip near cursor on hover
  */
+/**
+ * Charts that have already emitted the deprecation warning.
+ * WeakSet so destroyed chart instances don't hold memory.
+ */
+const warnedCharts = new WeakSet<ChartInstance>();
+
 export function Tooltip({ seriesId, sort = 'none', showLegend, legend }: TooltipProps) {
   const showLegendResolved = showLegend ?? legend ?? true;
   const chart = useChartInstance();
+  const hasTooltipLegendSibling = useContext(TooltipLegendPresenceContext);
   const crosshair = useCrosshairPosition(chart);
+
+  // When a <TooltipLegend> sibling is present, it owns the compact info-bar
+  // rendering (hoisted to its own flex row by ChartContainer). Otherwise we
+  // render the legacy absolute overlay and warn once per chart.
+  const renderLegacyLegend = showLegendResolved && !hasTooltipLegendSibling;
+  useEffect(() => {
+    if (renderLegacyLegend && !warnedCharts.has(chart)) {
+      warnedCharts.add(chart);
+      console.warn(
+        '[wick-charts] <Tooltip> is rendering its compact legend as an absolute overlay. ' +
+          'This will overlap the chart plot area. Use <TooltipLegend /> as a sibling of <Tooltip> to hoist ' +
+          'the info bar above the canvas so the plot area recomputes correctly. The overlay fallback will be ' +
+          'removed in a future major version.',
+      );
+    }
+  }, [chart, renderLegacyLegend]);
 
   // Determine which series to display — getSeriesIds() is internally cached
   const targetIds = seriesId ? [seriesId] : chart.getSeriesIds();
 
-  // Re-render on data updates (not viewport — tooltip content doesn't depend on pan/zoom)
+  // Re-render on data and series changes. Matches Legend's pattern — subscribe
+  // in layout phase and catch up if siblings have already registered data in
+  // this same commit.
   const [, bumpTooltip] = useState(0);
-  useEffect(() => {
-    const handler = () => bumpTooltip((n) => n + 1);
-    chart.on('dataUpdate', handler);
-    return () => chart.off('dataUpdate', handler);
+  useLayoutEffect(() => {
+    const onDataUpdate = () => bumpTooltip((n) => n + 1);
+    const onSeriesChange = () => bumpTooltip((n) => n + 1);
+    chart.on('dataUpdate', onDataUpdate);
+    chart.on('seriesChange', onSeriesChange);
+    if (chart.getSeriesIds().length > 0) bumpTooltip((n) => n + 1);
+    return () => {
+      chart.off('dataUpdate', onDataUpdate);
+      chart.off('seriesChange', onSeriesChange);
+    };
   }, [chart]);
 
   // Gather hover data for all target series
@@ -124,8 +155,8 @@ export function Tooltip({ seriesId, sort = 'none', showLegend, legend }: Tooltip
 
   return (
     <>
-      {/* ── Compact legend (below chart title) ── */}
-      {showLegendResolved && (
+      {/* ── Compact legend (below chart title) — legacy overlay, suppressed when <TooltipLegend> sibling is present ── */}
+      {renderLegacyLegend && (
         <div
           style={{
             position: 'absolute',
