@@ -160,22 +160,27 @@ export class StreamingSource {
   private tick(): void {
     const now = Date.now();
     const currentCandleStart = Math.floor(now / this.interval) * this.interval;
+    const volatility = 0.002;
 
-    if (currentCandleStart > (this.lastCandle.time as number)) {
-      // New candle
-      const price = this.lastCandle.close;
+    // Fill any intervals missed while the tab was inactive or before mount.
+    while (currentCandleStart > (this.lastCandle.time as number)) {
+      const open = this.lastCandle.close;
+      const change = (Math.random() - 0.5) * volatility * open;
+      const close = round(open + change);
       this.lastCandle = {
-        time: currentCandleStart,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        volume: 0,
+        time: (this.lastCandle.time as number) + this.interval,
+        open,
+        high: Math.max(open, close),
+        low: Math.min(open, close),
+        close,
+        volume: Math.round(Math.random() * 100),
       };
+      for (const listener of this.listeners) {
+        listener({ ...this.lastCandle });
+      }
     }
 
-    // Simulate price movement
-    const volatility = 0.002;
+    // Live update of the current candle
     const change = (Math.random() - 0.5) * volatility * this.lastCandle.close;
     const newPrice = round(this.lastCandle.close + change);
 
@@ -222,12 +227,20 @@ export class LineStreamingSource {
   private tick(): void {
     const now = Date.now();
     const currentStart = Math.floor(now / this.interval) * this.interval;
+    const volatility = 0.002;
 
-    if (currentStart > (this.lastPoint.time as number)) {
-      this.lastPoint = { time: currentStart, value: this.lastPoint.value };
+    // Fill any intervals missed while the tab was inactive or before mount.
+    while (currentStart > (this.lastPoint.time as number)) {
+      const change = (Math.random() - 0.5) * volatility * this.lastPoint.value;
+      this.lastPoint = {
+        time: (this.lastPoint.time as number) + this.interval,
+        value: round(this.lastPoint.value + change),
+      };
+      for (const listener of this.listeners) {
+        listener({ ...this.lastPoint });
+      }
     }
 
-    const volatility = 0.002;
     const change = (Math.random() - 0.5) * volatility * this.lastPoint.value;
     this.lastPoint.value = round(this.lastPoint.value + change);
 
