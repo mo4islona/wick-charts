@@ -1,5 +1,6 @@
+import type { ChartTheme } from '../theme/types';
 import type { PieSeriesOptions, PieSliceData } from '../types';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import type { HoverInfo, SeriesRenderContext, SeriesRenderer, SliceInfo } from './types';
 
 const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
@@ -33,11 +34,13 @@ function lerp(a: number, b: number, t: number): number {
 export class PieRenderer implements SeriesRenderer {
   private data: PieSliceData[] = [];
   private options: PieSeriesOptions;
-  /** Index of the hovered slice (-1 = none). Set externally by chart. */
-  hoverIndex = -1;
+  /** Index of the hovered slice (-1 = none). Set via {@link setHoverIndex}. */
+  #hoverIndex = -1;
   /** Animated offset per slice (0..1), smoothly interpolated toward target. */
   private sliceOffsets: number[] = [];
   private lastRenderTime = 0;
+  /** Subscribers notified on setData (pie has no TimeSeriesStore to piggy-back on). */
+  #dataListeners: Array<() => void> = [];
 
   constructor(options?: Partial<PieSeriesOptions>) {
     this.options = { ...DEFAULT_OPTIONS, ...options };
@@ -47,9 +50,19 @@ export class PieRenderer implements SeriesRenderer {
     return this.data;
   }
 
-  setData(data: PieSliceData[]): void {
-    this.data = data;
-    this.sliceOffsets = new Array(data.length).fill(0);
+  setData(data: unknown): void {
+    const slices = (data ?? []) as PieSliceData[];
+    this.data = slices;
+    this.sliceOffsets = new Array(slices.length).fill(0);
+    for (const l of this.#dataListeners) l();
+  }
+
+  onDataChanged(listener: () => void): () => void {
+    this.#dataListeners.push(listener);
+    return () => {
+      const i = this.#dataListeners.indexOf(listener);
+      if (i >= 0) this.#dataListeners.splice(i, 1);
+    };
   }
 
   updateOptions(options: Partial<PieSeriesOptions>): void {
@@ -58,6 +71,26 @@ export class PieRenderer implements SeriesRenderer {
 
   getColor(): string {
     return this.data[0]?.color ?? this.options.colors?.[0] ?? '#888';
+  }
+
+  getLayerCount(): number {
+    return 1;
+  }
+
+  setLayerVisible(_index: number, _visible: boolean): void {
+    // Pie doesn't have layers.
+  }
+
+  isLayerVisible(_index: number): boolean {
+    return true;
+  }
+
+  getLayerColors(): string[] {
+    return [this.getColor()];
+  }
+
+  applyTheme(_theme: ChartTheme, _prev: ChartTheme): void {
+    // Pie derives colors from the active theme at render time via the palette.
   }
 
   /** Hit-test: which slice is at this bitmap coordinate? Returns index or -1. */
@@ -90,13 +123,55 @@ export class PieRenderer implements SeriesRenderer {
     return -1;
   }
 
+  setHoverIndex(index: number): boolean {
+    if (this.#hoverIndex === index) return false;
+    this.#hoverIndex = index;
+    return true;
+  }
+
+  getHoverIndex(): number {
+    return this.#hoverIndex;
+  }
+
+  getHoverInfo(theme: ChartTheme): HoverInfo | null {
+    if (this.#hoverIndex < 0) return null;
+    const slice = this.data[this.#hoverIndex];
+    if (!slice) return null;
+    const total = this.data.reduce((sum, d) => sum + d.value, 0);
+    const palette = this.options.colors ?? theme.seriesColors;
+    return {
+      label: slice.label,
+      value: slice.value,
+      percent: total > 0 ? (slice.value / total) * 100 : 0,
+      color: slice.color ?? palette[this.#hoverIndex % palette.length],
+    };
+  }
+
+  getSliceInfo(theme: ChartTheme): SliceInfo[] | null {
+    if (this.data.length === 0) return null;
+    const total = this.data.reduce((sum, d) => sum + d.value, 0);
+    const palette = this.options.colors ?? theme.seriesColors;
+    return this.data.map((d, i) => ({
+      label: d.label,
+      value: d.value,
+      percent: total > 0 ? (d.value / total) * 100 : 0,
+      color: d.color ?? palette[i % palette.length],
+    }));
+  }
+
   /** Returns true if animation is still in progress. */
   get needsAnimation(): boolean {
     for (let i = 0; i < this.sliceOffsets.length; i++) {
-      const target = i === this.hoverIndex ? 1 : 0;
+      const target = i === this.#hoverIndex ? 1 : 0;
       if (Math.abs(this.sliceOffsets[i] - target) > 0.01) return true;
     }
     return false;
+  }
+
+  dispose(): void {
+    this.#dataListeners = [];
+    this.data = [];
+    this.sliceOffsets = [];
   }
 
   render(ctx: SeriesRenderContext): void {
@@ -115,7 +190,7 @@ export class PieRenderer implements SeriesRenderer {
     const speed = 10; // higher = faster animation
     while (this.sliceOffsets.length < this.data.length) this.sliceOffsets.push(0);
     for (let i = 0; i < this.data.length; i++) {
-      const target = i === this.hoverIndex ? 1 : 0;
+      const target = i === this.#hoverIndex ? 1 : 0;
       this.sliceOffsets[i] = lerp(this.sliceOffsets[i], target, speed * dt);
     }
 

@@ -10,7 +10,7 @@ export function PieTooltip({ seriesId }: PieTooltipProps) {
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
-  const info = chart.getPieHoverInfo(seriesId);
+  const info = chart.getHoverInfo(seriesId);
   if (!info || !crosshair) return null;
 
   const theme = chart.getTheme();

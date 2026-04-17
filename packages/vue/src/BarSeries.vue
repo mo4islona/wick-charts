@@ -31,7 +31,7 @@ watch(
     if (!seriesId.value) return;
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        chart.setBarLayerData(seriesId.value!, i, data[i]);
+        chart.setSeriesData(seriesId.value!, data[i], i);
       }
     });
   },

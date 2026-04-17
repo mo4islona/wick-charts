@@ -1,7 +1,9 @@
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
-import type { CandlestickSeriesOptions, OHLCData } from '../types';
+import type { ChartTheme } from '../theme/types';
+import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { darken, hexToRgba, lighten } from '../utils/color';
+import { normalizeOHLCArray, normalizeTime } from '../utils/time';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
@@ -27,6 +29,65 @@ export class CandlestickRenderer implements SeriesRenderer {
 
   getColor(): string {
     return this.options.upColor;
+  }
+
+  // --- SeriesRenderer interface implementation ------------------------------
+
+  setData(data: unknown): void {
+    this.store.setData(normalizeOHLCArray((data ?? []) as OHLCInput[]));
+  }
+
+  appendPoint(point: unknown): void {
+    const p = point as OHLCInput;
+    this.store.append({ ...p, time: normalizeTime(p.time) });
+  }
+
+  updateLastPoint(point: unknown): void {
+    const p = point as OHLCInput;
+    this.store.updateLast({ ...p, time: normalizeTime(p.time) });
+  }
+
+  getLayerCount(): number {
+    return 1;
+  }
+
+  setLayerVisible(_index: number, _visible: boolean): void {
+    // Candlestick has a single layer; visibility is managed by the chart.
+  }
+
+  isLayerVisible(_index: number): boolean {
+    return true;
+  }
+
+  getLayerColors(): string[] {
+    return [this.options.upColor];
+  }
+
+  applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
+    this.updateOptions({
+      upColor: theme.candlestick.upColor,
+      downColor: theme.candlestick.downColor,
+      wickUpColor: theme.candlestick.wickUpColor,
+      wickDownColor: theme.candlestick.wickDownColor,
+    });
+  }
+
+  onDataChanged(listener: () => void): () => void {
+    this.store.on('update', listener);
+    return () => this.store.off('update', listener);
+  }
+
+  dispose(): void {
+    this.store.removeAllListeners();
+  }
+
+  getLastValue(): number | null {
+    const last = this.store.last();
+    return last ? last.close : null;
+  }
+
+  getDataAtTime(time: number, interval: number): OHLCData | null {
+    return this.store.findNearest(time, interval);
   }
 
   render(ctx: SeriesRenderContext): void {

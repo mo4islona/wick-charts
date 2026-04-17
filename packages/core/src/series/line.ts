@@ -1,10 +1,10 @@
 import { decimateLineData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
-import type { TimeScale } from '../scales/time-scale';
-import type { YScale } from '../scales/y-scale';
-import type { LineSeriesOptions, TimePoint } from '../types';
+import type { ChartTheme } from '../theme/types';
+import type { LineSeriesOptions, TimePoint, TimePointInput } from '../types';
 import { hexToRgba } from '../utils/color';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import { normalizeTime, normalizeTimePointArray } from '../utils/time';
+import type { OverlayRenderContext, SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
   colors: ['#2962FF'],
@@ -15,17 +15,18 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
 };
 
 export class LineRenderer implements SeriesRenderer {
-  readonly stores: TimeSeriesStore<TimePoint>[];
+  readonly #stores: TimeSeriesStore<TimePoint>[];
   private options: LineSeriesOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
-    this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
+    this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
+  /** Back-compat: first store. */
   get store(): TimeSeriesStore<TimePoint> {
-    return this.stores[0];
+    return this.#stores[0];
   }
 
   updateOptions(options: Partial<LineSeriesOptions>): void {
@@ -44,22 +45,142 @@ export class LineRenderer implements SeriesRenderer {
     return this.options.stacking;
   }
 
+  // --- SeriesRenderer interface implementation ------------------------------
+
+  setData(data: unknown, layerIndex = 0): void {
+    const store = this.#stores[layerIndex];
+    if (!store) return;
+    store.setData(normalizeTimePointArray((data ?? []) as TimePointInput[]));
+  }
+
+  appendPoint(point: unknown, layerIndex = 0): void {
+    const store = this.#stores[layerIndex];
+    if (!store) return;
+    const p = point as TimePointInput;
+    store.append({ ...p, time: normalizeTime(p.time) });
+  }
+
+  updateLastPoint(point: unknown, layerIndex = 0): void {
+    const store = this.#stores[layerIndex];
+    if (!store) return;
+    const p = point as TimePointInput;
+    store.updateLast({ ...p, time: normalizeTime(p.time) });
+  }
+
+  getLayerCount(): number {
+    return this.#stores.length;
+  }
+
+  setLayerVisible(index: number, visible: boolean): void {
+    this.#stores[index]?.setVisible(visible);
+  }
+
+  isLayerVisible(index: number): boolean {
+    return this.#stores[index]?.isVisible() ?? true;
+  }
+
+  getLayerColors(): string[] {
+    return this.getColors();
+  }
+
+  applyTheme(theme: ChartTheme, prev: ChartTheme): void {
+    if (this.#stores.length === 1) {
+      // Single-layer: update color only if it matches the previous theme default
+      if (this.getColor() === prev.line.color) {
+        this.updateOptions({ colors: [theme.line.color] });
+      }
+    } else {
+      this.updateOptions({
+        colors: theme.seriesColors.slice(0, this.#stores.length),
+      });
+    }
+  }
+
+  onDataChanged(listener: () => void): () => void {
+    for (const s of this.#stores) s.on('update', listener);
+    return () => {
+      for (const s of this.#stores) s.off('update', listener);
+    };
+  }
+
+  dispose(): void {
+    for (const s of this.#stores) s.removeAllListeners();
+  }
+
+  getLastValue(): number | null {
+    for (let i = this.#stores.length - 1; i >= 0; i--) {
+      const last = this.#stores[i].last();
+      if (last) return last.value;
+    }
+    return null;
+  }
+
+  getDataAtTime(time: number, interval: number): TimePoint | null {
+    return this.#stores[0]?.findNearest(time, interval) ?? null;
+  }
+
+  getLayerSnapshots(time: number, interval: number): { value: number; color: string }[] | null {
+    if (this.#stores.length <= 1) return null;
+    const colors = this.options.colors;
+    const results: { value: number; color: string }[] = [];
+    for (let li = 0; li < this.#stores.length; li++) {
+      if (!this.#stores[li].isVisible()) continue;
+      const data = this.#stores[li].getVisibleData(time - interval, time + interval);
+      if (data.length === 0) continue;
+      let closest = data[0];
+      let minDist = Math.abs(data[0].time - time);
+      for (let i = 1; i < data.length; i++) {
+        const dist = Math.abs(data[i].time - time);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = data[i];
+        }
+      }
+      results.push({ value: closest.value, color: colors[li % colors.length] });
+    }
+    return results.length > 0 ? results : null;
+  }
+
+  getTotalLength(): number {
+    let total = 0;
+    for (const s of this.#stores) total += s.length;
+    return total;
+  }
+
+  // --- Internal accessors used by Chart for per-layer work -----------------
+  // Note: `#stores` is private; exposing limited per-layer queries through the
+  // interface above. No `getStores()` accessor is exported — every external
+  // need goes through setData/setLayerVisible/getLayerSnapshots/onDataChanged.
+
   get needsAnimation(): boolean {
     return false;
   }
 
   get hasPulse(): boolean {
-    return this.options.pulse && this.stores.some((s) => s.isVisible() && s.length > 0);
+    return this.options.pulse && this.#stores.some((s) => s.isVisible() && s.length > 0);
+  }
+
+  get overlayNeedsAnimation(): boolean {
+    return this.hasPulse;
+  }
+
+  hasOverlayContentInRange(from: number, to: number): boolean {
+    for (let li = 0; li < this.#stores.length; li++) {
+      if (!this.#stores[li].isVisible()) continue;
+      const last = this.#stores[li].last();
+      if (last && last.time >= from && last.time <= to) return true;
+    }
+    return false;
   }
 
   getValueRange(from: number, to: number): { min: number; max: number } | null {
     if (this.options.stacking === 'percent') {
       return { min: 0, max: 100 };
     }
-    if (this.stores.length <= 1) {
+    if (this.#stores.length <= 1) {
       return null; // single store — chart handles it via entry.store
     }
-    const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
+    const layers = this.#stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
 
     if (this.options.stacking === 'off') {
       // Union of all layers' individual ranges
@@ -110,13 +231,13 @@ export class LineRenderer implements SeriesRenderer {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
     const range = timeScale.getRange();
-    const { verticalPixelRatio, horizontalPixelRatio } = scope;
+    const { verticalPixelRatio } = scope;
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
 
-    for (let li = 0; li < this.stores.length; li++) {
-      if (!this.stores[li].isVisible()) continue;
+    for (let li = 0; li < this.#stores.length; li++) {
+      if (!this.#stores[li].isVisible()) continue;
 
-      let data = this.stores[li].getVisibleData(range.from, range.to);
+      let data = this.#stores[li].getVisibleData(range.from, range.to);
       const pixelWidth = scope.mediaSize.width;
       if (data.length > pixelWidth * 2) {
         data = decimateLineData(data, Math.round(pixelWidth * 1.5));
@@ -172,7 +293,7 @@ export class LineRenderer implements SeriesRenderer {
 
     // Collect per-layer data
     const pixelWidth = scope.mediaSize.width;
-    const layers = this.stores.map((s) => {
+    const layers = this.#stores.map((s) => {
       let data = s.getVisibleData(range.from, range.to);
       if (data.length > pixelWidth * 2) {
         data = decimateLineData(data, Math.round(pixelWidth * 1.5));
@@ -195,26 +316,26 @@ export class LineRenderer implements SeriesRenderer {
     });
 
     // Compute stacked Y values per time: cumulative[li][ti]
-    const cumulative: number[][] = Array.from({ length: this.stores.length }, () => new Array(times.length).fill(0));
+    const cumulative: number[][] = Array.from({ length: this.#stores.length }, () => new Array(times.length).fill(0));
     for (let ti = 0; ti < times.length; ti++) {
       const t = times[ti];
       let total = 0;
       if (percent) {
-        for (let li = 0; li < this.stores.length; li++) {
-          if (this.stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
+        for (let li = 0; li < this.#stores.length; li++) {
+          if (this.#stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
         }
       }
       let running = 0;
-      for (let li = 0; li < this.stores.length; li++) {
-        const raw = this.stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
+      for (let li = 0; li < this.#stores.length; li++) {
+        const raw = this.#stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }
     }
 
     // Draw from top layer to bottom so lower layers fill correctly
-    for (let li = this.stores.length - 1; li >= 0; li--) {
-      if (!this.stores[li].isVisible()) continue;
+    for (let li = this.#stores.length - 1; li >= 0; li--) {
+      if (!this.#stores[li].isVisible()) continue;
       const color = this.options.colors[li % this.options.colors.length];
 
       // Upper edge = this layer's cumulative
@@ -259,14 +380,92 @@ export class LineRenderer implements SeriesRenderer {
     }
   }
 
-  drawPulseOverlay(ctx: CanvasRenderingContext2D, timeScale: TimeScale, yScale: YScale, pixelRatio: number): void {
-    if (!this.options.pulse) return;
-    for (let li = 0; li < this.stores.length; li++) {
-      if (!this.stores[li].isVisible()) continue;
-      const last = this.stores[li].last();
-      if (!last) continue;
-      const color = this.options.colors[li % this.options.colors.length];
-      this.drawPulse(ctx, timeScale.timeToBitmapX(last.time), yScale.valueToBitmapY(last.value), color, pixelRatio);
+  /**
+   * Overlay hook: draws crosshair nearest-point dots and last-point pulse dots.
+   * Chart invokes this during the overlay pass for any renderer that implements it.
+   */
+  drawOverlay(ctx: OverlayRenderContext): void {
+    const { scope, timeScale, yScale, crosshair, dataInterval } = ctx;
+    const size = scope;
+
+    // Crosshair nearest-point dots
+    if (crosshair) {
+      const colors = this.options.colors;
+      const stacking = this.options.stacking;
+      const r = 4 * size.horizontalPixelRatio;
+
+      const layerValues: number[] = [];
+      const layerTimes: (number | null)[] = [];
+      for (let li = 0; li < this.#stores.length; li++) {
+        const closest = this.#stores[li].findNearest(crosshair.time, dataInterval);
+        if (!closest) {
+          layerValues.push(0);
+          layerTimes.push(null);
+        } else {
+          layerValues.push(closest.value);
+          layerTimes.push(closest.time);
+        }
+      }
+
+      const displayValues: number[] = [];
+      if (stacking === 'off') {
+        for (const v of layerValues) displayValues.push(v);
+      } else {
+        // Hidden layers must contribute 0 so overlay dots align with the rendered stack.
+        let total = 0;
+        if (stacking === 'percent') {
+          for (let li = 0; li < layerValues.length; li++) {
+            if (this.#stores[li].isVisible()) total += layerValues[li];
+          }
+        }
+        let running = 0;
+        for (let li = 0; li < layerValues.length; li++) {
+          const v = this.#stores[li].isVisible() ? layerValues[li] : 0;
+          running += stacking === 'percent' && total > 0 ? (v / total) * 100 : v;
+          displayValues.push(running);
+        }
+      }
+
+      for (let li = 0; li < this.#stores.length; li++) {
+        const t = layerTimes[li];
+        if (t === null) continue;
+        if (!this.#stores[li].isVisible()) continue;
+        const color = colors[li % colors.length];
+        const px = timeScale.timeToBitmapX(t);
+        const py = yScale.valueToBitmapY(displayValues[li]);
+
+        scope.context.beginPath();
+        scope.context.arc(px, py, r + 3 * size.horizontalPixelRatio, 0, Math.PI * 2);
+        const glowColor = color.startsWith('#')
+          ? color + '40'
+          : /^rgb\(/i.test(color)
+            ? color.replace(/^rgb\((.*)\)$/i, 'rgba($1, 0.25)')
+            : color.replace(/[\d.]+\)\s*$/, '0.25)');
+        scope.context.fillStyle = glowColor;
+        scope.context.fill();
+
+        scope.context.beginPath();
+        scope.context.arc(px, py, r, 0, Math.PI * 2);
+        scope.context.fillStyle = color;
+        scope.context.fill();
+      }
+    }
+
+    // Pulse dots for line series (runs on overlay, not main layer)
+    if (this.hasPulse) {
+      for (let li = 0; li < this.#stores.length; li++) {
+        if (!this.#stores[li].isVisible()) continue;
+        const last = this.#stores[li].last();
+        if (!last) continue;
+        const color = this.options.colors[li % this.options.colors.length];
+        this.drawPulse(
+          scope.context,
+          timeScale.timeToBitmapX(last.time),
+          yScale.valueToBitmapY(last.value),
+          color,
+          size.horizontalPixelRatio,
+        );
+      }
     }
   }
 

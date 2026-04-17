@@ -19,7 +19,7 @@ onMounted(() => { chart.on('dataUpdate', handler); });
 onUnmounted(() => { chart.off('dataUpdate', handler); });
 
 const theme = computed(() => themeRef.value);
-const slices = computed(() => { void tick.value; return chart.getPieSlices(props.seriesId) ?? []; });
+const slices = computed(() => { void tick.value; return chart.getSliceInfo(props.seriesId) ?? []; });
 
 function formatCompact(v: number): string {
   if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';

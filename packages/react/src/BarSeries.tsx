@@ -35,7 +35,7 @@ export function BarSeries({ data, options, label, id: idProp, onSeriesId }: BarS
     if (!id) return;
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        chart.setBarLayerData(id, i, data[i]);
+        chart.setSeriesData(id, data[i], i);
       }
     });
   }, [chart, data]);

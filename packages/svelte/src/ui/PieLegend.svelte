@@ -25,7 +25,7 @@
   $: chart = $chartStore;
   $: theme = $themeStore;
   // Reference lastValue to trigger reactivity on dataUpdate events
-  $: slices = (void lastValue, chart?.getPieSlices(seriesId) ?? []);
+  $: slices = (void lastValue, chart?.getSliceInfo(seriesId) ?? []);
 
   function formatCompact(v: number): string {
     if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';

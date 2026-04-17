@@ -161,8 +161,8 @@ const myTheme = createTheme({
 const chart = useChartInstance();
 
 chart.batch(() => {
-  chart.setLineLayerData(id, 0, layer0);
-  chart.setLineLayerData(id, 1, layer1);
+  chart.setSeriesData(id, layer0, 0);
+  chart.setSeriesData(id, layer1, 1);
   // Y-range and render happen once after batch
 });
 ```

@@ -31,7 +31,7 @@ $: {
   if (seriesId && chart) {
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        chart.setLineLayerData(seriesId!, i, data[i]);
+        chart.setSeriesData(seriesId!, data[i], i);
       }
     });
   }

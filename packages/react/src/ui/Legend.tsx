@@ -81,17 +81,17 @@ export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendPr
 
   const apply = (next: Set<number>) => {
     setDisabled(next);
-    chart.beginUpdate();
-    for (let i = 0; i < resolved.length; i++) {
-      const item = resolved[i];
-      if (!item.seriesId) continue;
-      if (item.isLayer) {
-        chart.setLayerVisible(item.seriesId, item.layerIndex, !next.has(i));
-      } else {
-        chart.setSeriesVisible(item.seriesId, !next.has(i));
+    chart.batch(() => {
+      for (let i = 0; i < resolved.length; i++) {
+        const item = resolved[i];
+        if (!item.seriesId) continue;
+        if (item.isLayer) {
+          chart.setLayerVisible(item.seriesId, item.layerIndex, !next.has(i));
+        } else {
+          chart.setSeriesVisible(item.seriesId, !next.has(i));
+        }
       }
-    }
-    chart.endUpdate();
+    });
   };
 
   const handleClick = (index: number) => {
