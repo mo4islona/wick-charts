@@ -9,6 +9,7 @@ import {
   LineSeries,
   TimeAxis,
   Tooltip,
+  TooltipLegend,
   YAxis,
   YLabel,
 } from '@wick-charts/react';
@@ -27,6 +28,7 @@ function CandleChart({ theme }: { theme: ChartTheme }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
+      {sid && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries data={data} onSeriesId={setSid} />
       {sid && <YLabel seriesId={sid} />}
       {sid && <Tooltip seriesId={sid} />}
@@ -41,6 +43,7 @@ function AreaBandsChart({ theme }: { theme: ChartTheme }) {
   const { datasets } = useLineStreams([areaLine, upperBand, lowerBand], { interval: DEMO_INTERVAL });
   return (
     <ChartContainer theme={theme}>
+      <TooltipLegend />
       <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1 }} />
       <LineSeries data={[datasets[1]]} options={{ colors: [theme.bands.upper], areaFill: true, lineWidth: 1 }} />
       <LineSeries data={[datasets[2]]} options={{ colors: [theme.bands.lower], areaFill: true, lineWidth: 1 }} />
