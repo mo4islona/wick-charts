@@ -225,6 +225,33 @@ function LegendItem({
   );
 }
 
+/**
+ * Pure positioning for {@link FloatingTooltip}. Flip side when the preferred
+ * side would overflow, then clamp into `[0, chart - size]` so the flipped
+ * side can't overflow the opposite edge either. Exported for unit tests.
+ */
+export function computeTooltipPosition(args: {
+  x: number;
+  y: number;
+  chartWidth: number;
+  chartHeight: number;
+  tooltipWidth: number;
+  tooltipHeight: number;
+  offsetX?: number;
+  offsetY?: number;
+}): { left: number; top: number } {
+  const { x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX = 16, offsetY = 16 } = args;
+  const rawLeft = x + offsetX + tooltipWidth > chartWidth ? x - offsetX - tooltipWidth : x + offsetX;
+  const rawTop = y + offsetY + tooltipHeight > chartHeight ? y - offsetY - tooltipHeight : y + offsetY;
+  const maxLeft = Math.max(0, chartWidth - tooltipWidth);
+  const maxTop = Math.max(0, chartHeight - tooltipHeight);
+
+  return {
+    left: Math.max(0, Math.min(maxLeft, rawLeft)),
+    top: Math.max(0, Math.min(maxTop, rawTop)),
+  };
+}
+
 function FloatingTooltip({
   snapshots,
   x,
@@ -247,11 +274,8 @@ function FloatingTooltip({
 
   const tooltipWidth = 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
-  const offsetX = 16;
-  const offsetY = 16;
 
-  const left = x + offsetX + tooltipWidth > chartWidth ? x - offsetX - tooltipWidth : x + offsetX;
-  const top = y + offsetY + tooltipHeight > chartHeight ? y - offsetY - tooltipHeight : y + offsetY;
+  const { left, top } = computeTooltipPosition({ x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight });
 
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
@@ -277,7 +301,11 @@ function FloatingTooltip({
         fontFamily: theme.typography.fontFamily,
         fontVariantNumeric: 'tabular-nums',
         color: theme.tooltip.textColor,
-        minWidth: 140,
+        // Fix the rendered width to the value `computeTooltipPosition` assumes
+        // so content growth (e.g. long labels) can't push the tooltip past the
+        // clamp and back out of the plot area.
+        width: tooltipWidth,
+        boxSizing: 'border-box',
         zIndex: 10,
         transition: 'opacity 0.15s ease',
       }}
