@@ -3,5 +3,13 @@ dist
 docs-dist
 .DS_Store
 *.local
+
 .idea
+
 .claude/settings.local.json
+.claude/worktrees
+
+.copilot-worktrees/
+
+# Local sandbox for wrapper demos (not shipped)
+test/
