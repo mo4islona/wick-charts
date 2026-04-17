@@ -19,6 +19,13 @@ onMounted(() => {
   const id = chart.addCandlestickSeries(props.options);
   seriesId.value = id;
   emit('seriesId', id);
+  // Initial data load — Vue's `watch` is lazy by default, so the watcher
+  // below only fires on subsequent `data` prop mutations. Explicitly apply
+  // the first value here so components with static data render immediately.
+  if (props.data.length > 0) {
+    chart.setSeriesData(id, props.data);
+    prevLen = props.data.length;
+  }
 });
 
 onUnmounted(() => {

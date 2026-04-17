@@ -18,6 +18,10 @@ onMounted(() => {
   const id = chart.addPieSeries(props.options);
   seriesId.value = id;
   emit('seriesId', id);
+  // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
+  if (props.data.length > 0) {
+    chart.setSeriesData(id, props.data);
+  }
 });
 
 onUnmounted(() => {

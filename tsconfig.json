@@ -15,7 +15,9 @@
     "baseUrl": ".",
     "paths": {
       "@wick-charts/core": ["./packages/core/src/index.ts"],
-      "@wick-charts/react": ["./packages/react/src/index.ts"]
+      "@wick-charts/react": ["./packages/react/src/index.ts"],
+      "@wick-charts/vue": ["./packages/vue/src/index.ts"],
+      "@wick-charts/svelte": ["./packages/svelte/src/index.ts"]
     }
   },
   "include": ["packages", "docs"]

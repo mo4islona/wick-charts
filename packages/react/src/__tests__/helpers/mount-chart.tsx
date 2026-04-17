@@ -263,15 +263,34 @@ export function mountChart(children: ReactNode, opts: MountChartOptions = {}): M
     },
     dispatchWheel(init, target) {
       const el = (target ?? mainCanvas) as HTMLElement;
+      const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init });
+      // `ZoomHandler.handleWheel` reads `e.offsetX`, and jsdom/happy-dom leave
+      // it undefined when only `clientX` is passed to the constructor. Copy
+      // clientX/Y → offsetX/Y so the handler sees a coordinate in chart space.
+      if (init.clientX !== undefined) {
+        Object.defineProperty(event, 'offsetX', { value: init.clientX, configurable: true });
+      }
+      if (init.clientY !== undefined) {
+        Object.defineProperty(event, 'offsetY', { value: init.clientY, configurable: true });
+      }
       act(() => {
-        el.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init }));
+        el.dispatchEvent(event);
         flushAllRaf();
       });
     },
     dispatchMouse(type, init, target) {
       const el = (target ?? mainCanvas) as HTMLElement;
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...init });
+      // `InteractionHandler.emitCrosshair` reads `e.offsetX`/`offsetY` to
+      // compute cursor time / value — also undefined from the constructor.
+      if (init.clientX !== undefined) {
+        Object.defineProperty(event, 'offsetX', { value: init.clientX, configurable: true });
+      }
+      if (init.clientY !== undefined) {
+        Object.defineProperty(event, 'offsetY', { value: init.clientY, configurable: true });
+      }
       act(() => {
-        el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
+        el.dispatchEvent(event);
         flushAllRaf();
       });
     },
