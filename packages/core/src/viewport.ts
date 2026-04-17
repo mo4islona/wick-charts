@@ -53,7 +53,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private _yRange: YRange = { min: 0, max: 0 };
   private _autoScroll = true;
   private padding: ResolvedPadding;
-  private dataInterval = 60;
+  private dataInterval = 60_000;
   private _dataStart: number | null = null;
   private _dataEnd: number | null = null;
 

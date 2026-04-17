@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { TimeScale } from '../scales/time-scale';
 
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
+
 describe('TimeScale', () => {
   function makeScale(from: number, to: number, width = 800, pixelRatio = 1) {
     const s = new TimeScale();
@@ -96,18 +100,18 @@ describe('TimeScale', () => {
 
   describe('niceTickValues', () => {
     it('generates ticks within the visible range', () => {
-      const s = makeScale(0, 86400, 800);
-      const { ticks } = s.niceTickValues(3600);
+      const s = makeScale(0, DAY, 800);
+      const { ticks } = s.niceTickValues(HOUR);
       expect(ticks.length).toBeGreaterThan(0);
       for (const t of ticks) {
         expect(t).toBeGreaterThanOrEqual(0);
-        expect(t).toBeLessThanOrEqual(86400);
+        expect(t).toBeLessThanOrEqual(DAY);
       }
     });
 
     it('produces evenly spaced ticks', () => {
-      const s = makeScale(0, 86400 * 7, 800);
-      const { ticks, tickInterval } = s.niceTickValues(86400);
+      const s = makeScale(0, DAY * 7, 800);
+      const { ticks, tickInterval } = s.niceTickValues(DAY);
       expect(tickInterval).toBeGreaterThan(0);
       if (ticks.length > 1) {
         for (let i = 1; i < ticks.length; i++) {
@@ -118,7 +122,7 @@ describe('TimeScale', () => {
 
     it('returns empty ticks when from >= to', () => {
       const s = makeScale(1000, 1000, 800);
-      const { ticks, tickInterval } = s.niceTickValues(60);
+      const { ticks, tickInterval } = s.niceTickValues(MINUTE);
       expect(ticks).toEqual([]);
       expect(tickInterval).toBe(0);
     });

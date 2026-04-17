@@ -1,6 +1,6 @@
 {
   "name": "@wick-charts/svelte",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "type": "module",
   "svelte": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,10 +15,17 @@
   "files": [
     "dist"
   ],
+  "scripts": {
+    "build": "vite build",
+    "prepublishOnly": "pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "svelte": ">=4.0.0"
   },
-  "dependencies": {
-    "@wick-charts/core": "workspace:*"
+  "devDependencies": {
+    "@wick-charts/core": "workspace:^"
   }
 }

@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import type { CandlestickSeriesOptions, OHLCData } from '@wick-charts/core';
-import { syncSeriesData } from '@wick-charts/core';
+import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
 const props = defineProps<{
-  data: OHLCData[];
+  data: OHLCInput[];
   options?: Partial<CandlestickSeriesOptions>;
 }>();
 
@@ -29,8 +28,26 @@ onUnmounted(() => {
 watch(
   () => props.data,
   (data) => {
-    if (!seriesId.value || data.length === 0) return;
-    prevLen = syncSeriesData(chart, seriesId.value, data, prevLen);
+    const id = seriesId.value;
+    if (!id) return;
+
+    if (data.length === 0) {
+      chart.setSeriesData(id, []);
+      prevLen = 0;
+      return;
+    }
+
+    if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {
+      chart.setSeriesData(id, data);
+    } else if (data.length === prevLen) {
+      chart.updateData(id, data[data.length - 1]);
+    } else {
+      for (let i = prevLen; i < data.length; i++) {
+        chart.appendData(id, data[i]);
+      }
+    }
+
+    prevLen = data.length;
   },
 );
 

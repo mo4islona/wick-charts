@@ -48,15 +48,18 @@ export type {
   LineData,
   LineSeriesOptions,
   OHLCData,
+  OHLCInput,
   PieSeriesOptions,
   PieSliceData,
   SeriesType,
   StackingMode,
   TimePoint,
+  TimePointInput,
+  TimeValue,
   VisibleRange,
   XAxisConfig,
   YAxisConfig,
   YRange,
 } from './types';
 // Utils
-export { detectInterval, formatDate, formatTime } from './utils/time';
+export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';

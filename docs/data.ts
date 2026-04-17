@@ -1,8 +1,8 @@
 import type { LineData, OHLCData } from '@wick-charts/react';
 
-export function generateOHLCData(count: number, startPrice = 100, interval = 60): OHLCData[] {
+export function generateOHLCData(count: number, startPrice = 100, interval = 60_000): OHLCData[] {
   const data: OHLCData[] = [];
-  const now = Math.floor(Date.now() / 1000 / interval) * interval;
+  const now = Math.floor(Date.now() / interval) * interval;
   const startTime = now - count * interval;
   let price = startPrice;
 
@@ -45,9 +45,9 @@ export function generateBandLine(ohlc: OHLCData[], offset: number, noiseScale = 
 }
 
 /** Generate bar chart data (positive/negative values like P&L or delta) */
-export function generateBarData(count: number, interval = 60): LineData[] {
+export function generateBarData(count: number, interval = 60_000): LineData[] {
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000 / interval) * interval;
+  const now = Math.floor(Date.now() / interval) * interval;
   const startTime = now - count * interval;
 
   for (let i = 0; i < count; i++) {
@@ -58,9 +58,9 @@ export function generateBarData(count: number, interval = 60): LineData[] {
   return data;
 }
 
-export function generateLineData(count: number, startValue = 100, interval = 60): LineData[] {
+export function generateLineData(count: number, startValue = 100, interval = 60_000): LineData[] {
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000 / interval) * interval;
+  const now = Math.floor(Date.now() / interval) * interval;
   const startTime = now - count * interval;
   let value = startValue;
 
@@ -89,10 +89,10 @@ export function generateWaveData(
     interval?: number;
   } = {},
 ): LineData[] {
-  const { base = 0, amplitude = 100, period = 80, phase = 0, onset = 0, interval = 60 } = opts;
+  const { base = 0, amplitude = 100, period = 80, phase = 0, onset = 0, interval = 60_000 } = opts;
 
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000 / interval) * interval;
+  const now = Math.floor(Date.now() / interval) * interval;
   const startTime = now - count * interval;
 
   for (let i = 0; i < count; i++) {
@@ -112,9 +112,9 @@ export function generateWaveData(
 }
 
 /** Generate a layer of bar-like data with a given base value and jitter */
-export function generateLayerData(count: number, base: number, interval = 60): LineData[] {
+export function generateLayerData(count: number, base: number, interval = 60_000): LineData[] {
   const data: LineData[] = [];
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / interval) * interval;
   const start = now - count * interval;
   for (let i = 0; i < count; i++) {
     data.push({ time: start + i * interval, value: Math.round(base + Math.random() * base * 0.8) });
@@ -132,7 +132,7 @@ export class StreamingSource {
   private interval: number;
   private listeners: Array<(candle: OHLCData) => void> = [];
 
-  constructor(lastCandle: OHLCData, interval = 60) {
+  constructor(lastCandle: OHLCData, interval = 60_000) {
     this.lastCandle = { ...lastCandle };
     this.interval = interval;
   }
@@ -158,10 +158,10 @@ export class StreamingSource {
   }
 
   private tick(): void {
-    const now = Math.floor(Date.now() / 1000);
+    const now = Date.now();
     const currentCandleStart = Math.floor(now / this.interval) * this.interval;
 
-    if (currentCandleStart > this.lastCandle.time) {
+    if (currentCandleStart > (this.lastCandle.time as number)) {
       // New candle
       const price = this.lastCandle.close;
       this.lastCandle = {
@@ -196,7 +196,7 @@ export class LineStreamingSource {
   private interval: number;
   private listeners: Array<(point: LineData) => void> = [];
 
-  constructor(lastPoint: LineData, interval = 60) {
+  constructor(lastPoint: LineData, interval = 60_000) {
     this.lastPoint = { ...lastPoint };
     this.interval = interval;
   }
@@ -220,10 +220,10 @@ export class LineStreamingSource {
   }
 
   private tick(): void {
-    const now = Math.floor(Date.now() / 1000);
+    const now = Date.now();
     const currentStart = Math.floor(now / this.interval) * this.interval;
 
-    if (currentStart > this.lastPoint.time) {
+    if (currentStart > (this.lastPoint.time as number)) {
       this.lastPoint = { time: currentStart, value: this.lastPoint.value };
     }
 

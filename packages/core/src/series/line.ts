@@ -1,9 +1,9 @@
-import type { LineData, LineSeriesOptions } from '../types';
-import { hexToRgba } from '../utils/color';
 import { decimateLineData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
 import type { TimeScale } from '../scales/time-scale';
 import type { YScale } from '../scales/y-scale';
+import type { LineSeriesOptions, TimePoint } from '../types';
+import { hexToRgba } from '../utils/color';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
@@ -15,16 +15,16 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
 };
 
 export class LineRenderer implements SeriesRenderer {
-  readonly stores: TimeSeriesStore<LineData>[];
+  readonly stores: TimeSeriesStore<TimePoint>[];
   private options: LineSeriesOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
-    this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<LineData>());
+    this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
     this.options = { ...DEFAULT_OPTIONS, ...options };
   }
 
-  get store(): TimeSeriesStore<LineData> {
+  get store(): TimeSeriesStore<TimePoint> {
     return this.stores[0];
   }
 
@@ -266,13 +266,7 @@ export class LineRenderer implements SeriesRenderer {
       const last = this.stores[li].last();
       if (!last) continue;
       const color = this.options.colors[li % this.options.colors.length];
-      this.drawPulse(
-        ctx,
-        timeScale.timeToBitmapX(last.time),
-        yScale.valueToBitmapY(last.value),
-        color,
-        pixelRatio,
-      );
+      this.drawPulse(ctx, timeScale.timeToBitmapX(last.time), yScale.valueToBitmapY(last.value), color, pixelRatio);
     }
   }
 

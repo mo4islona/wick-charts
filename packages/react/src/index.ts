@@ -43,7 +43,6 @@ export {
   dracula,
   formatDate,
   formatTime,
-  normalizeTime,
   githubLight,
   gruvbox,
   handwritten,
@@ -56,6 +55,7 @@ export {
   mintBreeze,
   monokaiPro,
   nightOwl,
+  normalizeTime,
   oneDarkPro,
   panda,
   peachCream,
@@ -87,8 +87,8 @@ export type { LegendItem, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
 export { NumberFlow } from './ui/NumberFlow';
-export { PieLegend } from './ui/PieLegend';
 export type { PieLegendFormat, PieLegendProps } from './ui/PieLegend';
+export { PieLegend } from './ui/PieLegend';
 export { PieTooltip } from './ui/PieTooltip';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
 export { Sparkline } from './ui/Sparkline';
