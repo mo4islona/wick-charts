@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { type TouchPoint, mountChart } from './mount-chart';
 
-/** Phase 0 end-to-end smoke: helper boots a chart, main canvas receives draws. */
-describe('mountChart (Phase 0 smoke)', () => {
+/** End-to-end smoke: helper boots a chart, main canvas receives draws. */
+describe('mountChart smoke', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
 
   afterEach(() => {

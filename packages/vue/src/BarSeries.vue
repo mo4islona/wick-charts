@@ -19,6 +19,12 @@ onMounted(() => {
   const id = chart.addBarSeries({ ...props.options, label: props.label ?? props.options?.label, layers: props.data.length });
   seriesId.value = id;
   emit('seriesId', id);
+  // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
+  chart.batch(() => {
+    for (let i = 0; i < props.data.length; i++) {
+      chart.setSeriesData(id, props.data[i], i);
+    }
+  });
 });
 
 onUnmounted(() => {
