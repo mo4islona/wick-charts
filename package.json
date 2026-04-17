@@ -4,6 +4,9 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "pnpm -r build",
@@ -24,6 +27,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-vue": "^5.0.0",
+    "happy-dom": "^20.9.0",
     "lucide-react": "^1.7.0",
     "prismjs": "^1.30.0",
     "react": "^18.2.0",

@@ -28,7 +28,7 @@ export function PieLegend({ seriesId, format = 'value' }: PieLegendProps) {
     return () => { chart.off('dataUpdate', handler); };
   }, [chart]);
 
-  const slices = chart.getPieSlices(seriesId);
+  const slices = chart.getSliceInfo(seriesId);
   if (!slices || slices.length === 0) return null;
 
   return (

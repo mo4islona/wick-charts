@@ -27,7 +27,7 @@ onDestroy(() => {
 
 $: chart = $chartStore;
 $: theme = chart?.getTheme();
-$: info = chart ? chart.getPieHoverInfo(seriesId) : null;
+$: info = chart ? chart.getHoverInfo(seriesId) : null;
 $: mediaSize = chart?.getMediaSize();
 
 $: tooltipPos = (() => {

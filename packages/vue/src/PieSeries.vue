@@ -28,7 +28,7 @@ watch(
   () => props.data,
   (data) => {
     if (seriesId.value && data.length > 0) {
-      chart.setPieData(seriesId.value, data);
+      chart.setSeriesData(seriesId.value, data);
     }
   },
 );

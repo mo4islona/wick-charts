@@ -34,7 +34,7 @@ export function LineSeries({ data, options, label, id: idProp, onSeriesId }: Lin
     if (!id) return;
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        chart.setLineLayerData(id, i, data[i]);
+        chart.setSeriesData(id, data[i], i);
       }
     });
   }, [chart, data]);

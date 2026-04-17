@@ -28,7 +28,7 @@ onDestroy(() => {
 $: {
   const chart = $chartStore;
   if (seriesId && chart && data.length > 0) {
-    chart.setPieData(seriesId, data);
+    chart.setSeriesData(seriesId, data);
   }
 }
 

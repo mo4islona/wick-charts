@@ -43,7 +43,7 @@ export function PieSeries({ data, options, id: idProp, onSeriesId }: PieSeriesPr
 
   useLayoutEffect(() => {
     if (seriesRef.current) {
-      chart.setPieData(seriesRef.current, data);
+      chart.setSeriesData(seriesRef.current, data);
     }
   }, [chart, data]);
 

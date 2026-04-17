@@ -16,7 +16,7 @@ const theme = computed(() => chart.getTheme());
 const info = computed(() => {
   // Re-evaluate when crosshair moves
   void crosshair.value;
-  return chart.getPieHoverInfo(props.seriesId);
+  return chart.getHoverInfo(props.seriesId);
 });
 
 const tooltipPos = computed(() => {
