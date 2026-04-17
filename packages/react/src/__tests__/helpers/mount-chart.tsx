@@ -78,6 +78,31 @@ function mockBoundingRect(el: HTMLElement, width: number, height: number): void 
   Object.defineProperty(el, 'clientHeight', { value: height, configurable: true });
 }
 
+/**
+ * Browser-spec `offsetX/Y` are relative to the event target's bounding rect:
+ *   offsetX = clientX - target.getBoundingClientRect().left
+ * jsdom/happy-dom leave them `undefined` when only `clientX/Y` are passed to
+ * the MouseEvent/WheelEvent constructor, so production code that reads
+ * `e.offsetX` (ZoomHandler, InteractionHandler) breaks without help.
+ *
+ * Only patch when the init didn't already supply `offsetX/Y` — that lets
+ * tests pass raw offsets explicitly when they need to bypass the target's
+ * position (e.g. when mocking a canvas at an unusual origin).
+ */
+function patchOffsetFromClient(
+  event: Event,
+  target: HTMLElement,
+  init: { clientX?: number; clientY?: number; offsetX?: number; offsetY?: number },
+): void {
+  const rect = target.getBoundingClientRect();
+  if (init.offsetX === undefined && init.clientX !== undefined) {
+    Object.defineProperty(event, 'offsetX', { value: init.clientX - rect.left, configurable: true });
+  }
+  if (init.offsetY === undefined && init.clientY !== undefined) {
+    Object.defineProperty(event, 'offsetY', { value: init.clientY - rect.top, configurable: true });
+  }
+}
+
 function captureSpy(canvas: HTMLCanvasElement | undefined | null): CanvasRecorder {
   if (!canvas) throw new Error('mountChart: canvas not found in DOM');
   // `getContext('2d')` lazily installs the spy on first access; call it here
@@ -264,15 +289,12 @@ export function mountChart(children: ReactNode, opts: MountChartOptions = {}): M
     dispatchWheel(init, target) {
       const el = (target ?? mainCanvas) as HTMLElement;
       const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init });
-      // `ZoomHandler.handleWheel` reads `e.offsetX`, and jsdom/happy-dom leave
-      // it undefined when only `clientX` is passed to the constructor. Copy
-      // clientX/Y → offsetX/Y so the handler sees a coordinate in chart space.
-      if (init.clientX !== undefined) {
-        Object.defineProperty(event, 'offsetX', { value: init.clientX, configurable: true });
-      }
-      if (init.clientY !== undefined) {
-        Object.defineProperty(event, 'offsetY', { value: init.clientY, configurable: true });
-      }
+      // `ZoomHandler.handleWheel` reads `e.offsetX` — which jsdom/happy-dom
+      // leave undefined when only `clientX` is passed. In real browsers
+      // `offsetX = clientX - target.getBoundingClientRect().left`; mirror
+      // that so tests whose target isn't at (0, 0) still get correct
+      // in-chart coordinates.
+      patchOffsetFromClient(event, el, init);
       act(() => {
         el.dispatchEvent(event);
         flushAllRaf();
@@ -281,14 +303,9 @@ export function mountChart(children: ReactNode, opts: MountChartOptions = {}): M
     dispatchMouse(type, init, target) {
       const el = (target ?? mainCanvas) as HTMLElement;
       const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...init });
-      // `InteractionHandler.emitCrosshair` reads `e.offsetX`/`offsetY` to
-      // compute cursor time / value — also undefined from the constructor.
-      if (init.clientX !== undefined) {
-        Object.defineProperty(event, 'offsetX', { value: init.clientX, configurable: true });
-      }
-      if (init.clientY !== undefined) {
-        Object.defineProperty(event, 'offsetY', { value: init.clientY, configurable: true });
-      }
+      // Same offset gap — `InteractionHandler.onMouseMove` calls
+      // `emitCrosshair(e.offsetX, e.offsetY)`.
+      patchOffsetFromClient(event, el, init);
       act(() => {
         el.dispatchEvent(event);
         flushAllRaf();
