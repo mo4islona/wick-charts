@@ -21,6 +21,7 @@ describe('PanHandler', () => {
     const viewport = { pan: vi.fn() } as unknown as Viewport & { pan: ReturnType<typeof vi.fn> };
     const timeScale = {
       pixelDeltaToTimeDelta: vi.fn((px: number) => px * 100), // 1 px = 100 ms
+      getMediaWidth: vi.fn(() => 800),
     } as unknown as TimeScale;
     const canvas = document.createElement('canvas');
     const handler = new PanHandler(viewport, timeScale, canvas);
@@ -59,7 +60,7 @@ describe('PanHandler', () => {
     handler.handleMouseMove(mouse('mousemove', { clientX: 250 }));
 
     expect(timeScale.pixelDeltaToTimeDelta).toHaveBeenCalledWith(-50);
-    expect(viewport.pan).toHaveBeenCalledWith(-50 * 100);
+    expect(viewport.pan).toHaveBeenCalledWith(-50 * 100, 800);
   });
 
   it('mousemove without an active drag is a no-op', () => {

@@ -68,16 +68,98 @@ describe('Viewport', () => {
   it('pan shifts range', () => {
     const v = new Viewport();
     v.setDataInterval(INTERVAL);
+    v.setDataStart(0);
+    v.setDataEnd(18_000_000);
     v.fitToData(0, 18_000_000, 800);
+    // Zoom in so there is room to pan without hitting the right-edge clamp.
+    v.zoomAt(9_000_000, 0.3);
     const before = { ...v.visibleRange };
 
-    v.pan(1_000_000);
+    v.pan(INTERVAL); // shift by 1 bar — well inside bounds
     expect(v.visibleRange.from).toBeGreaterThan(before.from);
     expect(v.visibleRange.to).toBeGreaterThan(before.to);
     // range width should be preserved
     const widthBefore = before.to - before.from;
     const widthAfter = v.visibleRange.to - v.visibleRange.from;
     expect(widthAfter).toBeCloseTo(widthBefore);
+  });
+
+  it('pan clamps at data end plus right padding when scrolling too far right', () => {
+    const v = new Viewport({ padding: { right: { intervals: 3 }, left: { intervals: 0 } } });
+    v.setDataInterval(INTERVAL);
+    v.setDataStart(0);
+    v.setDataEnd(18_000_000);
+    v.fitToData(0, 18_000_000, 800);
+    v.zoomAt(9_000_000, 0.3);
+    const widthBefore = v.visibleRange.to - v.visibleRange.from;
+    const rightLimit = 18_000_000 + 3 * INTERVAL;
+
+    // Attempt to pan way past the right edge — must be clamped, not allowed through.
+    v.pan(100_000_000);
+
+    expect(v.visibleRange.to).toBeCloseTo(rightLimit);
+    // Width must be preserved when clamping so the chart doesn't squish.
+    expect(v.visibleRange.to - v.visibleRange.from).toBeCloseTo(widthBefore);
+  });
+
+  it('pan resolves pixel-based right padding using current range width', () => {
+    // right: 80px on 800px wide chart ≈ 10% of the current range
+    const v = new Viewport({ padding: { right: 80, left: 0 } });
+    v.setDataInterval(INTERVAL);
+    v.setDataStart(0);
+    v.setDataEnd(18_000_000);
+    v.fitToData(0, 18_000_000, 800);
+    v.zoomAt(9_000_000, 0.3);
+    const widthBefore = v.visibleRange.to - v.visibleRange.from;
+    const expectedPr = (80 / 800) * widthBefore;
+    const rightLimit = 18_000_000 + expectedPr;
+
+    v.pan(100_000_000, 800);
+
+    expect(v.visibleRange.to).toBeCloseTo(rightLimit);
+    expect(v.visibleRange.to - v.visibleRange.from).toBeCloseTo(widthBefore);
+  });
+
+  it('pan below the right limit is not clamped', () => {
+    const v = new Viewport({ padding: { right: { intervals: 3 }, left: { intervals: 0 } } });
+    v.setDataInterval(INTERVAL);
+    v.setDataStart(0);
+    v.setDataEnd(18_000_000);
+    v.fitToData(0, 18_000_000, 800);
+    v.zoomAt(9_000_000, 0.3);
+    const before = { ...v.visibleRange };
+    // Shift that still leaves us inside the allowed range.
+    v.pan(INTERVAL * 2);
+    expect(v.visibleRange.to).toBeCloseTo(before.to + 2 * INTERVAL);
+    expect(v.visibleRange.from).toBeCloseTo(before.from + 2 * INTERVAL);
+  });
+
+  it('pan skips the clamp when right padding is pixel-based and chartWidth is not supplied', () => {
+    // resolveHPad collapses pixel padding to 0 when chartWidth <= 0; clamping under
+    // that resolution would sit at dataEnd (tighter than configured). The skip keeps
+    // pan lenient in that edge case instead of over-clamping.
+    const v = new Viewport({ padding: { right: 80, left: 0 } });
+    v.setDataInterval(INTERVAL);
+    v.setDataStart(0);
+    v.setDataEnd(18_000_000);
+    v.fitToData(0, 18_000_000, 800);
+    v.zoomAt(9_000_000, 0.3);
+    const before = { ...v.visibleRange };
+    // No chartWidth passed — the pan must not collapse to `dataEnd`.
+    v.pan(100_000_000);
+    expect(v.visibleRange.to).toBeGreaterThan(18_000_000);
+    expect(v.visibleRange.to - v.visibleRange.from).toBeCloseTo(before.to - before.from);
+  });
+
+  it('pan does not clamp when dataEnd is unset', () => {
+    const v = new Viewport();
+    v.setDataInterval(INTERVAL);
+    v.fitToData(0, 18_000_000, 800);
+    const before = { ...v.visibleRange };
+    // No setDataEnd — panning must still work without any known right limit.
+    v.pan(5_000_000);
+    expect(v.visibleRange.to).toBeCloseTo(before.to + 5_000_000);
+    expect(v.visibleRange.from).toBeCloseTo(before.from + 5_000_000);
   });
 
   it('scrollToEnd pins right edge after animation', () => {

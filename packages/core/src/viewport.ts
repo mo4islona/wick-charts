@@ -219,13 +219,35 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     this.applyRange(newFrom, newTo, true);
   }
 
-  /** Shift the visible range by a time delta. Disables auto-scroll. */
-  pan(timeDelta: number): void {
+  /**
+   * Shift the visible range by a time delta. Disables auto-scroll.
+   * Clamps the right edge at `dataEnd + right padding` so the user cannot
+   * scroll past the end of the data. `chartWidth` is only needed when the
+   * right padding is pixel-based.
+   */
+  pan(timeDelta: number, chartWidth = 0): void {
     this.cancelAnimation();
 
     const { from, to } = this._visibleRange;
-    const newFrom = from + timeDelta;
-    const newTo = to + timeDelta;
+    const range = to - from;
+    let newFrom = from + timeDelta;
+    let newTo = to + timeDelta;
+
+    // Skip the clamp when right padding is pixel-based but chartWidth is unknown:
+    // resolveHPad would collapse to 0 and clamp too tightly at `dataEnd`, hiding
+    // the configured padding that fitToData/scrollToEnd both honor.
+    if (this._dataEnd !== null) {
+      const pxBasedRight = typeof this.padding.right === 'number';
+      const canResolveRightPad = !pxBasedRight || chartWidth > 0;
+      if (canResolveRightPad) {
+        const pr = this.resolveHPad(this.padding.right, range, chartWidth);
+        const rightLimit = this._dataEnd + pr;
+        if (newTo > rightLimit) {
+          newTo = rightLimit;
+          newFrom = rightLimit - range;
+        }
+      }
+    }
 
     this._autoScroll = false;
     this.applyRange(newFrom, newTo);

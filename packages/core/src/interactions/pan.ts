@@ -23,7 +23,7 @@ export class PanHandler {
     const deltaX = e.clientX - this.lastX;
     this.lastX = e.clientX;
     const timeDelta = this.timeScale.pixelDeltaToTimeDelta(-deltaX);
-    this.viewport.pan(timeDelta);
+    this.viewport.pan(timeDelta, this.timeScale.getMediaWidth());
   }
 
   handleMouseUp(): void {
