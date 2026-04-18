@@ -32,7 +32,7 @@ const singleData = generateBarData(80, 240);
 const layers = Array.from({ length: LAYER_COUNT }, (_, i) => generateLayerData(80, [60, 40, 25, 15][i], 240));
 
 function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
-  const { datasets } = useLineStreams([singleData], { delay: 300, interval: 240 });
+  const { datasets } = useLineStreams([singleData], { delay: 300, interval: 240, kind: 'bar' });
   const display = props.streaming ? datasets[0] : singleData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
@@ -53,7 +53,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
 }
 
 function MultiBarChart(props: PlaygroundChartProps & BarSettings) {
-  const { datasets } = useLineStreams(layers, { delay: 500, interval: 240 });
+  const { datasets } = useLineStreams(layers, { delay: 500, interval: 240, kind: 'layer' });
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
     if (props.stacking === 'off') return { ...props.axis, y: { min: 0, ...props.axis?.y } };

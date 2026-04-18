@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
+import { normalizeTime } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
@@ -17,6 +18,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLenRef = useRef(0);
+  const prevFirstTimeRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const id = chart.addCandlestickSeries({ ...options, id: idProp });
@@ -26,6 +28,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
       chart.removeSeries(id);
       seriesRef.current = null;
       prevLenRef.current = 0;
+      prevFirstTimeRef.current = null;
     };
   }, [chart, idProp]);
 
@@ -37,16 +40,24 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
       // Explicit clear
       chart.setSeriesData(id, []);
       prevLenRef.current = 0;
+      prevFirstTimeRef.current = null;
       return;
     }
 
     const prevLen = prevLenRef.current;
+    const firstTime = normalizeTime(data[0].time);
+    // A capped rolling window (e.g. streaming with a maxPoints cap) shifts
+    // the whole array by one on each new bar: length stays the same but the
+    // first/last timestamps both move forward. Detect that and do a full
+    // replace instead of a single in-place update, otherwise the store ends
+    // up with stale bars in the middle and a single "future" bar at the tail.
+    const shifted = prevFirstTimeRef.current !== null && prevFirstTimeRef.current !== firstTime;
 
-    if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {
-      // First load, reset, or batch — full replace
+    if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5 || shifted) {
+      // First load, reset, batch, or rolling-window shift — full replace
       chart.setSeriesData(id, data);
     } else if (data.length === prevLen) {
-      // Same length — last candle updated
+      // Same length, same first timestamp — last candle updated in place
       chart.updateData(id, data[data.length - 1]);
     } else {
       // Small append (1-5 new candles)
@@ -56,6 +67,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
     }
 
     prevLenRef.current = data.length;
+    prevFirstTimeRef.current = firstTime;
   }, [chart, data]);
 
   useEffect(() => {

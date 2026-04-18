@@ -17,7 +17,7 @@ import {
 import { Cell } from '../components/Cell';
 import { Section, Select, Slider, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
-import { generateLineData, generateWaveData } from '../data';
+import { type LineStrategy, generateLineData, generateWaveData, lineDriftStrategy, waveStrategy } from '../data';
 import { useLineStreams } from '../hooks';
 
 type DataMode = 'wave' | 'line';
@@ -33,6 +33,10 @@ interface LineSettings {
 }
 
 const MULTI_COUNT = 6;
+/** Both historical generators and the live stream must share this interval so
+ * new bars land in the same time grid as history (otherwise streamed points
+ * bunch up at the chart's right edge). */
+const LINE_INTERVAL = 60_000;
 
 function makeData(mode: DataMode, count: number, index: number): LineData[] {
   if (mode === 'wave') {
@@ -42,13 +46,33 @@ function makeData(mode: DataMode, count: number, index: number): LineData[] {
       period: 50 + index * 15,
       phase: index * 0.12,
       onset: index * 0.06,
+      interval: LINE_INTERVAL,
     });
   }
-  return generateLineData(count, 80 + index * 30, 60);
+  return generateLineData(count, 80 + index * 30, LINE_INTERVAL);
+}
+
+/** Build a streaming strategy that matches `makeData`'s generator for the given mode. */
+function strategyFor(mode: DataMode) {
+  return (series: LineData[], index: number): LineStrategy =>
+    mode === 'wave'
+      ? waveStrategy({
+          base: 5,
+          amplitude: 100 + index * 40,
+          period: 50 + index * 15,
+          phase: index * 0.12,
+          onset: index * 0.06,
+          totalHint: series.length,
+        })
+      : lineDriftStrategy(series[series.length - 1]?.value ?? 100);
 }
 
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
-  const { datasets } = useLineStreams(props.allData, { delay: 300 });
+  const { datasets } = useLineStreams(props.allData, {
+    delay: 300,
+    interval: LINE_INTERVAL,
+    strategy: strategyFor(props.dataMode),
+  });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const [sid, setSid] = useState<string | null>(null);
   return (
@@ -68,7 +92,11 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
 }
 
 function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
-  const { datasets } = useLineStreams(props.allData, { delay: 500 });
+  const { datasets } = useLineStreams(props.allData, {
+    delay: 500,
+    interval: LINE_INTERVAL,
+    strategy: strategyFor(props.dataMode),
+  });
   const display = props.streaming ? datasets : props.allData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
