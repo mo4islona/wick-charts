@@ -15,16 +15,44 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { HighlightedCode } from '../components/controls';
+import { HighlightedCode, Slider } from '../components/controls';
 import { FrameworkSelect } from '../components/FrameworkSelect';
 import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
 import { type Framework, useFramework, useIsMobile, useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
 
+// Pre-bundled series arrays with stable identity so the streaming hooks
+// don't rebuild their source on every dashboard re-render.
+const AREA_BANDS_SERIES = [areaLine, upperBand, lowerBand];
+const BAR_SERIES = [barSingle];
+
+// Keep a fixed visible window per chart so fast-speed streams don't
+// accumulate points indefinitely.
+const MAX_POINTS = 300;
+
+// The speed slider is a developer-only escape hatch; hidden unless `debug`
+// appears in the URL. Docs uses hash routing, so the flag may live in
+// either `?debug` (before the hash) or `#/route?debug` (after it).
+function hasDebugFlag(): boolean {
+  if (typeof window === 'undefined') return false;
+  const search = new URLSearchParams(window.location.search);
+  if (search.has('debug')) return true;
+  const hash = window.location.hash;
+  const hashQueryStart = hash.indexOf('?');
+  if (hashQueryStart === -1) return false;
+  return new URLSearchParams(hash.slice(hashQueryStart)).has('debug');
+}
+const DEBUG = hasDebugFlag();
+
+interface StreamProps {
+  theme: ChartTheme;
+  speed: number;
+}
+
 // ── Chart components ──────────────────────────────────────────
 
-function CandleChart({ theme }: { theme: ChartTheme }) {
-  const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL });
+function CandleChart({ theme, speed }: StreamProps) {
+  const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
@@ -39,8 +67,16 @@ function CandleChart({ theme }: { theme: ChartTheme }) {
   );
 }
 
-function AreaBandsChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([areaLine, upperBand, lowerBand], { interval: DEMO_INTERVAL });
+function AreaBandsChart({ theme, speed }: StreamProps) {
+  // Historical bands come from `generateBandLine(ohlcETH, ±1)` — i.e. they
+  // are derived from the same OHLC source. In live mode we don't stream
+  // that OHLC, so each of the three series drifts independently; accepting
+  // the visual approximation rather than coordinating three streams.
+  const { datasets } = useLineStreams(AREA_BANDS_SERIES, {
+    interval: DEMO_INTERVAL,
+    speed,
+    maxPoints: MAX_POINTS,
+  });
   return (
     <ChartContainer theme={theme}>
       <TooltipLegend />
@@ -55,8 +91,8 @@ function AreaBandsChart({ theme }: { theme: ChartTheme }) {
   );
 }
 
-function MultiLineChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL });
+function MultiLineChart({ theme, speed }: StreamProps) {
+  const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   return (
     <ChartContainer theme={theme}>
       <LineSeries
@@ -70,8 +106,13 @@ function MultiLineChart({ theme }: { theme: ChartTheme }) {
   );
 }
 
-function BarChart({ theme }: { theme: ChartTheme }) {
-  const { datasets } = useLineStreams([barSingle], { interval: DEMO_INTERVAL });
+function BarChart({ theme, speed }: StreamProps) {
+  const { datasets } = useLineStreams(BAR_SERIES, {
+    interval: DEMO_INTERVAL,
+    kind: 'bar',
+    speed,
+    maxPoints: MAX_POINTS,
+  });
   return (
     <ChartContainer theme={theme}>
       <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
@@ -79,6 +120,45 @@ function BarChart({ theme }: { theme: ChartTheme }) {
       <YAxis />
       <TimeAxis />
     </ChartContainer>
+  );
+}
+
+// ── Speed control ─────────────────────────────────────────────
+
+function SpeedControl({
+  value,
+  onChange,
+  theme,
+  mobile,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  theme: ChartTheme;
+  mobile: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        padding: mobile ? '0 6px' : '0 12px',
+        opacity: 0.55,
+      }}
+    >
+      <div style={{ width: mobile ? '100%' : 150 }}>
+        <Slider
+          label="Speed"
+          value={value}
+          onChange={onChange}
+          min={1}
+          max={20}
+          step={1}
+          theme={theme}
+          suffix="×"
+          accentColor={theme.axis.textColor}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -584,6 +664,7 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 
 export function DashboardPage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
+  const [speed, setSpeed] = useState(10);
 
   return (
     <div
@@ -596,6 +677,8 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
     >
       <Hero theme={theme} mobile={mobile} />
 
+      {DEBUG && <SpeedControl value={speed} onChange={setSpeed} theme={theme} mobile={mobile} />}
+
       <div
         style={{
           minHeight: mobile ? undefined : 500,
@@ -607,18 +690,18 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
         }}
       >
         <Cell label="BTC/USD" sub="Live Candlestick" theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <CandleChart theme={theme} />
+          <CandleChart theme={theme} speed={speed} />
         </Cell>
         <Cell label="ETH/USD" sub="Live Area + Bands" theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <AreaBandsChart theme={theme} />
+          <AreaBandsChart theme={theme} speed={speed} />
         </Cell>
         {!mobile && (
           <>
             <Cell label="Portfolio" sub="10 assets · Live" theme={theme}>
-              <MultiLineChart theme={theme} />
+              <MultiLineChart theme={theme} speed={speed} />
             </Cell>
             <Cell label="P&L Delta" sub="Live Bar" theme={theme}>
-              <BarChart theme={theme} />
+              <BarChart theme={theme} speed={speed} />
             </Cell>
           </>
         )}

@@ -15,6 +15,7 @@ export default defineConfig({
       'packages/react/src/**/*.test.{ts,tsx}',
       'packages/vue/src/**/*.test.ts',
       'packages/svelte/src/**/*.test.ts',
+      'docs/__tests__/**/*.test.{ts,tsx}',
     ],
     environmentMatchGlobs: [
       // Tests that instantiate ChartInstance need a DOM.
