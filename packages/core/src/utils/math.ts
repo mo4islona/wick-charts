@@ -23,6 +23,18 @@ export function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
 }
 
+/**
+ * Rubber-band resistance curve. Maps a raw overshoot distance to a damped
+ * display distance that asymptotically approaches `maxOvershoot` but never
+ * reaches it. Use to make soft bounds feel elastic.
+ *
+ * `raw` must be >= 0. For `raw = 0` returns 0. As `raw → ∞` returns `maxOvershoot`.
+ */
+export function rubberBand(raw: number, maxOvershoot: number): number {
+  if (maxOvershoot <= 0 || raw <= 0) return 0;
+  return maxOvershoot * (1 - 1 / (raw / maxOvershoot + 1));
+}
+
 export function roundToPixel(value: number): number {
   return Math.round(value) + 0.5;
 }

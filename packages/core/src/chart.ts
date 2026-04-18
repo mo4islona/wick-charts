@@ -1,5 +1,6 @@
 import { CanvasManager } from './canvas-manager';
 import { renderCrosshair } from './components/crosshair';
+import { renderEdgeIndicator } from './components/edge-indicator';
 import { renderGrid } from './components/grid';
 import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
@@ -30,6 +31,26 @@ import type {
 } from './types';
 import { detectInterval } from './utils/time';
 import { type HorizontalPadding, Viewport } from './viewport';
+
+/** Which data side the user pulled past during a gesture. */
+export type EdgeSide = 'left' | 'right';
+/**
+ * Host-controlled visual state for a chart edge:
+ * - `idle`: nothing rendered (default).
+ * - `loading`: a subtle spinner appears in the overshoot area.
+ * - `no-data`: a dashed boundary line + "No more data" label appears at the data edge.
+ * - `has-more`: reserved — currently behaves like `idle`. Use when more data exists but is not being fetched.
+ */
+export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
+
+/** Payload for {@link ChartOptions.onEdgeReached}. */
+export interface EdgeReachedInfo {
+  side: EdgeSide;
+  /** Time units the user pulled past the soft bound. */
+  overshoot: number;
+  /** Soft-bound timestamp that was crossed (dataStart - leftPad or dataEnd + rightPad). */
+  boundaryTime: number;
+}
 
 /** Events emitted by {@link ChartInstance}. */
 interface ChartEvents {
@@ -80,6 +101,14 @@ export interface ChartOptions {
    * {@link AnimationsConfig} object toggles each category individually.
    */
   animations?: boolean | AnimationsConfig;
+  /**
+   * Invoked after the user releases a pan/zoom gesture that pulled the
+   * viewport past a data edge by more than 10% of the visible range. Hosts
+   * typically respond by prefetching more history and calling
+   * {@link ChartInstance.setEdgeState} to show a spinner or "no more data"
+   * indicator at the corresponding edge.
+   */
+  onEdgeReached?: (info: EdgeReachedInfo) => void;
 }
 
 /**
@@ -152,6 +181,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   #hasYLabel = false;
   /** Axis visibility and sizing configuration. */
   #axis: AxisConfig = {};
+  /** Host-declared state per edge — drives the edge-indicator overlay. */
+  #edgeStates: Record<EdgeSide, EdgeState> = { left: 'idle', right: 'idle' };
+  /** Cached boundary timestamps from the last `edgeReached` emission, by side. */
+  #edgeBoundaries: Record<EdgeSide, number | null> = { left: null, right: null };
+  /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
+  #onEdgeReached?: (info: EdgeReachedInfo) => void;
+
   /** Nesting depth for batch updates. Suppresses recomputes while > 0. */
   #batchDepth = 0;
   /** True when batched operations include data changes (triggers full onDataChanged on end). */
@@ -182,6 +218,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#theme = options?.theme ?? darkTheme;
     this.#grid = options?.grid !== false;
     this.#animationsConfig = resolveAnimationsConfig(options?.animations);
+    this.#onEdgeReached = options?.onEdgeReached;
 
     this.#canvasManager = new CanvasManager(container);
     this.#viewport = new Viewport({ padding: options?.padding });
@@ -202,6 +239,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.syncScales();
       this.#mainScheduler.markDirty();
       this.emit('viewportChange');
+    });
+
+    this.#viewport.on('interact', () => {
+      // User is dragging or zooming — abort per-point entrance tweens so
+      // new bars don't flash while the user moves the chart around.
+      for (const entry of this.#series) entry.renderer.cancelEntranceAnimations?.();
+    });
+
+    this.#viewport.on('edgeReached', (info: EdgeReachedInfo) => {
+      // Remember the boundary so the edge-indicator overlay can anchor to it
+      // even after subsequent pan/zoom that may shift soft bounds.
+      this.#edgeBoundaries[info.side] = info.boundaryTime;
+      this.#onEdgeReached?.(info);
     });
 
     this.#canvasManager.on('resize', () => {
@@ -664,6 +714,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#mainScheduler.markDirty();
   }
 
+  /**
+   * Set the visual state for one side of the chart. Typically called in
+   * response to the `onEdgeReached` callback:
+   *   - `loading` while a history fetch is in flight,
+   *   - `no-data` once the fetch confirmed there's nothing more,
+   *   - `idle` when the host no longer wants any edge affordance.
+   * The state persists until replaced. `has-more` is accepted for API
+   * symmetry and currently renders identically to `idle`.
+   */
+  setEdgeState(side: EdgeSide, state: EdgeState): void {
+    if (this.#edgeStates[side] === state) return;
+    this.#edgeStates[side] = state;
+    this.#overlayScheduler.markDirty();
+  }
+
+  /** Read the current host-declared state for a given edge. */
+  getEdgeState(side: EdgeSide): EdgeState {
+    return this.#edgeStates[side];
+  }
+
   /** Notify chart that a YLabel is present (affects right padding). */
   setYLabel(has: boolean): void {
     this.#hasYLabel = has;
@@ -762,8 +832,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         this.#viewport.fitToData(first, last, chartWidth, false);
       } else if (isBatchLoad && this.#viewport.autoScroll) {
         this.#viewport.fitToData(first, last, chartWidth, true);
-      } else if (!isBatchLoad && this.isLastPointVisible()) {
-        // Realtime tick: only scroll if the last point is currently on screen
+      } else if (!isBatchLoad && this.#viewport.autoScroll) {
+        // Realtime tick: scroll as long as auto-scroll is active. We used to
+        // gate on isLastPointVisible() — but during a synchronous burst of
+        // appendData calls the visible range hasn't advanced yet (no RAF tick
+        // between appends), so from the 4th bar on last.time > visibleRange.to
+        // and the gate would falsify, dropping updates for the rest of the
+        // burst. Pan disables autoScroll explicitly; zoom leaves it alone.
         this.#viewport.scrollToEnd(last, chartWidth);
       }
     }
@@ -996,7 +1071,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.renderOverlay();
   }
 
-  /** Cheap overlay: crosshair, nearest-point dots, pulse animation. */
+  /** Cheap overlay: crosshair, nearest-point dots, pulse animation, edge indicator. */
   private renderOverlay(_timestamp?: number): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
@@ -1010,10 +1085,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       }
     }
 
+    // The loading-state edge indicator animates a spinner; keep the overlay ticking.
+    const edgeAnimates = this.#edgeStates.left === 'loading' || this.#edgeStates.right === 'loading';
+    // Any non-idle edge needs a single redraw; only `loading` needs continuous frames.
+    const edgeVisible = this.#edgeStates.left !== 'idle' || this.#edgeStates.right !== 'idle';
+
     this.#canvasManager.useOverlayLayer((scope) => {
       // Guard inside callback — useOverlayLayer clears the canvas first,
       // so we must always enter it to erase stale crosshair/dots on mouseleave.
-      if (!this.#crosshairPos && !overlayAnimates) return;
+      if (!this.#crosshairPos && !overlayAnimates && !edgeVisible) return;
 
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
@@ -1043,6 +1123,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         });
       }
 
+      // Edge indicators last — they paint over any series overlay that happened
+      // to land in the overshoot area.
+      if (edgeVisible) {
+        this.drawEdgeIndicators(scope, size.media.height - this.xAxisHeight);
+      }
+
       scope.context.restore();
     });
 
@@ -1061,6 +1147,46 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       }
       if (visibleLast) this.#overlayScheduler.markDirty();
     }
+
+    // Spinner needs a frame cadence of its own, independent of series overlays.
+    if (edgeAnimates) this.#overlayScheduler.markDirty();
+  }
+
+  private drawEdgeIndicators(
+    scope: Parameters<Parameters<CanvasManager['useOverlayLayer']>[0]>[0],
+    chartMediaHeight: number,
+  ): void {
+    const now = performance.now();
+    for (const side of ['left', 'right'] as const) {
+      const state = this.#edgeStates[side];
+      if (state === 'idle' || state === 'has-more') continue;
+      const boundaryTime = this.resolveEdgeBoundary(side);
+      if (boundaryTime === null) continue;
+      renderEdgeIndicator({
+        scope,
+        timeScale: this.timeScale,
+        theme: this.#theme,
+        chartMediaHeight,
+        boundaryTime,
+        side,
+        state,
+        now,
+      });
+    }
+  }
+
+  /**
+   * Pick the boundary time to anchor the edge indicator at. Prefer the
+   * cached value emitted by the most recent `edgeReached` — that's the
+   * *exact* point the user overshot. Fall back to the current data edge
+   * when no gesture has fired yet (host might invoke `setEdgeState`
+   * directly on mount to show a "no-data" marker from the start).
+   */
+  private resolveEdgeBoundary(side: EdgeSide): number | null {
+    const cached = this.#edgeBoundaries[side];
+    if (cached !== null) return cached;
+    const { first, last } = this.getDataBounds();
+    return side === 'left' ? (first ?? null) : (last ?? null);
   }
 }
 

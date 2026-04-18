@@ -30,6 +30,9 @@ export class PanHandler {
     if (!this.dragging) return;
     this.dragging = false;
     this.canvas.style.cursor = 'crosshair';
+    // Snap the viewport back into soft bounds if the drag ended past an edge.
+    // No-op when the gesture stayed inside bounds.
+    this.viewport.startRebound(this.timeScale.getMediaWidth());
   }
 
   isDragging(): boolean {

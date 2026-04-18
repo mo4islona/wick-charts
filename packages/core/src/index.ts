@@ -1,8 +1,7 @@
 // Chart
 
-export type { ChartOptions } from './chart';
+export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
 export { ChartInstance } from './chart';
-export type { HorizontalPadding } from './viewport';
 // Data
 export { darkTheme } from './theme/dark';
 export { lightTheme } from './theme/light';
@@ -38,9 +37,9 @@ export type { ChartTheme, Typography } from './theme/types';
 export type {
   AxisBound,
   AxisConfig,
+  BarSeriesOptions,
   /** @deprecated Use {@link StackingMode} instead. */
   BarStacking,
-  BarSeriesOptions,
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,
@@ -63,3 +62,4 @@ export type {
 } from './types';
 // Utils
 export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';
+export type { HorizontalPadding } from './viewport';

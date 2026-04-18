@@ -120,6 +120,25 @@ describe('LineRenderer — animation', () => {
     expect(entries(r).has(30)).toBe(false);
   });
 
+  it('cancelEntranceAnimations clears entries on every layer; preserves displayedLast', () => {
+    const r = new LineRenderer(2);
+    r.setData(DATA, 0);
+    r.setData(DATA, 1);
+    renderFrame(r);
+
+    r.appendPoint({ time: 30, value: 8 }, 0);
+    r.appendPoint({ time: 30, value: 9 }, 1);
+    expect(entries(r, 0).size).toBe(1);
+    expect(entries(r, 1).size).toBe(1);
+    const liveBefore = [...displayed(r)];
+
+    r.cancelEntranceAnimations();
+
+    expect(entries(r, 0).size).toBe(0);
+    expect(entries(r, 1).size).toBe(0);
+    expect(displayed(r)).toEqual(liveBefore);
+  });
+
   describe('stacked mode live-tracking', () => {
     it('normal stacking: the rendered upper edge Y tracks the smoothed layer-1 value', () => {
       const r = new LineRenderer(2, { stacking: 'normal', areaFill: false });
@@ -162,7 +181,7 @@ describe('LineRenderer — animation', () => {
       expect(Math.abs(highestEdge - rawCumulativeY)).toBeGreaterThan(2);
     });
 
-    it("percent stacking: the layer-split Y reflects the smoothed last value", () => {
+    it('percent stacking: the layer-split Y reflects the smoothed last value', () => {
       const r = new LineRenderer(2, { stacking: 'percent', areaFill: false });
       r.setData(
         [
@@ -235,7 +254,7 @@ describe('LineRenderer — animation', () => {
     expect(Math.abs(arcY - yScale.valueToBitmapY(18))).toBeGreaterThan(1);
   });
 
-  describe("pulse-dot X follows the trailing-segment entrance", () => {
+  describe('pulse-dot X follows the trailing-segment entrance', () => {
     it("'grow' entrance: pulse X is between penultimate and new X during the animation", () => {
       const r = new LineRenderer(1, {
         pulse: true,

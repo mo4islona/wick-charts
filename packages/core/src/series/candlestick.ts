@@ -118,6 +118,12 @@ export class CandlestickRenderer implements SeriesRenderer {
     return this.store.findNearest(time, interval);
   }
 
+  /** Drop all in-flight per-candle entrance animations. Displayed-last smoothing
+   * (the real-time halo/price lerp) is intentionally preserved. */
+  cancelEntranceAnimations(): void {
+    this.entries.clear();
+  }
+
   /** True while any entrance animation is active or the displayed last candle hasn't converged. */
   get needsAnimation(): boolean {
     if (this.entries.size > 0) return true;

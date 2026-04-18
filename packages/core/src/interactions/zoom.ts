@@ -1,7 +1,14 @@
 import type { TimeScale } from '../scales/time-scale';
 import type { Viewport } from '../viewport';
 
+/** Delay between the last wheel tick and the rebound animation kicking in.
+ * Long enough to bridge successive scroll-wheel clicks and trackpad inertia,
+ * short enough not to feel laggy after the gesture actually stops. */
+const WHEEL_IDLE_REBOUND_MS = 150;
+
 export class ZoomHandler {
+  private reboundTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     private viewport: Viewport,
     private timeScale: TimeScale,
@@ -21,7 +28,25 @@ export class ZoomHandler {
     const x = Math.min(e.offsetX, chartWidth);
     const cursorTime = this.timeScale.xToTime(x);
 
-    this.viewport.zoomAt(cursorTime, factor);
+    this.viewport.zoomAt(cursorTime, factor, chartWidth);
+
+    // Debounce: each new wheel tick resets the rebound timer; it fires once the
+    // user has been idle for WHEEL_IDLE_REBOUND_MS. Rebound is a no-op when the
+    // gesture stayed inside soft bounds.
+    if (this.reboundTimer !== null) clearTimeout(this.reboundTimer);
+    this.reboundTimer = setTimeout(() => {
+      this.reboundTimer = null;
+      this.viewport.startRebound(chartWidth);
+    }, WHEEL_IDLE_REBOUND_MS);
+  }
+
+  /** Cancel any pending rebound — called by InteractionHandler.destroy and when
+   * a competing gesture (mousedown, touchstart) takes over. */
+  cancelPendingRebound(): void {
+    if (this.reboundTimer !== null) {
+      clearTimeout(this.reboundTimer);
+      this.reboundTimer = null;
+    }
   }
 }
 

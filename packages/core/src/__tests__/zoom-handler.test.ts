@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 // Production `zoom.ts` reads `WheelEvent.DOM_DELTA_LINE` / `DOM_DELTA_PAGE`
 // constants, which are only defined in a DOM environment.
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ZoomHandler } from '../interactions/zoom';
 import type { TimeScale } from '../scales/time-scale';
@@ -20,7 +20,10 @@ import type { Viewport } from '../viewport';
  */
 describe('ZoomHandler.handleWheel', () => {
   function setup() {
-    const viewport = { zoomAt: vi.fn() } as unknown as Viewport & { zoomAt: ReturnType<typeof vi.fn> };
+    const viewport = { zoomAt: vi.fn(), startRebound: vi.fn() } as unknown as Viewport & {
+      zoomAt: ReturnType<typeof vi.fn>;
+      startRebound: ReturnType<typeof vi.fn>;
+    };
     const timeScale = {
       getMediaWidth: vi.fn(() => 800),
       xToTime: vi.fn((x: number) => x * 100), // identity-ish — each pixel = 100ms
@@ -109,5 +112,72 @@ describe('ZoomHandler.handleWheel', () => {
     expect(viewport.zoomAt).toHaveBeenCalledTimes(1);
     const [, factor] = viewport.zoomAt.mock.calls[0];
     expect(factor).toBe(1);
+  });
+});
+
+describe('ZoomHandler rebound debouncing', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function setup() {
+    const viewport = { zoomAt: vi.fn(), startRebound: vi.fn() } as unknown as Viewport & {
+      zoomAt: ReturnType<typeof vi.fn>;
+      startRebound: ReturnType<typeof vi.fn>;
+    };
+    const timeScale = {
+      getMediaWidth: vi.fn(() => 800),
+      xToTime: vi.fn((x: number) => x * 100),
+    } as unknown as TimeScale;
+    const handler = new ZoomHandler(viewport, timeScale);
+    return { viewport, handler };
+  }
+
+  function wheel(deltaY: number): WheelEvent {
+    return {
+      deltaY,
+      deltaMode: 0,
+      offsetX: 100,
+      preventDefault: vi.fn(),
+    } as unknown as WheelEvent;
+  }
+
+  it('schedules a rebound after the wheel goes idle for 150ms', () => {
+    const { viewport, handler } = setup();
+    handler.handleWheel(wheel(-100));
+    expect(viewport.startRebound).not.toHaveBeenCalled();
+
+    // Just under idle threshold — still nothing.
+    vi.advanceTimersByTime(149);
+    expect(viewport.startRebound).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(viewport.startRebound).toHaveBeenCalledTimes(1);
+    expect(viewport.startRebound).toHaveBeenCalledWith(800);
+  });
+
+  it('successive wheel events reset the debounce window', () => {
+    const { viewport, handler } = setup();
+    handler.handleWheel(wheel(-100));
+    vi.advanceTimersByTime(100);
+    handler.handleWheel(wheel(-100)); // reset window
+    vi.advanceTimersByTime(100);
+    handler.handleWheel(wheel(-100)); // reset again
+    vi.advanceTimersByTime(149);
+    expect(viewport.startRebound).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(viewport.startRebound).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelPendingRebound clears a scheduled rebound', () => {
+    const { viewport, handler } = setup();
+    handler.handleWheel(wheel(-100));
+    handler.cancelPendingRebound();
+    vi.advanceTimersByTime(500);
+    expect(viewport.startRebound).not.toHaveBeenCalled();
   });
 });

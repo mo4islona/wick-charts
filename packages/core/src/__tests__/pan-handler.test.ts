@@ -18,7 +18,10 @@ import type { Viewport } from '../viewport';
  */
 describe('PanHandler', () => {
   function setup() {
-    const viewport = { pan: vi.fn() } as unknown as Viewport & { pan: ReturnType<typeof vi.fn> };
+    const viewport = { pan: vi.fn(), startRebound: vi.fn() } as unknown as Viewport & {
+      pan: ReturnType<typeof vi.fn>;
+      startRebound: ReturnType<typeof vi.fn>;
+    };
     const timeScale = {
       pixelDeltaToTimeDelta: vi.fn((px: number) => px * 100), // 1 px = 100 ms
       getMediaWidth: vi.fn(() => 800),
@@ -91,5 +94,25 @@ describe('PanHandler', () => {
     handler.handleMouseMove(mouse('mousemove', { clientX: 150 })); // must be ignored
 
     expect(viewport.pan).not.toHaveBeenCalled();
+  });
+
+  it('mouseup after a drag triggers viewport rebound', () => {
+    const { viewport, handler } = setup();
+    handler.handleMouseDown(mouse('mousedown', { button: 0, clientX: 100 }));
+    handler.handleMouseMove(mouse('mousemove', { clientX: 120 }));
+
+    handler.handleMouseUp();
+
+    expect(viewport.startRebound).toHaveBeenCalledTimes(1);
+    expect(viewport.startRebound).toHaveBeenCalledWith(800); // chartWidth
+  });
+
+  it('mouseup without an active drag does not trigger rebound', () => {
+    // Happens on mouseleave when the cursor was never pressed, or after a failed
+    // non-left-button mousedown. Firing rebound here would be a needless no-op
+    // but also risks cancelling an in-flight programmatic animation.
+    const { viewport, handler } = setup();
+    handler.handleMouseUp();
+    expect(viewport.startRebound).not.toHaveBeenCalled();
   });
 });

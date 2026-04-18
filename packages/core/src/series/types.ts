@@ -114,6 +114,16 @@ export interface SeriesRenderer {
 
   // --- Animation & overlays ------------------------------------------------
 
+  /**
+   * Abort in-flight entrance animations (per-point/per-bar intros). Called
+   * when the user pans or zooms — continuing to tween bar fills while the
+   * chart is being dragged reads as flicker.
+   *
+   * Live-tracking smoothing (the halo/last-value lerp) is NOT cancelled here;
+   * that motion is subtle and shouldn't jump when the viewport moves.
+   */
+  cancelEntranceAnimations?(): void;
+
   /** True while the renderer has an active animation (Chart polls per frame). */
   readonly needsAnimation?: boolean;
   /**
