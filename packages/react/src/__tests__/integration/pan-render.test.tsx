@@ -46,6 +46,11 @@ describe('mouse drag pan end-to-end', () => {
 
   it('mousedown → mousemove(-200px) → mouseup shifts the visible range right', () => {
     mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    // After fitToData the right edge sits at `dataEnd + rightPadding`, which is
+    // also the pan clamp — so without zooming in first, a right-pan is a no-op.
+    // Wheel to zoom in so the visible range moves away from the clamp.
+    mounted.dispatchWheel({ deltaY: -200, clientX: 400, clientY: 200 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
     const before = mounted.chart.getVisibleRange();
 
     mounted.dispatchMouse('mousedown', { button: 0, clientX: 400, clientY: 200 }, mounted.overlayCanvas);
