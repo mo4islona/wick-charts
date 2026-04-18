@@ -3,6 +3,7 @@ import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint, TimePointInput } from '../types';
 import { hexToRgba } from '../utils/color';
+import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import type { OverlayRenderContext, SeriesRenderContext, SeriesRenderer } from './types';
 
@@ -14,14 +15,39 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
   stacking: 'off',
 };
 
+const DEFAULT_LIVE_SMOOTH_RATE = 14;
+const DEFAULT_APPEND_DURATION_MS = 400;
+
+/** True if the smoothed value is still meaningfully off-target. */
+function valueDiffers(displayed: number, target: number): boolean {
+  const eps = Math.max(1e-4, Math.abs(target) * 1e-5);
+  return Math.abs(displayed - target) > eps;
+}
+
+interface LineEntry {
+  startTime: number;
+  /** Time of the penultimate point at append — used for the grow-in reveal. */
+  fromTime: number;
+}
+
 export class LineRenderer implements SeriesRenderer {
   readonly #stores: TimeSeriesStore<TimePoint>[];
   private options: LineSeriesOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
+  /** Per-layer smoothed last value. */
+  private displayedLastValues: Array<number | null>;
+  /** Per-layer `time` of the point currently seeded into {@link displayedLastValues}. */
+  private lastSeededTimes: number[];
+  /** Per-layer entrance animations keyed by the appended point's `time`. */
+  private entries: Array<Map<number, LineEntry>>;
+  private lastRenderTime = 0;
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
     this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
     this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.displayedLastValues = new Array(layerCount).fill(null);
+    this.lastSeededTimes = new Array(layerCount).fill(Number.NaN);
+    this.entries = Array.from({ length: layerCount }, () => new Map());
   }
 
   /** Back-compat: first store. */
@@ -51,13 +77,22 @@ export class LineRenderer implements SeriesRenderer {
     const store = this.#stores[layerIndex];
     if (!store) return;
     store.setData(normalizeTimePointArray((data ?? []) as TimePointInput[]));
+    this.entries[layerIndex]?.clear();
   }
 
   appendPoint(point: unknown, layerIndex = 0): void {
     const store = this.#stores[layerIndex];
     if (!store) return;
     const p = point as TimePointInput;
-    store.append({ ...p, time: normalizeTime(p.time) });
+    const penultimate = store.last();
+    const time = normalizeTime(p.time);
+    store.append({ ...p, time });
+    if ((this.options.appendAnimation ?? 'grow') !== 'none') {
+      this.entries[layerIndex]?.set(time, {
+        startTime: performance.now(),
+        fromTime: penultimate ? penultimate.time : time,
+      });
+    }
   }
 
   updateLastPoint(point: unknown, layerIndex = 0): void {
@@ -105,6 +140,70 @@ export class LineRenderer implements SeriesRenderer {
 
   dispose(): void {
     for (const s of this.#stores) s.removeAllListeners();
+    for (const m of this.entries) m.clear();
+    this.displayedLastValues = this.displayedLastValues.map(() => null);
+    this.lastSeededTimes = this.lastSeededTimes.map(() => Number.NaN);
+    this.lastRenderTime = 0;
+  }
+
+  /**
+   * Advance smoothed last-value per layer and prune completed entrance entries.
+   * Must run at the top of every render pass (and drawOverlay) so snapshots see
+   * fresh state regardless of which pass is rendering first.
+   */
+  private advanceLiveTracking(now: number): void {
+    if (now === this.lastRenderTime) return;
+    const dt = this.lastRenderTime ? Math.min(0.05, (now - this.lastRenderTime) / 1000) : 0;
+    this.lastRenderTime = now;
+
+    const rate = this.options.liveSmoothRate ?? DEFAULT_LIVE_SMOOTH_RATE;
+    for (let li = 0; li < this.#stores.length; li++) {
+      const actualLast = this.#stores[li].last();
+      if (!actualLast) {
+        this.displayedLastValues[li] = null;
+        this.lastSeededTimes[li] = Number.NaN;
+        continue;
+      }
+      const displayed = this.displayedLastValues[li];
+      const isNewPoint = this.lastSeededTimes[li] !== actualLast.time;
+      if (displayed === null || isNewPoint || rate <= 0) {
+        this.displayedLastValues[li] = actualLast.value;
+        this.lastSeededTimes[li] = actualLast.time;
+        continue;
+      }
+      this.displayedLastValues[li] = smoothToward(displayed, actualLast.value, rate, dt);
+    }
+  }
+
+  get needsAnimation(): boolean {
+    for (const m of this.entries) if (m.size > 0) return true;
+    for (let li = 0; li < this.#stores.length; li++) {
+      const displayed = this.displayedLastValues[li];
+      const actualLast = this.#stores[li].last();
+      if (displayed == null || !actualLast) continue;
+      if (this.lastSeededTimes[li] !== actualLast.time) continue;
+      if (valueDiffers(displayed, actualLast.value)) return true;
+    }
+    return false;
+  }
+
+  private entranceProgress(layerIndex: number, time: number, now: number): number {
+    const m = this.entries[layerIndex];
+    const entry = m?.get(time);
+    if (!entry) return 1;
+    const duration = this.options.appendDurationMs ?? DEFAULT_APPEND_DURATION_MS;
+    if (duration <= 0) {
+      m.delete(time);
+      return 1;
+    }
+    const t = clamp((now - entry.startTime) / duration, 0, 1);
+    const progress = easeOutCubic(t);
+    if (t >= 1) m.delete(time);
+    return progress;
+  }
+
+  private peekEntry(layerIndex: number, time: number): LineEntry | undefined {
+    return this.entries[layerIndex]?.get(time);
   }
 
   getLastValue(): number | null {
@@ -151,10 +250,6 @@ export class LineRenderer implements SeriesRenderer {
   // Note: `#stores` is private; exposing limited per-layer queries through the
   // interface above. No `getStores()` accessor is exported — every external
   // need goes through setData/setLayerVisible/getLayerSnapshots/onDataChanged.
-
-  get needsAnimation(): boolean {
-    return false;
-  }
 
   get hasPulse(): boolean {
     return this.options.pulse && this.#stores.some((s) => s.isVisible() && s.length > 0);
@@ -219,11 +314,66 @@ export class LineRenderer implements SeriesRenderer {
   }
 
   render(ctx: SeriesRenderContext): void {
+    this.advanceLiveTracking(performance.now());
     if (this.options.stacking === 'off') {
       this.renderOff(ctx);
     } else {
       this.renderStacked(ctx, this.options.stacking === 'percent');
     }
+  }
+
+  /** The effective Y-value to render for (layer, time) — substitutes smoothed value for the live last point. */
+  private effectiveValue(layerIndex: number, time: number, rawValue: number): number {
+    const displayed = this.displayedLastValues[layerIndex];
+    if (displayed == null || this.lastSeededTimes[layerIndex] !== time) return rawValue;
+    return displayed;
+  }
+
+  /**
+   * Bitmap coordinates for the trailing endpoint of a layer — i.e. where the
+   * last visible point should be drawn *right now*. Accounts for live-tracking
+   * smoothing on Y (via {@link effectiveValue}) and the `'grow'` entrance
+   * animation, which lerps (X, Y) from the penultimate point to the new point
+   * over the entry's duration.
+   *
+   * Shared between `renderOff` (last `lineTo` of the polyline) and `drawOverlay`
+   * (pulse dot) so the pulse glides in sync with the trailing segment instead
+   * of teleporting to the raw last.time while the line still unfurls.
+   */
+  private trailingEndpoint(
+    layerIndex: number,
+    timeScale: import('../scales/time-scale').TimeScale,
+    yScale: import('../scales/y-scale').YScale,
+    now: number,
+  ): { x: number; y: number } | null {
+    const store = this.#stores[layerIndex];
+    const last = store.last();
+    if (!last) return null;
+
+    const lastRawX = timeScale.timeToBitmapX(last.time);
+    const lastRawY = yScale.valueToBitmapY(this.effectiveValue(layerIndex, last.time, last.value));
+
+    const style = this.options.appendAnimation ?? 'grow';
+    const entry = this.peekEntry(layerIndex, last.time);
+    if (!entry || style !== 'grow') {
+      return { x: lastRawX, y: lastRawY };
+    }
+
+    const progress = this.entranceProgress(layerIndex, last.time, now);
+    if (progress >= 1) {
+      return { x: lastRawX, y: lastRawY };
+    }
+
+    const all = store.getAll();
+    if (all.length < 2) return { x: lastRawX, y: lastRawY };
+    const penultimate = all[all.length - 2];
+    const penulX = timeScale.timeToBitmapX(penultimate.time);
+    const penulY = yScale.valueToBitmapY(penultimate.value);
+
+    return {
+      x: lerp(penulX, lastRawX, progress),
+      y: lerp(penulY, lastRawY, progress),
+    };
   }
 
   /** Each layer drawn independently */
@@ -233,6 +383,8 @@ export class LineRenderer implements SeriesRenderer {
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
+    const now = performance.now();
+    const style = this.options.appendAnimation ?? 'grow';
 
     for (let li = 0; li < this.#stores.length; li++) {
       if (!this.#stores[li].isVisible()) continue;
@@ -246,12 +398,33 @@ export class LineRenderer implements SeriesRenderer {
 
       const color = this.options.colors[li % this.options.colors.length];
 
+      // Trailing-segment entrance: the new segment appears to unfurl from the
+      // penultimate point to the new one. 'grow' interpolates both axes (via
+      // {@link trailingEndpoint}), 'fade' keeps geometry fixed and ramps stroke
+      // alpha. Sharing `trailingEndpoint` with the overlay pulse keeps the dot
+      // in sync with the line head instead of teleporting during entrance.
+      const last = data[data.length - 1];
+      const entry = this.peekEntry(li, last.time);
+      const progress = this.entranceProgress(li, last.time, now);
+      const trailingFade = entry && style === 'fade' && progress < 1;
+      const endpoint = this.trailingEndpoint(li, timeScale, yScale, now) ?? {
+        x: timeScale.timeToBitmapX(last.time),
+        y: yScale.valueToBitmapY(this.effectiveValue(li, last.time, last.value)),
+      };
+      const trailingX = endpoint.x;
+      const trailingY = endpoint.y;
+
       // Line
+      if (trailingFade) {
+        context.save();
+        context.globalAlpha = progress;
+      }
       context.beginPath();
       context.moveTo(timeScale.timeToBitmapX(data[0].time), yScale.valueToBitmapY(data[0].value));
-      for (let i = 1; i < data.length; i++) {
+      for (let i = 1; i < data.length - 1; i++) {
         context.lineTo(timeScale.timeToBitmapX(data[i].time), yScale.valueToBitmapY(data[i].value));
       }
+      context.lineTo(trailingX, trailingY);
       context.strokeStyle = color;
       context.lineWidth = lineWidth;
       context.lineJoin = 'round';
@@ -261,9 +434,8 @@ export class LineRenderer implements SeriesRenderer {
       // Area fill
       if (this.options.areaFill) {
         const firstX = timeScale.timeToBitmapX(data[0].time);
-        const lastX = timeScale.timeToBitmapX(data[data.length - 1].time);
         const bottomY = scope.bitmapSize.height;
-        context.lineTo(lastX, bottomY);
+        context.lineTo(trailingX, bottomY);
         context.lineTo(firstX, bottomY);
         context.closePath();
         const cacheKey = String(li);
@@ -280,6 +452,7 @@ export class LineRenderer implements SeriesRenderer {
         context.fillStyle = grad;
         context.fill();
       }
+      if (trailingFade) context.restore();
     }
   }
 
@@ -308,10 +481,12 @@ export class LineRenderer implements SeriesRenderer {
     const times = Array.from(timeSet).sort((a, b) => a - b);
     if (times.length < 2) return;
 
-    // Build value maps for fast lookup
-    const valueMaps: Map<number, number>[] = layers.map((layer) => {
+    // Build value maps for fast lookup. Use effectiveValue so the last point
+    // of each layer smoothly chases updateLastPoint even in stacked mode —
+    // otherwise the stacked head would jump on every live tick.
+    const valueMaps: Map<number, number>[] = layers.map((layer, li) => {
       const m = new Map<number, number>();
-      for (const d of layer) m.set(d.time, d.value);
+      for (const d of layer) m.set(d.time, this.effectiveValue(li, d.time, d.value));
       return m;
     });
 
@@ -451,20 +626,21 @@ export class LineRenderer implements SeriesRenderer {
       }
     }
 
-    // Pulse dots for line series (runs on overlay, not main layer)
+    // Pulse dots for line series (runs on overlay, not main layer).
+    // Keep live-tracking in sync with the overlay pass — otherwise the pulse dot
+    // would lag the smoothed line head by a frame.
     if (this.hasPulse) {
+      const now = performance.now();
+      this.advanceLiveTracking(now);
       for (let li = 0; li < this.#stores.length; li++) {
         if (!this.#stores[li].isVisible()) continue;
-        const last = this.#stores[li].last();
-        if (!last) continue;
+        // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
+        // entrance so the dot glides from penultimate toward the new point in
+        // lockstep with the line's trailing segment.
+        const endpoint = this.trailingEndpoint(li, timeScale, yScale, now);
+        if (!endpoint) continue;
         const color = this.options.colors[li % this.options.colors.length];
-        this.drawPulse(
-          scope.context,
-          timeScale.timeToBitmapX(last.time),
-          yScale.valueToBitmapY(last.value),
-          color,
-          size.horizontalPixelRatio,
-        );
+        this.drawPulse(scope.context, endpoint.x, endpoint.y, color, size.horizontalPixelRatio);
       }
     }
   }

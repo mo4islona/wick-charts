@@ -5,6 +5,12 @@ import { normalizeTime } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
+/** Only fall back to a full `setSeriesData` replace when more than this many new
+ * candles appear in a single tick. Streamed bursts (OHLCStream emits up to ~8
+ * per 500ms) must stay under this so their appendData path still fires entrance
+ * animations; history loads (50/batch) deliberately exceed it. */
+const BULK_THRESHOLD = 20;
+
 export interface CandlestickSeriesProps {
   data: OHLCInput[];
   options?: Partial<CandlestickSeriesOptions>;
@@ -19,6 +25,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
   const seriesRef = useRef<string | null>(null);
   const prevLenRef = useRef(0);
   const prevFirstTimeRef = useRef<number | null>(null);
+  const prevLastTimeRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
     const id = chart.addCandlestickSeries({ ...options, id: idProp });
@@ -29,6 +36,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
       seriesRef.current = null;
       prevLenRef.current = 0;
       prevFirstTimeRef.current = null;
+      prevLastTimeRef.current = null;
     };
   }, [chart, idProp]);
 
@@ -41,26 +49,33 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
       chart.setSeriesData(id, []);
       prevLenRef.current = 0;
       prevFirstTimeRef.current = null;
+      prevLastTimeRef.current = null;
       return;
     }
 
     const prevLen = prevLenRef.current;
+    const prevFirst = prevFirstTimeRef.current;
+    const prevLast = prevLastTimeRef.current;
     const firstTime = normalizeTime(data[0].time);
-    // A capped rolling window (e.g. streaming with a maxPoints cap) shifts
-    // the whole array by one on each new bar: length stays the same but the
-    // first/last timestamps both move forward. Detect that and do a full
-    // replace instead of a single in-place update, otherwise the store ends
-    // up with stale bars in the middle and a single "future" bar at the tail.
-    const shifted = prevFirstTimeRef.current !== null && prevFirstTimeRef.current !== firstTime;
+    const lastTime = normalizeTime(data[data.length - 1].time);
+    const shifted = prevFirst !== null && prevFirst !== firstTime;
+    const added = data.length - prevLen;
+    const hasNewLast = prevLast !== null && prevLast !== lastTime;
 
-    if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5 || shifted) {
-      // First load, reset, batch, or rolling-window shift — full replace
+    // Rolling-window slide: same array length but first AND last timestamps
+    // advanced (old point dropped, new point appended). Must NOT fall through
+    // to a full `setSeriesData` — that would wipe the entrance-animation
+    // entries. Sync the stable prefix, then appendData the fresh tail so the
+    // renderer registers an entry for just the new point.
+    if (shifted && added === 0 && hasNewLast) {
+      chart.setSeriesData(id, data.slice(0, -1));
+      chart.appendData(id, data[data.length - 1]);
+    } else if (prevLen === 0 || data.length < prevLen || added > BULK_THRESHOLD || shifted) {
       chart.setSeriesData(id, data);
     } else if (data.length === prevLen) {
-      // Same length, same first timestamp — last candle updated in place
+      // Same length, same timestamps — last candle updated in place.
       chart.updateData(id, data[data.length - 1]);
     } else {
-      // Small append (1-5 new candles)
       for (let i = prevLen; i < data.length; i++) {
         chart.appendData(id, data[i]);
       }
@@ -68,6 +83,7 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
 
     prevLenRef.current = data.length;
     prevFirstTimeRef.current = firstTime;
+    prevLastTimeRef.current = lastTime;
   }, [chart, data]);
 
   useEffect(() => {
@@ -82,6 +98,9 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
     options?.wickDownColor,
     options?.bodyWidthRatio,
     options?.candleGradient,
+    options?.enterAnimation,
+    options?.enterDurationMs,
+    options?.liveSmoothRate,
   ]);
 
   return null;

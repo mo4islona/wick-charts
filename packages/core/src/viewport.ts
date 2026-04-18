@@ -45,7 +45,13 @@ const DEFAULT_PADDING: ResolvedPadding = {
 
 /**
  * Manages the visible time range and Y range of the chart.
- * Handles panning, zooming, auto-scroll, and animated transitions.
+ *
+ * User-initiated pan/zoom (mouse wheel, drag, touch) applies range updates
+ * instantly — smoothing on input events feels laggy in practice. The
+ * `animateTo` / `tick` path is reserved for API-driven transitions like
+ * `fitToData` and `scrollToEnd`, where a short cubic ease-out reads as
+ * intentional motion rather than sluggishness.
+ *
  * Emits a 'change' event whenever the visible range is updated.
  */
 export class Viewport extends EventEmitter<ViewportEvents> {
@@ -57,7 +63,8 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private _dataStart: number | null = null;
   private _dataEnd: number | null = null;
 
-  // Animation state — no own rAF, ticked by the render loop
+  // Animation state — no own rAF, ticked by the render loop. Used exclusively
+  // by API-driven transitions (fitToData, scrollToEnd).
   private _animating = false;
   private animStartTime = 0;
   private animDuration = 0;
@@ -84,6 +91,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       return pad.intervals * this.dataInterval;
     }
     if (chartWidth <= 0) return 0;
+
     return (pad / chartWidth) * range;
   }
 
@@ -217,6 +225,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       if (newFrom <= this._dataStart && newTo >= this._dataEnd) {
         this._autoScroll = true;
         this.applyRange(newFrom, newTo, true);
+
         return;
       }
     }

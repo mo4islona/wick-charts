@@ -1,5 +1,6 @@
 import type { ChartTheme } from '../theme/types';
 import type { PieSeriesOptions, PieSliceData } from '../types';
+import { smoothToward } from '../utils/math';
 import type { HoverInfo, SeriesRenderContext, SeriesRenderer, SliceInfo } from './types';
 
 const DEFAULT_OPTIONS: PieSeriesOptions = {
@@ -25,17 +26,6 @@ function lightenColor(hex: string, amount: number): string {
   const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + Math.round(255 * amount));
   const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + Math.round(255 * amount));
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
-/**
- * Frame-rate independent exponential smoothing toward `target`.
- * `rate` is the exponential decay rate in 1/s (higher = converges faster).
- * Internally computes `decay = exp(-rate * dt)`, the fraction of the gap that
- * remains after `dt` seconds.
- */
-function smoothToward(current: number, target: number, rate: number, dt: number): number {
-  const decay = Math.exp(-rate * dt);
-  return target + (current - target) * decay;
 }
 
 export class PieRenderer implements SeriesRenderer {
