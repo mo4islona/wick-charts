@@ -7,17 +7,16 @@ import { useChartInstance } from './context';
 const props = defineProps<{
   data: PieSliceData[];
   options?: Partial<PieSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
 }>();
-
-const emit = defineEmits<{ seriesId: [id: string] }>();
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addPieSeries(props.options);
+  const id = chart.addPieSeries({ ...props.options, id: props.id });
   seriesId.value = id;
-  emit('seriesId', id);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   if (props.data.length > 0) {
     chart.setSeriesData(id, props.data);

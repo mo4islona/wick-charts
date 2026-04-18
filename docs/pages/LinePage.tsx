@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import {
   type BarStacking,
   ChartContainer,
@@ -77,14 +75,14 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
     strategy: strategyFor(props.dataMode),
   });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'line';
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <Title sub={props.areaFill ? 'area' : 'line'}>Single</Title>
-      {sid && props.showTooltipLegend && <TooltipLegend seriesId={sid} sort={props.tooltipSort} />}
+      {props.showTooltipLegend && <TooltipLegend seriesId={sid} sort={props.tooltipSort} />}
       <LineSeries
+        id={sid}
         data={data}
-        onSeriesId={setSid}
         options={{
           areaFill: props.areaFill,
           lineWidth: props.lineWidth,
@@ -94,7 +92,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
           liveSmoothRate: props.liveTracking ? undefined : 0,
         }}
       />
-      {sid && <Tooltip seriesId={sid} sort={props.tooltipSort} />}
+      <Tooltip seriesId={sid} sort={props.tooltipSort} />
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}

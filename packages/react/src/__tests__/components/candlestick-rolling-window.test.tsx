@@ -32,10 +32,10 @@ describe('CandlestickSeries rolling-window updates', () => {
   it('full-replaces when the array shifts (rolling window, constant length)', () => {
     const T0 = 1_000_000;
     const initial = makeBars(T0, 10);
-    let seriesId = '';
+    const seriesId = 'candle';
     const mounted = mountChart(
       <>
-        <CandlestickSeries data={initial} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={initial} />
         <YAxis />
         <TimeAxis />
       </>,
@@ -58,7 +58,7 @@ describe('CandlestickSeries rolling-window updates', () => {
 
     mounted.rerender(
       <>
-        <CandlestickSeries data={shifted} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={shifted} />
         <YAxis />
         <TimeAxis />
       </>,
@@ -84,10 +84,10 @@ describe('CandlestickSeries rolling-window updates', () => {
   it('updates in place when length and first timestamp are unchanged', () => {
     const T0 = 2_000_000;
     const initial = makeBars(T0, 6);
-    let seriesId = '';
+    const seriesId = 'candle';
     const mounted = mountChart(
       <>
-        <CandlestickSeries data={initial} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={initial} />
         <YAxis />
         <TimeAxis />
       </>,
@@ -103,7 +103,7 @@ describe('CandlestickSeries rolling-window updates', () => {
     const updated = [...initial.slice(0, -1), { ...originalLast, close: originalLast.close + 42 }];
     mounted.rerender(
       <>
-        <CandlestickSeries data={updated} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={updated} />
         <YAxis />
         <TimeAxis />
       </>,
@@ -120,10 +120,10 @@ describe('CandlestickSeries rolling-window updates', () => {
   it('appends when a new bar is added without dropping any', () => {
     const T0 = 3_000_000;
     const initial = makeBars(T0, 8);
-    let seriesId = '';
+    const seriesId = 'candle';
     const mounted = mountChart(
       <>
-        <CandlestickSeries data={initial} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={initial} />
         <YAxis />
         <TimeAxis />
       </>,
@@ -134,7 +134,7 @@ describe('CandlestickSeries rolling-window updates', () => {
     const extended = [...initial, { time: T0 + 8 * INTERVAL, open: 300, high: 301, low: 299, close: 300, volume: 10 }];
     mounted.rerender(
       <>
-        <CandlestickSeries data={extended} onSeriesId={(id) => (seriesId = id)} />
+        <CandlestickSeries id={seriesId} data={extended} />
         <YAxis />
         <TimeAxis />
       </>,

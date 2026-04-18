@@ -61,14 +61,14 @@ import {
   YAxis, TimeAxis, YLabel, darkTheme
 } from '@wick-charts/react';
 import type { OHLCData } from '@wick-charts/react';
-import { useState } from 'react';
+
+const seriesId = 'btc-ohlc';
 
 function CandlestickChart({ data }: { data: OHLCData[] }) {
-  const [seriesId, setSeriesId] = useState('');
-
   return (
     <ChartContainer theme={darkTheme} style={{ width: '100%', height: 400 }}>
       <CandlestickSeries
+        id={seriesId}
         data={data}
         options={{
           upColor: '#26a69a',
@@ -76,13 +76,12 @@ function CandlestickChart({ data }: { data: OHLCData[] }) {
           bodyWidthRatio: 0.6,
           candleGradient: true,
         }}
-        onSeriesId={setSeriesId}
       />
       <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />
-      {seriesId && <YLabel seriesId={seriesId} />}
+      <YLabel seriesId={seriesId} />
     </ChartContainer>
   );
 }
@@ -94,7 +93,8 @@ function CandlestickChart({ data }: { data: OHLCData[] }) {
 interface CandlestickSeriesProps {
   data: OHLCData[];
   options?: Partial<CandlestickSeriesOptions>;
-  onSeriesId?: (id: string) => void;
+  /** Stable series ID — reuse across overlays that target this series. */
+  id?: string;
 }
 ```
 
@@ -123,37 +123,34 @@ import {
   YAxis, TimeAxis, YLabel, darkTheme
 } from '@wick-charts/vue';
 import type { OHLCData } from '@wick-charts/vue';
-import { ref } from 'vue';
 
 const props = defineProps<{ data: OHLCData[] }>();
-const seriesId = ref('');
+const seriesId = 'btc-ohlc';
 </script>
 
 <template>
   <ChartContainer :theme="darkTheme" style="width: 100%; height: 400px">
     <CandlestickSeries
+      :id="seriesId"
       :data="props.data"
       :options="{ upColor: '#26a69a', downColor: '#ef5350', candleGradient: true }"
-      @series-id="seriesId = $event"
     />
     <Tooltip />
     <Crosshair />
     <YAxis />
     <TimeAxis />
-    <YLabel v-if="seriesId" :series-id="seriesId" />
+    <YLabel :series-id="seriesId" />
   </ChartContainer>
 </template>
 ```
 
-### Props & Events
+### Props
 
 ```ts
-// Props
 data: OHLCData[]
 options?: Partial<CandlestickSeriesOptions>
-
-// Emits
-@series-id(id: string)
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ### Real-time updates
@@ -181,22 +178,20 @@ function onNewCandle(candle: OHLCData) {
   } from '@wick-charts/svelte';
 
   export let data = [];
-  let seriesId = '';
+  const seriesId = 'btc-ohlc';
 </script>
 
 <ChartContainer theme={darkTheme} style="width:100%;height:400px">
   <CandlestickSeries
+    id={seriesId}
     {data}
     options={{ upColor: '#26a69a', downColor: '#ef5350', candleGradient: true }}
-    onSeriesId={(id) => seriesId = id}
   />
   <Tooltip />
   <Crosshair />
   <YAxis />
   <TimeAxis />
-  {#if seriesId}
-    <YLabel {seriesId} />
-  {/if}
+  <YLabel {seriesId} />
 </ChartContainer>
 ```
 
@@ -205,7 +200,8 @@ function onNewCandle(candle: OHLCData) {
 ```ts
 data: OHLCData[]
 options?: Partial<CandlestickSeriesOptions>
-onSeriesId?: (id: string) => void
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ### Real-time updates
@@ -238,8 +234,10 @@ Candlestick charts commonly use this overlay combination:
 ## Overlay with indicators
 
 ```tsx
+const id = 'btc-ohlc';
+
 <ChartContainer theme={darkTheme}>
-  <CandlestickSeries data={ohlcData} onSeriesId={setId} />
+  <CandlestickSeries id={id} data={ohlcData} />
   <LineSeries
     data={[sma20]}
     options={{ colors: ['#ffd700'], lineWidth: 1, areaFill: false, pulse: false }}
@@ -254,6 +252,6 @@ Candlestick charts commonly use this overlay combination:
   <Crosshair />
   <YAxis />
   <TimeAxis />
-  {id && <YLabel seriesId={id} />}
+  <YLabel seriesId={id} />
 </ChartContainer>
 ```

@@ -80,19 +80,15 @@ options={{ strokeColor: '#ffffff', strokeWidth: 2 }}
 ```tsx
 import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/react';
 import type { PieSliceData } from '@wick-charts/react';
-import { useState } from 'react';
+
+const seriesId = 'pie';
 
 function PieChart({ data }: { data: PieSliceData[] }) {
-  const [seriesId, setSeriesId] = useState('');
-
   return (
     <ChartContainer style={{ width: 400, height: 400 }}>
-      <PieSeries
-        data={data}
-        onSeriesId={setSeriesId}
-      />
-      {seriesId && <PieTooltip seriesId={seriesId} />}
-      {seriesId && <PieLegend seriesId={seriesId} format="percent" />}
+      <PieSeries id={seriesId} data={data} />
+      <PieTooltip seriesId={seriesId} />
+      <PieLegend seriesId={seriesId} format="percent" />
     </ChartContainer>
   );
 }
@@ -102,9 +98,9 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 
 ```tsx
 <PieSeries
+  id={seriesId}
   data={data}
   options={{ innerRadiusRatio: 0.6 }}
-  onSeriesId={setSeriesId}
 />
 ```
 
@@ -112,6 +108,7 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 
 ```tsx
 <PieSeries
+  id={seriesId}
   data={data}
   options={{
     innerRadiusRatio: 0.6,
@@ -120,7 +117,6 @@ function PieChart({ data }: { data: PieSliceData[] }) {
     strokeWidth: 2,
     colors: ['#e94560', '#0f3460', '#16213e', '#533483'],
   }}
-  onSeriesId={setSeriesId}
 />
 ```
 
@@ -130,7 +126,8 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 interface PieSeriesProps {
   data: PieSliceData[];
   options?: Partial<PieSeriesOptions>;
-  onSeriesId?: (id: string) => void;
+  /** Stable series ID — reuse across overlays that target this series. */
+  id?: string;
 }
 ```
 
@@ -142,9 +139,8 @@ interface PieSeriesProps {
 <script setup lang="ts">
 import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/vue';
 import type { PieSliceData } from '@wick-charts/vue';
-import { ref } from 'vue';
 
-const seriesId = ref('');
+const seriesId = 'pie';
 const data: PieSliceData[] = [
   { label: 'Sales', value: 4000 },
   { label: 'Marketing', value: 3000 },
@@ -155,25 +151,23 @@ const data: PieSliceData[] = [
 <template>
   <ChartContainer style="width: 400px; height: 400px">
     <PieSeries
+      :id="seriesId"
       :data="data"
       :options="{ innerRadiusRatio: 0.6 }"
-      @series-id="seriesId = $event"
     />
-    <PieTooltip v-if="seriesId" :series-id="seriesId" />
-    <PieLegend v-if="seriesId" :series-id="seriesId" format="value" />
+    <PieTooltip :series-id="seriesId" />
+    <PieLegend :series-id="seriesId" format="value" />
   </ChartContainer>
 </template>
 ```
 
-### Props & Events
+### Props
 
 ```ts
-// Props
 data: PieSliceData[]
 options?: Partial<PieSeriesOptions>
-
-// Emits
-@series-id(id: string)
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Svelte
@@ -184,7 +178,7 @@ options?: Partial<PieSeriesOptions>
 <script>
   import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/svelte';
 
-  let seriesId = '';
+  const seriesId = 'pie';
   const data = [
     { label: 'Sales', value: 4000 },
     { label: 'Marketing', value: 3000 },
@@ -194,14 +188,12 @@ options?: Partial<PieSeriesOptions>
 
 <ChartContainer style="width:400px;height:400px">
   <PieSeries
+    id={seriesId}
     {data}
     options={{ innerRadiusRatio: 0.6 }}
-    onSeriesId={(id) => seriesId = id}
   />
-  {#if seriesId}
-    <PieTooltip {seriesId} />
-    <PieLegend {seriesId} format="value" />
-  {/if}
+  <PieTooltip {seriesId} />
+  <PieLegend {seriesId} format="value" />
 </ChartContainer>
 ```
 
@@ -210,7 +202,8 @@ options?: Partial<PieSeriesOptions>
 ```ts
 data: PieSliceData[]
 options?: Partial<PieSeriesOptions>
-onSeriesId?: (id: string) => void
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Pie-specific overlays
@@ -254,8 +247,8 @@ The chart renders on canvas, so center content must be positioned via CSS:
 ```tsx
 <div style={{ position: 'relative', width: 400, height: 400 }}>
   <ChartContainer style={{ width: '100%', height: '100%' }}>
-    <PieSeries data={data} options={{ innerRadiusRatio: 0.65 }} onSeriesId={setId} />
-    {id && <PieTooltip seriesId={id} />}
+    <PieSeries id={seriesId} data={data} options={{ innerRadiusRatio: 0.65 }} />
+    <PieTooltip seriesId={seriesId} />
   </ChartContainer>
   <div style={{
     position: 'absolute', top: '50%', left: '50%',

@@ -107,17 +107,21 @@ React/Vue return plain values / refs; Svelte returns `Readable<T>` — read with
 
 ## Multi-series overlay
 
+Pass a stable `id` prop to the series and reuse it across overlays that target it (`TooltipLegend`, `Tooltip`, `YLabel`, `PieTooltip`, `PieLegend`).
+
 ```tsx
+const candleId = 'btc-ohlc';
+
 <ChartContainer theme={darkTheme}>
   <Title sub="BTC · 1h">BTC/USD</Title>
   <TooltipLegend seriesId={candleId} />
-  <CandlestickSeries data={ohlc} onSeriesId={setCandleId} />
+  <CandlestickSeries id={candleId} data={ohlc} />
   <LineSeries data={[sma]} options={{ colors: ['#ffd700'], lineWidth: 1 }} label="SMA 20" />
   <Tooltip />
   <Crosshair />
   <YAxis />
   <TimeAxis />
-  {candleId && <YLabel seriesId={candleId} />}
+  <YLabel seriesId={candleId} />
 </ChartContainer>
 ```
 

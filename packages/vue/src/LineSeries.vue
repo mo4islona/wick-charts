@@ -8,17 +8,21 @@ const props = defineProps<{
   data: TimePoint[][];
   options?: Partial<LineSeriesOptions>;
   label?: string;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
 }>();
-
-const emit = defineEmits<{ seriesId: [id: string] }>();
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addLineSeries({ ...props.options, label: props.label ?? props.options?.label, layers: props.data.length });
+  const id = chart.addLineSeries({
+    ...props.options,
+    label: props.label ?? props.options?.label,
+    layers: props.data.length,
+    id: props.id,
+  });
   seriesId.value = id;
-  emit('seriesId', id);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   chart.batch(() => {
     for (let i = 0; i < props.data.length; i++) {

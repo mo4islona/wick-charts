@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import {
   CandlestickSeries,
   ChartContainer,
@@ -54,14 +52,14 @@ function CandleChart({
   // for entrance animations to feel continuous, like the dashboard.
   const { data: d } = useOHLCStream(data, { startDelay, interval: DEMO_INTERVAL, speed: 5 });
   const display = streaming ? d : data;
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'candle';
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
       <Title sub={sub}>{title}</Title>
-      {sid && showTooltipLegend && <TooltipLegend seriesId={sid} />}
+      {showTooltipLegend && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries
+        id={sid}
         data={display}
-        onSeriesId={setSid}
         options={{
           candleGradient,
           enterAnimation: candleEnterAnimation,
@@ -69,8 +67,8 @@ function CandleChart({
           liveSmoothRate: liveTracking ? undefined : 0,
         }}
       />
-      {sid && showYLabel && <YLabel seriesId={sid} />}
-      {sid && showTooltip && <Tooltip seriesId={sid} />}
+      {showYLabel && <YLabel seriesId={sid} />}
+      {showTooltip && <Tooltip seriesId={sid} />}
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
@@ -141,7 +139,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       codeConfig={(s) => ({
         theme: 'darkTheme',
         components: [
-          { component: 'CandlestickSeries', props: { data: 'ohlcData' } },
+          { component: 'CandlestickSeries', props: { id: 'sid', data: 'ohlcData' } },
           ...(s.showTooltipLegend ? [{ component: 'TooltipLegend', props: { seriesId: 'sid' } }] : []),
           ...(s.showYLabel ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
           ...(s.showTooltip ? [{ component: 'Tooltip', props: { seriesId: 'sid' } }] : []),

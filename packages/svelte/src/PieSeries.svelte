@@ -7,7 +7,8 @@ import { getChartContext } from './context';
 
 export let data: PieSliceData[] = [];
 export let options: Partial<PieSeriesOptions> | undefined = undefined;
-export let onSeriesId: ((id: string) => void) | undefined = undefined;
+/** Stable series ID — same value across remounts. */
+export let id: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
@@ -15,8 +16,7 @@ let seriesId: string | null = null;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addPieSeries(options);
-  onSeriesId?.(seriesId);
+  seriesId = chart.addPieSeries({ ...options, id });
 });
 
 onDestroy(() => {

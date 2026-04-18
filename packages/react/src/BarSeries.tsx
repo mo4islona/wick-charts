@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { type BarSeriesOptions, normalizeTime, type TimePoint } from '@wick-charts/core';
+import { type BarSeriesOptions, type TimePoint, normalizeTime } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
@@ -10,10 +10,8 @@ export interface BarSeriesProps {
   options?: Partial<BarSeriesOptions>;
   /** Display label shown in the tooltip. */
   label?: string;
-  /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
+  /** Stable series ID — same value across remounts. */
   id?: string;
-  /** @deprecated Use the `id` prop instead. */
-  onSeriesId?: (id: string) => void;
 }
 
 /** Only fall back to a full `setSeriesData` replace when more than this many new
@@ -21,7 +19,7 @@ export interface BarSeriesProps {
  * like bulk loads and the renderer would clear its entrance-animation entries. */
 const BULK_THRESHOLD = 20;
 
-export function BarSeries({ data, options, label, id: idProp, onSeriesId }: BarSeriesProps) {
+export function BarSeries({ data, options, label, id: idProp }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLensRef = useRef<number[]>([]);
@@ -31,7 +29,6 @@ export function BarSeries({ data, options, label, id: idProp, onSeriesId }: BarS
   useLayoutEffect(() => {
     const id = chart.addBarSeries({ ...options, label: label ?? options?.label, layers: data.length, id: idProp });
     seriesRef.current = id;
-    onSeriesId?.(id);
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);
     prevLastTimesRef.current = new Array(data.length).fill(null);

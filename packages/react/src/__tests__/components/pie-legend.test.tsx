@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import { PieLegend, PieSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -19,12 +17,13 @@ describe('PieLegend', () => {
     { label: 'C', value: 50 },
   ];
 
+  const id = 'pie';
+
   function PieWithLegend(props: { format?: 'value' | 'percent' }) {
-    const [id, setId] = useState<string | null>(null);
     return (
       <>
-        <PieSeries data={slices} onSeriesId={setId} />
-        {id && <PieLegend seriesId={id} format={props.format} />}
+        <PieSeries id={id} data={slices} />
+        <PieLegend seriesId={id} format={props.format} />
       </>
     );
   }

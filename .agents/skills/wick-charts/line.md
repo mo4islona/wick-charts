@@ -139,7 +139,8 @@ interface LineSeriesProps {
   data: TimePoint[][];                       // array of layers
   options?: Partial<LineSeriesOptions>;
   label?: string;
-  onSeriesId?: (id: string) => void;
+  /** Stable series ID — reuse across overlays that target this series. */
+  id?: string;
 }
 ```
 
@@ -197,9 +198,8 @@ const props = defineProps<{ data: TimePoint[] }>();
 data: TimePoint[][]
 options?: Partial<LineSeriesOptions>
 label?: string
-
-// Emits
-@series-id(id: string)
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Svelte
@@ -249,7 +249,8 @@ label?: string
 data: TimePoint[][]
 options?: Partial<LineSeriesOptions>
 label?: string
-onSeriesId?: (id: string) => void
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Typical overlay combinations
