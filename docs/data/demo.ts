@@ -4,13 +4,20 @@
  */
 import type { LineData } from '@wick-charts/react';
 
-import { generateBandLine, generateBarData, generateLineData, generateOHLCData, generateWaveData } from '../data';
+import {
+  DEMO_INTERVAL,
+  generateBandLine,
+  generateBarData,
+  generateLineData,
+  generateOHLCData,
+  generateWaveData,
+} from '../data';
 
-// ── Intervals (milliseconds) ────────────────────────────────
-/** Fast interval for demos — new points appear every 5 seconds */
-export const DEMO_INTERVAL = 5_000;
-/** Standard 1-minute interval */
-export const STANDARD_INTERVAL = 60_000;
+// ── Interval (milliseconds) ─────────────────────────────────
+/** Canonical bar interval, re-exported from `../data` so pages and hooks can
+ *  import it from a stable `data/demo` path. The actual constant lives in
+ *  `data.ts` to avoid a circular dependency (generators need it too). */
+export { DEMO_INTERVAL };
 
 // ── OHLC ─────────────────────────────────────────────────────
 export const ohlcBTC = generateOHLCData(300, 42000, DEMO_INTERVAL);

@@ -19,6 +19,7 @@ import { Cell } from '../components/Cell';
 import { Section, Switch, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { generateBarData, generateLayerData } from '../data';
+import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
 
 type BarWidth = 'thin' | 'normal' | 'wide';
@@ -31,11 +32,18 @@ interface BarSettings {
   showTooltipLegend: boolean;
 }
 
-const singleData = generateBarData(80, 240);
-const layers = Array.from({ length: LAYER_COUNT }, (_, i) => generateLayerData(80, [60, 40, 25, 15][i], 240));
+const singleData = generateBarData(80, DEMO_INTERVAL);
+const layers = Array.from({ length: LAYER_COUNT }, (_, i) => generateLayerData(80, [60, 40, 25, 15][i], DEMO_INTERVAL));
 
 function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
-  const { datasets } = useLineStreams([singleData], { delay: 300, interval: 240, kind: 'bar' });
+  // speed=5 matches the other playground pages (see CandlestickPage) so new
+  // bars append about once per second and the entry animations stay visible.
+  const { datasets } = useLineStreams([singleData], {
+    startDelay: 300,
+    interval: DEMO_INTERVAL,
+    speed: 5,
+    kind: 'bar',
+  });
   const display = props.streaming ? datasets[0] : singleData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
@@ -61,7 +69,12 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
 }
 
 function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: string }) {
-  const { datasets } = useLineStreams(layers, { delay: 500, interval: 240, kind: 'layer' });
+  const { datasets } = useLineStreams(layers, {
+    startDelay: 500,
+    interval: DEMO_INTERVAL,
+    speed: 5,
+    kind: 'layer',
+  });
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
     if (props.stacking === 'off') return { ...props.axis, y: { min: 0, ...props.axis?.y } };
