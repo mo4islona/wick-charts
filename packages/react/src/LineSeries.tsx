@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { type LineSeriesOptions, normalizeTime, type TimePoint } from '@wick-charts/core';
+import { type LineSeriesOptions, type TimePoint, normalizeTime } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
@@ -9,10 +9,8 @@ export interface LineSeriesProps {
   data: TimePoint[][];
   options?: Partial<LineSeriesOptions>;
   label?: string;
-  /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
+  /** Stable series ID — same value across remounts. */
   id?: string;
-  /** @deprecated Use the `id` prop instead. */
-  onSeriesId?: (id: string) => void;
 }
 
 /** Only fall back to a full `setSeriesData` replace when more than this many new
@@ -20,7 +18,7 @@ export interface LineSeriesProps {
  * like bulk loads and the renderer would clear its entrance-animation entries. */
 const BULK_THRESHOLD = 20;
 
-export function LineSeries({ data, options, label, id: idProp, onSeriesId }: LineSeriesProps) {
+export function LineSeries({ data, options, label, id: idProp }: LineSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLensRef = useRef<number[]>([]);
@@ -30,7 +28,6 @@ export function LineSeries({ data, options, label, id: idProp, onSeriesId }: Lin
   useLayoutEffect(() => {
     const id = chart.addLineSeries({ ...options, label: label ?? options?.label, layers: data.length, id: idProp });
     seriesRef.current = id;
-    onSeriesId?.(id);
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);
     prevLastTimesRef.current = new Array(data.length).fill(null);

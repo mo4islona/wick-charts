@@ -54,14 +54,14 @@ interface StreamProps {
 
 function CandleChart({ theme, speed }: StreamProps) {
   const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'candle';
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Candlestick">BTC/USD</Title>
-      {sid && <TooltipLegend seriesId={sid} />}
-      <CandlestickSeries data={data} onSeriesId={setSid} />
-      {sid && <YLabel seriesId={sid} />}
-      {sid && <Tooltip seriesId={sid} />}
+      <TooltipLegend seriesId={sid} />
+      <CandlestickSeries id={sid} data={data} />
+      <YLabel seriesId={sid} />
+      <Tooltip seriesId={sid} />
       <Crosshair />
       <YAxis />
       <TimeAxis />

@@ -7,18 +7,17 @@ import { useChartInstance } from './context';
 const props = defineProps<{
   data: OHLCInput[];
   options?: Partial<CandlestickSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
 }>();
-
-const emit = defineEmits<{ seriesId: [id: string] }>();
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 let prevLen = 0;
 
 onMounted(() => {
-  const id = chart.addCandlestickSeries(props.options);
+  const id = chart.addCandlestickSeries({ ...props.options, id: props.id });
   seriesId.value = id;
-  emit('seriesId', id);
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply
   // the first value here so components with static data render immediately.

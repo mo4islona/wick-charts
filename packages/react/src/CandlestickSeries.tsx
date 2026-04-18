@@ -14,13 +14,11 @@ const BULK_THRESHOLD = 20;
 export interface CandlestickSeriesProps {
   data: OHLCInput[];
   options?: Partial<CandlestickSeriesOptions>;
-  /** Stable series ID. Prefer this over `onSeriesId` — same value across remounts. */
+  /** Stable series ID — same value across remounts. */
   id?: string;
-  /** @deprecated Use the `id` prop instead. */
-  onSeriesId?: (id: string) => void;
 }
 
-export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: CandlestickSeriesProps) {
+export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLenRef = useRef(0);
@@ -30,7 +28,6 @@ export function CandlestickSeries({ data, options, id: idProp, onSeriesId }: Can
   useLayoutEffect(() => {
     const id = chart.addCandlestickSeries({ ...options, id: idProp });
     seriesRef.current = id;
-    onSeriesId?.(id);
     return () => {
       chart.removeSeries(id);
       seriesRef.current = null;

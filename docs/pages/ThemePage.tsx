@@ -100,13 +100,13 @@ function SectionLabel({ children, theme }: { children: React.ReactNode; theme: C
 // ── Charts ────────────────────────────────────────────────────
 
 function CandlestickPreview({ theme }: { theme: ChartTheme }) {
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'candle-preview';
   return (
     <ChartContainer theme={theme}>
       <Title sub="custom theme">Candlestick</Title>
-      {sid && <TooltipLegend seriesId={sid} />}
-      <CandlestickSeries data={ohlcData} onSeriesId={setSid} />
-      {sid && <Tooltip seriesId={sid} />}
+      <TooltipLegend seriesId={sid} />
+      <CandlestickSeries id={sid} data={ohlcData} />
+      <Tooltip seriesId={sid} />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -116,12 +116,13 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
 
 function LinePreview({ theme }: { theme: ChartTheme }) {
   const allData = [lineData1, lineData2, lineData3];
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'line-preview';
   return (
     <ChartContainer theme={theme}>
       <Title sub="3 series">Line</Title>
-      {sid && <TooltipLegend seriesId={sid} />}
+      <TooltipLegend seriesId={sid} />
       <LineSeries
+        id={sid}
         data={allData}
         options={{
           colors: theme.seriesColors.slice(0, allData.length),
@@ -129,9 +130,8 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
           lineWidth: 1,
           pulse: true,
         }}
-        onSeriesId={setSid}
       />
-      {sid && <Tooltip seriesId={sid} />}
+      <Tooltip seriesId={sid} />
       <Crosshair />
       <YAxis />
       <TimeAxis />

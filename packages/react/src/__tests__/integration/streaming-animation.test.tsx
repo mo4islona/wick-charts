@@ -7,8 +7,9 @@
  * so animations never fired in the live demos. These tests hold the diff path
  * to the contract we expect downstream.
  */
-import { CandlestickSeries, LineSeries } from '@wick-charts/react';
+
 import type { OHLCData, TimePoint } from '@wick-charts/core';
+import { CandlestickSeries, LineSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -23,15 +24,14 @@ describe('streaming data routes new points through appendData (entrance animatio
   /** Reach into the candlestick renderer's private entrance map for assertions. */
   function candleEntries(chart: ReturnType<typeof mountChart>['chart'], id: string): Map<number, unknown> {
     const series = (
-      chart as unknown as { listSeriesForTest: () => Array<{ id: string; renderer: { entries: Map<number, unknown> } }> }
+      chart as unknown as {
+        listSeriesForTest: () => Array<{ id: string; renderer: { entries: Map<number, unknown> } }>;
+      }
     ).listSeriesForTest();
     return series.find((s) => s.id === id)!.renderer.entries;
   }
 
-  function lineEntriesOfLayer0(
-    chart: ReturnType<typeof mountChart>['chart'],
-    id: string,
-  ): Map<number, unknown> {
+  function lineEntriesOfLayer0(chart: ReturnType<typeof mountChart>['chart'], id: string): Map<number, unknown> {
     const series = (
       chart as unknown as {
         listSeriesForTest: () => Array<{
@@ -51,13 +51,12 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(<CandlestickSeries data={initial} onSeriesId={(id) => { sid = id; }} />, {
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, {
       width: 800,
       height: 400,
     });
     mounted.flushScheduler();
-    expect(sid).not.toBeNull();
 
     // Streaming tick: one new candle appended. Assert BEFORE flushing so the
     // entry is caught before RAF advances progress to 1 and prunes it.
@@ -65,8 +64,8 @@ describe('streaming data routes new points through appendData (entrance animatio
       ...initial,
       { time: 1_000_000 + 10 * 60_000, open: 101, high: 106, low: 100, close: 105 },
     ];
-    mounted.rerender(<CandlestickSeries data={next} onSeriesId={(id) => { sid = id; }} />);
-    expect(candleEntries(mounted.chart, sid!).size).toBeGreaterThan(0);
+    mounted.rerender(<CandlestickSeries id={sid} data={next} />);
+    expect(candleEntries(mounted.chart, sid).size).toBeGreaterThan(0);
   });
 
   it('candlestick: 10 new candles in one tick still go through appendData (under the bulk threshold)', () => {
@@ -77,8 +76,8 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(<CandlestickSeries data={initial} onSeriesId={(id) => { sid = id; }} />, {
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, {
       width: 800,
       height: 400,
     });
@@ -89,11 +88,11 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 10; i < 20; i++) {
       next.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(<CandlestickSeries data={next} onSeriesId={(id) => { sid = id; }} />);
+    mounted.rerender(<CandlestickSeries id={sid} data={next} />);
 
     // Synchronous assertion: entries were registered for each of the 10 new
     // candle times, before the first RAF tick could consume them.
-    const entries = candleEntries(mounted.chart, sid!);
+    const entries = candleEntries(mounted.chart, sid);
     expect(entries.size).toBe(10);
   });
 
@@ -105,8 +104,8 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(<CandlestickSeries data={initial} onSeriesId={(id) => { sid = id; }} />, {
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, {
       width: 800,
       height: 400,
     });
@@ -117,10 +116,10 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 5; i < 55; i++) {
       next.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(<CandlestickSeries data={next} onSeriesId={(id) => { sid = id; }} />);
+    mounted.rerender(<CandlestickSeries id={sid} data={next} />);
 
     // Bulk path clears entries — no entrance animations.
-    const entries = candleEntries(mounted.chart, sid!);
+    const entries = candleEntries(mounted.chart, sid);
     expect(entries.size).toBe(0);
   });
 
@@ -132,17 +131,11 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(
-      <CandlestickSeries
-        data={initial}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-        options={{ candleGradient: false }}
-      />,
-      { width: 800, height: 400 },
-    );
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ candleGradient: false }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -150,25 +143,14 @@ describe('streaming data routes new points through appendData (entrance animatio
       ...initial,
       { time: 1_000_000 + 10 * 60_000, open: 101, high: 106, low: 100, close: 105 },
     ];
-    mounted.rerender(
-      <CandlestickSeries
-        data={next}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-        options={{ candleGradient: false }}
-      />,
-    );
+    mounted.rerender(<CandlestickSeries id={sid} data={next} options={{ candleGradient: false }} />);
     // rerender + useLayoutEffect schedule RAF work; flushScheduler then drains
     // every queued animation frame to completion. Assert against the full
     // history — if ANY frame during the entrance window recorded a sub-1
     // globalAlpha, the entrance fired end-to-end.
     mounted.flushScheduler();
 
-    expect(sid).not.toBeNull();
-    expect(
-      mounted.mainSpy.calls.some((c) => c.method === 'fillRect' && c.globalAlpha < 1),
-    ).toBe(true);
+    expect(mounted.mainSpy.calls.some((c) => c.method === 'fillRect' && c.globalAlpha < 1)).toBe(true);
   });
 
   it('candlestick: docs-style stream (8-candle burst) paints faded candles on the main canvas', () => {
@@ -185,17 +167,11 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(
-      <CandlestickSeries
-        data={initial}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-        options={{ candleGradient: false }}
-      />,
-      { width: 800, height: 400 },
-    );
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ candleGradient: false }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -205,15 +181,7 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 50; i < 58; i++) {
       burst.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(
-      <CandlestickSeries
-        data={burst}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-        options={{ candleGradient: false }}
-      />,
-    );
+    mounted.rerender(<CandlestickSeries id={sid} data={burst} options={{ candleGradient: false }} />);
 
     // Before any RAF drains: entries must be populated for all 8 new candles.
     const series = (
@@ -221,14 +189,12 @@ describe('streaming data routes new points through appendData (entrance animatio
         listSeriesForTest: () => Array<{ id: string; renderer: { entries: Map<number, unknown> } }>;
       }
     ).listSeriesForTest();
-    expect(series.find((s) => s.id === sid!)!.renderer.entries.size).toBe(8);
+    expect(series.find((s) => s.id === sid)!.renderer.entries.size).toBe(8);
 
     // Now let the scheduler render at least one frame — the main canvas must
     // show at least one fillRect with globalAlpha < 1 for an entering candle.
     mounted.flushScheduler();
-    const fadedFills = mounted.mainSpy.calls.filter(
-      (c) => c.method === 'fillRect' && c.globalAlpha < 1,
-    );
+    const fadedFills = mounted.mainSpy.calls.filter((c) => c.method === 'fillRect' && c.globalAlpha < 1);
     expect(fadedFills.length).toBeGreaterThan(0);
   });
 
@@ -236,13 +202,11 @@ describe('streaming data routes new points through appendData (entrance animatio
     const initial: TimePoint[][] = [
       Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * 60_000, value: i + 1 })),
     ];
-    let sid: string | null = null;
+    const sid = 'line';
     mounted = mountChart(
       <LineSeries
+        id={sid}
         data={initial}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
         options={{ areaFill: false, appendAnimation: 'grow', appendDurationMs: 400 }}
       />,
       { width: 800, height: 400 },
@@ -252,13 +216,7 @@ describe('streaming data routes new points through appendData (entrance animatio
 
     const next: TimePoint[][] = [[...initial[0], { time: 1_000_000 + 20 * 60_000, value: 25 }]];
     mounted.rerender(
-      <LineSeries
-        data={next}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-        options={{ areaFill: false, appendAnimation: 'grow', appendDurationMs: 400 }}
-      />,
+      <LineSeries id={sid} data={next} options={{ areaFill: false, appendAnimation: 'grow', appendDurationMs: 400 }} />,
     );
 
     // Entry should be registered immediately.
@@ -270,7 +228,7 @@ describe('streaming data routes new points through appendData (entrance animatio
         }>;
       }
     ).listSeriesForTest();
-    expect(lineSeries.find((s) => s.id === sid!)!.renderer.entries[0].size).toBe(1);
+    expect(lineSeries.find((s) => s.id === sid)!.renderer.entries[0].size).toBe(1);
 
     // The render pass must emit a `lineTo` at a trailing X < new point's X.
     mounted.flushScheduler();
@@ -292,16 +250,8 @@ describe('streaming data routes new points through appendData (entrance animatio
       low: 95,
       close: 101,
     }));
-    let sid: string | null = null;
-    mounted = mountChart(
-      <CandlestickSeries
-        data={initial}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-      />,
-      { width: 800, height: 400 },
-    );
+    const sid = 'candle';
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, { width: 800, height: 400 });
     mounted.flushScheduler();
 
     // Simulate capArray rolling-window: drop oldest, append new.
@@ -312,14 +262,7 @@ describe('streaming data routes new points through appendData (entrance animatio
     expect(rolled.length).toBe(initial.length);
     expect(rolled[0].time).not.toBe(initial[0].time);
 
-    mounted.rerender(
-      <CandlestickSeries
-        data={rolled}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-      />,
-    );
+    mounted.rerender(<CandlestickSeries id={sid} data={rolled} />);
 
     // Entry for the newly-appended tail must be registered even though the
     // array length didn't grow.
@@ -328,7 +271,7 @@ describe('streaming data routes new points through appendData (entrance animatio
         listSeriesForTest: () => Array<{ id: string; renderer: { entries: Map<number, unknown> } }>;
       }
     ).listSeriesForTest();
-    const entries = series.find((s) => s.id === sid!)!.renderer.entries;
+    const entries = series.find((s) => s.id === sid)!.renderer.entries;
     expect(entries.has(1_000_000 + MAX * 60_000)).toBe(true);
   });
 
@@ -337,32 +280,15 @@ describe('streaming data routes new points through appendData (entrance animatio
     const initial: TimePoint[][] = [
       Array.from({ length: MAX }, (_, i) => ({ time: 1_000_000 + i * 60_000, value: i + 1 })),
     ];
-    let sid: string | null = null;
-    mounted = mountChart(
-      <LineSeries
-        data={initial}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-      />,
-      { width: 800, height: 400 },
-    );
+    const sid = 'line';
+    mounted = mountChart(<LineSeries id={sid} data={initial} />, { width: 800, height: 400 });
     mounted.flushScheduler();
 
-    const rolled: TimePoint[][] = [
-      [...initial[0].slice(1), { time: 1_000_000 + MAX * 60_000, value: MAX + 1 }],
-    ];
+    const rolled: TimePoint[][] = [[...initial[0].slice(1), { time: 1_000_000 + MAX * 60_000, value: MAX + 1 }]];
     expect(rolled[0].length).toBe(initial[0].length);
     expect(rolled[0][0].time).not.toBe(initial[0][0].time);
 
-    mounted.rerender(
-      <LineSeries
-        data={rolled}
-        onSeriesId={(id) => {
-          sid = id;
-        }}
-      />,
-    );
+    mounted.rerender(<LineSeries id={sid} data={rolled} />);
 
     const series = (
       mounted.chart as unknown as {
@@ -372,7 +298,7 @@ describe('streaming data routes new points through appendData (entrance animatio
         }>;
       }
     ).listSeriesForTest();
-    const entries = series.find((s) => s.id === sid!)!.renderer.entries[0];
+    const entries = series.find((s) => s.id === sid)!.renderer.entries[0];
     expect(entries.has(1_000_000 + MAX * 60_000)).toBe(true);
   });
 
@@ -380,19 +306,17 @@ describe('streaming data routes new points through appendData (entrance animatio
     const initial: TimePoint[][] = [
       Array.from({ length: 5 }, (_, i) => ({ time: 1_000_000 + i * 60_000, value: i + 1 })),
     ];
-    let sid: string | null = null;
-    mounted = mountChart(<LineSeries data={initial} onSeriesId={(id) => { sid = id; }} />, {
+    const sid = 'line';
+    mounted = mountChart(<LineSeries id={sid} data={initial} />, {
       width: 800,
       height: 400,
     });
     mounted.flushScheduler();
 
-    const next: TimePoint[][] = [
-      [...initial[0], { time: 1_000_000 + 5 * 60_000, value: 6 }],
-    ];
-    mounted.rerender(<LineSeries data={next} onSeriesId={(id) => { sid = id; }} />);
+    const next: TimePoint[][] = [[...initial[0], { time: 1_000_000 + 5 * 60_000, value: 6 }]];
+    mounted.rerender(<LineSeries id={sid} data={next} />);
 
-    const entries = lineEntriesOfLayer0(mounted.chart, sid!);
+    const entries = lineEntriesOfLayer0(mounted.chart, sid);
     expect(entries.size).toBeGreaterThan(0);
   });
 });

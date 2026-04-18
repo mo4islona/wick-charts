@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
+
 import { useChartInstance } from '../context';
 
 export type PieLegendFormat = 'value' | 'percent';
@@ -20,12 +21,19 @@ export function PieLegend({ seriesId, format = 'value' }: PieLegendProps) {
   const chart = useChartInstance();
   const theme = chart.getTheme();
 
-  // Subscribe to dataUpdate to re-render when pie data changes
+  // Subscribe to re-render when series or data changes. Bump once so the
+  // first render — which happens before sibling series have committed their
+  // setup layout-effects — picks up the now-registered slices.
   const [, setTick] = useState(0);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const handler = () => setTick((t) => t + 1);
     chart.on('dataUpdate', handler);
-    return () => { chart.off('dataUpdate', handler); };
+    chart.on('seriesChange', handler);
+    handler();
+    return () => {
+      chart.off('dataUpdate', handler);
+      chart.off('seriesChange', handler);
+    };
   }, [chart]);
 
   const slices = chart.getSliceInfo(seriesId);
@@ -64,9 +72,7 @@ export function PieLegend({ seriesId, format = 'value' }: PieLegendProps) {
           />
           <span style={{ flex: 1, opacity: 0.8 }}>{slice.label}</span>
           {format === 'value' && (
-            <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-              {formatCompact(slice.value)}
-            </span>
+            <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatCompact(slice.value)}</span>
           )}
           <span
             style={{

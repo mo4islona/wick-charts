@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import { PieSeries, PieTooltip } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -28,12 +26,13 @@ describe('PieTooltip', () => {
     { label: 'Beta', value: 60 },
   ];
 
+  const id = 'pie';
+
   function PieWithTooltip() {
-    const [id, setId] = useState<string | null>(null);
     return (
       <>
-        <PieSeries data={slices} onSeriesId={setId} />
-        {id && <PieTooltip seriesId={id} />}
+        <PieSeries id={id} data={slices} />
+        <PieTooltip seriesId={id} />
       </>
     );
   }

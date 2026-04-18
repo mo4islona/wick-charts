@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 import {
   ChartContainer,
   type ChartTheme,
@@ -62,7 +60,7 @@ function PieChart({
   showLegend,
   title,
 }: PlaygroundChartProps & PieSettings & { data: PieSliceData[]; title: string }) {
-  const [sid, setSid] = useState<string | null>(null);
+  const sid = 'pie';
   return (
     <ChartContainer
       theme={theme}
@@ -71,12 +69,12 @@ function PieChart({
     >
       <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
       <PieSeries
+        id={sid}
         data={data}
-        onSeriesId={setSid}
         options={{ innerRadiusRatio: donut ? 0.55 : 0, padAngle: 0.03, strokeColor: theme.background, strokeWidth: 2 }}
       />
-      {sid && showTooltip && <PieTooltip seriesId={sid} />}
-      {sid && showLegend && <PieLegend seriesId={sid} />}
+      {showTooltip && <PieTooltip seriesId={sid} />}
+      {showLegend && <PieLegend seriesId={sid} />}
     </ChartContainer>
   );
 }
@@ -118,7 +116,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         components: [
           {
             component: 'PieSeries',
-            props: { data: 'data', options: { innerRadiusRatio: s.donut ? 0.55 : 0, padAngle: 0.03 } },
+            props: { id: 'sid', data: 'data', options: { innerRadiusRatio: s.donut ? 0.55 : 0, padAngle: 0.03 } },
           },
           ...(s.showTooltip ? [{ component: 'PieTooltip', props: { seriesId: 'sid' } }] : []),
           ...(s.showLegend ? [{ component: 'PieLegend', props: { seriesId: 'sid' } }] : []),

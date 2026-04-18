@@ -7,7 +7,8 @@ import { getChartContext } from './context';
 
 export let data: OHLCInput[] = [];
 export let options: Partial<CandlestickSeriesOptions> | undefined = undefined;
-export let onSeriesId: ((id: string) => void) | undefined = undefined;
+/** Stable series ID — same value across remounts. */
+export let id: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
@@ -16,8 +17,7 @@ let prevLen = 0;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addCandlestickSeries(options);
-  onSeriesId?.(seriesId);
+  seriesId = chart.addCandlestickSeries({ ...options, id });
 });
 
 onDestroy(() => {

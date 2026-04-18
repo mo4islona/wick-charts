@@ -121,7 +121,8 @@ import { ChartContainer, BarSeries, Tooltip, Legend, YAxis, TimeAxis } from '@wi
 interface BarSeriesProps {
   data: TimePoint[][];
   options?: Partial<BarSeriesOptions>;
-  onSeriesId?: (id: string) => void;
+  /** Stable series ID — reuse across overlays that target this series. */
+  id?: string;
 }
 ```
 
@@ -178,9 +179,8 @@ const props = defineProps<{ data: TimePoint[] }>();
 // Props
 data: TimePoint[][]
 options?: Partial<BarSeriesOptions>
-
-// Emits
-@series-id(id: string)
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Svelte
@@ -229,7 +229,8 @@ options?: Partial<BarSeriesOptions>
 ```ts
 data: TimePoint[][]
 options?: Partial<BarSeriesOptions>
-onSeriesId?: (id: string) => void
+/** Stable series ID — reuse across overlays that target this series. */
+id?: string
 ```
 
 ## Common patterns
