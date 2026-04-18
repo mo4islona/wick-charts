@@ -228,6 +228,315 @@ describe('LineRenderer — animation', () => {
     });
   });
 
+  describe("stacked mode 'grow' entrance animates the trailing segment", () => {
+    it("normal stacking: trailing X of the rendered stroke is between penultimate and new during 'grow'", () => {
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        areaFill: false,
+        appendAnimation: 'grow',
+        appendDurationMs: 400,
+      });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 6 }, 0);
+      r.appendPoint({ time: 30, value: 6 }, 1);
+      advance(100); // partway into the 400ms entrance
+
+      const { ctx, spy, timeScale } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.render(ctx);
+
+      const lineTos = spy.callsOf('lineTo');
+      const X20 = timeScale.timeToBitmapX(20);
+      const X30 = timeScale.timeToBitmapX(30);
+
+      // At least one trailing endpoint must sit strictly between the penultimate
+      // and new X — that's the lerped tail of the growing segment.
+      const xs = lineTos.map((c) => c.args[0] as number);
+      const between = xs.filter((x) => x > X20 + 1 && x < X30 - 1);
+      expect(between.length).toBeGreaterThan(0);
+    });
+
+    it('normal stacking: trailing X lands on the new X after the entrance completes', () => {
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        areaFill: false,
+        appendAnimation: 'grow',
+        appendDurationMs: 200,
+      });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 6 }, 0);
+      r.appendPoint({ time: 30, value: 6 }, 1);
+      for (let i = 0; i < 30; i++) {
+        advance(16);
+        renderFrame(r);
+      }
+
+      const { ctx, spy, timeScale } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.render(ctx);
+
+      const lineTos = spy.callsOf('lineTo');
+      const X30 = timeScale.timeToBitmapX(30);
+      // At least one stroke endpoint must land at X30 (within 1px) once progress hits 1.
+      const xs = lineTos.map((c) => c.args[0] as number);
+      const atX30 = xs.filter((x) => Math.abs(x - X30) < 1);
+      expect(atX30.length).toBeGreaterThan(0);
+    });
+
+    it("'fade' entrance ramps globalAlpha on the stacked layer", () => {
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        areaFill: false,
+        appendAnimation: 'fade',
+        appendDurationMs: 400,
+      });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 6 }, 1);
+      advance(100);
+
+      const { ctx, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.render(ctx);
+
+      // Each recorded call snapshots globalAlpha; the layer-1 stroke must run
+      // with reduced alpha during the fade entrance.
+      const strokes = spy.callsOf('stroke');
+      expect(strokes.length).toBeGreaterThan(0);
+      const lowAlphaStroke = strokes.some((c) => c.globalAlpha < 0.99);
+      expect(lowAlphaStroke).toBe(true);
+    });
+
+    it('off-screen append must not lerp the on-screen trailing segment', () => {
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        areaFill: false,
+        appendAnimation: 'grow',
+        appendDurationMs: 400,
+      });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      // Append at a time well outside the viewport (timeRange below is 0..30).
+      r.appendPoint({ time: 5000, value: 6 }, 0);
+      r.appendPoint({ time: 5000, value: 6 }, 1);
+      advance(100);
+
+      const { ctx, spy, timeScale } = buildRenderContext({
+        timeRange: { from: 0, to: 30 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.render(ctx);
+
+      // The rightmost on-screen X for both layers' strokes should land on
+      // time=20 (un-lerped) — the appended off-screen point must not pull
+      // the visible tail toward the off-screen X.
+      const X20 = timeScale.timeToBitmapX(20);
+      const lineToXs = spy.callsOf('lineTo').map((c) => c.args[0] as number);
+      // No on-screen lineTo X should sit strictly between time=10 and time=20
+      // due to a phantom lerp.
+      const X10 = timeScale.timeToBitmapX(10);
+      const onScreenXs = lineToXs.filter((x) => x >= X10 - 1 && x <= X20 + 1);
+      const stuckAtX20 = onScreenXs.filter((x) => Math.abs(x - X20) < 0.5);
+      expect(stuckAtX20.length).toBeGreaterThan(0);
+    });
+
+    it("hidden layer 0 with active 'grow' must not shift layer 1's lower edge", () => {
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        areaFill: true,
+        appendAnimation: 'grow',
+        appendDurationMs: 400,
+      });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+      r.setLayerVisible(0, false);
+
+      r.appendPoint({ time: 30, value: 6 }, 0);
+      r.appendPoint({ time: 30, value: 6 }, 1);
+      advance(100);
+
+      const { ctx, spy, timeScale, yScale } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.render(ctx);
+
+      // With layer 0 hidden, layer 1's lower edge sits at y(0) (the zero line).
+      // The fill polygon's bottom-right corner must land at (X30, y(0)) — never
+      // a lerped X — because layer 0's progress is gated out by isVisible().
+      const X30 = timeScale.timeToBitmapX(30);
+      const yZero = yScale.valueToBitmapY(0);
+      const lineTos = spy.callsOf('lineTo');
+      const matches = lineTos.filter(
+        (c) => Math.abs((c.args[0] as number) - X30) < 0.5 && Math.abs((c.args[1] as number) - yZero) < 0.5,
+      );
+      expect(matches.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('pulse-dot in stacked mode aligns with the rendered cumulative line', () => {
+    it("normal stacking: pulse Y on layer 1 is at y(layer-0 + layer-1's smoothed last)", () => {
+      const r = new LineRenderer(2, { pulse: true, stacking: 'normal', areaFill: false });
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 3 },
+          { time: 20, value: 4 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.updateLastPoint({ time: 20, value: 14 }, 1);
+      advance(16);
+      // advance smoothed value by running render once
+      renderFrame(r);
+      const smoothed = displayed(r)[1]!;
+
+      const { overlayCtx, yScale, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 30 },
+      });
+      r.drawOverlay(overlayCtx());
+
+      // Pulse arcs come in pairs (glow + dot) per visible layer; the topmost
+      // (smallest Y) belongs to layer 1 — that's where the bug surfaced.
+      const arcs = spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThan(0);
+      const topArcY = Math.min(...arcs.map((c) => c.args[1] as number));
+
+      const expectedStackedY = yScale.valueToBitmapY(4 + smoothed);
+      const buggyRawY = yScale.valueToBitmapY(smoothed);
+
+      expect(Math.abs(topArcY - expectedStackedY)).toBeLessThan(1);
+      expect(Math.abs(topArcY - buggyRawY)).toBeGreaterThan(2);
+    });
+
+    it('percent stacking: pulse Y on layer 0 sits at its percent share, not the raw value', () => {
+      const r = new LineRenderer(2, { pulse: true, stacking: 'percent', areaFill: false });
+      r.setData(
+        [
+          { time: 10, value: 2 },
+          { time: 20, value: 3 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 2 },
+          { time: 20, value: 7 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.updateLastPoint({ time: 20, value: 27 }, 1);
+      advance(16);
+      renderFrame(r);
+      const smoothed = displayed(r)[1]!;
+
+      const { overlayCtx, yScale, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 100 },
+      });
+      r.drawOverlay(overlayCtx());
+
+      const arcs = spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThan(0);
+      const arcYs = arcs.map((c) => c.args[1] as number);
+      // Layer-0 pulse (lower of the two) sits at its percent share.
+      const layer0Y = Math.max(...arcYs);
+      const expectedLayer0Y = yScale.valueToBitmapY((3 / (3 + smoothed)) * 100);
+      const buggyRawY = yScale.valueToBitmapY(3); // raw value, not percent
+
+      expect(Math.abs(layer0Y - expectedLayer0Y)).toBeLessThan(1);
+      expect(Math.abs(layer0Y - buggyRawY)).toBeGreaterThan(2);
+    });
+  });
+
   it('pulse-dot position uses the smoothed last value', () => {
     const r = new LineRenderer(1, { pulse: true });
     r.setData(DATA);
