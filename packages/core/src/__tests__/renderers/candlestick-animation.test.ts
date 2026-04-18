@@ -198,6 +198,22 @@ describe('CandlestickRenderer — live-tracking animation', () => {
       expect(r.needsAnimation).toBe(true);
     });
 
+    it('cancelEntranceAnimations clears all active entries without touching displayedLast', () => {
+      const store = mkStore([{ time: 10, ...BULL }]);
+      const r = new CandlestickRenderer(store);
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, ...BULL });
+      const liveAfterAppend = displayedLast(r);
+      expect(entries(r).size).toBe(1);
+      expect(liveAfterAppend).not.toBeNull();
+
+      r.cancelEntranceAnimations();
+      expect(entries(r).size).toBe(0);
+      // displayedLast must survive — it drives the live halo and should not flicker on pan.
+      expect(displayedLast(r)).toEqual(liveAfterAppend);
+    });
+
     it("enterAnimation: 'none' never registers an entry", () => {
       const store = mkStore([{ time: 10, ...BULL }]);
       const r = new CandlestickRenderer(store, { enterAnimation: 'none' });

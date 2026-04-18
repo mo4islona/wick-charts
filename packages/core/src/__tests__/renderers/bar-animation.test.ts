@@ -105,6 +105,25 @@ describe('BarRenderer — animation', () => {
     expect(entries(r).size).toBe(0);
   });
 
+  it('cancelEntranceAnimations clears entries on every layer; preserves displayedLast', () => {
+    const r = new BarRenderer(2);
+    r.setData(DATA, 0);
+    r.setData(DATA, 1);
+    renderFrame(r);
+
+    r.appendPoint({ time: 30, value: 8 }, 0);
+    r.appendPoint({ time: 30, value: 9 }, 1);
+    expect(entries(r, 0).size).toBe(1);
+    expect(entries(r, 1).size).toBe(1);
+    const liveBefore = [...displayed(r)];
+
+    r.cancelEntranceAnimations();
+
+    expect(entries(r, 0).size).toBe(0);
+    expect(entries(r, 1).size).toBe(0);
+    expect(displayed(r)).toEqual(liveBefore);
+  });
+
   it("default 'fade-grow' renders the new bar with alpha < 1 and reduced height", () => {
     const r = new BarRenderer(1);
     r.setData(DATA);
@@ -166,7 +185,7 @@ describe('BarRenderer — animation', () => {
   });
 
   describe('stacked mode live-tracking', () => {
-    it("normal stacking: the rendered top-layer bar is smaller than a raw-value jump would produce", () => {
+    it('normal stacking: the rendered top-layer bar is smaller than a raw-value jump would produce', () => {
       // Regression guard for the review comment that live-tracking (effectiveValue)
       // was not applied to values fed into renderStacked's time map — so stacked
       // bars would jump on updateLastPoint even with smoothing enabled.
@@ -200,7 +219,7 @@ describe('BarRenderer — animation', () => {
       expect(Math.abs(upperEdge - rawUpperEdge)).toBeGreaterThan(2);
     });
 
-    it("percent stacking: the live last value participates in the percentage normalization", () => {
+    it('percent stacking: the live last value participates in the percentage normalization', () => {
       const r = new BarRenderer(2, { stacking: 'percent' });
       r.setData([{ time: 10, value: 4 }], 0);
       r.setData([{ time: 10, value: 6 }], 1);
@@ -209,7 +228,10 @@ describe('BarRenderer — animation', () => {
       r.updateLastPoint({ time: 10, value: 24 }, 1);
       advance(16);
 
-      const { ctx, spy, yScale } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+      const { ctx, spy, yScale } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 100 },
+      });
       r.render(ctx);
 
       const rects = spy.callsOf('fillRect');

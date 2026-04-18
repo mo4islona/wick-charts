@@ -4,6 +4,20 @@ import { lerp } from './utils/math';
 
 interface ViewportEvents {
   change: () => void;
+  /**
+   * Fired on user-initiated pan/zoom (not on programmatic animations). Chart
+   * uses this to cancel series entrance animations so rapid panning doesn't
+   * fight in-progress bar/candle intros.
+   */
+  interact: () => void;
+  /**
+   * Fired when the user releases a pan/zoom gesture and rebound begins, if the
+   * gesture ended with meaningful overshoot (> 10% of visible range). Payload
+   * describes which edge was pulled past. Emitted at rebound start — not after
+   * the animation completes — so hosts can kick off history fetches without
+   * waiting for the visual snap-back.
+   */
+  edgeReached: (info: { side: 'left' | 'right'; overshoot: number; boundaryTime: number }) => void;
 }
 
 /** Horizontal padding expressed as a fixed pixel offset or a number of data intervals. */
@@ -43,16 +57,31 @@ const DEFAULT_PADDING: ResolvedPadding = {
   left: { intervals: 0 },
 };
 
+/** Rebound animation duration (ms). Cubic ease-out via animateTo/tick. */
+const REBOUND_DURATION_MS = 350;
+/** Minimum overshoot fraction of visible range before edgeReached fires on rebound. */
+const EDGE_REACHED_MIN_FRACTION = 0.1;
+/** Maximum overshoot as a fraction of the visible range during a pan gesture. */
+const PAN_MAX_OVERSHOOT_FRACTION = 0.3;
+/** Maximum zoom-in overshoot as a fraction of softMinRange. */
+const ZOOM_MIN_OVERSHOOT_FRACTION = 0.4;
+/** Minimum pending shift (expressed via dataInterval) before scrollToEnd animates. */
+const AUTOSCROLL_MIN_DELTA_BARS = 0.5;
+/** Minimum pending shift in pixels (whichever is smaller vs bars-based). */
+const AUTOSCROLL_MIN_DELTA_PX = 4;
+
 /**
  * Manages the visible time range and Y range of the chart.
  *
- * User-initiated pan/zoom (mouse wheel, drag, touch) applies range updates
- * instantly — smoothing on input events feels laggy in practice. The
- * `animateTo` / `tick` path is reserved for API-driven transitions like
- * `fitToData` and `scrollToEnd`, where a short cubic ease-out reads as
- * intentional motion rather than sluggishness.
+ * User-initiated pan/zoom applies range updates instantly — smoothing on input
+ * events feels laggy in practice. The `animateTo` / `tick` path is reserved for
+ * API-driven transitions (`fitToData`, `scrollToEnd`) and post-gesture rebound
+ * (`startRebound`), where a short cubic ease-out reads as intentional motion.
  *
- * Emits a 'change' event whenever the visible range is updated.
+ * Viewport boundaries are "soft": pan and zoom may push past them with
+ * progressive rubber-band resistance. When the gesture ends, {@link startRebound}
+ * animates the range back into valid bounds and fires `edgeReached` for the
+ * side that was pulled past — chart hosts use that signal to fetch more data.
  */
 export class Viewport extends EventEmitter<ViewportEvents> {
   private _visibleRange: VisibleRange = { from: 0, to: 0 };
@@ -63,13 +92,17 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private _dataStart: number | null = null;
   private _dataEnd: number | null = null;
 
-  // Animation state — no own rAF, ticked by the render loop. Used exclusively
-  // by API-driven transitions (fitToData, scrollToEnd).
+  // Animation state — no own rAF, ticked by the render loop. Used by API-driven
+  // transitions (fitToData, scrollToEnd) and post-gesture rebound.
   private _animating = false;
   private animStartTime = 0;
   private animDuration = 0;
   private animFrom: VisibleRange = { from: 0, to: 0 };
   private animTo: VisibleRange = { from: 0, to: 0 };
+
+  /** Cached chart width — needed for rebound pixel-padding resolution
+   * when startRebound is called from an event handler that doesn't pass width. */
+  private _lastChartWidth = 0;
 
   constructor({ padding }: ViewportOptions = {}) {
     super();
@@ -143,19 +176,57 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     this._animating = false;
   }
 
-  /** Validate and apply a new visible range. When clampToData is true, reject zoom beyond data extent. */
-  private applyRange(from: number, to: number, clampToData = false): void {
+  /** Compute the left/right soft bound for the given pan-time range and chart width.
+   * Returns null on the side whose data boundary is unset or whose padding resolution fails. */
+  private getSoftBounds(range: number, chartWidth: number): { left: number | null; right: number | null } {
+    // Pixel padding of 0 is trivially resolvable without a chart width — treat
+    // it as a concrete soft bound flush against the data edge.
+    const resolvable = (pad: HorizontalPadding) => typeof pad === 'object' || pad === 0 || chartWidth > 0;
+    const left =
+      this._dataStart !== null && resolvable(this.padding.left)
+        ? this._dataStart - this.resolveHPad(this.padding.left, range, chartWidth)
+        : null;
+    const right =
+      this._dataEnd !== null && resolvable(this.padding.right)
+        ? this._dataEnd + this.resolveHPad(this.padding.right, range, chartWidth)
+        : null;
+    return { left, right };
+  }
+
+  /** Minimum visible range (zoom-in ceiling). Expressed as 10 bars. */
+  private get softMinRange(): number {
+    return 10 * this.dataInterval;
+  }
+
+  /** Maximum visible range (zoom-out floor). When interval-based horizontal padding is
+   * configured, keep this ceiling aligned with the soft-pan bounds so rebound does not
+   * clamp to a range wider than can fit inside them. Falls back to span + 5 intervals
+   * when padding is purely pixel-based (where width depends on chartWidth, unavailable
+   * here). Returns null when data bounds are unknown — no hard ceiling in that case. */
+  private softMaxRange(): number | null {
+    if (this._dataStart === null || this._dataEnd === null) return null;
+    const span = this._dataEnd - this._dataStart;
+    if (span <= 0) return null;
+
+    const leftPad =
+      typeof this.padding.left === 'object' ? this.padding.left.intervals * this.dataInterval : null;
+    const rightPad =
+      typeof this.padding.right === 'object' ? this.padding.right.intervals * this.dataInterval : null;
+
+    if (leftPad !== null || rightPad !== null) {
+      return span + (leftPad ?? 0) + (rightPad ?? 0);
+    }
+    return span + this.dataInterval * 5;
+  }
+
+  /** Validate and apply a new visible range. Rejects invalid widths only. Soft-bound
+   * enforcement happens at the caller (pan/zoomAt) via rubber-band resistance. */
+  private applyRange(from: number, to: number): void {
     if (to <= from) return;
 
     const range = to - from;
     const bars = range / this.dataInterval;
     if (bars < 2) return;
-
-    if (clampToData && this._dataStart !== null && this._dataEnd !== null) {
-      const dataSpan = this._dataEnd - this._dataStart;
-      const maxRange = dataSpan + this.dataInterval * 5;
-      if (range > maxRange && maxRange > 0) return;
-    }
 
     this._visibleRange = { from, to };
     this.emit('change');
@@ -205,72 +276,223 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     };
   }
 
-  /** Zoom in/out around a time anchor point. Factor < 1 zooms in, > 1 zooms out. */
-  zoomAt(centerTime: number, factor: number): void {
+  /**
+   * Zoom in/out around a time anchor. `factor < 1` zooms in, `> 1` zooms out.
+   *
+   * Behaviour contract:
+   * - Zoom-in pins the right edge of the visible range (never drifts left).
+   *   Below the 10-bar floor a rubber-band resistance lets the gesture push
+   *   past with progressive damping; on gesture release {@link startRebound}
+   *   snaps back.
+   * - Zoom-out is hard-capped at the padded data span (`softRight − softLeft`).
+   *   Past that there's no more zoom-out — panning already covers navigating
+   *   off-screen bars. The new window is also clamped so it never extends
+   *   past the data edges — avoiding the "empty space then snap back" flash.
+   * - Zoom does NOT toggle `_autoScroll`. That flag is reserved for pan
+   *   (user moved away intentionally) and scrollToEnd/fitToData (chart
+   *   resumes following). Zoom is a scale change, not a move — so a wheel
+   *   zoom while auto-scroll is active must keep auto-scroll active.
+   */
+  zoomAt(centerTime: number, factor: number, chartWidth = this._lastChartWidth): void {
     this.cancelAnimation();
+    if (chartWidth > 0) this._lastChartWidth = chartWidth;
 
     const { from, to } = this._visibleRange;
     const range = to - from;
-    const newRange = range * factor;
+    if (range <= 0) return;
 
-    const ratio = (centerTime - from) / range;
-    const newFrom = centerTime - ratio * newRange;
-    const newTo = newFrom + newRange;
+    const softMin = this.softMinRange;
+    const { left: softLeft, right: softRight } = this.getSoftBounds(range, chartWidth);
+    // Max usable zoom-out span: all data + both paddings visible. When either
+    // soft bound is unresolved (chartWidth == 0 for pixel padding), fall back
+    // to the legacy softMax which only accounts for data span.
+    const hardMaxRange = softLeft !== null && softRight !== null ? softRight - softLeft : this.softMaxRange();
 
-    // Prevent over-zooming past a minimum of 10 visible bars
-    if (newRange / this.dataInterval < 10) return;
+    let effFactor = factor;
+    const minMaxOver = softMin * ZOOM_MIN_OVERSHOOT_FRACTION;
 
-    // Re-enable autoScroll when zoomed out enough to see all data
-    if (factor > 1 && this._dataStart !== null && this._dataEnd !== null) {
-      if (newFrom <= this._dataStart && newTo >= this._dataEnd) {
-        this._autoScroll = true;
-        this.applyRange(newFrom, newTo, true);
+    // Zoom-in past the 10-bar floor: rubber-band resistance on the factor.
+    if (factor < 1 && range < softMin) {
+      const over = softMin - range;
+      const ratio = Math.min(1, over / minMaxOver);
+      // Resistance approaches 0 as ratio → 1. Squaring makes the edge feel firm.
+      const resistance = (1 - ratio) ** 2;
+      effFactor = 1 - (1 - factor) * resistance;
+    }
 
-        return;
+    let newRange = range * effFactor;
+
+    // Zoom-in asymptote: never shrink past softMin − maxOver.
+    if (newRange < softMin - minMaxOver) newRange = softMin - minMaxOver;
+    // Zoom-out hard cap: the padded data span. No rubber — wider than this
+    // would just reveal empty canvas that startRebound would have to yank back.
+    if (factor > 1 && hardMaxRange !== null && newRange > hardMaxRange) {
+      newRange = hardMaxRange;
+    }
+
+    const ratioAnchor = (centerTime - from) / range;
+    let newFrom = centerTime - ratioAnchor * newRange;
+    let newTo = newFrom + newRange;
+
+    // Zoom-in guardrail: never let the right edge drift left past its current
+    // position. Keeps the last candle in view and prevents isLastPointVisible
+    // from breaking live auto-scroll.
+    if (factor < 1 && newTo < to) {
+      const shift = to - newTo;
+      newFrom += shift;
+      newTo += shift;
+    }
+
+    // Zoom-out: clamp sides into soft bounds so the chart never reveals a gap
+    // between the last candle and the right edge that rebound would have to
+    // yank back. If the new range fills the entire padded span, sit flush
+    // against both bounds (all data visible).
+    if (factor > 1) {
+      if (softRight !== null && newTo > softRight) {
+        const shift = newTo - softRight;
+        newFrom -= shift;
+        newTo -= shift;
+      }
+      if (softLeft !== null && newFrom < softLeft) {
+        const shift = softLeft - newFrom;
+        newFrom += shift;
+        newTo += shift;
       }
     }
 
-    this._autoScroll = false;
-    this.applyRange(newFrom, newTo, true);
+    this.applyRange(newFrom, newTo);
+    this.emit('interact');
   }
 
   /**
-   * Shift the visible range by a time delta. Disables auto-scroll.
-   * Clamps the right edge at `dataEnd + right padding` so the user cannot
-   * scroll past the end of the data. `chartWidth` is only needed when the
-   * right padding is pixel-based.
+   * Shift the visible range by a time delta. Overshooting either data edge
+   * applies rubber-band resistance: the more the user pulls past, the smaller
+   * each subsequent pixel of drag translates into actual range shift. Total
+   * overshoot is capped at `PAN_MAX_OVERSHOOT_FRACTION` of the visible range.
    */
   pan(timeDelta: number, chartWidth = 0): void {
     this.cancelAnimation();
+    if (chartWidth > 0) this._lastChartWidth = chartWidth;
 
     const { from, to } = this._visibleRange;
     const range = to - from;
-    let newFrom = from + timeDelta;
-    let newTo = to + timeDelta;
+    if (range <= 0) return;
 
-    // Skip the clamp when right padding is pixel-based but chartWidth is unknown:
-    // resolveHPad would collapse to 0 and clamp too tightly at `dataEnd`, hiding
-    // the configured padding that fitToData/scrollToEnd both honor.
-    if (this._dataEnd !== null) {
-      const pxBasedRight = typeof this.padding.right === 'number';
-      const canResolveRightPad = !pxBasedRight || chartWidth > 0;
-      if (canResolveRightPad) {
-        const pr = this.resolveHPad(this.padding.right, range, chartWidth);
-        const rightLimit = this._dataEnd + pr;
-        if (newTo > rightLimit) {
-          newTo = rightLimit;
-          newFrom = rightLimit - range;
-        }
+    const { left: softLeft, right: softRight } = this.getSoftBounds(range, chartWidth);
+    const maxOver = range * PAN_MAX_OVERSHOOT_FRACTION;
+
+    let effDelta = timeDelta;
+
+    // Dampen delta when we're already past a soft bound and moving further out.
+    if (timeDelta > 0 && softRight !== null) {
+      const overRight = Math.max(0, to - softRight);
+      if (overRight > 0) {
+        // Resistance approaches 0 as overshoot approaches maxOver.
+        effDelta *= 1 / (overRight / maxOver + 1);
       }
+    } else if (timeDelta < 0 && softLeft !== null) {
+      const overLeft = Math.max(0, softLeft - from);
+      if (overLeft > 0) {
+        effDelta *= 1 / (overLeft / maxOver + 1);
+      }
+    }
+
+    let newFrom = from + effDelta;
+    let newTo = to + effDelta;
+
+    // Hard-cap total overshoot so a single huge delta can't skip past the rubber band.
+    if (softRight !== null && newTo > softRight + maxOver) {
+      const excess = newTo - (softRight + maxOver);
+      newFrom -= excess;
+      newTo -= excess;
+    }
+    if (softLeft !== null && newFrom < softLeft - maxOver) {
+      const excess = softLeft - maxOver - newFrom;
+      newFrom += excess;
+      newTo += excess;
     }
 
     this._autoScroll = false;
     this.applyRange(newFrom, newTo);
+    this.emit('interact');
+  }
+
+  /**
+   * Animate the visible range back into soft bounds after a gesture ends.
+   * No-op when already inside bounds. When the rebound corrects a meaningful
+   * overshoot (> 10% of range) the side and overshoot magnitude are emitted
+   * via `edgeReached` — hosts hook this to trigger history prefetch.
+   */
+  startRebound(chartWidth = this._lastChartWidth): void {
+    const { from, to } = this._visibleRange;
+    const range = to - from;
+    if (range <= 0) return;
+
+    // Step 1 — clamp the range width into [softMin, softMax].
+    const softMin = this.softMinRange;
+    const softMax = this.softMaxRange();
+    let targetRange = range;
+    if (targetRange < softMin) targetRange = softMin;
+    if (softMax !== null && targetRange > softMax) targetRange = softMax;
+
+    let targetFrom = from;
+    let targetTo = to;
+    if (targetRange !== range) {
+      // Preserve the anchor: if zoom overshot, re-center around the same midpoint.
+      const mid = (from + to) / 2;
+      targetFrom = mid - targetRange / 2;
+      targetTo = mid + targetRange / 2;
+    }
+
+    // Step 2 — shift so neither edge sits outside soft bounds.
+    const { left: softLeft, right: softRight } = this.getSoftBounds(targetRange, chartWidth);
+    if (softRight !== null && targetTo > softRight) {
+      const shift = targetTo - softRight;
+      targetFrom -= shift;
+      targetTo -= shift;
+    }
+    if (softLeft !== null && targetFrom < softLeft) {
+      const shift = softLeft - targetFrom;
+      targetFrom += shift;
+      targetTo += shift;
+    }
+
+    const fromChange = Math.abs(targetFrom - from);
+    const toChange = Math.abs(targetTo - to);
+    // Treat sub-millisecond deltas as no-op — avoids spurious animations when
+    // floating-point arithmetic leaves residual overshoot after a clean gesture.
+    if (fromChange < 1 && toChange < 1) return;
+
+    // Classify the gesture for edgeReached: which side was pulled past?
+    const edgeThreshold = range * EDGE_REACHED_MIN_FRACTION;
+    let edgeSide: 'left' | 'right' | null = null;
+    let edgeOvershoot = 0;
+    let edgeBoundaryTime = 0;
+    if (softRight !== null && to - softRight > edgeThreshold) {
+      edgeSide = 'right';
+      edgeOvershoot = to - softRight;
+      edgeBoundaryTime = softRight;
+    } else if (softLeft !== null && softLeft - from > edgeThreshold) {
+      edgeSide = 'left';
+      edgeOvershoot = softLeft - from;
+      edgeBoundaryTime = softLeft;
+    }
+
+    this.animateTo(targetFrom, targetTo, REBOUND_DURATION_MS);
+
+    if (edgeSide !== null) {
+      this.emit('edgeReached', {
+        side: edgeSide,
+        overshoot: edgeOvershoot,
+        boundaryTime: edgeBoundaryTime,
+      });
+    }
   }
 
   /** Fit the viewport to show data from first to last timestamp, with optional animation. */
   fitToData(firstTime: number, lastTime: number, chartWidth = 0, animated = false): void {
     this._autoScroll = true;
+    if (chartWidth > 0) this._lastChartWidth = chartWidth;
 
     const maxBars = 400;
     const maxRange = maxBars * this.dataInterval;
@@ -302,20 +524,44 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     }
   }
 
-  /** Keep the right edge pinned to the latest data (real-time auto-scroll). */
+  /**
+   * Keep the right edge pinned to the latest data (real-time auto-scroll).
+   *
+   * Streaming feeds can fire many ticks per second. Restarting the ease-out on
+   * every tick produces a jittery one-pixel shimmy instead of a smooth slide.
+   * Strategy:
+   *   - If an animation is in flight and the new target differs from the
+   *     current `animTo` by less than one threshold, let it finish.
+   *   - If it differs by more, retarget without resetting `animStartTime` so
+   *     the ease-out continues from its current progress.
+   *   - If idle and the pending shift is below threshold, do nothing.
+   */
   scrollToEnd(lastTime: number, chartWidth = 0): void {
+    if (chartWidth > 0) this._lastChartWidth = chartWidth;
     const range = this._visibleRange.to - this._visibleRange.from;
+    if (range <= 0) return;
     const pr = this.resolveHPad(this.padding.right, range, chartWidth);
     const targetTo = lastTime + pr;
     const targetFrom = targetTo - range;
     this._autoScroll = true;
 
+    // Threshold: whichever is smaller — half a bar, or 4 px in time units.
+    const barsThreshold = AUTOSCROLL_MIN_DELTA_BARS * this.dataInterval;
+    const pxThreshold = chartWidth > 0 ? (AUTOSCROLL_MIN_DELTA_PX / chartWidth) * range : barsThreshold;
+    const threshold = Math.min(barsThreshold, pxThreshold);
+
     if (this._animating) {
+      // Retarget in flight — don't reset animStartTime unless the delta is large
+      // enough to be worth perceiving as a new animation beat.
+      const retargetDelta = Math.abs(targetTo - this.animTo.to);
+      if (retargetDelta < threshold) return; // let current animation finish
       this.animFrom = { ...this._visibleRange };
       this.animTo = { from: targetFrom, to: targetTo };
-      this.animDuration = 150;
-      this.animStartTime = performance.now();
+      // Keep animStartTime + animDuration as-is so the ease-out continues from
+      // its current progress rather than snapping to fresh-start.
     } else {
+      const pending = Math.abs(targetTo - this._visibleRange.to);
+      if (pending < threshold) return; // sub-pixel drift, not worth animating
       this.animateTo(targetFrom, targetTo, 150);
     }
   }

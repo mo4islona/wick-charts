@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { binarySearch, clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
+import { binarySearch, clamp, easeOutCubic, lerp, rubberBand, smoothToward } from '../utils/math';
 
 describe('clamp', () => {
   it('clamps below min', () => expect(clamp(-5, 0, 10)).toBe(0));
@@ -108,5 +108,36 @@ describe('smoothToward', () => {
       prev = v;
     }
     expect(v).toBeGreaterThan(0.9);
+  });
+});
+
+describe('rubberBand', () => {
+  it('returns 0 at raw=0', () => expect(rubberBand(0, 100)).toBe(0));
+  it('returns 0 when maxOvershoot is 0', () => expect(rubberBand(50, 0)).toBe(0));
+  it('returns 0 for negative raw', () => expect(rubberBand(-10, 100)).toBe(0));
+
+  it('asymptotically approaches maxOvershoot but never reaches it', () => {
+    const max = 100;
+    for (const raw of [50, 200, 1000, 1e6]) {
+      const v = rubberBand(raw, max);
+      expect(v).toBeLessThan(max);
+      expect(v).toBeGreaterThan(0);
+    }
+    expect(rubberBand(1e9, max)).toBeGreaterThan(99.99);
+  });
+
+  it('is monotonic in raw', () => {
+    let prev = 0;
+    for (let raw = 10; raw <= 500; raw += 10) {
+      const v = rubberBand(raw, 100);
+      expect(v).toBeGreaterThan(prev);
+      prev = v;
+    }
+  });
+
+  it('damps: display is always less than raw', () => {
+    for (const raw of [10, 50, 100, 200, 500]) {
+      expect(rubberBand(raw, 100)).toBeLessThan(raw);
+    }
   });
 });

@@ -175,6 +175,12 @@ export class LineRenderer implements SeriesRenderer {
     }
   }
 
+  /** Drop all in-flight per-point entrance animations across every layer.
+   * Displayed-last smoothing is intentionally preserved. */
+  cancelEntranceAnimations(): void {
+    for (const m of this.entries) m.clear();
+  }
+
   get needsAnimation(): boolean {
     for (const m of this.entries) if (m.size > 0) return true;
     for (let li = 0; li < this.#stores.length; li++) {

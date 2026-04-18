@@ -48,6 +48,10 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private onMouseDown = (e: MouseEvent): void => {
+    // A drag takes over from any pending wheel-idle rebound — otherwise the
+    // timer would fire mid-drag and snap the viewport back (potentially
+    // emitting a bogus edgeReached along the way).
+    this.zoom.cancelPendingRebound();
     this.pan.handleMouseDown(e);
   };
 
@@ -78,6 +82,9 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
 
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
+    // Touch gesture takes over from any pending wheel-idle rebound — see
+    // onMouseDown for the same reasoning.
+    this.zoom.cancelPendingRebound();
     this.touchCount = e.touches.length;
     if (e.touches.length === 1) {
       this.pan.handleMouseDown({
@@ -106,7 +113,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       if (this.lastTouchDist > 0) {
         const factor = this.lastTouchDist / dist;
         const centerTime = this.timeScale.xToTime(center - rect.left);
-        this.viewport.zoomAt(centerTime, factor);
+        this.viewport.zoomAt(centerTime, factor, this.timeScale.getMediaWidth());
       }
 
       this.lastTouchDist = dist;
@@ -116,7 +123,13 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
 
   private onTouchEnd = (e: TouchEvent): void => {
     if (e.touches.length === 0) {
+      // pan.handleMouseUp already triggers rebound for the single-finger case.
+      // For a two-finger pinch we never went through pan, so trigger it here.
+      const wasPinching = this.touchCount === 2;
       this.pan.handleMouseUp();
+      if (wasPinching) {
+        this.viewport.startRebound(this.timeScale.getMediaWidth());
+      }
       this.touchCount = 0;
       this.lastTouchDist = 0;
     }
@@ -134,6 +147,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   }
 
   destroy(): void {
+    this.zoom.cancelPendingRebound();
     this.canvas.removeEventListener('wheel', this.onWheel);
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.canvas.removeEventListener('mousemove', this.onMouseMove);

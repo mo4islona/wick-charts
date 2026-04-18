@@ -126,6 +126,12 @@ export class BarRenderer implements SeriesRenderer {
     this.lastRenderTime = 0;
   }
 
+  /** Drop all in-flight per-bar entrance animations across every layer.
+   * Displayed-last smoothing is intentionally preserved. */
+  cancelEntranceAnimations(): void {
+    for (const m of this.entries) m.clear();
+  }
+
   /** True while any entrance is active OR any layer's displayed-last hasn't converged. */
   get needsAnimation(): boolean {
     for (const m of this.entries) if (m.size > 0) return true;
@@ -454,9 +460,7 @@ export class BarRenderer implements SeriesRenderer {
     for (let li = 0; li < layers.length; li++) {
       for (const d of layers[li]) {
         if (!timeMap.has(d.time)) timeMap.set(d.time, new Array(layers.length).fill(0));
-        timeMap.get(d.time)![li] = this.#stores[li].isVisible()
-          ? this.effectiveValue(li, d.time, d.value)
-          : 0;
+        timeMap.get(d.time)![li] = this.#stores[li].isVisible() ? this.effectiveValue(li, d.time, d.value) : 0;
       }
     }
 

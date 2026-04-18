@@ -74,6 +74,11 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const { datasets } = useLineStreams(props.allData, {
     delay: 300,
     interval: LINE_INTERVAL,
+    // LINE_INTERVAL is 60_000ms to match historical bar spacing. Without a
+    // speed multiplier the stream would need 60s of wall-clock time per new
+    // bar, so nothing visibly streams. 1000x makes new bars arrive at the
+    // same perceptual rate as the candlestick page.
+    speed: 1000,
     strategy: strategyFor(props.dataMode),
   });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
@@ -107,6 +112,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   const { datasets } = useLineStreams(props.allData, {
     delay: 500,
     interval: LINE_INTERVAL,
+    speed: 1000, // see SingleChart — compensates for the 60s historical bar interval
     strategy: strategyFor(props.dataMode),
   });
   const display = props.streaming ? datasets : props.allData;
