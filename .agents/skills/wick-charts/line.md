@@ -55,6 +55,14 @@ options={{ colors: ['#00d4aa'] }}
 options={{ colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'] }}
 ```
 
+### `lineWidth`
+
+Stroke width in CSS pixels (scaled by device pixel ratio internally, min 1). Defaults to `1`. Same value applied to every layer.
+
+```ts
+options={{ lineWidth: 2 }}
+```
+
 ### `areaFill`
 
 When `true`, a vertical gradient fills the area below each line:
