@@ -117,6 +117,12 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     };
   }
 
+  /** Read the currently-resolved padding — used by `ChartInstance.setPadding`
+   * to decide whether a horizontal-padding change requires a viewport refit. */
+  getPadding(): Readonly<ResolvedPadding> {
+    return this.padding;
+  }
+
   setDataStart(time: number): void {
     this._dataStart = time;
   }

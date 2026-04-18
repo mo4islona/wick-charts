@@ -43,7 +43,6 @@ export {
   dracula,
   formatDate,
   formatTime,
-  normalizeTime,
   githubLight,
   gruvbox,
   handwritten,
@@ -56,6 +55,7 @@ export {
   mintBreeze,
   monokaiPro,
   nightOwl,
+  normalizeTime,
   oneDarkPro,
   panda,
   peachCream,
@@ -80,7 +80,9 @@ export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
 export { default as TimeAxis } from './ui/TimeAxis.vue';
+export { default as Title } from './ui/Title.vue';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.vue';
+export { default as TooltipLegend } from './ui/TooltipLegend.vue';
 export { default as YAxis } from './ui/YAxis.vue';
 export { default as YLabel } from './ui/YLabel.vue';

@@ -29,7 +29,7 @@ import type {
   TimePointInput,
 } from './types';
 import { detectInterval } from './utils/time';
-import { Viewport } from './viewport';
+import { type HorizontalPadding, Viewport } from './viewport';
 
 /** Events emitted by {@link ChartInstance}. */
 interface ChartEvents {
@@ -47,7 +47,12 @@ export interface ChartOptions {
    * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
    * or data intervals (`{ intervals: 3 }`). Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
    */
-  padding?: { top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number } };
+  padding?: {
+    top?: number;
+    bottom?: number;
+    right?: number | { intervals: number };
+    left?: number | { intervals: number };
+  };
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
   /** Show the background grid. Defaults to true. */
@@ -547,13 +552,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return this.#dataInterval;
   }
 
-  /** Update viewport padding at runtime. Refits the visible range to current data bounds. */
+  /**
+   * Update viewport padding at runtime. Refits the visible time range to
+   * current data bounds **only when horizontal padding (left/right) changes**
+   * — vertical padding only affects the Y-range computation, so touching it
+   * shouldn't reset the user's zoom / auto-scroll state. This matters when
+   * a wrapper re-applies padding reactively (e.g. in response to a Title /
+   * TooltipLegend ResizeObserver).
+   */
   setPadding(padding: ChartOptions['padding']): void {
+    const prev = this.#viewport.getPadding();
     this.#viewport.setPadding(padding);
-    const { first, last } = this.getDataBounds();
-    if (first !== undefined && last !== undefined) {
-      const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
-      this.#viewport.fitToData(first, last, chartWidth, false);
+    const next = this.#viewport.getPadding();
+    const horizontalChanged =
+      !isSameHorizontalPadding(prev.left, next.left) || !isSameHorizontalPadding(prev.right, next.right);
+    if (horizontalChanged) {
+      const { first, last } = this.getDataBounds();
+      if (first !== undefined && last !== undefined) {
+        const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+        this.#viewport.fitToData(first, last, chartWidth, false);
+      }
     }
     this.syncScales();
     this.#mainScheduler.markDirty();
@@ -720,7 +738,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const needsAllValues =
       (this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto' && typeof this.#yBounds.min !== 'number') ||
       (this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto' && typeof this.#yBounds.max !== 'number');
-    let allValues: number[] | null = needsAllValues ? [] : null;
+    const allValues: number[] | null = needsAllValues ? [] : null;
 
     for (const entry of this.#series) {
       if (!entry.visible) continue;
@@ -960,4 +978,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       if (visibleLast) this.#overlayScheduler.markDirty();
     }
   }
+}
+
+/**
+ * Shallow-compare two horizontal padding values (pixels or `{ intervals }`).
+ * Used by `setPadding` to decide whether a viewport refit is needed.
+ */
+function isSameHorizontalPadding(a: HorizontalPadding, b: HorizontalPadding): boolean {
+  if (typeof a === 'number' && typeof b === 'number') return a === b;
+  if (typeof a === 'object' && typeof b === 'object') return a.intervals === b.intervals;
+  return false;
 }

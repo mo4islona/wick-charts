@@ -10,13 +10,14 @@ import {
   LineSeries,
   Title,
   Tooltip,
+  TooltipLegend,
   type TooltipSort,
   XAxis,
   YAxis,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Select, Slider, ToggleGroup } from '../components/controls';
+import { Section, Select, Slider, Switch, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { type LineStrategy, generateLineData, generateWaveData, lineDriftStrategy, waveStrategy } from '../data';
 import { useLineStreams } from '../hooks';
@@ -31,6 +32,7 @@ interface LineSettings {
   tooltipSort: TooltipSort;
   legendPos: 'off' | 'bottom' | 'right';
   legendMode: 'toggle' | 'solo';
+  showTooltipLegend: boolean;
 }
 
 const MULTI_COUNT = 6;
@@ -79,12 +81,13 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <Title sub={props.areaFill ? 'area' : 'line'}>Single</Title>
+      {sid && props.showTooltipLegend && <TooltipLegend seriesId={sid} sort={props.tooltipSort} />}
       <LineSeries
         data={data}
         onSeriesId={setSid}
         options={{ areaFill: props.areaFill, lineWidth: props.lineWidth, pulse: props.streaming }}
       />
-      {sid && <Tooltip seriesId={sid} sort={props.tooltipSort} legend={false} />}
+      {sid && <Tooltip seriesId={sid} sort={props.tooltipSort} />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -103,6 +106,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
+      {props.showTooltipLegend && <TooltipLegend sort={props.tooltipSort} />}
       <LineSeries
         data={display}
         options={{
@@ -113,7 +117,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
           stacking: props.stacking,
         }}
       />
-      <Tooltip sort={props.tooltipSort} legend={false} />
+      <Tooltip sort={props.tooltipSort} />
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -135,6 +139,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         tooltipSort: 'desc',
         legendPos: 'bottom',
         legendMode: 'toggle',
+        showTooltipLegend: true,
       }}
       charts={(props) => {
         const single = [makeData(props.dataMode, 300, 0)];
@@ -211,6 +216,12 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
               ]}
               value={s.tooltipSort}
               onChange={(v) => set({ tooltipSort: v as TooltipSort })}
+              theme={theme}
+            />
+            <Switch
+              label="Info bar"
+              checked={s.showTooltipLegend}
+              onChange={(v) => set({ showTooltipLegend: v })}
               theme={theme}
             />
           </Section>

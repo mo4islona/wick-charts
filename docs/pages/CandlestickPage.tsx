@@ -23,6 +23,7 @@ import { useOHLCStream } from '../hooks';
 interface CandleSettings {
   showYLabel: boolean;
   showTooltip: boolean;
+  showTooltipLegend: boolean;
   candleGradient: boolean;
 }
 
@@ -38,6 +39,7 @@ function CandleChart({
   data,
   showYLabel,
   showTooltip,
+  showTooltipLegend,
   candleGradient,
   interval,
   title,
@@ -49,7 +51,7 @@ function CandleChart({
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
       <Title sub={sub}>{title}</Title>
-      {sid && showTooltip && <TooltipLegend seriesId={sid} />}
+      {sid && showTooltipLegend && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries data={display} onSeriesId={setSid} options={{ candleGradient }} />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}
@@ -65,7 +67,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
     <Playground<CandleSettings>
       id="candlestick"
       theme={theme}
-      defaults={{ showYLabel: true, showTooltip: true, candleGradient: true }}
+      defaults={{ showYLabel: true, showTooltip: true, showTooltipLegend: true, candleGradient: true }}
       gridTemplate="1fr 1fr 1fr"
       charts={(props) => (
         <>
@@ -106,6 +108,12 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
           <Switch label="Price label" checked={s.showYLabel} onChange={(v) => set({ showYLabel: v })} theme={theme} />
           <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
           <Switch
+            label="Info bar"
+            checked={s.showTooltipLegend}
+            onChange={(v) => set({ showTooltipLegend: v })}
+            theme={theme}
+          />
+          <Switch
             label="Gradient"
             checked={s.candleGradient}
             onChange={(v) => set({ candleGradient: v })}
@@ -117,6 +125,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         theme: 'darkTheme',
         components: [
           { component: 'CandlestickSeries', props: { data: 'ohlcData' } },
+          ...(s.showTooltipLegend ? [{ component: 'TooltipLegend', props: { seriesId: 'sid' } }] : []),
           ...(s.showYLabel ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
           ...(s.showTooltip ? [{ component: 'Tooltip', props: { seriesId: 'sid' } }] : []),
           { component: 'Crosshair' },

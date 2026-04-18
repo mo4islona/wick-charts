@@ -1,8 +1,8 @@
-import { useContext, useEffect, useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
-import { type ChartInstance, type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
+import { type ChartTheme, type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
 
-import { TooltipLegendPresenceContext, useChartInstance } from '../context';
+import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 
 /** Sort order for multi-series tooltip values. */
@@ -17,10 +17,6 @@ export interface TooltipProps {
   seriesId?: string;
   /** Sort order for line values when showing all series (default: 'none'). */
   sort?: TooltipSort;
-  /** Show the compact legend strip in the top-left corner (default: true). */
-  showLegend?: boolean;
-  /** @deprecated Use `showLegend` instead. */
-  legend?: boolean;
 }
 
 /** Snapshot of a single series at a point in time, used for tooltip rendering. */
@@ -41,39 +37,17 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
 }
 
 /**
- * Two-part tooltip:
- * 1. Compact legend always visible in top-left
- * 2. Floating glass tooltip near cursor on hover
+ * Floating near-cursor glass tooltip that appears while hovering the chart.
+ *
+ * Only handles the floating panel — the hoisted info bar at the top is a
+ * separate component ({@link TooltipLegend}), placed as a sibling. Compose
+ * them together when you want both; omit either for just one.
  */
-/**
- * Charts that have already emitted the deprecation warning.
- * WeakSet so destroyed chart instances don't hold memory.
- */
-const warnedCharts = new WeakSet<ChartInstance>();
-
-export function Tooltip({ seriesId, sort = 'none', showLegend, legend }: TooltipProps) {
-  const showLegendResolved = showLegend ?? legend ?? true;
+export function Tooltip({ seriesId, sort = 'none' }: TooltipProps) {
   const chart = useChartInstance();
-  const hasTooltipLegendSibling = useContext(TooltipLegendPresenceContext);
   const crosshair = useCrosshairPosition(chart);
 
-  // When a <TooltipLegend> sibling is present, it owns the compact info-bar
-  // rendering (hoisted to its own flex row by ChartContainer). Otherwise we
-  // render the legacy absolute overlay and warn once per chart.
-  const renderLegacyLegend = showLegendResolved && !hasTooltipLegendSibling;
-  useEffect(() => {
-    if (renderLegacyLegend && !warnedCharts.has(chart)) {
-      warnedCharts.add(chart);
-      console.warn(
-        '[wick-charts] <Tooltip> is rendering its compact legend as an absolute overlay. ' +
-          'This will overlap the chart plot area. Use <TooltipLegend /> as a sibling of <Tooltip> to hoist ' +
-          'the info bar above the canvas so the plot area recomputes correctly. The overlay fallback will be ' +
-          'removed in a future major version.',
-      );
-    }
-  }, [chart, renderLegacyLegend]);
-
-  // Determine which series to display — getSeriesIds() is internally cached
+  // Determine which series to display — getSeriesIds() is internally cached.
   const targetIds = seriesId ? [seriesId] : chart.getSeriesIds();
 
   // Re-render on data and series changes. Matches Legend's pattern — subscribe
@@ -92,167 +66,50 @@ export function Tooltip({ seriesId, sort = 'none', showLegend, legend }: Tooltip
     };
   }, [chart]);
 
-  // Gather hover data for all target series
+  if (!crosshair) return null;
+
+  // Gather hover data for all target series.
   const hoverSnapshots: SeriesSnapshot[] = [];
-  if (crosshair) {
-    for (const id of targetIds) {
-      const layers = chart.getLayerSnapshots(id, crosshair.time);
-      if (layers) {
-        for (let i = 0; i < layers.length; i++) {
-          hoverSnapshots.push({
-            id: `${id}_layer${i}`,
-            label: chart.getSeriesLabel(id),
-            data: { time: crosshair.time, value: layers[i].value } as TimePoint,
-            color: layers[i].color,
-          });
-        }
-      } else {
-        const d = chart.getDataAtTime(id, crosshair.time);
-        if (d)
-          hoverSnapshots.push({
-            id,
-            label: chart.getSeriesLabel(id),
-            data: d,
-            color: chart.getSeriesColor(id) ?? '#888',
-          });
+  for (const id of targetIds) {
+    const layers = chart.getLayerSnapshots(id, crosshair.time);
+    if (layers) {
+      for (let i = 0; i < layers.length; i++) {
+        hoverSnapshots.push({
+          id: `${id}_layer${i}`,
+          label: chart.getSeriesLabel(id),
+          data: { time: crosshair.time, value: layers[i].value } as TimePoint,
+          color: layers[i].color,
+        });
       }
+    } else {
+      const d = chart.getDataAtTime(id, crosshair.time);
+      if (d)
+        hoverSnapshots.push({
+          id,
+          label: chart.getSeriesLabel(id),
+          data: d,
+          color: chart.getSeriesColor(id) ?? '#888',
+        });
     }
   }
 
-  // Gather last-known data for all target series (shown when not hovering) — only when needed
-  let raw: SeriesSnapshot[];
-  if (hoverSnapshots.length > 0) {
-    raw = hoverSnapshots;
-  } else {
-    const lastSnapshots: SeriesSnapshot[] = [];
-    for (const id of targetIds) {
-      const d = chart.getLastData(id);
-      if (!d) continue;
-      const layers = chart.getLayerSnapshots(id, d.time);
-      if (layers) {
-        for (let i = 0; i < layers.length; i++) {
-          lastSnapshots.push({
-            id: `${id}_layer${i}`,
-            label: chart.getSeriesLabel(id),
-            data: { time: d.time, value: layers[i].value } as TimePoint,
-            color: layers[i].color,
-          });
-        }
-      } else {
-        lastSnapshots.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-      }
-    }
-    raw = lastSnapshots;
-  }
-  const snapshots = sortSnapshots(raw, sort);
+  if (hoverSnapshots.length === 0) return null;
 
+  const snapshots = sortSnapshots(hoverSnapshots, sort);
   const theme = chart.getTheme();
-  if (snapshots.length === 0) return null;
-
   const dataInterval = chart.getDataInterval();
   const mediaSize = chart.getMediaSize();
-  const displayTime = snapshots[0].data.time;
 
   return (
-    <>
-      {/* ── Compact legend (below chart title) — legacy overlay, suppressed when <TooltipLegend> sibling is present ── */}
-      {renderLegacyLegend && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 24,
-            left: 8,
-            pointerEvents: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-            flexWrap: 'wrap',
-            maxWidth: '70%',
-            fontSize: theme.typography.fontSize,
-            fontFamily: theme.typography.fontFamily,
-            fontVariantNumeric: 'tabular-nums',
-            opacity: crosshair ? 1 : 0.6,
-            transition: 'opacity 0.2s ease',
-          }}
-        >
-          <span style={{ color: theme.axis.textColor, marginRight: 2 }}>{formatTime(displayTime, dataInterval)}</span>
-          {snapshots.map((s) => {
-            const isOHLC = 'open' in s.data;
-            if (isOHLC) {
-              const ohlc = s.data as OHLCData;
-              const isUp = ohlc.close >= ohlc.open;
-              const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor;
-              return (
-                <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                  <LegendItem label="O" value={ohlc.open} color={c} dim={theme.axis.textColor} />
-                  <LegendItem label="H" value={ohlc.high} color={c} dim={theme.axis.textColor} />
-                  <LegendItem label="L" value={ohlc.low} color={c} dim={theme.axis.textColor} />
-                  <LegendItem label="C" value={ohlc.close} color={c} dim={theme.axis.textColor} />
-                  {ohlc.volume != null && (
-                    <LegendItem
-                      label="V"
-                      value={ohlc.volume}
-                      color={theme.axis.textColor}
-                      dim={theme.axis.textColor}
-                      volume
-                    />
-                  )}
-                </span>
-              );
-            }
-            const line = s.data as TimePoint;
-            return (
-              <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: s.color,
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ color: s.color, fontWeight: 500 }}>{line.value.toFixed(2)}</span>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Floating tooltip (near cursor, only on hover) ── */}
-      {crosshair && hoverSnapshots.length > 0 && (
-        <FloatingTooltip
-          snapshots={snapshots}
-          x={crosshair.mediaX}
-          y={crosshair.mediaY}
-          chartWidth={mediaSize.width - chart.yAxisWidth}
-          chartHeight={mediaSize.height - chart.xAxisHeight}
-          theme={theme}
-          dataInterval={dataInterval}
-        />
-      )}
-    </>
-  );
-}
-
-function LegendItem({
-  label,
-  value,
-  color,
-  dim,
-  volume,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  dim: string;
-  volume?: boolean;
-}) {
-  return (
-    <>
-      <span style={{ color: dim, opacity: 0.5, marginLeft: 5 }}>{label}</span>
-      <span style={{ color, fontWeight: 500, marginLeft: 2 }}>{volume ? formatVolume(value) : value.toFixed(2)}</span>
-    </>
+    <FloatingTooltip
+      snapshots={snapshots}
+      x={crosshair.mediaX}
+      y={crosshair.mediaY}
+      chartWidth={mediaSize.width - chart.yAxisWidth}
+      chartHeight={mediaSize.height - chart.xAxisHeight}
+      theme={theme}
+      dataInterval={dataInterval}
+    />
   );
 }
 
@@ -297,7 +154,7 @@ function FloatingTooltip({
   y: number;
   chartWidth: number;
   chartHeight: number;
-  theme: any;
+  theme: ChartTheme;
   dataInterval: number;
 }) {
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
@@ -419,8 +276,8 @@ function TooltipRow({
 
 /** Format a volume number with K/M/B suffixes for compact display. */
 function formatVolume(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
   return v.toFixed(0);
 }

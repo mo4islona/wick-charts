@@ -43,7 +43,6 @@ export {
   dracula,
   formatDate,
   formatTime,
-  normalizeTime,
   githubLight,
   gruvbox,
   handwritten,
@@ -56,6 +55,7 @@ export {
   mintBreeze,
   monokaiPro,
   nightOwl,
+  normalizeTime,
   oneDarkPro,
   panda,
   peachCream,
@@ -86,7 +86,9 @@ export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
 export { default as TimeAxis } from './ui/TimeAxis.svelte';
+export { default as Title } from './ui/Title.svelte';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.svelte';
+export { default as TooltipLegend } from './ui/TooltipLegend.svelte';
 export { default as YAxis } from './ui/YAxis.svelte';
 export { default as YLabel } from './ui/YLabel.svelte';

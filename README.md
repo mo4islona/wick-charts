@@ -106,12 +106,14 @@ const props = defineProps(['data']);
 
 | Component | Description |
 |---|---|
-| `Tooltip` | Compact legend + floating tooltip near cursor |
+| `Tooltip` | Floating glass tooltip near cursor on hover |
+| `TooltipLegend` | Compact OHLC / values info bar hoisted above the canvas |
+| `Title` | Chart title / subtitle bar hoisted above the canvas |
 | `Crosshair` | Axis labels at cursor position |
 | `YAxis` | Vertical price/value axis with animated ticks |
 | `TimeAxis` | Horizontal time axis with animated ticks |
 | `YLabel` | Floating price badge with dashed line |
-| `Legend` | Clickable legend with toggle/solo modes |
+| `Legend` | Clickable legend with toggle/solo modes (React only) |
 | `PieTooltip` | Tooltip for pie/donut hover |
 
 ## Themes
