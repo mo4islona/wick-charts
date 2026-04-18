@@ -514,22 +514,80 @@ export class LineRenderer implements SeriesRenderer {
       }
     }
 
+    // Per-layer entrance progress on the layer's last data time. Stacked geometry
+    // owns its own draw loop, so we can't reuse renderOff's trailingEndpoint —
+    // we lerp the trailing segment's geometry directly off the cumulative arrays.
+    //
+    // Animation only fires when (a) the appended point is the rightmost time in
+    // the visible `times` window AND (b) the entry's `fromTime` sits exactly at
+    // the previous index. Anywhere else, lerping `xy[length-1]` would distort an
+    // already-superseded segment or pull an off-screen point into the on-screen
+    // tail.
+    const now = performance.now();
+    const style = this.options.appendAnimation ?? 'grow';
+    const timeIdx = new Map<number, number>();
+    for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
+    const lastVisibleIdx = times.length - 1;
+    const layerProgress: number[] = new Array(this.#stores.length).fill(1);
+    for (let li = 0; li < this.#stores.length; li++) {
+      if (!this.#stores[li].isVisible()) continue;
+
+      const last = this.#stores[li].last();
+      if (!last) continue;
+
+      const entry = this.peekEntry(li, last.time);
+      if (!entry) continue;
+
+      const toIdx = timeIdx.get(last.time);
+      if (toIdx !== lastVisibleIdx) continue;
+
+      const fromIdx = timeIdx.get(entry.fromTime);
+      if (fromIdx !== toIdx - 1) continue;
+
+      layerProgress[li] = this.entranceProgress(li, last.time, now);
+    }
+
+    // Lerp the last entry of an XY array between the prior point and the
+    // current last by `progress` — mirrors renderOff's trailing-endpoint
+    // interpolation. The gating above guarantees `xy[length-2]` is the layer's
+    // penultimate.
+    const applyGrowLerp = (xy: [number, number][], progress: number): void => {
+      if (progress >= 1 || xy.length < 2) return;
+      const lastIdx = xy.length - 1;
+      const prev = xy[lastIdx - 1];
+      const last = xy[lastIdx];
+      xy[lastIdx] = [lerp(prev[0], last[0], progress), lerp(prev[1], last[1], progress)];
+    };
+
     // Draw from top layer to bottom so lower layers fill correctly
     for (let li = this.#stores.length - 1; li >= 0; li--) {
       if (!this.#stores[li].isVisible()) continue;
       const color = this.options.colors[li % this.options.colors.length];
+      const upperProg = layerProgress[li];
+      // Lower edge mirrors the below layer's progress only when that layer is
+      // visible — hidden layers contribute 0 to cumulative, so their entrance
+      // must not shift this layer's drawn boundary.
+      const lowerProg = li > 0 && this.#stores[li - 1].isVisible() ? layerProgress[li - 1] : 1;
 
       // Upper edge = this layer's cumulative
       const upperXY: [number, number][] = [];
       for (let ti = 0; ti < times.length; ti++) {
         upperXY.push([timeScale.timeToBitmapX(times[ti]), yScale.valueToBitmapY(cumulative[li][ti])]);
       }
+      if (style === 'grow') applyGrowLerp(upperXY, upperProg);
 
       // Lower edge = previous layer's cumulative (or zero line)
       const lowerXY: [number, number][] = [];
       for (let ti = 0; ti < times.length; ti++) {
         const base = li > 0 ? cumulative[li - 1][ti] : 0;
         lowerXY.push([timeScale.timeToBitmapX(times[ti]), yScale.valueToBitmapY(base)]);
+      }
+      if (style === 'grow') applyGrowLerp(lowerXY, lowerProg);
+
+      const useFade = style === 'fade' && upperProg < 1;
+      if (useFade) {
+        context.save();
+        context.globalAlpha = upperProg;
       }
 
       // Fill area between upper and lower
@@ -558,6 +616,8 @@ export class LineRenderer implements SeriesRenderer {
       context.lineJoin = 'round';
       context.lineCap = 'round';
       context.stroke();
+
+      if (useFade) context.restore();
     }
   }
 
@@ -638,15 +698,71 @@ export class LineRenderer implements SeriesRenderer {
     if (this.hasPulse) {
       const now = performance.now();
       this.advanceLiveTracking(now);
+      const stacking = this.options.stacking;
       for (let li = 0; li < this.#stores.length; li++) {
         if (!this.#stores[li].isVisible()) continue;
-        // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
-        // entrance so the dot glides from penultimate toward the new point in
-        // lockstep with the line's trailing segment.
-        const endpoint = this.trailingEndpoint(li, timeScale, yScale, now);
-        if (!endpoint) continue;
         const color = this.options.colors[li % this.options.colors.length];
-        this.drawPulse(scope.context, endpoint.x, endpoint.y, color, size.horizontalPixelRatio);
+
+        if (stacking === 'off') {
+          // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
+          // entrance so the dot glides from penultimate toward the new point in
+          // lockstep with the line's trailing segment.
+          const endpoint = this.trailingEndpoint(li, timeScale, yScale, now);
+          if (!endpoint) continue;
+          this.drawPulse(scope.context, endpoint.x, endpoint.y, color, size.horizontalPixelRatio);
+          continue;
+        }
+
+        // Stacked: pulse Y must match renderStacked's cumulative at this layer's
+        // last time. During a 'grow' entrance the pulse also lerps in lockstep
+        // with the rendered trailing segment.
+        const last = this.#stores[li].last();
+        if (!last) continue;
+
+        const t = last.time;
+        const percent = stacking === 'percent';
+
+        // Mirror renderStacked: every layer's value at time `queryT` goes through
+        // effectiveValue so smoothing applied to a peer layer's last point also
+        // reflects in this layer's cumulative offset.
+        const cumulativeAt = (queryT: number): number => {
+          const valueAt = (lj: number): number => {
+            const point = lj === li && queryT === t ? last : this.#stores[lj].findNearest(queryT, 0);
+            if (!point || point.time !== queryT) return 0;
+            return this.effectiveValue(lj, queryT, point.value);
+          };
+          let total = 0;
+          if (percent) {
+            for (let lj = 0; lj < this.#stores.length; lj++) {
+              if (!this.#stores[lj].isVisible()) continue;
+              total += valueAt(lj);
+            }
+          }
+          let running = 0;
+          for (let lj = 0; lj <= li; lj++) {
+            if (!this.#stores[lj].isVisible()) continue;
+            const v = valueAt(lj);
+            running += percent && total > 0 ? (v / total) * 100 : v;
+          }
+          return running;
+        };
+
+        let pulseX = timeScale.timeToBitmapX(t);
+        let pulseY = yScale.valueToBitmapY(cumulativeAt(t));
+
+        const appendStyle = this.options.appendAnimation ?? 'grow';
+        const entry = this.peekEntry(li, t);
+        if (appendStyle === 'grow' && entry) {
+          const progress = this.entranceProgress(li, t, now);
+          if (progress < 1 && entry.fromTime !== t) {
+            const prevX = timeScale.timeToBitmapX(entry.fromTime);
+            const prevY = yScale.valueToBitmapY(cumulativeAt(entry.fromTime));
+            pulseX = lerp(prevX, pulseX, progress);
+            pulseY = lerp(prevY, pulseY, progress);
+          }
+        }
+
+        this.drawPulse(scope.context, pulseX, pulseY, color, size.horizontalPixelRatio);
       }
     }
   }
