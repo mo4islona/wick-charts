@@ -35,7 +35,6 @@ export {
   ChartInstance,
   andromeda,
   ayuMirage,
-  buildTheme,
   catppuccin,
   createTheme,
   darkTheme,
@@ -63,7 +62,6 @@ export {
   rosePineDawn,
   sandDune,
   solarizedLight,
-  themes,
 } from '@wick-charts/core';
 
 export { default as BarSeries } from './BarSeries.vue';

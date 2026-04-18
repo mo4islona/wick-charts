@@ -76,17 +76,17 @@ Dark: `darkTheme`, `dracula`, `oneDarkPro`, `monokaiPro`, `nightOwl`, `materialP
 
 Light: `lightTheme`, `githubLight`, `solarizedLight`, `rosePineDawn`, `quietLight`, `lavenderMist`, `mintBreeze`, `sandDune`, `peachCream`, `minimalLight`, `lightPink`.
 
-All themes listed in the `themes` export. Custom:
+Each theme is a named export (tree-shakable). Custom:
 
 ```ts
-import { createTheme, buildTheme } from '@wick-charts/react';
+import { createTheme, dracula } from '@wick-charts/react';
 
 const custom = createTheme({
   background: '#0f172a', // only required field; rest auto-derived
   candlestick: { upColor: '#10b981', downColor: '#ef4444' },
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
-const byName = buildTheme('Dracula');
+const preset = dracula; // { theme, dark, fontUrl?, backgroundImage? }
 ```
 
 React also has `<ThemeProvider value={theme}>` for global theming.

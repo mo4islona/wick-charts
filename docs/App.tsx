@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { type ChartTheme, ThemeProvider, themes } from '@wick-charts/react';
+import { type ChartTheme, ThemeProvider } from '@wick-charts/react';
 
 import { type Route, Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
@@ -14,6 +14,7 @@ import { LinePage } from './pages/LinePage';
 import { PiePage } from './pages/PiePage';
 import { SparklinePage } from './pages/SparklinePage';
 import { ThemePage } from './pages/ThemePage';
+import { themes } from './themes';
 
 const PAGES: Record<Route, React.FC<{ theme: ChartTheme }>> = {
   dashboard: DashboardPage,

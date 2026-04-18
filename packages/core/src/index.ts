@@ -6,7 +6,7 @@ export { ChartInstance } from './chart';
 export { darkTheme } from './theme/dark';
 export { lightTheme } from './theme/light';
 export type { ThemeConfig, ThemePreset } from './theme/palettes';
-export { buildTheme, createTheme, themes } from './theme/palettes';
+export { createTheme } from './theme/palettes';
 export {
   andromeda,
   ayuMirage,
