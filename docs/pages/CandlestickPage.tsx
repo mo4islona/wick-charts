@@ -8,6 +8,7 @@ import {
   type OHLCData,
   Title,
   Tooltip,
+  TooltipLegend,
   XAxis,
   YAxis,
   YLabel,
@@ -48,6 +49,7 @@ function CandleChart({
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
       <Title sub={sub}>{title}</Title>
+      {sid && showTooltip && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries data={display} onSeriesId={setSid} options={{ candleGradient }} />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}

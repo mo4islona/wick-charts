@@ -10,6 +10,7 @@ import {
   Legend,
   Title,
   Tooltip,
+  TooltipLegend,
   XAxis,
   YAxis,
 } from '@wick-charts/react';
@@ -38,6 +39,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <Title sub="Up/Down">Single</Title>
+      <TooltipLegend />
       <BarSeries
         data={[display]}
         options={{
