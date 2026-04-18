@@ -94,6 +94,17 @@ export interface ChartLayout {
 /** Supported primary series types. */
 export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie';
 
+/**
+ * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).
+ * - `'none'` — no animation.
+ * - `'fade'` — opacity 0→1.
+ * - `'unfold'` — body scales from the open line outward.
+ * - `'slide'` — translates in from the right with a fade.
+ * - `'fade-unfold'` *(default)* — fade + unfold combined; the default because a lone fade is
+ *   hard to notice in streaming demos, while the body-unfold gives a clear visual anchor.
+ */
+export type CandlestickEnterAnimation = 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold';
+
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
   /** Display label shown in the tooltip. */
@@ -106,7 +117,21 @@ export interface CandlestickSeriesOptions {
   bodyWidthRatio: number;
   /** Apply a subtle vertical gradient to candle bodies. Default: true. */
   candleGradient?: boolean;
+  /** Entrance animation style for newly appended candles. Default: `'fade-unfold'`. */
+  enterAnimation?: CandlestickEnterAnimation;
+  /** Entrance animation duration in ms. Default: 400. */
+  enterDurationMs?: number;
+  /** Exponential decay rate (1/s) for live-tracking the last candle's O/H/L/C. Default: 14. */
+  liveSmoothRate?: number;
 }
+
+/**
+ * Entrance animation styles for new line points.
+ * - `'none'` — new segments appear instantly.
+ * - `'grow'` *(default)* — trailing segment reveals left-to-right.
+ * - `'fade'` — geometry fixed; trailing segment strokes in with alpha 0→1.
+ */
+export type LineAppendAnimation = 'none' | 'grow' | 'fade';
 
 /** Visual options for a line series. */
 export interface LineSeriesOptions {
@@ -121,6 +146,12 @@ export interface LineSeriesOptions {
   pulse: boolean;
   /** Stacking mode. Default: 'off'. */
   stacking: StackingMode;
+  /** Entrance animation style for new points. Default: `'grow'`. */
+  appendAnimation?: LineAppendAnimation;
+  /** Entrance animation duration in ms. Default: 400. */
+  appendDurationMs?: number;
+  /** Exponential decay rate (1/s) for live-tracking the last point's value. Default: 14. */
+  liveSmoothRate?: number;
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */
@@ -128,6 +159,16 @@ export type StackingMode = 'off' | 'normal' | 'percent';
 
 /** @deprecated Use {@link StackingMode} instead. */
 export type BarStacking = StackingMode;
+
+/**
+ * Entrance animation styles for bars.
+ * - `'none'` — no animation.
+ * - `'fade'` — opacity 0→1.
+ * - `'grow'` — height grows from baseline.
+ * - `'slide'` — translates in from the right with a fade.
+ * - `'fade-grow'` *(default)* — fade + grow combined.
+ */
+export type BarEnterAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow';
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
@@ -138,6 +179,12 @@ export interface BarSeriesOptions {
   barWidthRatio: number;
   /** Stacking mode. Default: 'off'. */
   stacking: StackingMode;
+  /** Entrance animation style for newly appended bars. Default: `'fade-grow'`. */
+  enterAnimation?: BarEnterAnimation;
+  /** Entrance animation duration in ms. Default: 400. */
+  enterDurationMs?: number;
+  /** Exponential decay rate (1/s) for live-tracking the last bar's value. Default: 14. */
+  liveSmoothRate?: number;
 }
 
 /**

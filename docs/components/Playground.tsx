@@ -13,6 +13,10 @@ import { FrameworkSelect } from './FrameworkSelect';
 
 type GridStyle = 'dashed' | 'solid' | 'dotted' | 'none';
 
+export type CandleEnterAnim = 'fade' | 'unfold' | 'slide' | 'fade-unfold' | 'none';
+export type BarEnterAnim = 'fade' | 'grow' | 'fade-grow' | 'slide' | 'none';
+export type LineAppendAnim = 'grow' | 'fade' | 'none';
+
 interface CommonState {
   streaming: boolean;
   showGrid: boolean;
@@ -24,6 +28,16 @@ interface CommonState {
   maxBound: string;
   yAxisWidth: number;
   xAxisHeight: number;
+  /** Entrance animation for candlestick series in this playground. */
+  candleEnterAnimation: CandleEnterAnim;
+  /** Entrance animation for bar series. */
+  barEnterAnimation: BarEnterAnim;
+  /** Entrance animation for line series. */
+  lineAppendAnimation: LineAppendAnim;
+  /** Entrance animation duration (ms) — applies to all series kinds. */
+  enterDurationMs: number;
+  /** Live-tracking of the last candle/bar/line value (smooth O/H/L/C updates). */
+  liveTracking: boolean;
 }
 
 const COMMON_DEFAULTS: CommonState = {
@@ -37,6 +51,11 @@ const COMMON_DEFAULTS: CommonState = {
   maxBound: 'auto',
   yAxisWidth: 55,
   xAxisHeight: 30,
+  candleEnterAnimation: 'fade-unfold',
+  barEnterAnimation: 'fade-grow',
+  lineAppendAnimation: 'grow',
+  enterDurationMs: 400,
+  liveTracking: true,
 };
 
 export interface PlaygroundChartProps {
@@ -44,6 +63,14 @@ export interface PlaygroundChartProps {
   axis: AxisConfig;
   streaming: boolean;
   gradient: boolean;
+  /** Entrance animation style per series kind, threaded from the panel controls. */
+  candleEnterAnimation: CandleEnterAnim;
+  barEnterAnimation: BarEnterAnim;
+  lineAppendAnimation: LineAppendAnim;
+  /** Duration of the entrance animation in ms. */
+  enterDurationMs: number;
+  /** Live-tracking smoothing of the last candle/bar/line value. */
+  liveTracking: boolean;
 }
 
 export interface PlaygroundProps<T extends object> {
@@ -209,6 +236,11 @@ export function Playground<T extends object>({
     axis,
     streaming: state.streaming,
     gradient: state.showGradient,
+    candleEnterAnimation: state.candleEnterAnimation,
+    barEnterAnimation: state.barEnterAnimation,
+    lineAppendAnimation: state.lineAppendAnimation,
+    enterDurationMs: state.enterDurationMs,
+    liveTracking: state.liveTracking,
   };
 
   const codeConfigValue = codeConfig?.(chartProps);
@@ -323,6 +355,64 @@ export function Playground<T extends object>({
             onChange={(v) => setCommon({ streaming: v })}
             theme={theme}
             accentColor={theme.candlestick.upColor}
+          />
+        </Section>
+      )}
+
+      {!hideCartesian && (
+        <Section title="Animations" theme={theme} accent={theme.candlestick.upColor} defaultOpen={false}>
+          <Select
+            label="Candles"
+            options={[
+              { value: 'fade', label: 'Fade' },
+              { value: 'unfold', label: 'Unfold' },
+              { value: 'slide', label: 'Slide' },
+              { value: 'fade-unfold', label: 'Fade + Unfold' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={state.candleEnterAnimation}
+            onChange={(v) => setCommon({ candleEnterAnimation: v as CandleEnterAnim })}
+            theme={theme}
+          />
+          <Select
+            label="Bars"
+            options={[
+              { value: 'fade-grow', label: 'Fade + Grow' },
+              { value: 'grow', label: 'Grow' },
+              { value: 'fade', label: 'Fade' },
+              { value: 'slide', label: 'Slide' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={state.barEnterAnimation}
+            onChange={(v) => setCommon({ barEnterAnimation: v as BarEnterAnim })}
+            theme={theme}
+          />
+          <Select
+            label="Lines"
+            options={[
+              { value: 'grow', label: 'Grow' },
+              { value: 'fade', label: 'Fade' },
+              { value: 'none', label: 'None' },
+            ]}
+            value={state.lineAppendAnimation}
+            onChange={(v) => setCommon({ lineAppendAnimation: v as LineAppendAnim })}
+            theme={theme}
+          />
+          <Slider
+            label="Duration"
+            value={state.enterDurationMs}
+            onChange={(v) => setCommon({ enterDurationMs: v })}
+            min={0}
+            max={2000}
+            step={50}
+            theme={theme}
+            suffix="ms"
+          />
+          <Switch
+            label="Live tracking"
+            checked={state.liveTracking}
+            onChange={(v) => setCommon({ liveTracking: v })}
+            theme={theme}
           />
         </Section>
       )}

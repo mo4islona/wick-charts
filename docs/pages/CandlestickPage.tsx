@@ -41,6 +41,9 @@ function CandleChart({
   showTooltip,
   showTooltipLegend,
   candleGradient,
+  candleEnterAnimation,
+  enterDurationMs,
+  liveTracking,
   interval,
   title,
   sub,
@@ -52,7 +55,16 @@ function CandleChart({
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
       <Title sub={sub}>{title}</Title>
       {sid && showTooltipLegend && <TooltipLegend seriesId={sid} />}
-      <CandlestickSeries data={display} onSeriesId={setSid} options={{ candleGradient }} />
+      <CandlestickSeries
+        data={display}
+        onSeriesId={setSid}
+        options={{
+          candleGradient,
+          enterAnimation: candleEnterAnimation,
+          enterDurationMs,
+          liveSmoothRate: liveTracking ? undefined : 0,
+        }}
+      />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}
       <Crosshair />

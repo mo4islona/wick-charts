@@ -40,6 +40,23 @@ interface ChartEvents {
 }
 
 /** Options passed when creating a new {@link ChartInstance}. */
+/**
+ * Granular control over which animation categories are enabled at the chart level.
+ * Both flags default to `true`. Per-series options always win over chart-level
+ * settings — use those for fine-grained control.
+ *
+ * User-initiated pan/zoom (wheel, drag, touch) always applies instantly; the
+ * latency of an exponential chase reads as laggy in practice. API-driven
+ * transitions like `fitToData` and `scrollToEnd` still tween via their own
+ * fixed-duration ease-out.
+ */
+export interface AnimationsConfig {
+  /** Entrance animations for new candles/bars/line points. Default: `true`. */
+  entrance?: boolean;
+  /** Smooth interpolation of the last candle/bar/line value toward live updates. Default: `true`. */
+  liveTracking?: boolean;
+}
+
 export interface ChartOptions {
   theme?: ChartTheme;
   axis?: AxisConfig;
@@ -57,6 +74,33 @@ export interface ChartOptions {
   interactive?: boolean;
   /** Show the background grid. Defaults to true. */
   grid?: boolean;
+  /**
+   * Animation control. Defaults: entrance + live-tracking animations are on.
+   * `false` disables both; `true` is equivalent to the default; an
+   * {@link AnimationsConfig} object toggles each category individually.
+   */
+  animations?: boolean | AnimationsConfig;
+}
+
+/**
+ * Collapse the public `animations: boolean | AnimationsConfig` surface into a
+ * flat struct of boolean gates. Both gates default to `true`; `animations: false`
+ * turns them off; an object lets callers toggle each category individually.
+ *
+ * @internal
+ */
+export function resolveAnimationsConfig(input: ChartOptions['animations']): Required<AnimationsConfig> {
+  if (input === false) {
+    return { entrance: false, liveTracking: false };
+  }
+  if (input === true || input === undefined) {
+    return { entrance: true, liveTracking: true };
+  }
+
+  return {
+    entrance: input.entrance ?? true,
+    liveTracking: input.liveTracking ?? true,
+  };
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -125,6 +169,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return x?.visible === false ? 0 : (x?.height ?? 30);
   }
 
+  /** Resolved animation gates derived from `options.animations` at construction. */
+  readonly #animationsConfig: Required<AnimationsConfig>;
+
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
     // Support both new `axis` API and legacy flat props
@@ -134,13 +181,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     }
     this.#theme = options?.theme ?? darkTheme;
     this.#grid = options?.grid !== false;
+    this.#animationsConfig = resolveAnimationsConfig(options?.animations);
 
     this.#canvasManager = new CanvasManager(container);
     this.#viewport = new Viewport({ padding: options?.padding });
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
-    this.#mainScheduler = new RenderScheduler(() => this.renderMain());
-    this.#overlayScheduler = new RenderScheduler(() => this.renderOverlay());
+    this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
+    this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
 
     const interactive = options?.interactive !== false;
     this.#interactions = interactive
@@ -194,6 +242,25 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return candidate;
   }
 
+  /**
+   * Option overrides derived from the chart-level `animations` config. Merged
+   * BEFORE user-supplied series options so explicit series options always win
+   * (the documented precedence).
+   */
+  #seriesAnimationDefaults(kind: 'candle' | 'bar' | 'line'): Record<string, unknown> {
+    const { entrance, liveTracking } = this.#animationsConfig;
+    const out: Record<string, unknown> = {};
+    if (!entrance) {
+      if (kind === 'candle' || kind === 'bar') out.enterAnimation = 'none';
+      if (kind === 'line') out.appendAnimation = 'none';
+    }
+    if (!liveTracking) {
+      out.liveSmoothRate = 0;
+    }
+
+    return out;
+  }
+
   /** Add a candlestick (OHLC) series and return its unique ID. */
   addCandlestickSeries(options?: Partial<CandlestickSeriesOptions & { id?: string }>): string {
     const store = new TimeSeriesStore<OHLCData>();
@@ -203,6 +270,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       wickUpColor: this.#theme.candlestick.wickUpColor,
       wickDownColor: this.#theme.candlestick.wickDownColor,
       bodyWidthRatio: 0.6,
+      ...this.#seriesAnimationDefaults('candle'),
       ...options,
     });
     const id = this.#resolveId(options?.id);
@@ -223,6 +291,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
       lineWidth: this.#theme.line.width,
       areaFill: true,
+      ...this.#seriesAnimationDefaults('line'),
       ...rest,
     });
     const id = this.#resolveId(rest.id);
@@ -242,6 +311,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const renderer = new BarRenderer(layerCount, {
       colors: this.#theme.seriesColors.slice(0, layerCount),
       barWidthRatio: 0.6,
+      ...this.#seriesAnimationDefaults('bar'),
       ...rest,
     });
     const id = this.#resolveId(rest.id);
@@ -466,6 +536,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.#seriesIdCache = this.#series.map((s) => s.id);
     }
     return this.#seriesIdCache.slice();
+  }
+
+  /**
+   * Shallow view of the internal series entries so unit tests can introspect
+   * renderer state without exporting a public `getRenderer(id)` (which would
+   * leak an implementation detail). Named to discourage use outside of tests.
+   *
+   * @internal
+   */
+  listSeriesForTest(): Array<{ id: string; renderer: SeriesRenderer }> {
+    return this.#series.map((s) => ({ id: s.id, renderer: s.renderer }));
   }
 
   /** Get the primary display color for a series. */
@@ -857,12 +938,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Expensive: background, grid, all series. Only on data/viewport/resize change. */
-  private renderMain(): void {
+  private renderMain(timestamp?: number): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
-    // Advance viewport animation in the same frame as render
-    const stillAnimating = this.#viewport.tick(performance.now());
+    // Advance viewport animation in the same frame as render. Prefer the RAF-
+    // provided timestamp so deterministic test harnesses (installRaf) drive
+    // smoothing dt from synthetic frame time instead of the real wall clock.
+    const now = typeof timestamp === 'number' ? timestamp : performance.now();
+    const stillAnimating = this.#viewport.tick(now);
     if (stillAnimating) {
       this.#mainScheduler.markDirty();
     }
@@ -913,7 +997,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Cheap overlay: crosshair, nearest-point dots, pulse animation. */
-  private renderOverlay(): void {
+  private renderOverlay(_timestamp?: number): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 

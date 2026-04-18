@@ -47,6 +47,9 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
           colors: [props.theme.candlestick.upColor, props.theme.candlestick.downColor],
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
+          enterAnimation: props.barEnterAnimation,
+          enterDurationMs: props.enterDurationMs,
+          liveSmoothRate: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip />
@@ -74,6 +77,9 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
           colors: props.theme.seriesColors.slice(0, display.length),
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: props.stacking,
+          enterAnimation: props.barEnterAnimation,
+          enterDurationMs: props.enterDurationMs,
+          liveSmoothRate: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip />
