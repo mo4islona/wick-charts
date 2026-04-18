@@ -118,18 +118,17 @@ const props = defineProps(['data']);
 
 ## Themes
 
-25 built-in themes. Pass to `ChartContainer` or use `ThemeProvider` for global theming.
+25 built-in themes. Import only the ones you need (tree-shakable) and pass them to `ChartContainer` or `ThemeProvider` for global theming.
 
 ```tsx
-import { themes } from '@wick-charts/react';
+import { catppuccin } from '@wick-charts/react';
 
-// Dark: andromeda, ayu-mirage, catppuccin, dracula, gruvbox, material-palenight,
-//       monokai-pro, night-owl, one-dark-pro, panda
-// Light: github-light, handwritten, lavender-mist, light-pink, minimal-light,
-//        mint-breeze, peach-cream, quiet-light, rose-pine-dawn, sand-dune, solarized-light
-// Special: high-contrast
+// Dark: andromeda, ayuMirage, catppuccin, dracula, gruvbox, handwritten,
+//       highContrast, materialPalenight, monokaiPro, nightOwl, oneDarkPro, panda
+// Light: githubLight, lavenderMist, lightPink, minimalLight, mintBreeze,
+//        peachCream, quietLight, rosePineDawn, sandDune, solarizedLight
 
-<ChartContainer theme={themes['catppuccin'].theme}>
+<ChartContainer theme={catppuccin.theme}>
 ```
 
 Create custom themes with `createTheme()`:

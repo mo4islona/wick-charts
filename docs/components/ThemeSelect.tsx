@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 
-import { type ChartTheme, themes } from '@wick-charts/react';
+import type { ChartTheme } from '@wick-charts/react';
 
+import { themes } from '../themes';
 import { hexToRgba } from '../utils';
 
 const allNames = Object.keys(themes);
