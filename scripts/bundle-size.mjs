@@ -19,7 +19,13 @@ import { build } from 'esbuild';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
-const DIST = resolve(ROOT, 'packages/react/dist/index.js');
+
+function argValue(flag) {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 && i < process.argv.length - 1 ? process.argv[i + 1] : undefined;
+}
+
+const DIST = resolve(argValue('--dist') ?? resolve(ROOT, 'packages/react/dist/index.js'));
 // Synthetic entrypoints must live inside the workspace so esbuild can resolve
 // `@wick-charts/react` via node_modules traversal.
 const TMP = resolve(ROOT, 'node_modules/.cache/bundle-size');
