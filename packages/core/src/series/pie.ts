@@ -27,8 +27,15 @@ function lightenColor(hex: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * Math.min(1, t);
+/**
+ * Frame-rate independent exponential smoothing toward `target`.
+ * `rate` is the exponential decay rate in 1/s (higher = converges faster).
+ * Internally computes `decay = exp(-rate * dt)`, the fraction of the gap that
+ * remains after `dt` seconds.
+ */
+function smoothToward(current: number, target: number, rate: number, dt: number): number {
+  const decay = Math.exp(-rate * dt);
+  return target + (current - target) * decay;
 }
 
 export class PieRenderer implements SeriesRenderer {
@@ -172,6 +179,7 @@ export class PieRenderer implements SeriesRenderer {
     this.#dataListeners = [];
     this.data = [];
     this.sliceOffsets = [];
+    this.lastRenderTime = 0;
   }
 
   render(ctx: SeriesRenderContext): void {
@@ -180,18 +188,22 @@ export class PieRenderer implements SeriesRenderer {
     const { context, bitmapSize, horizontalPixelRatio } = scope;
 
     const now = performance.now();
-    const dt = this.lastRenderTime ? (now - this.lastRenderTime) / 1000 : 0;
+    // Clamp dt: when the renderer goes idle (animation finished, no markDirty),
+    // `lastRenderTime` is stale by however long the user paused. An unclamped dt
+    // makes the next hover snap to its target in one frame — which looks like
+    // "animation stopped working" after the first burst of activity.
+    const dt = this.lastRenderTime ? Math.min(0.05, (now - this.lastRenderTime) / 1000) : 0;
     this.lastRenderTime = now;
 
     const total = this.data.reduce((sum, d) => sum + d.value, 0);
     if (total <= 0) return;
 
-    // Animate slice offsets
-    const speed = 10; // higher = faster animation
+    // Animate slice offsets toward 1 (hovered) or 0 (resting).
+    const rate = 12; // exponential decay rate; higher = snappier
     while (this.sliceOffsets.length < this.data.length) this.sliceOffsets.push(0);
     for (let i = 0; i < this.data.length; i++) {
       const target = i === this.#hoverIndex ? 1 : 0;
-      this.sliceOffsets[i] = lerp(this.sliceOffsets[i], target, speed * dt);
+      this.sliceOffsets[i] = smoothToward(this.sliceOffsets[i], target, rate, dt);
     }
 
     const palette = this.options.colors ?? theme.seriesColors;
