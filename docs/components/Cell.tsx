@@ -15,8 +15,11 @@ export function Cell({
 }) {
   return (
     <div
+      data-cell=""
       style={{
         position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
         minHeight: 0,
         minWidth: 0,
         borderRadius: 6,
@@ -26,16 +29,15 @@ export function Cell({
       }}
     >
       <div
+        data-cell-title=""
         style={{
-          position: 'absolute',
-          top: 6,
-          left: 8,
+          flex: '0 0 auto',
+          padding: '6px 8px 4px',
           fontSize: theme.typography.fontSize,
           fontWeight: 600,
           color: theme.tooltip.textColor,
-          zIndex: 3,
-          pointerEvents: 'none',
           fontFamily: theme.typography.fontFamily,
+          pointerEvents: 'none',
         }}
       >
         {label}{' '}
@@ -43,7 +45,7 @@ export function Cell({
           {sub}
         </span>
       </div>
-      {children}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
     </div>
   );
 }
