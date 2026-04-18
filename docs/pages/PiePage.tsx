@@ -7,6 +7,7 @@ import {
   PieSeries,
   type PieSliceData,
   PieTooltip,
+  Title,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -59,7 +60,8 @@ function PieChart({
   donut,
   showTooltip,
   showLegend,
-}: PlaygroundChartProps & PieSettings & { data: PieSliceData[] }) {
+  title,
+}: PlaygroundChartProps & PieSettings & { data: PieSliceData[]; title: string }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer
@@ -67,6 +69,7 @@ function PieChart({
       axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}
       gradient={gradient}
     >
+      <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
       <PieSeries
         data={data}
         onSeriesId={setSid}
@@ -89,17 +92,17 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       hideCartesian
       charts={(props) => (
         <>
-          <Cell label="Portfolio" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
-            <PieChart {...props} data={PORTFOLIO} />
+          <Cell theme={props.theme}>
+            <PieChart {...props} data={PORTFOLIO} title="Portfolio" />
           </Cell>
-          <Cell label="Revenue" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
-            <PieChart {...props} data={REVENUE} />
+          <Cell theme={props.theme}>
+            <PieChart {...props} data={REVENUE} title="Revenue" />
           </Cell>
-          <Cell label="Chains" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
-            <PieChart {...props} data={CHAINS} />
+          <Cell theme={props.theme}>
+            <PieChart {...props} data={CHAINS} title="Chains" />
           </Cell>
-          <Cell label="Allocation" sub={props.donut ? 'donut' : 'pie'} theme={props.theme}>
-            <PieChart {...props} data={ALLOCATION} />
+          <Cell theme={props.theme}>
+            <PieChart {...props} data={ALLOCATION} title="Allocation" />
           </Cell>
         </>
       )}

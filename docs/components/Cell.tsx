@@ -1,14 +1,16 @@
 import type { ChartTheme } from '@wick-charts/react';
 
+/**
+ * Thin bordered wrapper for a dashboard chart. The title/subtitle are now
+ * the chart's responsibility — use `<Title>` inside the chart container so
+ * the header row is laid out by ChartContainer alongside `<TooltipLegend>`
+ * instead of floating as a separate element above the canvas.
+ */
 export function Cell({
-  label,
-  sub,
   children,
   theme,
   style,
 }: {
-  label: string;
-  sub: string;
   children: React.ReactNode;
   theme: ChartTheme;
   style?: React.CSSProperties;
@@ -28,24 +30,7 @@ export function Cell({
         ...style,
       }}
     >
-      <div
-        data-cell-title=""
-        style={{
-          flex: '0 0 auto',
-          padding: '6px 8px 4px',
-          fontSize: theme.typography.fontSize,
-          fontWeight: 600,
-          color: theme.tooltip.textColor,
-          fontFamily: theme.typography.fontFamily,
-          pointerEvents: 'none',
-        }}
-      >
-        {label}{' '}
-        <span style={{ fontWeight: 400, color: theme.axis.textColor, fontSize: theme.typography.axisFontSize }}>
-          {sub}
-        </span>
-      </div>
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>{children}</div>
+      {children}
     </div>
   );
 }

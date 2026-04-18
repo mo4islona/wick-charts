@@ -8,6 +8,7 @@ import {
   type ChartTheme,
   Crosshair,
   Legend,
+  Title,
   Tooltip,
   XAxis,
   YAxis,
@@ -36,6 +37,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   const display = props.streaming ? datasets[0] : singleData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+      <Title sub="Up/Down">Single</Title>
       <BarSeries
         data={[display]}
         options={{
@@ -52,7 +54,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   );
 }
 
-function MultiBarChart(props: PlaygroundChartProps & BarSettings) {
+function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: string }) {
   const { datasets } = useLineStreams(layers, { delay: 500, interval: 240, kind: 'layer' });
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
@@ -61,6 +63,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings) {
   }, [props.axis, props.stacking]);
   return (
     <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient}>
+      <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
       <BarSeries
         data={display}
         options={{
@@ -88,11 +91,11 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
         return (
           <>
-            <Cell label="Single" sub="Up/Down" theme={props.theme}>
+            <Cell theme={props.theme}>
               <SingleBarChart key={`s-${props.streaming}`} {...props} />
             </Cell>
-            <Cell label={label} sub={`${LAYER_COUNT} layers`} theme={props.theme}>
-              <MultiBarChart key={`m-${props.streaming}-${props.stacking}`} {...props} />
+            <Cell theme={props.theme}>
+              <MultiBarChart key={`m-${props.streaming}-${props.stacking}`} {...props} title={label} />
             </Cell>
           </>
         );

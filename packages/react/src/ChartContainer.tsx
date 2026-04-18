@@ -16,6 +16,7 @@ import { type AxisConfig, ChartInstance, type ChartOptions, type ChartTheme } fr
 import { ChartContext, TooltipLegendPresenceContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
 import { Legend } from './ui/Legend';
+import { Title } from './ui/Title';
 import { TooltipLegend } from './ui/TooltipLegend';
 
 /** Props for the {@link ChartContainer} component. */
@@ -48,23 +49,25 @@ export interface ChartContainerProps {
 }
 
 /**
- * Split children into `<Legend>`, `<TooltipLegend>`, and the rest.
+ * Split children into `<Title>`, `<Legend>`, `<TooltipLegend>`, and the rest.
  *
  * Transparently walks through `<React.Fragment>` wrappers so the caller can
  * use normal React patterns — e.g. wrapping children in a conditional
  * fragment or returning fragments from parent components — and still get
  * hoisting. Deeper component boundaries are left alone on purpose: a custom
- * component that internally renders a `<TooltipLegend>` is its own DOM
- * subtree and should stay there.
+ * component that internally renders a `<Title>` / `<TooltipLegend>` is its
+ * own DOM subtree and should stay there.
  *
  * Exported for testing — this is pure React-children iteration with no DOM
  * dependencies, so it can be asserted in Node.
  */
 export function siftContainerChildren(children: ReactNode): {
+  titleEl: ReactElement | null;
   legendEl: ReactElement | null;
   tooltipLegendEl: ReactElement | null;
   overlay: ReactNode[];
 } {
+  let titleEl: ReactElement | null = null;
   let legendEl: ReactElement | null = null;
   let tooltipLegendEl: ReactElement | null = null;
   const overlay: ReactNode[] = [];
@@ -72,14 +75,15 @@ export function siftContainerChildren(children: ReactNode): {
   const visit = (child: ReactNode): void => {
     if (isValidElement(child) && child.type === Fragment) {
       // Unwrap fragments recursively — fragments don't produce DOM nodes,
-      // so a Legend/TooltipLegend nested in one is still a layout-level sibling.
-      Children.forEach(
-        (child as ReactElement<{ children?: ReactNode }>).props.children,
-        visit,
-      );
+      // so a Title/Legend/TooltipLegend nested in one is still a layout-level sibling.
+      Children.forEach((child as ReactElement<{ children?: ReactNode }>).props.children, visit);
       return;
     }
     if (isValidElement(child)) {
+      if (child.type === Title) {
+        titleEl = child;
+        return;
+      }
       if (child.type === Legend) {
         legendEl = child;
         return;
@@ -93,14 +97,15 @@ export function siftContainerChildren(children: ReactNode): {
   };
 
   Children.forEach(children, visit);
-  return { legendEl, tooltipLegendEl, overlay };
+  return { titleEl, legendEl, tooltipLegendEl, overlay };
 }
 
 /**
  * Top-level React wrapper that creates a {@link ChartInstance} and provides it to children via context.
  * Owns the DOM container and canvas lifecycle; renders children as an overlay layer.
- * Detects `<Legend>` and `<TooltipLegend>` children and renders them outside the chart area
- * so browser flex layout reserves their height and ResizeObserver drives a Y-range recompute.
+ * Detects `<Title>`, `<Legend>`, and `<TooltipLegend>` children and renders them outside the chart
+ * area so browser flex layout reserves their height and ResizeObserver drives a Y-range recompute.
+ * Stacking order from top to bottom: Title → TooltipLegend → canvas → Legend.
  */
 export function ChartContainer({
   children,
@@ -176,7 +181,7 @@ export function ChartContainer({
 
   const chart = chartRef.current;
 
-  const { legendEl, tooltipLegendEl, overlay } = siftContainerChildren(children);
+  const { titleEl, legendEl, tooltipLegendEl, overlay } = siftContainerChildren(children);
   const legendPosition = (legendEl as any)?.props?.position ?? 'bottom';
   const isLegendRight = legendPosition === 'right';
 
@@ -220,6 +225,12 @@ export function ChartContainer({
     </div>
   );
 
+  const hoistedTitle = chart && titleEl && (
+    <ChartContext.Provider value={chart}>
+      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{titleEl}</ThemeProvider>
+    </ChartContext.Provider>
+  );
+
   const hoistedTooltipLegend = chart && tooltipLegendEl && (
     <ChartContext.Provider value={chart}>
       <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{tooltipLegendEl}</ThemeProvider>
@@ -245,6 +256,7 @@ export function ChartContainer({
         ...style,
       }}
     >
+      {hoistedTitle}
       {hoistedTooltipLegend}
       {isLegendRight ? (
         <div style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0 }}>

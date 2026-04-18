@@ -9,6 +9,7 @@ import {
   Crosshair,
   LineSeries,
   TimeAxis,
+  Title,
   Tooltip,
   YAxis,
 } from '@wick-charts/react';
@@ -101,6 +102,7 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
+      <Title sub="custom theme">Candlestick</Title>
       <CandlestickSeries data={ohlcData} onSeriesId={setSid} />
       {sid && <Tooltip seriesId={sid} />}
       <Crosshair />
@@ -115,6 +117,7 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
+      <Title sub="3 series">Line</Title>
       <LineSeries
         data={allData}
         options={{
@@ -353,10 +356,10 @@ export function ThemePage({ theme }: { theme: ChartTheme }) {
   if (mobile) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: '100%' }}>
-        <Cell label="Candlestick" sub="custom theme" theme={customTheme} style={{ height: 220 }}>
+        <Cell theme={customTheme} style={{ height: 220 }}>
           <CandlestickPreview theme={customTheme} />
         </Cell>
-        <Cell label="Line" sub="3 series" theme={customTheme} style={{ height: 220 }}>
+        <Cell theme={customTheme} style={{ height: 220 }}>
           <LinePreview theme={customTheme} />
         </Cell>
         {colorEditor}
@@ -368,10 +371,10 @@ export function ThemePage({ theme }: { theme: ChartTheme }) {
   return (
     <div style={{ display: 'flex', height: '100%', gap: 6 }}>
       <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 6 }}>
-        <Cell label="Candlestick" sub="custom theme" theme={customTheme}>
+        <Cell theme={customTheme}>
           <CandlestickPreview theme={customTheme} />
         </Cell>
-        <Cell label="Line" sub="3 series" theme={customTheme}>
+        <Cell theme={customTheme}>
           <LinePreview theme={customTheme} />
         </Cell>
       </div>
