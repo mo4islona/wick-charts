@@ -669,6 +669,9 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 
 export function DashboardPage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
+  // DEMO_INTERVAL is 5_000ms; speed=10 → a fresh bar every ~500ms, which is
+  // the "crypto exchange" pace the hero chart is tuned for. Users can drag
+  // the debug speed slider to slow down and watch a single bar form.
   const [speed, setSpeed] = useState(10);
 
   return (

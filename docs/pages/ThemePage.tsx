@@ -17,15 +17,17 @@ import {
 
 import { Cell } from '../components/Cell';
 import { generateOHLCData, generateWaveData } from '../data';
+import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile } from '../hooks';
 import { hexToRgba } from '../utils';
 
 // ── Data ──────────────────────────────────────────────────────
 
-const ohlcData = generateOHLCData(200, 42000, 60);
-const lineData1 = generateWaveData(200, { base: 5, amplitude: 120, period: 50, phase: 0, onset: 0 });
-const lineData2 = generateWaveData(200, { base: 5, amplitude: 80, period: 65, phase: 0.5, onset: 0.1 });
-const lineData3 = generateWaveData(200, { base: 5, amplitude: 60, period: 40, phase: 1.0, onset: 0.2 });
+const ohlcData = generateOHLCData(200, 42000, DEMO_INTERVAL);
+const waveOpts = { interval: DEMO_INTERVAL };
+const lineData1 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 120, period: 50, phase: 0, onset: 0 });
+const lineData2 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 80, period: 65, phase: 0.5, onset: 0.1 });
+const lineData3 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 60, period: 40, phase: 1.0, onset: 0.2 });
 
 // ── Color picker row ──────────────────────────────────────────
 

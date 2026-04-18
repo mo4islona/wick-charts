@@ -20,6 +20,7 @@ import { Cell } from '../components/Cell';
 import { Section, Select, Slider, Switch, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { type LineStrategy, generateLineData, generateWaveData, lineDriftStrategy, waveStrategy } from '../data';
+import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
 
 type DataMode = 'wave' | 'line';
@@ -36,10 +37,6 @@ interface LineSettings {
 }
 
 const MULTI_COUNT = 6;
-/** Both historical generators and the live stream must share this interval so
- * new bars land in the same time grid as history (otherwise streamed points
- * bunch up at the chart's right edge). */
-const LINE_INTERVAL = 60_000;
 
 function makeData(mode: DataMode, count: number, index: number): LineData[] {
   if (mode === 'wave') {
@@ -49,10 +46,10 @@ function makeData(mode: DataMode, count: number, index: number): LineData[] {
       period: 50 + index * 15,
       phase: index * 0.12,
       onset: index * 0.06,
-      interval: LINE_INTERVAL,
+      interval: DEMO_INTERVAL,
     });
   }
-  return generateLineData(count, 80 + index * 30, LINE_INTERVAL);
+  return generateLineData(count, 80 + index * 30, DEMO_INTERVAL);
 }
 
 /** Build a streaming strategy that matches `makeData`'s generator for the given mode. */
@@ -72,13 +69,11 @@ function strategyFor(mode: DataMode) {
 
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
   const { datasets } = useLineStreams(props.allData, {
-    delay: 300,
-    interval: LINE_INTERVAL,
-    // LINE_INTERVAL is 60_000ms to match historical bar spacing. Without a
-    // speed multiplier the stream would need 60s of wall-clock time per new
-    // bar, so nothing visibly streams. 1000x makes new bars arrive at the
-    // same perceptual rate as the candlestick page.
-    speed: 1000,
+    startDelay: 300,
+    interval: DEMO_INTERVAL,
+    // See CandlestickPage for why a playground speed multiplier is needed even
+    // at the canonical interval: keeps append animations visibly frequent.
+    speed: 5,
     strategy: strategyFor(props.dataMode),
   });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
@@ -110,9 +105,9 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
 
 function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][]; title: string }) {
   const { datasets } = useLineStreams(props.allData, {
-    delay: 500,
-    interval: LINE_INTERVAL,
-    speed: 1000, // see SingleChart — compensates for the 60s historical bar interval
+    startDelay: 500,
+    interval: DEMO_INTERVAL,
+    speed: 5,
     strategy: strategyFor(props.dataMode),
   });
   const display = props.streaming ? datasets : props.allData;

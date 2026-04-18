@@ -18,6 +18,7 @@ import { Cell } from '../components/Cell';
 import { Section, Switch } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { generateOHLCData } from '../data';
+import { DEMO_INTERVAL } from '../data/demo';
 import { useOHLCStream } from '../hooks';
 
 interface CandleSettings {
@@ -27,9 +28,9 @@ interface CandleSettings {
   candleGradient: boolean;
 }
 
-const steadyData = generateOHLCData(300, 42000, 60);
-const volatileData = generateOHLCData(300, 100, 60);
-const trendingData = generateOHLCData(300, 1500, 60);
+const steadyData = generateOHLCData(300, 42000, DEMO_INTERVAL);
+const volatileData = generateOHLCData(300, 100, DEMO_INTERVAL);
+const trendingData = generateOHLCData(300, 1500, DEMO_INTERVAL);
 
 function CandleChart({
   theme,
@@ -44,11 +45,14 @@ function CandleChart({
   candleEnterAnimation,
   enterDurationMs,
   liveTracking,
-  interval,
+  startDelay,
   title,
   sub,
-}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; interval: number; title: string; sub: string }) {
-  const { data: d } = useOHLCStream(data, { delay: interval });
+}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; startDelay: number; title: string; sub: string }) {
+  // speed=5: virtual interval is 5s so each candle forms with visible intra
+  // wobble, but wall-clock gives us one new bar per second — dense enough
+  // for entrance animations to feel continuous, like the dashboard.
+  const { data: d } = useOHLCStream(data, { startDelay, interval: DEMO_INTERVAL, speed: 5 });
   const display = streaming ? d : data;
   const [sid, setSid] = useState<string | null>(null);
   return (
@@ -89,7 +93,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`s-${props.streaming}`}
               {...props}
               data={steadyData}
-              interval={300}
+              startDelay={300}
               title="BTC/USD"
               sub="Standard · 1m"
             />
@@ -99,7 +103,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`v-${props.streaming}`}
               {...props}
               data={volatileData}
-              interval={400}
+              startDelay={400}
               title="DOGE/USD"
               sub="High volatility · 1m"
             />
@@ -109,7 +113,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`t-${props.streaming}`}
               {...props}
               data={trendingData}
-              interval={500}
+              startDelay={500}
               title="ETH/USD"
               sub="Trending · 1m"
             />

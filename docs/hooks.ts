@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { LineData, OHLCData } from '@wick-charts/react';
 
 import {
+  DEMO_INTERVAL,
   type LineStrategy,
   LineStream,
   OHLCStream,
@@ -20,13 +21,12 @@ export { useIsMobile } from './hooks/useIsMobile';
 
 // ── Streaming hooks ─────────────────────────────────────────
 
-const BATCH_SIZE = 50;
-const BATCH_DELAY = 600;
-
 export type LineStreamKind = 'line' | 'bar' | 'layer';
 
 interface BaseStreamOpts {
-  delay?: number;
+  /** Delay in ms before historical data is initially revealed. Lets grids
+   *  stagger which chart starts drawing first. NOT the bar interval. */
+  startDelay?: number;
   interval?: number;
   /** 1 = realtime; 2 = 2× faster new bars; 0.5 = half speed. Read live from a ref. */
   speed?: number;
@@ -55,8 +55,8 @@ function capArray<T>(arr: T[], max?: number): T[] {
 }
 
 export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
-  const delay = opts.delay ?? 50;
-  const streamInterval = opts.interval ?? 60;
+  const startDelay = opts.startDelay ?? 50;
+  const streamInterval = opts.interval ?? DEMO_INTERVAL;
   const { maxPoints } = opts;
   const speedRef = useLiveRef(opts.speed ?? 1);
   const allDataRef = useLiveRef(allData);
@@ -67,31 +67,29 @@ export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
   const dataRef = useLiveRef(data);
 
-  // Batch-reveal historical data. The reducer only grows the array, so
-  // StrictMode re-runs and streaming emissions can't truncate it.
+  // Load full history in one shot after `startDelay`. Earlier versions revealed
+  // in 50-point batches, but with the canonical bar interval each batch
+  // stretched the x-axis by ~50s and produced a visible "jump" per batch.
+  // The reducer only grows the array (never truncates) so a StrictMode double-
+  // mount or an already-started stream can't clobber in-flight live points.
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const history = allDataRef.current;
-    const total = Math.ceil(history.length / BATCH_SIZE);
-    let batch = 0;
-    const loadNext = () => {
+    const timer = setTimeout(() => {
       if (cancelled) return;
-      batch++;
-      const end = batch * BATCH_SIZE;
+      // Read the ref inside the timeout so a same-length replacement of
+      // `allData` during the delay still reveals the latest array.
+      const history = allDataRef.current;
       setData((prev) => {
-        const slice = history.slice(0, end);
-        return prev.length >= slice.length ? prev : capArray(slice, maxPointsRef.current);
+        const target = capArray(history, maxPointsRef.current);
+        return prev.length >= target.length ? prev : target;
       });
-      if (batch < total) timer = setTimeout(loadNext, BATCH_DELAY);
-      else setPhase('live');
-    };
-    timer = setTimeout(loadNext, delay);
+      setPhase('live');
+    }, startDelay);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [delay, seriesLength, allDataRef, maxPointsRef]);
+  }, [startDelay, seriesLength, allDataRef, maxPointsRef]);
 
   useEffect(() => {
     if (phase !== 'live') return;
@@ -122,7 +120,7 @@ export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
         return capArray(next, maxPointsRef.current);
       });
     });
-    source.start(500);
+    source.start();
     return () => {
       unsub();
       source.stop();
@@ -148,8 +146,8 @@ function pickLineStrategy(kind: LineStreamKind, series: LineData[]): LineStrateg
 }
 
 export function useLineStreams(allData: LineData[][], opts: LineStreamOpts = {}) {
-  const delay = opts.delay ?? 50;
-  const dataInterval = opts.interval ?? 60;
+  const startDelay = opts.startDelay ?? 50;
+  const dataInterval = opts.interval ?? DEMO_INTERVAL;
   const kind: LineStreamKind = opts.kind ?? 'line';
   const { maxPoints } = opts;
   const speedRef = useLiveRef(opts.speed ?? 1);
@@ -163,34 +161,30 @@ export function useLineStreams(allData: LineData[][], opts: LineStreamOpts = {})
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
   const datasetsRef = useLiveRef(datasets);
 
-  // Batch-reveal historical data. The reducer only grows each series, so
-  // StrictMode re-runs and streaming emissions can't truncate.
+  // Load full history for every series in one shot after `startDelay`. See
+  // `useOHLCStream` above for why the batch-reveal was removed. The reducer
+  // still guards against truncation so StrictMode / live-stream races are safe.
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const history = allDataRef.current;
-    const total = Math.ceil(historyLength / BATCH_SIZE);
-    let batch = 0;
-    const loadNext = () => {
+    const timer = setTimeout(() => {
       if (cancelled) return;
-      batch++;
-      const end = batch * BATCH_SIZE;
+      // Same rationale as `useOHLCStream`: pull from the ref at fire time
+      // so a same-shape replacement of `allData` during the delay isn't lost.
+      const history = allDataRef.current;
       setDatasets((prev) =>
         history.map((line, i) => {
           const existing = prev[i] ?? [];
-          const slice = line.slice(0, end);
-          return existing.length >= slice.length ? existing : capArray(slice, maxPointsRef.current);
+          const target = capArray(line, maxPointsRef.current);
+          return existing.length >= target.length ? existing : target;
         }),
       );
-      if (batch < total) timer = setTimeout(loadNext, BATCH_DELAY);
-      else setPhase('live');
-    };
-    timer = setTimeout(loadNext, delay);
+      setPhase('live');
+    }, startDelay);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [delay, seriesCount, historyLength, allDataRef, maxPointsRef]);
+  }, [startDelay, seriesCount, historyLength, allDataRef, maxPointsRef]);
 
   useEffect(() => {
     if (phase !== 'live') return;
@@ -227,7 +221,9 @@ export function useLineStreams(allData: LineData[][], opts: LineStreamOpts = {})
         });
       }),
     );
-    for (const s of sources) s.start(400 + Math.random() * 200);
+    // Fixed tick rate keeps all series in the same chart updating in lockstep;
+    // prior per-series random jitter produced visible desync between lines.
+    for (const s of sources) s.start();
     return () => {
       for (const u of unsubs) u();
       for (const s of sources) s.stop();

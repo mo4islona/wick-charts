@@ -172,24 +172,30 @@ function walkOHLC(count: number, interval: number, strategy: OHLCStrategy): OHLC
   return out;
 }
 
-export function generateOHLCData(count: number, startPrice = 100, interval = 60_000): OHLCData[] {
+/** Single source of truth for the docs' bar interval. Generators, hooks, and
+ * every page that builds OHLC / line history read this so history and live
+ * samplers always land on the same time grid. `data/demo.ts` re-exports it
+ * under its public name (`DEMO_INTERVAL`). */
+export const DEMO_INTERVAL = 5_000;
+
+export function generateOHLCData(count: number, startPrice = 100, interval = DEMO_INTERVAL): OHLCData[] {
   return walkOHLC(count, interval, ohlcStrategy(startPrice));
 }
 
-export function generateLineData(count: number, startValue = 100, interval = 60_000): LineData[] {
+export function generateLineData(count: number, startValue = 100, interval = DEMO_INTERVAL): LineData[] {
   return walkLine(count, interval, lineDriftStrategy(startValue));
 }
 
-export function generateBarData(count: number, interval = 60_000): LineData[] {
+export function generateBarData(count: number, interval = DEMO_INTERVAL): LineData[] {
   return walkLine(count, interval, barStrategy(100));
 }
 
-export function generateLayerData(count: number, base: number, interval = 60_000): LineData[] {
+export function generateLayerData(count: number, base: number, interval = DEMO_INTERVAL): LineData[] {
   return walkLine(count, interval, layerStrategy(base));
 }
 
 export function generateWaveData(count: number, opts: WaveOpts & { interval?: number } = {}): LineData[] {
-  const { interval = 60_000, ...rest } = opts;
+  const { interval = DEMO_INTERVAL, ...rest } = opts;
   return walkLine(count, interval, waveStrategy({ ...rest, totalHint: rest.totalHint ?? count }));
 }
 
@@ -232,6 +238,23 @@ class BaseStream<T extends { time: number }, S extends AnyStrategy<T>> {
   protected virtualNow: number;
   protected lastReal = 0;
   protected listeners: Array<(point: T) => void> = [];
+  /** `intra` represents the in-progress update of whatever bar the stream is
+   * currently forming. Until we cross the first boundary, the "current" bar is
+   * the historical tail — flickering it would look like history is being
+   * rewritten. Once we've emitted at least one boundary of our own, it's safe. */
+  protected boundaryCrossed = false;
+  /** Wall-clock timestamp of the last intra emission. We tick every 100ms so
+   * the candle body can move smoothly, but emitting intra every tick pushes
+   * 10 new "last value" events per second, which makes `YLabel`'s NumberFlow
+   * (spinDuration=350ms) stutter. Throttle intras to ~2Hz so the label has
+   * time to settle between updates while the boundary sampler keeps firing
+   * promptly on every new bar. */
+  protected lastIntraEmit = 0;
+  protected static readonly INTRA_EMIT_MS = 500;
+  /** Virtual-time head start granted to the first boundary so streaming
+   * demos don't sit silent for a full `interval` after the user enables
+   * live mode. 500ms feels snappy without creating a visible "jump". */
+  protected static readonly INITIAL_LEAD_MS = 500;
 
   constructor(cfg: StreamConfig<T, S>) {
     this.last = { ...cfg.last };
@@ -239,11 +262,16 @@ class BaseStream<T extends { time: number }, S extends AnyStrategy<T>> {
     this.interval = cfg.interval;
     this.strategy = cfg.strategy;
     this.speed = cfg.speed ?? (() => 1);
-    // Anchor the virtual clock at whichever is later: the current wall-clock
-    // boundary, or the already-emitted tail. Without the max(), resuming a
-    // stream that had run at speed > 1 would leave virtualNow behind last.time
-    // and the while-loop in tick() would stall until real time caught up.
-    this.virtualNow = Math.max(Math.floor(Date.now() / cfg.interval) * cfg.interval, cfg.last.time);
+    // Seed virtualNow `INITIAL_LEAD_MS` below the next boundary so the first
+    // live bar shows up ~500ms after stream start instead of after a full
+    // `interval` (5s at the canonical demo pace — too long to feel alive).
+    // Subsequent bars arrive at the natural `interval / speed` cadence. The
+    // small virtual/wall-clock offset this introduces is invisible on the
+    // chart because the time axis is data-relative. Anchoring at Date.now()
+    // instead would force the first tick to catch up across whatever gap
+    // accumulated during history rendering, producing a visible burst of bars.
+    const lead = Math.min(BaseStream.INITIAL_LEAD_MS, cfg.interval - 1);
+    this.virtualNow = cfg.last.time + cfg.interval - lead;
   }
 
   onTick(listener: (point: T) => void): () => void {
@@ -253,7 +281,11 @@ class BaseStream<T extends { time: number }, S extends AnyStrategy<T>> {
     };
   }
 
-  start(tickMs = 200): void {
+  start(tickMs = 100): void {
+    // 100ms tick → at the canonical 5_000ms bar interval we emit ~50 intra
+    // updates per bar (smooth wobble) and cross at most one boundary per tick
+    // even at 10× dashboard speed. Keeping tickMs small avoids the visible
+    // "5-at-a-time" batching that happens when tickMs >> interval / speed.
     this.lastReal = Date.now();
     this.timer = setInterval(() => this.tick(), tickMs);
   }
@@ -281,11 +313,18 @@ class BaseStream<T extends { time: number }, S extends AnyStrategy<T>> {
       const time = this.last.time + this.interval;
       this.last = this.strategy.boundary({ index: this.index, time, prev: this.last });
       this.emit(this.last);
+      this.boundaryCrossed = true;
+      this.lastIntraEmit = realNow;
     }
 
-    if (this.strategy.intra) {
+    if (
+      this.boundaryCrossed &&
+      this.strategy.intra &&
+      realNow - this.lastIntraEmit >= BaseStream.INTRA_EMIT_MS
+    ) {
       this.last = this.strategy.intra({ index: this.index, time: this.last.time, prev: this.last });
       this.emit(this.last);
+      this.lastIntraEmit = realNow;
     }
   }
 }

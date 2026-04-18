@@ -11,12 +11,13 @@ import {
 import { Section, Select, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { generateBarData, generateLineData, generateWaveData } from '../data';
+import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile } from '../hooks';
 
 // ── Sample data generators ──────────────────────────────────
 
 function makeSparkData(seed: number, count = 60): LineData[] {
-  return generateLineData(count, 40 + seed * 20, 60);
+  return generateLineData(count, 40 + seed * 20, DEMO_INTERVAL);
 }
 
 function makeWaveSparkData(seed: number, count = 60): LineData[] {
@@ -25,11 +26,12 @@ function makeWaveSparkData(seed: number, count = 60): LineData[] {
     amplitude: 50 + seed * 30,
     period: 20 + seed * 8,
     phase: seed * 0.3,
+    interval: DEMO_INTERVAL,
   });
 }
 
 function makeBarSparkData(count = 60): LineData[] {
-  return generateBarData(count, 60);
+  return generateBarData(count, DEMO_INTERVAL);
 }
 
 // ── Metric card rows ────────────────────────────────────────
