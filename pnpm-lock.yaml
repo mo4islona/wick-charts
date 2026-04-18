@@ -41,6 +41,9 @@ importers:
       '@vue/test-utils':
         specifier: ^2.4.6
         version: 2.4.6
+      esbuild:
+        specifier: 0.21.5
+        version: 0.21.5
       happy-dom:
         specifier: ^20.9.0
         version: 20.9.0
