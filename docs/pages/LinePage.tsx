@@ -15,7 +15,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Select, ToggleGroup } from '../components/controls';
+import { Section, Select, Slider, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { generateLineData, generateWaveData } from '../data';
 import { useLineStreams } from '../hooks';
@@ -25,6 +25,7 @@ type DataMode = 'wave' | 'line';
 interface LineSettings {
   dataMode: DataMode;
   areaFill: boolean;
+  lineWidth: number;
   stacking: BarStacking;
   tooltipSort: TooltipSort;
   legendPos: 'off' | 'bottom' | 'right';
@@ -55,7 +56,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
       <LineSeries
         data={data}
         onSeriesId={setSid}
-        options={{ areaFill: props.areaFill, lineWidth: 1, pulse: props.streaming }}
+        options={{ areaFill: props.areaFill, lineWidth: props.lineWidth, pulse: props.streaming }}
       />
       {sid && <Tooltip seriesId={sid} sort={props.tooltipSort} legend={false} />}
       <Crosshair />
@@ -76,7 +77,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
         options={{
           colors: props.theme.seriesColors.slice(0, display.length),
           areaFill: props.areaFill,
-          lineWidth: 1,
+          lineWidth: props.lineWidth,
           pulse: props.streaming,
           stacking: props.stacking,
         }}
@@ -98,6 +99,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       defaults={{
         dataMode: 'wave',
         areaFill: false,
+        lineWidth: 1,
         stacking: 'off',
         tooltipSort: 'desc',
         legendPos: 'bottom',
@@ -152,6 +154,16 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
               onChange={(v) => set({ stacking: v as BarStacking })}
               theme={theme}
             />
+            <Slider
+              label="Line width"
+              value={s.lineWidth}
+              onChange={(v) => set({ lineWidth: v })}
+              min={1}
+              max={6}
+              step={1}
+              suffix="px"
+              theme={theme}
+            />
           </Section>
           <Section title="Tooltip" theme={theme} accent={theme.axis.textColor}>
             <ToggleGroup
@@ -202,6 +214,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
               data: 'data',
               options: {
                 ...(s.areaFill ? { areaFill: true } : {}),
+                ...(s.lineWidth !== 1 ? { lineWidth: s.lineWidth } : {}),
                 ...(s.streaming ? { pulse: true } : {}),
                 ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
               },
