@@ -86,7 +86,7 @@ const custom = createTheme({
   candlestick: { upColor: '#10b981', downColor: '#ef4444' },
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
-const preset = dracula; // { theme, dark, fontUrl?, backgroundImage? }
+const preset = dracula; // { name, theme, dark, fontUrl: string | null, backgroundImage?, backgroundSize? }
 ```
 
 React also has `<ThemeProvider value={theme}>` for global theming.
