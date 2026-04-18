@@ -8,8 +8,8 @@ const bars = [
   { time: 1_005_000, open: 100.5, high: 102, low: 100, close: 101, volume: 12 },
 ];
 
-describe('<Title> hoisting', () => {
-  it('renders as a flex sibling above the canvas and above <TooltipLegend>', () => {
+describe('<Title> hoisting + grid layering', () => {
+  it('renders Title + TooltipLegend stacked inside the canvas block', () => {
     const mounted = mountChart(
       <>
         <Title sub="Live Candlestick">BTC/USD</Title>
@@ -19,24 +19,18 @@ describe('<Title> hoisting', () => {
       { width: 400, height: 240 },
     );
 
-    const title = mounted.container.querySelector('[data-chart-title]');
+    const title = mounted.container.querySelector('[data-chart-title]') as HTMLElement;
+    const bar = mounted.container.querySelector('[data-tooltip-legend]') as HTMLElement;
     expect(title).toBeTruthy();
-    expect(title?.textContent).toContain('BTC/USD');
-    expect(title?.textContent).toContain('Live Candlestick');
+    expect(bar).toBeTruthy();
 
-    // Title must not be absolutely positioned (that was the pre-hoist bug
-    // that let it collide with TooltipLegend).
-    const computed = window.getComputedStyle(title as HTMLElement);
-    expect(['static', 'relative', '']).toContain(computed.position);
-
-    // Stacking order: Title → TooltipLegend → canvas-owning container.
-    const all = Array.from(mounted.container.querySelectorAll('*'));
-    const titleIdx = all.findIndex((el) => el.hasAttribute('data-chart-title'));
-    const legendIdx = all.findIndex((el) => el.hasAttribute('data-tooltip-legend'));
-    const canvasIdx = all.findIndex((el) => el.tagName === 'CANVAS');
-    expect(titleIdx).toBeGreaterThan(-1);
-    expect(legendIdx).toBeGreaterThan(titleIdx);
-    expect(canvasIdx).toBeGreaterThan(legendIdx);
+    // Title and TooltipLegend share the same top-overlay wrapper and it is
+    // positioned absolutely (an overlay on top of the canvas, not a flex row
+    // above it). This lets the grid render full-height behind them.
+    const wrapper = title.parentElement as HTMLElement;
+    expect(wrapper.hasAttribute('data-chart-top-overlay')).toBe(true);
+    expect(wrapper.style.position).toBe('absolute');
+    expect(wrapper.contains(bar)).toBe(true);
 
     mounted.unmount();
   });
@@ -52,30 +46,68 @@ describe('<Title> hoisting', () => {
 
     const title = mounted.container.querySelector('[data-chart-title]') as HTMLElement | null;
     expect(title).toBeTruthy();
-    // Exactly one child span — the muted sub-label. No leading empty span.
     expect(title?.children.length).toBe(1);
     expect(title?.textContent).toBe('1m');
 
     mounted.unmount();
   });
 
-  it('renders without <TooltipLegend> and still sits above the canvas', () => {
+  it('canvas spans the full container so the grid renders behind Title/TooltipLegend', () => {
     const mounted = mountChart(
       <>
-        <Title>Portfolio</Title>
+        <Title>BTC</Title>
+        <TooltipLegend />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240 },
     );
 
-    const title = mounted.container.querySelector('[data-chart-title]');
-    const canvas = mounted.container.querySelector('canvas');
-    expect(title).toBeTruthy();
+    const canvas = mounted.container.querySelector('canvas') as HTMLCanvasElement;
+    const title = mounted.container.querySelector('[data-chart-title]') as HTMLElement;
+    const bar = mounted.container.querySelector('[data-tooltip-legend]') as HTMLElement;
     expect(canvas).toBeTruthy();
-    // compareDocumentPosition: FOLLOWING (4) means `canvas` comes after `title` in document order.
-    expect((title as HTMLElement).compareDocumentPosition(canvas as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
+
+    // Canvas and the Title/TooltipLegend overlay share the same canvas-block
+    // container — i.e. the overlays are *inside* the canvas's parent, so the
+    // canvas visually extends under them rather than the other way around.
+    const canvasBlock = canvas.parentElement as HTMLElement;
+    expect(canvasBlock.contains(title)).toBe(true);
+    expect(canvasBlock.contains(bar)).toBe(true);
+
+    mounted.unmount();
+  });
+
+  it('top overlay wrapper is removed entirely when Title and TooltipLegend are both absent', () => {
+    // When neither overlay is declared the wrapper is not rendered at all;
+    // combined with the effect's `setTopOverlayHeight(0)` reset, padding.top
+    // drops back to the user's configured value instead of carrying stale
+    // height from a previous render.
+    const mounted = mountChart(<CandlestickSeries data={bars} />, { width: 400, height: 240 });
+    expect(mounted.container.querySelector('[data-chart-top-overlay]')).toBeNull();
+    mounted.unmount();
+  });
+
+  it('floating tooltip overlay has a higher z-index than Title/TooltipLegend', () => {
+    // When the cursor hovers over the top of the chart, the floating <Tooltip>
+    // glass panel should appear *above* Title / TooltipLegend — otherwise the
+    // header strip covers the tooltip content.
+    const mounted = mountChart(
+      <>
+        <Title>BTC</Title>
+        <TooltipLegend />
+        <CandlestickSeries data={bars} />
+      </>,
+      { width: 400, height: 240 },
     );
+
+    const topOverlay = mounted.container.querySelector('[data-chart-top-overlay]') as HTMLElement;
+    const seriesOverlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement;
+    expect(topOverlay).toBeTruthy();
+    expect(seriesOverlay).toBeTruthy();
+
+    const topZ = Number.parseInt(topOverlay.style.zIndex || '0', 10);
+    const seriesZ = Number.parseInt(seriesOverlay.style.zIndex || '0', 10);
+    expect(seriesZ).toBeGreaterThan(topZ);
 
     mounted.unmount();
   });

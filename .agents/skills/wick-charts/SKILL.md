@@ -9,192 +9,110 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 
 ## Packages
 
-Install only the one you need. Each re-exports all types and themes from core.
+- `@wick-charts/react` — components + hooks + `ThemeProvider`
+- `@wick-charts/vue` — components + composables
+- `@wick-charts/svelte` — components + stores
 
-- `@wick-charts/react` — Components, hooks, ThemeProvider
-- `@wick-charts/vue` — Components, composables, provide/inject
-- `@wick-charts/svelte` — Components, stores, context
+Core components (`ChartContainer`, all `*Series`, `Tooltip`, `TooltipLegend`, `Title`, `Crosshair`, axes, `YLabel`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
-## Chart types
+Framework-specific gaps to know about:
 
-Each type has a dedicated reference page:
+- **React** has the richest surface: `ThemeProvider`, `Legend`, `Sparkline`, and several hooks (`useChartInstance`, `useVisibleRange`, `useYRange`, `useLastYValue`, `usePreviousClose`, `useCrosshairPosition`, `useTheme`). `ChartContainer` accepts `padding`, `gradient`, `grid`, `interactive`, `style`, `className`.
+- **Vue** and **Svelte** `ChartContainer` currently accept only `theme` + `axis` (+ `style` in Svelte); `padding`/`gradient`/`grid`/`interactive` props are React-only for now. `Legend` is not yet ported.
 
-- [Candlestick](candlestick.md) — OHLCV financial data with volume bars
-- [Line / Area](line.md) — Multi-layer, stacking, area fill, pulse animation
-- [Bar / Histogram](bar.md) — Multi-layer, stacking (off / normal / percent)
-- [Pie / Donut](pie.md) — Donut via `innerRadiusRatio`, hover animations
-- [Sparkline](sparkline.md) — Compact inline chart + value label (React only)
+## Chart types (reference pages)
+
+- [Candlestick](candlestick.md) — OHLCV with volume bars
+- [Line / Area](line.md) — multi-layer, stacking, area, pulse
+- [Bar / Histogram](bar.md) — multi-layer, stacking
+- [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation
+- [Sparkline](sparkline.md) — inline mini-chart + value label (React only)
 
 ## ChartContainer
 
-The root component. Must have a defined width and height.
-
-### React
+Root component. Requires a defined width + height.
 
 ```tsx
-import { ChartContainer, darkTheme } from '@wick-charts/react';
-
 <ChartContainer
   theme={darkTheme}
   axis={{ y: { min: 0, max: 'auto' }, x: { visible: true } }}
-  padding={{ top: 20, bottom: 20, right: { intervals: 3 } }}
-  gradient={true}
-  interactive={true}
-  grid={true}
+  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
+  gradient grid interactive
   style={{ width: '100%', height: 400 }}
-  className="my-chart"
 >
-  {/* Series + overlays */}
+  {/* series + overlays */}
 </ChartContainer>
 ```
 
-### Vue
+React props: `theme`, `axis`, `padding`, `gradient`, `grid`, `interactive`, `style`, `className` (all optional, safe defaults). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots.
 
-```vue
-<ChartContainer :theme="darkTheme" :axis="axis">
-  <!-- Series + overlays -->
-</ChartContainer>
-```
+Vue / Svelte props (current subset): `theme`, `axis` (+ `style` in Svelte). `padding`/`gradient`/`grid`/`interactive` are React-only at the moment — use the sensible defaults on Vue and Svelte, or size via the wrapping element.
 
-### Svelte
-
-```svelte
-<ChartContainer theme={darkTheme} {axis} style="width:100%;height:400px">
-  <!-- Series + overlays -->
-</ChartContainer>
-```
-
-### Props
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `theme` | `ChartTheme` | `darkTheme` | Visual theme |
-| `axis` | `AxisConfig` | — | Axis visibility, bounds, sizing |
-| `padding` | `PaddingConfig` | see below | Chart padding |
-| `gradient` | `boolean` | `true` | Background gradient (React only) |
-| `interactive` | `boolean` | `true` | Zoom/pan/crosshair (React only) |
-| `grid` | `boolean` | `true` | Background grid (React only) |
-
-### Padding
-
-```ts
-padding?: {
-  top?: number;                          // pixels, default: 20
-  bottom?: number;                       // pixels, default: 20
-  right?: number | { intervals: number }; // default: { intervals: 3 }
-  left?: number | { intervals: number };  // default: { intervals: 0 }
-}
-```
-
-`{ intervals: N }` adds N empty data intervals of space. Applied on mount only.
-
-### Axis configuration
-
-```ts
-interface AxisConfig {
-  y?: { width?: number; min?: AxisBound; max?: AxisBound; visible?: boolean }
-  x?: { height?: number; visible?: boolean }
-}
-
-// AxisBound: 'auto' | number | "+10%" | ((values: number[]) => number)
-```
+`AxisBound` = `'auto' | number | "+10%" | ((values: number[]) => number)`.
 
 ## UI overlay components
 
-Placed as children inside `ChartContainer`. Same API across all frameworks.
+Placed as children of `ChartContainer`.
 
-| Component | Props | Use with |
-|-----------|-------|----------|
-| `Tooltip` | `seriesId?`, `sort?: 'none'\|'asc'\|'desc'`, `legend?: boolean` | All time-based charts |
-| `Crosshair` | — | All time-based charts |
-| `YAxis` | — | All time-based charts |
-| `TimeAxis` | — (alias: `XAxis`) | All time-based charts |
-| `YLabel` | `seriesId`, `color?` | Candlestick, Line, Bar |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Multi-layer Line, Bar |
-| `PieLegend` | `seriesId`, `format?: 'value'\|'percent'` | Pie only |
-| `PieTooltip` | `seriesId` | Pie only |
+| Component | Props | Notes |
+|---|---|---|
+| `Title` | `children`, `sub?` | Title bar, hoisted above canvas |
+| `TooltipLegend` | `seriesId?`, `sort?` | OHLC / values info bar, hoisted above canvas |
+| `Tooltip` | `seriesId?`, `sort?` | Floating glass tooltip near cursor (hover only) |
+| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Series legend, hoisted below / beside canvas (**React only**) |
+| `Crosshair` | — | Axis labels at cursor |
+| `YAxis` / `TimeAxis` (alias `XAxis`) | — | Default axes |
+| `YLabel` | `seriesId`, `color?` | Floating price badge + dashed line |
+| `PieTooltip` / `PieLegend` | `seriesId` (+ `format?`) | Pie-only variants |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
 
-`Legend` renders outside the chart canvas — the viewport adjusts automatically.
+**Hoisting**: `Title` + `TooltipLegend` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / TooltipLegend so it reads clearly when the cursor hovers near the header. `Legend` (**React only**) sits as a flex sibling below (or beside, with `position="right"`).
+
+`Tooltip` is **floating-only**. For the top info bar, use `<TooltipLegend>` — the two are complementary and usually composed together.
 
 ## Themes
 
-### Built-in (20+)
+Dark: `darkTheme`, `dracula`, `oneDarkPro`, `monokaiPro`, `nightOwl`, `materialPalenight`, `gruvbox`, `catppuccin`, `ayuMirage`, `panda`, `andromeda`, `highContrast`, `handwritten`.
 
-**Dark:** `darkTheme`, `dracula`, `oneDarkPro`, `monokaiPro`, `nightOwl`, `materialPalenight`, `gruvbox`, `catppuccin`, `ayuMirage`, `panda`, `andromeda`, `highContrast`, `handwritten`
+Light: `lightTheme`, `githubLight`, `solarizedLight`, `rosePineDawn`, `quietLight`, `lavenderMist`, `mintBreeze`, `sandDune`, `peachCream`, `minimalLight`, `lightPink`.
 
-**Light:** `lightTheme`, `githubLight`, `solarizedLight`, `rosePineDawn`, `quietLight`, `lavenderMist`, `mintBreeze`, `sandDune`, `peachCream`, `minimalLight`, `lightPink`
-
-### Custom theme
+All themes listed in the `themes` export. Custom:
 
 ```ts
-import { createTheme } from '@wick-charts/react'; // or /vue or /svelte
+import { createTheme, buildTheme } from '@wick-charts/react';
 
 const custom = createTheme({
-  background: '#0f172a',  // only required field — rest auto-derived
+  background: '#0f172a', // only required field; rest auto-derived
   candlestick: { upColor: '#10b981', downColor: '#ef4444' },
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
-
-// Or by name
-import { buildTheme } from '@wick-charts/react';
-const theme = buildTheme('Dracula');
+const byName = buildTheme('Dracula');
 ```
 
-### ThemeProvider (React)
+React also has `<ThemeProvider value={theme}>` for global theming.
 
-```tsx
-<ThemeProvider value={catppuccin}>
-  <ChartContainer>...</ChartContainer>
-  <ChartContainer>...</ChartContainer>
-</ThemeProvider>
-```
+## Reactive accessors
 
-## Hooks / Composables / Stores
+Same concepts across frameworks (React hooks → Vue composables → Svelte stores):
 
-### React hooks
+- `useChartInstance()` / `getChartContext()` — the `ChartInstance`
+- `useVisibleRange(chart)` — `{ from, to }`
+- `useYRange(chart)` — `{ min, max }`
+- `useLastYValue(chart, seriesId)` — `{ value, isLive } | null`
+- `usePreviousClose(chart, seriesId)` — `number | null`
+- `useCrosshairPosition(chart)` — `{ mediaX, mediaY, time, y } | null`
+- `useTheme()` / `getThemeContext()` — `ChartTheme`
 
-```ts
-import { useChartInstance, useVisibleRange, useYRange, useLastYValue, usePreviousClose, useCrosshairPosition, useTheme } from '@wick-charts/react';
+React/Vue return plain values / refs; Svelte returns `Readable<T>` — read with `$store`.
 
-const chart = useChartInstance();                    // ChartInstance
-const range = useVisibleRange(chart);                // { from, to }
-const yRange = useYRange(chart);                     // { min, max }
-const last = useLastYValue(chart, seriesId);         // { value, isLive } | null
-const prevClose = usePreviousClose(chart, seriesId); // number | null
-const crosshair = useCrosshairPosition(chart);       // { mediaX, mediaY, time, y } | null
-const theme = useTheme();                            // ChartTheme
-```
-
-### Vue composables
-
-```ts
-import { useChartInstance, useVisibleRange, useYRange, useLastYValue, usePreviousClose, useCrosshairPosition, useTheme } from '@wick-charts/vue';
-// Same API — all return Ref<T>
-```
-
-### Svelte stores
-
-```ts
-import { getChartContext, getThemeContext, createVisibleRange, createYRange, createLastYValue, createPreviousClose, createCrosshairPosition } from '@wick-charts/svelte';
-
-const chartStore = getChartContext();   // Readable<ChartInstance | null>
-const themeStore = getThemeContext();    // Readable<ChartTheme>
-// create* functions return Readable<T> — use $store syntax
-```
-
-## Multiple series overlay
-
-Combine any time-based series in one `ChartContainer`:
+## Multi-series overlay
 
 ```tsx
 <ChartContainer theme={darkTheme}>
-  <CandlestickSeries data={ohlcData} onSeriesId={setCandleId} />
-  <LineSeries
-    data={[smaData]}
-    options={{ colors: ['#ffd700'], lineWidth: 1, areaFill: false, pulse: false }}
-    label="SMA 20"
-  />
+  <Title sub="BTC · 1h">BTC/USD</Title>
+  <TooltipLegend seriesId={candleId} />
+  <CandlestickSeries data={ohlc} onSeriesId={setCandleId} />
+  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], lineWidth: 1 }} label="SMA 20" />
   <Tooltip />
   <Crosshair />
   <YAxis />
@@ -203,18 +121,13 @@ Combine any time-based series in one `ChartContainer`:
 </ChartContainer>
 ```
 
-## Real-time updates
+## Realtime updates
 
-Update the `data` prop — framework reactivity handles the rest. Smart diffing applies automatically:
-
-- Same array length → updates last point only
-- Grew by 1-5 items → appends incrementally
-- Otherwise → full replace
+Pass a new `data` array reference when data changes (e.g. via immutable state updates in React — the series components compare references in hook deps, so mutating in place won't re-render). The library diffs internally: same-length → updates last, +1..5 → incremental append, otherwise → full replace.
 
 ## Critical rules
 
-- **Time is in milliseconds** (`Date.now()` style) — or pass a `Date` object
-- `OHLCData` / `TimePoint` have `time: number` (ms). Use `OHLCInput` / `TimePointInput` when passing `Date` objects
-- `TimePoint` is the canonical type (`LineData` is a deprecated alias)
-- Line and Bar `data` is always `TimePoint[][]` — wrap single datasets: `[myData]`
-- Pie `data` is `PieSliceData[]` (not nested)
+- `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`.
+- `TimePoint` is canonical; `LineData` is a deprecated alias.
+- `LineSeries` / `BarSeries` `data` is always `TimePoint[][]` — wrap single datasets as `[myData]`.
+- `PieSeries` `data` is flat `PieSliceData[]`.

@@ -23,8 +23,13 @@ let crosshair: CrosshairPosition | null = null;
 let lastY: { value: number; isLive: boolean } | null = null;
 let crosshairUnsub: (() => void) | null = null;
 let lastYUnsub: (() => void) | null = null;
+let seriesChangeUnsub: (() => void) | null = null;
 
 let prevPrimaryId = '';
+// `bump` forces targetIds / hover snapshots to recompute after sibling series
+// register. Without a seriesChange subscription, a Tooltip mounted before
+// its series would see `getSeriesIds() === []` and never recover.
+let bump = 0;
 
 $: {
   const chart = $chartStore;
@@ -35,7 +40,16 @@ $: {
         crosshair = v;
       });
     }
-
+    if (!seriesChangeUnsub) {
+      const handler = () => {
+        bump++;
+      };
+      chart.on('seriesChange', handler);
+      seriesChangeUnsub = () => chart.off('seriesChange', handler);
+      if (chart.getSeriesIds().length > 0) bump++;
+    }
+    // Reference bump so the reactive block re-runs when series change.
+    void bump;
     const allIds = chart.getSeriesIds();
     const targetIds = seriesId ? [seriesId] : allIds;
     const primaryId = targetIds[0] ?? '';
@@ -58,6 +72,7 @@ $: {
 onDestroy(() => {
   crosshairUnsub?.();
   lastYUnsub?.();
+  seriesChangeUnsub?.();
 });
 
 function sortSnapshots(snapshots: SeriesSnapshot[], sortOrder: 'none' | 'asc' | 'desc'): SeriesSnapshot[] {
@@ -80,17 +95,32 @@ $: chart = $chartStore;
 $: theme = chart?.getTheme();
 $: dataInterval = chart?.getDataInterval() ?? 86400;
 
-$: targetIds = (() => {
-  if (!chart) return [];
-  const allIds = chart.getSeriesIds();
-  return seriesId ? [seriesId] : allIds;
-})();
+// `bump` referenced explicitly so the Svelte compiler keeps it as a
+// reactive dep — `void bump;` is sometimes dead-code-eliminated.
+$: targetIds = chart && bump >= 0 ? (seriesId ? [seriesId] : chart.getSeriesIds()) : [];
 
 $: hoverSnapshots = (() => {
   if (!chart || !crosshair) return [];
+  const _touch = bump;
+  void _touch;
+  const time = crosshair.time;
   const result: SeriesSnapshot[] = [];
   for (const id of targetIds) {
-    const d = chart.getDataAtTime(id, crosshair.time);
+    // Multi-layer series (stacked Line/Bar) expose per-layer snapshots so
+    // each stack layer gets its own row — matches React's behavior.
+    const layers = chart.getLayerSnapshots(id, time);
+    if (layers) {
+      for (let i = 0; i < layers.length; i++) {
+        result.push({
+          id: `${id}_layer${i}`,
+          label: chart.getSeriesLabel(id),
+          data: { time, value: layers[i].value } as LineData,
+          color: layers[i].color,
+        });
+      }
+      continue;
+    }
+    const d = chart.getDataAtTime(id, time);
     if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
   }
   return result;
@@ -140,45 +170,7 @@ $: floatingPos = (() => {
 $: showFloating = crosshair && hoverSnapshots.length > 0;
 </script>
 
-{#if snapshots.length > 0 && chart && theme}
-  <!-- Compact legend (below chart title) -->
-  <div
-    style="position:absolute;top:24px;left:8px;pointer-events:none;display:flex;align-items:center;gap:4px;flex-wrap:wrap;max-width:70%;font-size:{theme.typography.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;opacity:{crosshair ? 1 : 0.6};transition:opacity 0.2s ease;"
-  >
-    <span style="color:{theme.axis.textColor};margin-right:2px;">{formatTime(displayTime, dataInterval)}</span>
-    {#each snapshots as s (s.id)}
-      {#if 'open' in s.data}
-        {@const ohlc = /** @type {OHLCData} */ (s.data)}
-        {@const isUp = ohlc.close >= ohlc.open}
-        {@const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor}
-        <span style="display:inline-flex;align-items:center;gap:4px;">
-          <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.open.toFixed(2)}</span>
-          <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">H</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.high.toFixed(2)}</span>
-          <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">L</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.low.toFixed(2)}</span>
-          <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">C</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.close.toFixed(2)}</span>
-          {#if ohlc.volume != null}
-            <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
-            <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;">{formatVolume(ohlc.volume)}</span>
-          {/if}
-        </span>
-      {:else}
-        {@const line = /** @type {LineData} */ (s.data)}
-        <span style="display:inline-flex;align-items:center;gap:3px;">
-          <span
-            style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;"
-          />
-          <span style="color:{s.color};font-weight:500;">{line.value.toFixed(2)}</span>
-        </span>
-      {/if}
-    {/each}
-  </div>
-
-  <!-- Floating tooltip (near cursor, only on hover) -->
-  {#if showFloating}
+{#if showFloating && chart && theme}
     <div
       style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.typography.tooltipFontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};min-width:140px;z-index:10;transition:opacity 0.15s ease;"
     >
@@ -220,5 +212,4 @@ $: showFloating = crosshair && hoverSnapshots.length > 0;
         {/if}
       {/each}
     </div>
-  {/if}
 {/if}

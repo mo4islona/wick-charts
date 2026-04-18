@@ -1,8 +1,17 @@
 import type { ChartInstance, ChartTheme } from '@wick-charts/core';
-import { type InjectionKey, type ShallowRef, inject } from 'vue';
+import { type InjectionKey, type Ref, type ShallowRef, inject } from 'vue';
 
 export const ChartKey: InjectionKey<ShallowRef<ChartInstance | null>> = Symbol('wick-chart');
 export const ThemeKey: InjectionKey<ShallowRef<ChartTheme>> = Symbol('wick-theme');
+
+/**
+ * DOM anchor for a hoisted overlay component (Title, TooltipLegend, Legend).
+ * The child component teleports its output into the anchor the container
+ * provides, so the chart owns its own header / info-bar / footer layout.
+ */
+export const TitleAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-title-anchor');
+export const TooltipLegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-tooltip-legend-anchor');
+export const LegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-anchor');
 
 export function useChartInstance(): ChartInstance {
   const chartRef = inject(ChartKey);

@@ -1,19 +1,38 @@
 <script lang="ts">
 import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
-import { onDestroy, onMount } from 'svelte';
+import { onDestroy, onMount, tick } from 'svelte';
 
-import { initChartContext, initThemeContext } from './context';
+import {
+  initChartContext,
+  initLegendAnchor,
+  initThemeContext,
+  initTitleAnchor,
+  initTooltipLegendAnchor,
+} from './context';
 
 export let theme: ChartTheme = darkTheme;
 export let axis: AxisConfig | undefined = undefined;
 export let style: string = '';
 
 let containerEl: HTMLDivElement;
+let topOverlayEl: HTMLDivElement;
+let titleAnchorEl: HTMLDivElement;
+let tooltipLegendAnchorEl: HTMLDivElement;
+let legendAnchorEl: HTMLDivElement;
 
 const chartStore = initChartContext();
 const themeStore = initThemeContext(theme);
+const titleAnchorStore = initTitleAnchor();
+const tooltipLegendAnchorStore = initTooltipLegendAnchor();
+const legendAnchorStore = initLegendAnchor();
 
 let instance: ChartInstance | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let topOverlayHeight = 0;
+
+function applyPadding() {
+  instance?.setPadding({ top: 20 + topOverlayHeight });
+}
 
 onMount(() => {
   const options: any = {};
@@ -21,12 +40,35 @@ onMount(() => {
   if (theme) options.theme = theme;
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
+  // Publish anchors only after DOM is mounted so child components (Title,
+  // TooltipLegend, Legend) can subscribe and portal into them.
+  void tick().then(() => {
+    titleAnchorStore.set(titleAnchorEl);
+    tooltipLegendAnchorStore.set(tooltipLegendAnchorEl);
+    legendAnchorStore.set(legendAnchorEl);
+    // Measure the stacked top overlay (title + info bar) so data respects
+    // that reserved space; the canvas itself stays full-height.
+    if (topOverlayEl) {
+      const measure = () => {
+        topOverlayHeight = topOverlayEl.getBoundingClientRect().height;
+        applyPadding();
+      };
+      measure();
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(topOverlayEl);
+    }
+  });
 });
 
 onDestroy(() => {
+  resizeObserver?.disconnect();
+  resizeObserver = null;
   instance?.destroy();
   instance = null;
   chartStore.set(null);
+  titleAnchorStore.set(null);
+  tooltipLegendAnchorStore.set(null);
+  legendAnchorStore.set(null);
 });
 
 $: if (instance && theme) {
@@ -47,17 +89,35 @@ $: gradientBg = (() => {
 </script>
 
 <div
-  bind:this={containerEl}
   {style}
   style:position="relative"
+  style:display="flex"
+  style:flex-direction="column"
   style:width="100%"
   style:height="100%"
   style:overflow="hidden"
   style:background={gradientBg}
 >
-  {#if $chartStore}
-    <div style="position:absolute;inset:0;pointer-events:none;z-index:2">
-      <slot />
+  <div
+    bind:this={containerEl}
+    style="position:relative;flex:1;min-width:0;min-height:0;overflow:hidden"
+  >
+    <div
+      bind:this={topOverlayEl}
+      data-chart-top-overlay=""
+      style="position:absolute;top:0;left:0;right:0;z-index:2;pointer-events:none;display:flex;flex-direction:column"
+    >
+      <div bind:this={titleAnchorEl} data-chart-title-anchor=""></div>
+      <div bind:this={tooltipLegendAnchorEl} data-tooltip-legend-anchor=""></div>
     </div>
-  {/if}
+    {#if $chartStore}
+      <div
+        data-chart-series-overlay=""
+        style="position:absolute;inset:0;pointer-events:none;z-index:3"
+      >
+        <slot />
+      </div>
+    {/if}
+  </div>
+  <div bind:this={legendAnchorEl} data-legend-anchor="" style="flex:0 0 auto"></div>
 </div>

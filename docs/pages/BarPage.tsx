@@ -16,7 +16,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, ToggleGroup } from '../components/controls';
+import { Section, Switch, ToggleGroup } from '../components/controls';
 import { Playground, type PlaygroundChartProps } from '../components/Playground';
 import { generateBarData, generateLayerData } from '../data';
 import { useLineStreams } from '../hooks';
@@ -28,6 +28,7 @@ const LAYER_COUNT = 4;
 interface BarSettings {
   stacking: BarStacking;
   barWidth: BarWidth;
+  showTooltipLegend: boolean;
 }
 
 const singleData = generateBarData(80, 240);
@@ -39,7 +40,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
       <Title sub="Up/Down">Single</Title>
-      <TooltipLegend />
+      {props.showTooltipLegend && <TooltipLegend />}
       <BarSeries
         data={[display]}
         options={{
@@ -66,6 +67,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   return (
     <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient}>
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
+      {props.showTooltipLegend && <TooltipLegend />}
       <BarSeries
         data={display}
         options={{
@@ -74,7 +76,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
           stacking: props.stacking,
         }}
       />
-      <Tooltip legend={false} />
+      <Tooltip />
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -88,7 +90,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
     <Playground<BarSettings>
       id="bar"
       theme={theme}
-      defaults={{ stacking: 'normal', barWidth: 'normal' }}
+      defaults={{ stacking: 'normal', barWidth: 'normal', showTooltipLegend: true }}
       charts={(props) => {
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
         return (
@@ -124,6 +126,12 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             ]}
             value={s.stacking}
             onChange={(v) => set({ stacking: v as BarStacking })}
+            theme={theme}
+          />
+          <Switch
+            label="Info bar"
+            checked={s.showTooltipLegend}
+            onChange={(v) => set({ showTooltipLegend: v })}
             theme={theme}
           />
         </Section>
