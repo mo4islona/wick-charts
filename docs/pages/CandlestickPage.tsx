@@ -6,6 +6,7 @@ import {
   type ChartTheme,
   Crosshair,
   type OHLCData,
+  Title,
   Tooltip,
   XAxis,
   YAxis,
@@ -38,12 +39,15 @@ function CandleChart({
   showTooltip,
   candleGradient,
   interval,
-}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; interval: number }) {
+  title,
+  sub,
+}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; interval: number; title: string; sub: string }) {
   const { data: d } = useOHLCStream(data, { delay: interval });
   const display = streaming ? d : data;
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient}>
+      <Title sub={sub}>{title}</Title>
       <CandlestickSeries data={display} onSeriesId={setSid} options={{ candleGradient }} />
       {sid && showYLabel && <YLabel seriesId={sid} />}
       {sid && showTooltip && <Tooltip seriesId={sid} />}
@@ -63,14 +67,35 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       gridTemplate="1fr 1fr 1fr"
       charts={(props) => (
         <>
-          <Cell label="BTC/USD" sub="Standard · 1m" theme={props.theme}>
-            <CandleChart key={`s-${props.streaming}`} {...props} data={steadyData} interval={300} />
+          <Cell theme={props.theme}>
+            <CandleChart
+              key={`s-${props.streaming}`}
+              {...props}
+              data={steadyData}
+              interval={300}
+              title="BTC/USD"
+              sub="Standard · 1m"
+            />
           </Cell>
-          <Cell label="DOGE/USD" sub="High volatility · 1m" theme={props.theme}>
-            <CandleChart key={`v-${props.streaming}`} {...props} data={volatileData} interval={400} />
+          <Cell theme={props.theme}>
+            <CandleChart
+              key={`v-${props.streaming}`}
+              {...props}
+              data={volatileData}
+              interval={400}
+              title="DOGE/USD"
+              sub="High volatility · 1m"
+            />
           </Cell>
-          <Cell label="ETH/USD" sub="Trending · 1m" theme={props.theme}>
-            <CandleChart key={`t-${props.streaming}`} {...props} data={trendingData} interval={500} />
+          <Cell theme={props.theme}>
+            <CandleChart
+              key={`t-${props.streaming}`}
+              {...props}
+              data={trendingData}
+              interval={500}
+              title="ETH/USD"
+              sub="Trending · 1m"
+            />
           </Cell>
         </>
       )}
@@ -78,7 +103,12 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         <Section title="Series" theme={theme} noBorder>
           <Switch label="Price label" checked={s.showYLabel} onChange={(v) => set({ showYLabel: v })} theme={theme} />
           <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
-          <Switch label="Gradient" checked={s.candleGradient} onChange={(v) => set({ candleGradient: v })} theme={theme} />
+          <Switch
+            label="Gradient"
+            checked={s.candleGradient}
+            onChange={(v) => set({ candleGradient: v })}
+            theme={theme}
+          />
         </Section>
       )}
       codeConfig={(s) => ({

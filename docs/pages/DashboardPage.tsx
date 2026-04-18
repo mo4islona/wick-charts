@@ -8,6 +8,7 @@ import {
   Crosshair,
   LineSeries,
   TimeAxis,
+  Title,
   Tooltip,
   TooltipLegend,
   YAxis,
@@ -56,6 +57,7 @@ function CandleChart({ theme, speed }: StreamProps) {
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={theme}>
+      <Title sub="Live Candlestick">BTC/USD</Title>
       {sid && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries data={data} onSeriesId={setSid} />
       {sid && <YLabel seriesId={sid} />}
@@ -79,6 +81,7 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
   });
   return (
     <ChartContainer theme={theme}>
+      <Title sub="Live Area + Bands">ETH/USD</Title>
       <TooltipLegend />
       <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1 }} />
       <LineSeries data={[datasets[1]]} options={{ colors: [theme.bands.upper], areaFill: true, lineWidth: 1 }} />
@@ -95,6 +98,7 @@ function MultiLineChart({ theme, speed }: StreamProps) {
   const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   return (
     <ChartContainer theme={theme}>
+      <Title sub="10 assets · Live">Portfolio</Title>
       <LineSeries
         data={datasets}
         options={{ colors: theme.seriesColors.slice(0, datasets.length), areaFill: false, lineWidth: 1 }}
@@ -115,6 +119,7 @@ function BarChart({ theme, speed }: StreamProps) {
   });
   return (
     <ChartContainer theme={theme}>
+      <Title sub="Live Bar">P&L Delta</Title>
       <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
       <Crosshair />
       <YAxis />
@@ -689,18 +694,18 @@ export function DashboardPage({ theme }: { theme: ChartTheme }) {
           padding: mobile ? 6 : 12,
         }}
       >
-        <Cell label="BTC/USD" sub="Live Candlestick" theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
           <CandleChart theme={theme} speed={speed} />
         </Cell>
-        <Cell label="ETH/USD" sub="Live Area + Bands" theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
           <AreaBandsChart theme={theme} speed={speed} />
         </Cell>
         {!mobile && (
           <>
-            <Cell label="Portfolio" sub="10 assets · Live" theme={theme}>
+            <Cell theme={theme}>
               <MultiLineChart theme={theme} speed={speed} />
             </Cell>
-            <Cell label="P&L Delta" sub="Live Bar" theme={theme}>
+            <Cell theme={theme}>
               <BarChart theme={theme} speed={speed} />
             </Cell>
           </>

@@ -8,6 +8,7 @@ import {
   Legend,
   type LineData,
   LineSeries,
+  Title,
   Tooltip,
   type TooltipSort,
   XAxis,
@@ -77,6 +78,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const [sid, setSid] = useState<string | null>(null);
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+      <Title sub={props.areaFill ? 'area' : 'line'}>Single</Title>
       <LineSeries
         data={data}
         onSeriesId={setSid}
@@ -91,7 +93,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   );
 }
 
-function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][] }) {
+function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: LineData[][]; title: string }) {
   const { datasets } = useLineStreams(props.allData, {
     delay: 500,
     interval: LINE_INTERVAL,
@@ -100,6 +102,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   const display = props.streaming ? datasets : props.allData;
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+      <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
       <LineSeries
         data={display}
         options={{
@@ -139,11 +142,16 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
         return (
           <>
-            <Cell label="Single" sub={props.areaFill ? 'area' : 'line'} theme={props.theme}>
+            <Cell theme={props.theme}>
               <SingleChart key={`${props.dataMode}-${props.streaming}-s`} {...props} allData={single} />
             </Cell>
-            <Cell label={label} sub={`${MULTI_COUNT} series`} theme={props.theme}>
-              <MultiChart key={`${props.dataMode}-${props.streaming}-${props.stacking}-m`} {...props} allData={multi} />
+            <Cell theme={props.theme}>
+              <MultiChart
+                key={`${props.dataMode}-${props.streaming}-${props.stacking}-m`}
+                {...props}
+                allData={multi}
+                title={label}
+              />
             </Cell>
           </>
         );

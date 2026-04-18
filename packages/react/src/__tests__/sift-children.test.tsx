@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { siftContainerChildren } from '../ChartContainer';
 import { Legend } from '../ui/Legend';
+import { Title } from '../ui/Title';
 import { TooltipLegend } from '../ui/TooltipLegend';
 
 // `<ChartContainer>` receives `children` as whatever React passes for JSX
@@ -17,14 +18,26 @@ function kids(...nodes: ReactNode[]): ReactNode[] {
 }
 
 describe('siftContainerChildren', () => {
-  it('hoists Legend and TooltipLegend, leaves the rest in overlay', () => {
+  it('hoists Title, Legend and TooltipLegend, leaves the rest in overlay', () => {
     const overlayNode = <span id="overlay-marker" />;
-    const result = siftContainerChildren(kids(<Legend />, <TooltipLegend />, overlayNode));
+    const result = siftContainerChildren(kids(<Title>BTC</Title>, <Legend />, <TooltipLegend />, overlayNode));
+    expect(result.titleEl).not.toBeNull();
     expect(result.legendEl).not.toBeNull();
     expect(result.tooltipLegendEl).not.toBeNull();
     expect(result.overlay).toHaveLength(1);
     const first = result.overlay[0];
     expect(isValidElement(first) && (first.props as { id?: string }).id).toBe('overlay-marker');
+  });
+
+  it('hoists Title from inside a fragment', () => {
+    const result = siftContainerChildren(
+      <>
+        <Title sub="1m">BTC/USD</Title>
+        <span id="rest" />
+      </>,
+    );
+    expect(result.titleEl).not.toBeNull();
+    expect(result.overlay).toHaveLength(1);
   });
 
   it('child order does not matter', () => {
@@ -36,13 +49,15 @@ describe('siftContainerChildren', () => {
     expect(result.overlay).toHaveLength(3);
   });
 
-  it('tolerates absent Legend / TooltipLegend', () => {
+  it('tolerates absent Title / Legend / TooltipLegend', () => {
     const r1 = siftContainerChildren(<span />);
+    expect(r1.titleEl).toBeNull();
     expect(r1.legendEl).toBeNull();
     expect(r1.tooltipLegendEl).toBeNull();
     expect(r1.overlay).toHaveLength(1);
 
     const r2 = siftContainerChildren(null);
+    expect(r2.titleEl).toBeNull();
     expect(r2.legendEl).toBeNull();
     expect(r2.tooltipLegendEl).toBeNull();
     expect(r2.overlay).toHaveLength(0);

@@ -93,6 +93,8 @@ export { PieTooltip } from './ui/PieTooltip';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
 export { Sparkline } from './ui/Sparkline';
 export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
+export type { TitleProps } from './ui/Title';
+export { Title } from './ui/Title';
 export type { TooltipSort } from './ui/Tooltip';
 // UI overlays
 export { Tooltip } from './ui/Tooltip';
