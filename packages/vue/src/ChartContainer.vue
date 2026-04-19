@@ -2,7 +2,7 @@
 import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
-import { ChartKey, LegendAnchorKey, ThemeKey, TitleAnchorKey, TooltipLegendAnchorKey } from './context';
+import { ChartKey, LegendAnchorKey, LegendRightAnchorKey, ThemeKey, TitleAnchorKey, TooltipLegendAnchorKey } from './context';
 
 const props = withDefaults(
   defineProps<{
@@ -27,12 +27,14 @@ const topOverlayRef = ref<HTMLElement | null>(null);
 const titleAnchor = ref<HTMLElement | null>(null);
 const tooltipLegendAnchor = ref<HTMLElement | null>(null);
 const legendAnchor = ref<HTMLElement | null>(null);
+const legendRightAnchor = ref<HTMLElement | null>(null);
 
 provide(ChartKey, chart);
 provide(ThemeKey, themeRef);
 provide(TitleAnchorKey, titleAnchor);
 provide(TooltipLegendAnchorKey, tooltipLegendAnchor);
 provide(LegendAnchorKey, legendAnchor);
+provide(LegendRightAnchorKey, legendRightAnchor);
 
 let resizeObserver: ResizeObserver | null = null;
 let topOverlayHeight = 0;
@@ -98,27 +100,30 @@ const rootStyle = computed(() => {
 
 <template>
   <div :style="rootStyle">
-    <div
-      ref="containerRef"
-      style="position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden"
-    >
-      <!-- Top overlay (Title + TooltipLegend) — stacked absolute inside the
-           canvas block so the grid extends full-height behind them. -->
+    <div style="display: flex; flex-direction: row; flex: 1; min-height: 0">
       <div
-        ref="topOverlayRef"
-        data-chart-top-overlay=""
-        style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+        ref="containerRef"
+        style="position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden"
       >
-        <div ref="titleAnchor" data-chart-title-anchor="" />
-        <div ref="tooltipLegendAnchor" data-tooltip-legend-anchor="" />
+        <!-- Top overlay (Title + TooltipLegend) — stacked absolute inside the
+             canvas block so the grid extends full-height behind them. -->
+        <div
+          ref="topOverlayRef"
+          data-chart-top-overlay=""
+          style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+        >
+          <div ref="titleAnchor" data-chart-title-anchor="" />
+          <div ref="tooltipLegendAnchor" data-tooltip-legend-anchor="" />
+        </div>
+        <div
+          v-if="chart"
+          data-chart-series-overlay=""
+          style="position: absolute; inset: 0; pointer-events: none; z-index: 3"
+        >
+          <slot />
+        </div>
       </div>
-      <div
-        v-if="chart"
-        data-chart-series-overlay=""
-        style="position: absolute; inset: 0; pointer-events: none; z-index: 3"
-      >
-        <slot />
-      </div>
+      <div ref="legendRightAnchor" data-legend-right-anchor="" style="flex: 0 0 auto" />
     </div>
     <div ref="legendAnchor" data-legend-anchor="" style="flex: 0 0 auto" />
   </div>

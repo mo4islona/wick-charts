@@ -12,6 +12,7 @@ export const ThemeKey: InjectionKey<ShallowRef<ChartTheme>> = Symbol('wick-theme
 export const TitleAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-title-anchor');
 export const TooltipLegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-tooltip-legend-anchor');
 export const LegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-anchor');
+export const LegendRightAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-right-anchor');
 
 export function useChartInstance(): ChartInstance {
   const chartRef = inject(ChartKey);

@@ -80,6 +80,7 @@ export {
   createYRange,
 } from './stores';
 export { default as Crosshair } from './ui/Crosshair.svelte';
+export { default as Legend } from './ui/Legend.svelte';
 export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
