@@ -1,3 +1,4 @@
+import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, LineData, TimePointInput } from '../types';
@@ -11,8 +12,13 @@ const DEFAULT_OPTIONS: BarSeriesOptions = {
   stacking: 'off',
 };
 
-const DEFAULT_LIVE_SMOOTH_RATE = 14;
-const DEFAULT_ENTER_DURATION_MS = 400;
+/** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
+function resolveMs(value: number | false | undefined, fallback: number): number {
+  if (value === false) return 0;
+  if (value === undefined) return fallback;
+
+  return value;
+}
 
 /** Returns true if the smoothed value is still meaningfully off-target. */
 function valueDiffers(displayed: number, target: number): boolean {
@@ -77,7 +83,9 @@ export class BarRenderer implements SeriesRenderer {
     const p = point as TimePointInput;
     const time = normalizeTime(p.time);
     store.append({ ...p, time });
-    if ((this.options.enterAnimation ?? 'fade-grow') !== 'none') {
+    const style = this.options.enterAnimation ?? 'fade-grow';
+    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    if (style !== 'none' && enterMs > 0) {
       this.entries[layerIndex]?.set(time, { startTime: performance.now() });
     }
   }
@@ -151,10 +159,11 @@ export class BarRenderer implements SeriesRenderer {
    * chases the target value.
    */
   private advanceLiveTracking(now: number): void {
-    const dt = this.lastRenderTime ? Math.min(0.05, (now - this.lastRenderTime) / 1000) : 0;
+    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
     this.lastRenderTime = now;
 
-    const rate = this.options.liveSmoothRate ?? DEFAULT_LIVE_SMOOTH_RATE;
+    const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
+    const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
     for (let li = 0; li < this.#stores.length; li++) {
       const actualLast = this.#stores[li].last();
       if (!actualLast) {
@@ -177,7 +186,7 @@ export class BarRenderer implements SeriesRenderer {
     const m = this.entries[layerIndex];
     const entry = m?.get(time);
     if (!entry) return 1;
-    const duration = this.options.enterDurationMs ?? DEFAULT_ENTER_DURATION_MS;
+    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       m.delete(time);
       return 1;

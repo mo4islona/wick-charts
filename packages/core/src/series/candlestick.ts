@@ -1,3 +1,4 @@
+import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
@@ -15,8 +16,16 @@ const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
   bodyWidthRatio: 0.6,
 };
 
-const DEFAULT_LIVE_SMOOTH_RATE = 14;
-const DEFAULT_ENTER_DURATION_MS = 400;
+/**
+ * Resolve an `enterMs` / `smoothMs` option value to a concrete number. `false`
+ * collapses to 0 (disabled); `undefined` falls back to the built-in default.
+ */
+function resolveMs(value: number | false | undefined, fallback: number): number {
+  if (value === false) return 0;
+  if (value === undefined) return fallback;
+
+  return value;
+}
 
 /** Returns true if the smoothed value is still meaningfully off-target. */
 function ohlcDiffers(displayed: number, target: number): boolean {
@@ -61,7 +70,9 @@ export class CandlestickRenderer implements SeriesRenderer {
     const p = point as OHLCInput;
     const time = normalizeTime(p.time);
     this.store.append({ ...p, time });
-    if ((this.options.enterAnimation ?? 'fade-unfold') !== 'none') {
+    const style = this.options.enterAnimation ?? 'fade-unfold';
+    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    if (style !== 'none' && enterMs > 0) {
       this.entries.set(time, { startTime: performance.now() });
     }
   }
@@ -131,12 +142,22 @@ export class CandlestickRenderer implements SeriesRenderer {
     const actualLast = this.store.last();
     if (!actualLast) return false;
     if (actualLast.time !== this.displayedLast.time) return false;
-    return (
+    if (
       ohlcDiffers(this.displayedLast.open, actualLast.open) ||
       ohlcDiffers(this.displayedLast.high, actualLast.high) ||
       ohlcDiffers(this.displayedLast.low, actualLast.low) ||
       ohlcDiffers(this.displayedLast.close, actualLast.close)
-    );
+    ) {
+      return true;
+    }
+    // Volume is smoothed alongside OHLC — without it here, a volume-only
+    // updateLastPoint would stop requesting frames after the first step and
+    // freeze the volume bar mid-slide.
+    const displayedVolume = this.displayedLast.volume;
+    const actualVolume = actualLast.volume;
+    if (displayedVolume === undefined || actualVolume === undefined) return false;
+
+    return ohlcDiffers(displayedVolume, actualVolume);
   }
 
   /**
@@ -147,7 +168,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   private entranceProgress(time: number, now: number): number {
     const entry = this.entries.get(time);
     if (!entry) return 1;
-    const duration = this.options.enterDurationMs ?? DEFAULT_ENTER_DURATION_MS;
+    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       this.entries.delete(time);
       return 1;
@@ -164,7 +185,7 @@ export class CandlestickRenderer implements SeriesRenderer {
    * the target OHLC so live `updateLastPoint` ticks interpolate instead of jumping.
    */
   private advanceLiveTracking(now: number): void {
-    const dt = this.lastRenderTime ? Math.min(0.05, (now - this.lastRenderTime) / 1000) : 0;
+    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
     this.lastRenderTime = now;
 
     const actualLast = this.store.last();
@@ -175,7 +196,10 @@ export class CandlestickRenderer implements SeriesRenderer {
     }
 
     const isNewCandle = this.lastSeededTime !== actualLast.time;
-    const rate = this.options.liveSmoothRate ?? DEFAULT_LIVE_SMOOTH_RATE;
+    // Convert the public `smoothMs` time-constant back to the internal 1/s
+    // decay rate used by `smoothToward`. `0` / `false` disables smoothing.
+    const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
+    const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
     // rate <= 0 explicitly disables smoothing: always display the target as-is.
     if (this.displayedLast === null || isNewCandle || rate <= 0) {
       this.displayedLast = { ...actualLast };
@@ -184,13 +208,15 @@ export class CandlestickRenderer implements SeriesRenderer {
     }
 
     const prev = this.displayedLast;
+    const prevVolume = prev.volume ?? 0;
+    const targetVolume = actualLast.volume ?? 0;
     this.displayedLast = {
       time: actualLast.time,
       open: smoothToward(prev.open, actualLast.open, rate, dt),
       high: smoothToward(prev.high, actualLast.high, rate, dt),
       low: smoothToward(prev.low, actualLast.low, rate, dt),
       close: smoothToward(prev.close, actualLast.close, rate, dt),
-      volume: actualLast.volume,
+      volume: actualLast.volume === undefined ? undefined : smoothToward(prevVolume, targetVolume, rate, dt),
     };
   }
 
@@ -241,7 +267,14 @@ export class CandlestickRenderer implements SeriesRenderer {
 
     // Draw volume first (behind candles)
     const chartBitmapHeight = Math.round(yScale.getMediaHeight() * scope.verticalPixelRatio);
-    this.drawVolume(context, visibleData, timeScale, chartBitmapHeight, barWidth, dataInterval);
+    this.drawVolume({
+      ctx: context,
+      data: visibleData,
+      timeScale,
+      chartHeight: chartBitmapHeight,
+      barWidth,
+      entranceByTime,
+    });
 
     // Then candles on top
     const bullish: OHLCData[] = [];
@@ -251,40 +284,44 @@ export class CandlestickRenderer implements SeriesRenderer {
       else bearish.push(candle);
     }
 
-    this.drawCandles(
-      context,
-      bullish,
+    const baseCandleArgs = {
+      ctx: context,
       timeScale,
       yScale,
       halfBody,
       bodyWidth,
       wickWidth,
-      this.options.upColor,
-      this.options.wickUpColor,
       entranceByTime,
-    );
-    this.drawCandles(
-      context,
-      bearish,
-      timeScale,
-      yScale,
-      halfBody,
-      bodyWidth,
-      wickWidth,
-      this.options.downColor,
-      this.options.wickDownColor,
-      entranceByTime,
-    );
+    };
+    this.drawCandles({
+      ...baseCandleArgs,
+      candles: bullish,
+      bodyColor: this.options.upColor,
+      wickColor: this.options.wickUpColor,
+    });
+    this.drawCandles({
+      ...baseCandleArgs,
+      candles: bearish,
+      bodyColor: this.options.downColor,
+      wickColor: this.options.wickDownColor,
+    });
   }
 
-  private drawVolume(
-    ctx: CanvasRenderingContext2D,
-    data: OHLCData[],
-    timeScale: import('../scales/time-scale').TimeScale,
-    chartHeight: number,
-    barWidth: number,
-    dataInterval: number,
-  ): void {
+  private drawVolume({
+    ctx,
+    data,
+    timeScale,
+    chartHeight,
+    barWidth,
+    entranceByTime,
+  }: {
+    ctx: CanvasRenderingContext2D;
+    data: OHLCData[];
+    timeScale: import('../scales/time-scale').TimeScale;
+    chartHeight: number;
+    barWidth: number;
+    entranceByTime: Map<number, number> | null;
+  }): void {
     // Find max volume for scaling
     let maxVol = 0;
     for (const c of data) {
@@ -300,6 +337,8 @@ export class CandlestickRenderer implements SeriesRenderer {
     const upVolumeColor = hexToRgba(this.options.upColor, 0.2);
     const downVolumeColor = hexToRgba(this.options.downColor, 0.2);
 
+    const style = this.options.enterAnimation ?? 'fade-unfold';
+
     for (const c of data) {
       if (c.volume === undefined || c.volume === 0) continue;
 
@@ -309,22 +348,52 @@ export class CandlestickRenderer implements SeriesRenderer {
 
       ctx.fillStyle = isUp ? upVolumeColor : downVolumeColor;
 
-      ctx.fillRect(cx - halfBar, chartHeight - h, volBarWidth, h);
+      const progress = entranceByTime?.get(c.time) ?? 1;
+      if (progress >= 1 || style === 'none') {
+        ctx.fillRect(cx - halfBar, chartHeight - h, volBarWidth, h);
+        continue;
+      }
+
+      // Mirror the candle body's entrance. Anchor grow/unfold from chartHeight
+      // (baseline) so the bar rises from the bottom — matches the candle's
+      // body unfold from openY.
+      const t = applyCandleTransform(progress, style, {
+        x: cx - halfBar,
+        barWidth: volBarWidth,
+        anchorY: chartHeight,
+        topY: chartHeight - h,
+        bottomY: chartHeight,
+      });
+      ctx.save();
+      ctx.globalAlpha = t.alpha;
+      ctx.fillRect(t.x, t.topY, volBarWidth, Math.max(1, t.bottomY - t.topY));
+      ctx.restore();
     }
   }
 
-  private drawCandles(
-    ctx: CanvasRenderingContext2D,
-    candles: OHLCData[],
-    timeScale: import('../scales/time-scale').TimeScale,
-    yScale: import('../scales/y-scale').YScale,
-    halfBody: number,
-    bodyWidth: number,
-    wickWidth: number,
-    bodyColor: string,
-    wickColor: string,
-    entranceByTime: Map<number, number> | null,
-  ): void {
+  private drawCandles({
+    ctx,
+    candles,
+    timeScale,
+    yScale,
+    halfBody,
+    bodyWidth,
+    wickWidth,
+    bodyColor,
+    wickColor,
+    entranceByTime,
+  }: {
+    ctx: CanvasRenderingContext2D;
+    candles: OHLCData[];
+    timeScale: import('../scales/time-scale').TimeScale;
+    yScale: import('../scales/y-scale').YScale;
+    halfBody: number;
+    bodyWidth: number;
+    wickWidth: number;
+    bodyColor: string;
+    wickColor: string;
+    entranceByTime: Map<number, number> | null;
+  }): void {
     if (candles.length === 0) return;
 
     const style = this.options.enterAnimation ?? 'fade-unfold';

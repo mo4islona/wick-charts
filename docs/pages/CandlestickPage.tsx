@@ -41,7 +41,7 @@ function CandleChart({
   showTooltipLegend,
   candleGradient,
   candleEnterAnimation,
-  enterDurationMs,
+  enterMs,
   liveTracking,
   headerLayout,
   startDelay,
@@ -64,8 +64,8 @@ function CandleChart({
         options={{
           candleGradient,
           enterAnimation: candleEnterAnimation,
-          enterDurationMs,
-          liveSmoothRate: liveTracking ? undefined : 0,
+          enterMs,
+          smoothMs: liveTracking ? undefined : 0,
         }}
       />
       {showYLabel && <YLabel seriesId={sid} />}

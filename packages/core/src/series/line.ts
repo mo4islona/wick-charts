@@ -1,3 +1,4 @@
+import { DEFAULT_ENTER_MS, DEFAULT_PULSE_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
 import { decimateLineData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
@@ -15,8 +16,13 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
   stacking: 'off',
 };
 
-const DEFAULT_LIVE_SMOOTH_RATE = 14;
-const DEFAULT_APPEND_DURATION_MS = 400;
+/** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
+function resolveMs(value: number | false | undefined, fallback: number): number {
+  if (value === false) return 0;
+  if (value === undefined) return fallback;
+
+  return value;
+}
 
 /** True if the smoothed value is still meaningfully off-target. */
 function valueDiffers(displayed: number, target: number): boolean {
@@ -87,7 +93,9 @@ export class LineRenderer implements SeriesRenderer {
     const penultimate = store.last();
     const time = normalizeTime(p.time);
     store.append({ ...p, time });
-    if ((this.options.appendAnimation ?? 'grow') !== 'none') {
+    const style = this.options.enterAnimation ?? 'grow';
+    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    if (style !== 'none' && enterMs > 0) {
       this.entries[layerIndex]?.set(time, {
         startTime: performance.now(),
         fromTime: penultimate ? penultimate.time : time,
@@ -153,10 +161,11 @@ export class LineRenderer implements SeriesRenderer {
    */
   private advanceLiveTracking(now: number): void {
     if (now === this.lastRenderTime) return;
-    const dt = this.lastRenderTime ? Math.min(0.05, (now - this.lastRenderTime) / 1000) : 0;
+    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
     this.lastRenderTime = now;
 
-    const rate = this.options.liveSmoothRate ?? DEFAULT_LIVE_SMOOTH_RATE;
+    const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
+    const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
     for (let li = 0; li < this.#stores.length; li++) {
       const actualLast = this.#stores[li].last();
       if (!actualLast) {
@@ -197,7 +206,7 @@ export class LineRenderer implements SeriesRenderer {
     const m = this.entries[layerIndex];
     const entry = m?.get(time);
     if (!entry) return 1;
-    const duration = this.options.appendDurationMs ?? DEFAULT_APPEND_DURATION_MS;
+    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       m.delete(time);
       return 1;
@@ -257,20 +266,33 @@ export class LineRenderer implements SeriesRenderer {
   // interface above. No `getStores()` accessor is exported — every external
   // need goes through setData/setLayerVisible/getLayerSnapshots/onDataChanged.
 
+  /** Resolved pulse period in ms. 0 disables the pulse entirely. */
+  private resolvedPulseMs(): number {
+    return resolveMs(this.options.pulseMs, DEFAULT_PULSE_MS);
+  }
+
   get hasPulse(): boolean {
-    return this.options.pulse && this.#stores.some((s) => s.isVisible() && s.length > 0);
+    return this.options.pulse && this.resolvedPulseMs() > 0 && this.#stores.some((s) => s.isVisible() && s.length > 0);
   }
 
   get overlayNeedsAnimation(): boolean {
+    // `hasPulse` already factors in `pulseMs > 0`, so a disabled pulse
+    // halts the overlay RAF loop immediately — no 60 Hz tick for nothing.
     return this.hasPulse;
   }
 
-  hasOverlayContentInRange(from: number, to: number): boolean {
+  hasOverlayContentInRange(from: number, _to: number): boolean {
+    // Only gate on the left bound. A zoom-in can briefly narrow `to` past
+    // `last.time`; if we stopped the overlay loop there, the pulse would
+    // vanish for a frame and flicker back once auto-scroll caught up. The
+    // pulse is canvas-clipped (chart.ts restricts the overlay layer to the
+    // chart rect), so drawing at an off-canvas X is harmless.
     for (let li = 0; li < this.#stores.length; li++) {
       if (!this.#stores[li].isVisible()) continue;
       const last = this.#stores[li].last();
-      if (last && last.time >= from && last.time <= to) return true;
+      if (last && last.time >= from) return true;
     }
+
     return false;
   }
 
@@ -359,7 +381,7 @@ export class LineRenderer implements SeriesRenderer {
     const lastRawX = timeScale.timeToBitmapX(last.time);
     const lastRawY = yScale.valueToBitmapY(this.effectiveValue(layerIndex, last.time, last.value));
 
-    const style = this.options.appendAnimation ?? 'grow';
+    const style = this.options.enterAnimation ?? 'grow';
     const entry = this.peekEntry(layerIndex, last.time);
     if (!entry || style !== 'grow') {
       return { x: lastRawX, y: lastRawY };
@@ -391,7 +413,7 @@ export class LineRenderer implements SeriesRenderer {
     const hasStroke = this.options.lineWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
     const now = performance.now();
-    const style = this.options.appendAnimation ?? 'grow';
+    const style = this.options.enterAnimation ?? 'grow';
 
     for (let li = 0; li < this.#stores.length; li++) {
       if (!this.#stores[li].isVisible()) continue;
@@ -528,7 +550,7 @@ export class LineRenderer implements SeriesRenderer {
     // already-superseded segment or pull an off-screen point into the on-screen
     // tail.
     const now = performance.now();
-    const style = this.options.appendAnimation ?? 'grow';
+    const style = this.options.enterAnimation ?? 'grow';
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
     const lastVisibleIdx = times.length - 1;
@@ -634,6 +656,7 @@ export class LineRenderer implements SeriesRenderer {
   drawOverlay(ctx: OverlayRenderContext): void {
     const { scope, timeScale, yScale, crosshair, dataInterval } = ctx;
     const size = scope;
+    const pulseMs = this.resolvedPulseMs();
 
     // Crosshair nearest-point dots
     if (crosshair) {
@@ -701,7 +724,10 @@ export class LineRenderer implements SeriesRenderer {
     // Pulse dots for line series (runs on overlay, not main layer).
     // Keep live-tracking in sync with the overlay pass — otherwise the pulse dot
     // would lag the smoothed line head by a frame.
-    if (this.hasPulse) {
+    // `pulseMs <= 0` at the chart level (`animations.points.pulseMs: false`
+    // or `animations: false`) disables the halo entirely; per-series `pulse`
+    // still controls whether the dot is ever drawn.
+    if (this.hasPulse && pulseMs > 0) {
       const now = performance.now();
       this.advanceLiveTracking(now);
       const stacking = this.options.stacking;
@@ -715,7 +741,14 @@ export class LineRenderer implements SeriesRenderer {
           // lockstep with the line's trailing segment.
           const endpoint = this.trailingEndpoint(li, timeScale, yScale, now);
           if (!endpoint) continue;
-          this.drawPulse(scope.context, endpoint.x, endpoint.y, color, size.horizontalPixelRatio);
+          this.drawPulse({
+            ctx: scope.context,
+            x: endpoint.x,
+            y: endpoint.y,
+            color,
+            pixelRatio: size.horizontalPixelRatio,
+            pulseMs,
+          });
           continue;
         }
 
@@ -756,7 +789,7 @@ export class LineRenderer implements SeriesRenderer {
         let pulseX = timeScale.timeToBitmapX(t);
         let pulseY = yScale.valueToBitmapY(cumulativeAt(t));
 
-        const appendStyle = this.options.appendAnimation ?? 'grow';
+        const appendStyle = this.options.enterAnimation ?? 'grow';
         const entry = this.peekEntry(li, t);
         if (appendStyle === 'grow' && entry) {
           const progress = this.entranceProgress(li, t, now);
@@ -768,14 +801,40 @@ export class LineRenderer implements SeriesRenderer {
           }
         }
 
-        this.drawPulse(scope.context, pulseX, pulseY, color, size.horizontalPixelRatio);
+        this.drawPulse({
+          ctx: scope.context,
+          x: pulseX,
+          y: pulseY,
+          color,
+          pixelRatio: size.horizontalPixelRatio,
+          pulseMs,
+        });
       }
     }
   }
 
-  private drawPulse(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, pixelRatio: number): void {
+  private drawPulse({
+    ctx,
+    x,
+    y,
+    color,
+    pixelRatio,
+    pulseMs,
+  }: {
+    ctx: CanvasRenderingContext2D;
+    x: number;
+    y: number;
+    color: string;
+    pixelRatio: number;
+    pulseMs: number;
+  }): void {
     const dotRadius = 3 * pixelRatio;
-    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / 600));
+    // Legacy formulation preserved for backward visual compatibility:
+    // `sin(t / pulseMs)` → higher `pulseMs` = slower pulse. A full visible
+    // cycle of |sin| lands at ≈ π · pulseMs ms (≈1.9s at the default 600).
+    // Callers gate on `pulseMs > 0` before invoking; this function therefore
+    // assumes a positive period.
+    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / pulseMs));
     const glowRadius = dotRadius + 4 * pixelRatio * pulse;
 
     ctx.beginPath();

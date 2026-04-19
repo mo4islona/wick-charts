@@ -1,57 +1,78 @@
 /**
- * Covers the chart-level `animations` toggle in two layers:
- *   1. {@link resolveAnimationsConfig} — pure mapping from public surface to gates.
- *   2. {@link ChartInstance} — confirms the gates propagate to series defaults
- *      by observing a renderer's behavior (no entry registered on append when
- *      entrance animations are disabled at the chart level).
+ * Covers the chart-level `animations` surface in two layers:
+ *   1. {@link resolveAnimationsConfig} — pure mapping from public surface to
+ *      the resolved flat config.
+ *   2. {@link ChartInstance} — confirms the resolved config propagates to
+ *      series defaults (observed via renderer state).
  */
 import { describe, expect, it } from 'vitest';
 
-import { ChartInstance, resolveAnimationsConfig } from '../chart';
+import {
+  DEFAULT_ENTER_MS,
+  DEFAULT_PULSE_MS,
+  DEFAULT_REBOUND_MS,
+  DEFAULT_SMOOTH_MS,
+  DEFAULT_Y_AXIS_MS,
+} from '../animation-constants';
+import { type AnimationsConfig, ChartInstance, resolveAnimationsConfig } from '../chart';
 import type { CandlestickRenderer } from '../series/candlestick';
 import type { LineRenderer } from '../series/line';
 
 describe('resolveAnimationsConfig', () => {
-  it('defaults to both gates on when undefined', () => {
-    expect(resolveAnimationsConfig(undefined)).toEqual({ entrance: true, liveTracking: true });
+  it('defaults to all categories on when undefined', () => {
+    expect(resolveAnimationsConfig(undefined)).toEqual({
+      points: { enterMs: DEFAULT_ENTER_MS, smoothMs: DEFAULT_SMOOTH_MS, pulseMs: DEFAULT_PULSE_MS },
+      viewport: { reboundMs: DEFAULT_REBOUND_MS, yAxisMs: DEFAULT_Y_AXIS_MS },
+    });
   });
 
   it('true is equivalent to undefined', () => {
-    expect(resolveAnimationsConfig(true)).toEqual({ entrance: true, liveTracking: true });
+    expect(resolveAnimationsConfig(true)).toEqual(resolveAnimationsConfig(undefined));
   });
 
-  it('false disables every gate', () => {
-    expect(resolveAnimationsConfig(false)).toEqual({ entrance: false, liveTracking: false });
+  it('false collapses every field to 0', () => {
+    expect(resolveAnimationsConfig(false)).toEqual({
+      points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
+      viewport: { reboundMs: 0, yAxisMs: 0 },
+    });
   });
 
-  it('partial object fills missing keys with defaults', () => {
-    expect(resolveAnimationsConfig({ entrance: false })).toEqual({
-      entrance: false,
-      liveTracking: true,
+  it('category-level false disables every field in that category', () => {
+    expect(resolveAnimationsConfig({ points: false })).toEqual({
+      points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
+      viewport: { reboundMs: DEFAULT_REBOUND_MS, yAxisMs: DEFAULT_Y_AXIS_MS },
     });
-    expect(resolveAnimationsConfig({ liveTracking: false })).toEqual({
-      entrance: true,
-      liveTracking: false,
+    expect(resolveAnimationsConfig({ viewport: false })).toEqual({
+      points: { enterMs: DEFAULT_ENTER_MS, smoothMs: DEFAULT_SMOOTH_MS, pulseMs: DEFAULT_PULSE_MS },
+      viewport: { reboundMs: 0, yAxisMs: 0 },
     });
+  });
+
+  it('per-field false disables only that field', () => {
+    const resolved = resolveAnimationsConfig({ points: { smoothMs: false } });
+    expect(resolved.points.smoothMs).toBe(0);
+    expect(resolved.points.enterMs).toBe(DEFAULT_ENTER_MS);
+  });
+
+  it('numeric overrides flow through', () => {
+    const out = resolveAnimationsConfig({ points: { enterMs: 1200, pulseMs: 1500 } });
+    expect(out.points.enterMs).toBe(1200);
+    expect(out.points.pulseMs).toBe(1500);
+    expect(out.points.smoothMs).toBe(DEFAULT_SMOOTH_MS);
   });
 });
 
 describe('ChartInstance.animations propagation', () => {
-  function make(animations?: boolean | { entrance?: boolean; liveTracking?: boolean; zoom?: boolean }): {
-    chart: ChartInstance;
-    container: HTMLElement;
-  } {
+  function makeChart(animations?: boolean | AnimationsConfig): ChartInstance {
     const container = document.createElement('div');
-    return { chart: new ChartInstance(container, { animations }), container };
+    return new ChartInstance(container, { animations });
   }
 
-  /**
-   * Observe gate propagation via renderer behavior: entrance creates an entry
-   * map entry iff entrance animations are enabled; liveSmoothRate=0 snaps
-   * displayedLast immediately iff live-tracking is disabled.
-   */
-  function addAndAppendCandle(chart: ChartInstance): { hasEntry: boolean; snappedOnUpdate: boolean } {
-    const id = chart.addCandlestickSeries();
+  function candleRenderer(
+    chart: ChartInstance,
+    opts?: Parameters<ChartInstance['addCandlestickSeries']>[0],
+  ): CandlestickRenderer {
+    const id = chart.addCandlestickSeries(opts);
     const entry = (
       chart as unknown as {
         listSeriesForTest: () => Array<{ id: string; renderer: CandlestickRenderer }>;
@@ -59,22 +80,23 @@ describe('ChartInstance.animations propagation', () => {
     )
       .listSeriesForTest()
       .find((s) => s.id === id)!;
-    const r = entry.renderer;
+    return entry.renderer;
+  }
+
+  function addAndAppendCandle(chart: ChartInstance): { hasEntry: boolean; snappedOnUpdate: boolean } {
+    const r = candleRenderer(chart);
     r.setData([{ time: 10, open: 10, high: 12, low: 9, close: 11 }]);
     r.appendPoint({ time: 20, open: 10, high: 12, low: 9, close: 11 });
     const hasEntry = (r as unknown as { entries: Map<number, unknown> }).entries.size > 0;
 
-    // Seed displayedLast at the pre-update values, THEN update, THEN advance by
-    // one frame — this is the only sequence that distinguishes "smoothing on"
-    // (displayedLast partway between 11 and 18) from "smoothing off, snapped"
-    // (displayedLast === 18 immediately).
+    // Seed displayedLast, update, advance one frame. Distinguishes smoothing on
+    // (partial close) from smoothing off (full snap).
     const advance = (t: number) =>
       (r as unknown as { advanceLiveTracking: (t: number) => void }).advanceLiveTracking(t);
     advance(1);
     r.updateLastPoint({ time: 20, open: 10, high: 18, low: 9, close: 18 });
     advance(17);
     const dl = (r as unknown as { displayedLast: { close: number } }).displayedLast;
-    // When smoothing is disabled (rate=0), displayedLast snaps to target.
     const snappedOnUpdate = dl.close === 18;
 
     return { hasEntry, snappedOnUpdate };
@@ -101,52 +123,55 @@ describe('ChartInstance.animations propagation', () => {
   }
 
   it('default: entrance registers an entry; live-tracking smooths', () => {
-    const { chart } = make();
-    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(chart);
+    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(makeChart());
     expect(hasEntry).toBe(true);
     expect(snappedOnUpdate).toBe(false);
   });
 
-  it('animations: false disables entrance and live-tracking', () => {
-    const { chart } = make(false);
-    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(chart);
+  it('animations: false disables every category', () => {
+    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(makeChart(false));
     expect(hasEntry).toBe(false);
     expect(snappedOnUpdate).toBe(true);
   });
 
-  it('animations: { entrance: false } only disables entrance', () => {
-    const { chart } = make({ entrance: false });
-    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(chart);
+  it('animations.points: false disables entrance + smoothing + pulse', () => {
+    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(makeChart({ points: false }));
+    expect(hasEntry).toBe(false);
+    expect(snappedOnUpdate).toBe(true);
+  });
+
+  it('animations.points.enterMs: false disables only entrance', () => {
+    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(makeChart({ points: { enterMs: false } }));
     expect(hasEntry).toBe(false);
     expect(snappedOnUpdate).toBe(false);
   });
 
-  it('animations: { liveTracking: false } only disables live-tracking', () => {
-    const { chart } = make({ liveTracking: false });
-    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(chart);
+  it('animations.points.smoothMs: false disables only live-tracking', () => {
+    const { hasEntry, snappedOnUpdate } = addAndAppendCandle(makeChart({ points: { smoothMs: false } }));
     expect(hasEntry).toBe(true);
     expect(snappedOnUpdate).toBe(true);
   });
 
   it('line series also respects the entrance gate', () => {
-    const { chart } = make(false);
-    const { hasEntry } = addLineAndAppend(chart);
+    const { hasEntry } = addLineAndAppend(makeChart(false));
     expect(hasEntry).toBe(false);
   });
 
-  it('explicit series option wins over chart-level disable', () => {
-    const { chart } = make(false);
-    const id = chart.addCandlestickSeries({ enterAnimation: 'fade', liveSmoothRate: 14 });
-    const entry = (
-      chart as unknown as {
-        listSeriesForTest: () => Array<{ id: string; renderer: CandlestickRenderer }>;
-      }
-    )
-      .listSeriesForTest()
-      .find((s) => s.id === id)!;
-    const r = entry.renderer;
-    r.setData([{ time: 10, open: 10, high: 12, low: 9, close: 11 }]);
-    r.appendPoint({ time: 20, open: 10, high: 12, low: 9, close: 11 });
-    expect((r as unknown as { entries: Map<number, unknown> }).entries.size).toBeGreaterThan(0);
+  it('chart-level enterMs acts as default when series omits it', () => {
+    const r = candleRenderer(makeChart({ points: { enterMs: 800 } }));
+    const opts = (r as unknown as { options: { enterMs?: number } }).options;
+    expect(opts.enterMs).toBe(800);
+  });
+
+  it('per-series enterMs wins over chart-level default', () => {
+    const r = candleRenderer(makeChart({ points: { enterMs: 800 } }), { enterMs: 200 });
+    const opts = (r as unknown as { options: { enterMs?: number } }).options;
+    expect(opts.enterMs).toBe(200);
+  });
+
+  it('chart-level smoothMs: false forces snap even if per-series sets a number', () => {
+    const r = candleRenderer(makeChart({ points: { smoothMs: false } }), { smoothMs: 500 });
+    const opts = (r as unknown as { options: { smoothMs?: number | false } }).options;
+    expect(opts.smoothMs).toBe(0);
   });
 });

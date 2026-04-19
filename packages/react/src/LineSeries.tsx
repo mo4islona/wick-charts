@@ -99,9 +99,9 @@ export function LineSeries({ data, options, label, id: idProp }: LineSeriesProps
     options?.areaFill,
     options?.pulse,
     options?.stacking,
-    options?.appendAnimation,
-    options?.appendDurationMs,
-    options?.liveSmoothRate,
+    options?.enterAnimation,
+    options?.enterMs,
+    options?.smoothMs,
   ]);
 
   return null;

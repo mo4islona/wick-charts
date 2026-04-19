@@ -127,9 +127,9 @@ describe('CandlestickRenderer — live-tracking animation', () => {
     expect(dl.low).toBe(49);
   });
 
-  it('liveSmoothRate: 0 disables smoothing — displayedLast equals target immediately', () => {
+  it('smoothMs: 0 disables smoothing — displayedLast equals target immediately', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store, { liveSmoothRate: 0 });
+    const r = new CandlestickRenderer(store, { smoothMs: 0 });
     renderFrame(r);
 
     r.updateLastPoint({ time: 10, open: 10, high: 18, low: 9, close: 18 });
@@ -169,9 +169,9 @@ describe('CandlestickRenderer — live-tracking animation', () => {
       expect(fadedCalls.length).toBeGreaterThan(0);
     });
 
-    it('reaches full opacity after enterDurationMs and clears needsAnimation', () => {
+    it('reaches full opacity after enterMs and clears needsAnimation', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { enterDurationMs: 250 });
+      const r = new CandlestickRenderer(store, { enterMs: 250 });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -186,7 +186,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it('mid-duration render returns partial progress, not fully-complete', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { enterDurationMs: 250 });
+      const r = new CandlestickRenderer(store, { enterMs: 250 });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -314,5 +314,29 @@ describe('CandlestickRenderer — live-tracking animation', () => {
     // smooth, not a single jump.
     expect(yPositions[0]).not.toBe(yPositions[1]);
     expect(yPositions[1]).not.toBe(yPositions[2]);
+  });
+
+  describe('volume live-tracking participates in needsAnimation', () => {
+    it('updateLastPoint that only changes volume keeps needsAnimation true until convergence', () => {
+      const store = mkStore([{ time: 10, open: 10, high: 12, low: 9, close: 11, volume: 5 }]);
+      const r = new CandlestickRenderer(store);
+      renderFrame(r); // seed displayedLast
+
+      // Same O/H/L/C — only volume jumps. Without volume in needsAnimation the
+      // renderer would report converged after one smoothed step and the
+      // scheduler would stop requesting frames mid-slide.
+      r.updateLastPoint({ time: 10, open: 10, high: 12, low: 9, close: 11, volume: 500 });
+      advance(16);
+      renderFrame(r);
+
+      expect(r.needsAnimation).toBe(true);
+
+      // Converge.
+      for (let i = 0; i < 120; i++) {
+        advance(16);
+        renderFrame(r);
+      }
+      expect(r.needsAnimation).toBe(false);
+    });
   });
 });

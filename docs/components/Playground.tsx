@@ -15,7 +15,9 @@ type GridStyle = 'dashed' | 'solid' | 'dotted' | 'none';
 
 export type CandleEnterAnim = 'fade' | 'unfold' | 'slide' | 'fade-unfold' | 'none';
 export type BarEnterAnim = 'fade' | 'grow' | 'fade-grow' | 'slide' | 'none';
-export type LineAppendAnim = 'grow' | 'fade' | 'none';
+export type LineEnterAnim = 'grow' | 'fade' | 'none';
+/** @deprecated use {@link LineEnterAnim}. */
+export type LineAppendAnim = LineEnterAnim;
 
 type HeaderLayout = 'overlay' | 'inline';
 
@@ -35,9 +37,9 @@ interface CommonState {
   /** Entrance animation for bar series. */
   barEnterAnimation: BarEnterAnim;
   /** Entrance animation for line series. */
-  lineAppendAnimation: LineAppendAnim;
+  lineEnterAnimation: LineEnterAnim;
   /** Entrance animation duration (ms) — applies to all series kinds. */
-  enterDurationMs: number;
+  enterMs: number;
   /** Live-tracking of the last candle/bar/line value (smooth O/H/L/C updates). */
   liveTracking: boolean;
   /** Header positioning — overlay keeps the canvas full-height; inline shifts it below the header. */
@@ -57,8 +59,8 @@ const COMMON_DEFAULTS: CommonState = {
   xAxisHeight: 30,
   candleEnterAnimation: 'fade-unfold',
   barEnterAnimation: 'fade-grow',
-  lineAppendAnimation: 'grow',
-  enterDurationMs: 400,
+  lineEnterAnimation: 'grow',
+  enterMs: 400,
   liveTracking: true,
   headerLayout: 'overlay',
 };
@@ -71,9 +73,9 @@ export interface PlaygroundChartProps {
   /** Entrance animation style per series kind, threaded from the panel controls. */
   candleEnterAnimation: CandleEnterAnim;
   barEnterAnimation: BarEnterAnim;
-  lineAppendAnimation: LineAppendAnim;
+  lineEnterAnimation: LineEnterAnim;
   /** Duration of the entrance animation in ms. */
-  enterDurationMs: number;
+  enterMs: number;
   /** Live-tracking smoothing of the last candle/bar/line value. */
   liveTracking: boolean;
   /** Header layout: overlay (canvas full-height) or inline (canvas shifted below header). */
@@ -253,8 +255,8 @@ export function Playground<T extends object>({
     gradient: state.showGradient,
     candleEnterAnimation: state.candleEnterAnimation,
     barEnterAnimation: state.barEnterAnimation,
-    lineAppendAnimation: state.lineAppendAnimation,
-    enterDurationMs: state.enterDurationMs,
+    lineEnterAnimation: state.lineEnterAnimation,
+    enterMs: state.enterMs,
     liveTracking: state.liveTracking,
     headerLayout: state.headerLayout,
   };
@@ -422,15 +424,15 @@ export function Playground<T extends object>({
                 { value: 'fade', label: 'Fade' },
                 { value: 'none', label: 'None' },
               ]}
-              value={state.lineAppendAnimation}
-              onChange={(v) => setCommon({ lineAppendAnimation: v as LineAppendAnim })}
+              value={state.lineEnterAnimation}
+              onChange={(v) => setCommon({ lineEnterAnimation: v as LineEnterAnim })}
               theme={theme}
             />
           )}
           <Slider
             label="Duration"
-            value={state.enterDurationMs}
-            onChange={(v) => setCommon({ enterDurationMs: v })}
+            value={state.enterMs}
+            onChange={(v) => setCommon({ enterMs: v })}
             min={0}
             max={2000}
             step={50}
