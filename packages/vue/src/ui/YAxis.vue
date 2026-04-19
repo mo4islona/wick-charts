@@ -20,16 +20,30 @@ const chart = useChartInstance();
 const visibleRange = useVisibleRange(chart);
 
 // Route the formatter through yScale so Crosshair / YLabel fallback use the
-// same function as the axis labels. Otherwise the crosshair readout would
-// keep showing the built-in range-adaptive format.
-onMounted(() => {
-  if (props.format) chart.yScale.setFormat(props.format);
-});
+// same function as the axis labels. Capture the previous formatter (e.g.
+// one set via `axis.y.format` on `ChartContainer`) on first install and
+// restore it on unmount so YAxis never clobbers a chart-level default.
+let savedFormat: ValueFormatter | null = null;
+let installed = false;
+const installIfNeeded = () => {
+  if (props.format === undefined || installed) return;
+  savedFormat = chart.yScale.getFormat();
+  chart.yScale.setFormat(props.format);
+  installed = true;
+};
+onMounted(installIfNeeded);
 watch(
   () => props.format,
-  (fn) => chart.yScale.setFormat(fn ?? null),
+  (fn) => {
+    if (fn === undefined) return;
+    if (!installed) savedFormat = chart.yScale.getFormat();
+    chart.yScale.setFormat(fn);
+    installed = true;
+  },
 );
-onUnmounted(() => chart.yScale.setFormat(null));
+onUnmounted(() => {
+  if (installed) chart.yScale.setFormat(savedFormat);
+});
 
 const tickMap = new Map<number, TrackedTick>();
 

@@ -26,10 +26,14 @@ export function YAxis({ format }: YAxisProps = {}) {
   // Route the prop through `yScale.setFormat` so the *same* formatter drives
   // every surface that reads `yScale.formatY()` (Crosshair, YLabel fallback)
   // — otherwise the crosshair keeps showing the built-in format while axis
-  // labels show the user's.
+  // labels show the user's. Capture the previous formatter (e.g. one set via
+  // `axis.y.format` on `ChartContainer`) and restore it on unmount so YAxis
+  // never clobbers a chart-level default.
   useLayoutEffect(() => {
-    chart.yScale.setFormat(format ?? null);
-    return () => chart.yScale.setFormat(null);
+    if (format === undefined) return;
+    const prev = chart.yScale.getFormat();
+    chart.yScale.setFormat(format);
+    return () => chart.yScale.setFormat(prev);
   }, [chart, format]);
 
   const theme = chart.getTheme();

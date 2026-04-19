@@ -160,9 +160,7 @@ export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendPr
                 flexShrink: 0,
               }}
             />
-            <span style={{ whiteSpace: 'nowrap' }}>
-              {item.label}
-            </span>
+            <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
           </div>
         );
       })}

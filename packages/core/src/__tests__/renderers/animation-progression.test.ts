@@ -13,7 +13,7 @@ import { TimeSeriesStore } from '../../data/store';
 import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { LineRenderer } from '../../series/line';
-import type { OHLCData, LineData } from '../../types';
+import type { LineData, OHLCData } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
 function mkOhlcStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
@@ -54,9 +54,7 @@ describe('entrance animation — frame-by-frame progression', () => {
       advance(16);
       const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
       r.render(ctx);
-      const faded = spy.calls
-        .filter((c) => c.method === 'fillRect' && c.globalAlpha < 1)
-        .map((c) => c.globalAlpha);
+      const faded = spy.calls.filter((c) => c.method === 'fillRect' && c.globalAlpha < 1).map((c) => c.globalAlpha);
       // Grab the MAX faded alpha for that frame — represents the entering candle's
       // current progress (other primitives not entering run at alpha=1).
       if (faded.length > 0) alphaByFrame.push(Math.max(...faded));

@@ -65,10 +65,18 @@ $: chart = $chartStore;
 $: theme = chart?.getTheme();
 
 // Route the formatter through yScale so Crosshair / YLabel fallback use the
-// same function as the axis labels.
-$: if (chart) chart.yScale.setFormat(format ?? null);
+// same function as the axis labels. Capture the previous formatter on first
+// install and restore it on destroy so YAxis never clobbers a chart-level
+// default set via `axis.y.format`.
+let savedFormat: ValueFormatter | null = null;
+let installed = false;
+$: if (chart && format !== undefined) {
+  if (!installed) savedFormat = chart.yScale.getFormat();
+  chart.yScale.setFormat(format);
+  installed = true;
+}
 onDestroy(() => {
-  $chartStore?.yScale.setFormat(null);
+  if (installed) $chartStore?.yScale.setFormat(savedFormat);
 });
 </script>
 

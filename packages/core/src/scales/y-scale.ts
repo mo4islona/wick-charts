@@ -45,6 +45,11 @@ export class YScale {
     this.customFormat = fn;
   }
 
+  /** Read back the currently installed formatter — null when the built-in is active. */
+  getFormat(): ValueFormatter | null {
+    return this.customFormat;
+  }
+
   /** Convert a value to a Y position in CSS (media) pixels. */
   valueToY(value: number): number {
     const range = this.max - this.min;
