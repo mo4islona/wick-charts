@@ -61,5 +61,7 @@ export type {
   YRange,
 } from './types';
 // Utils
+export type { TooltipField, TooltipFormatter, ValueFormatter } from './utils/format';
+export { formatCompact, formatPriceAdaptive } from './utils/format';
 export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';
 export type { HorizontalPadding } from './viewport';

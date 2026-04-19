@@ -1,4 +1,7 @@
 {
+  "files": {
+    "includes": ["**", "!.claude/worktrees/**", "!test/**", "!node_modules/**", "!**/dist/**", "!coverage/**"]
+  },
   "linter": {
     "enabled": true,
     "rules": {

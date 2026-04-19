@@ -1,6 +1,15 @@
 import { useLayoutEffect, useState } from 'react';
 
-import { type ChartTheme, type OHLCData, type TimePoint, formatDate, formatTime } from '@wick-charts/core';
+import {
+  type ChartTheme,
+  type OHLCData,
+  type TimePoint,
+  type TooltipFormatter,
+  formatCompact,
+  formatDate,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
@@ -17,7 +26,18 @@ export interface TooltipProps {
   seriesId?: string;
   /** Sort order for line values when showing all series (default: 'none'). */
   sort?: TooltipSort;
+  /**
+   * Custom formatter for every displayed number. Called per row with the
+   * field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`)
+   * so consumers can branch on which cell they're formatting.
+   * Defaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.
+   */
+  format?: TooltipFormatter;
 }
+
+/** Default tooltip formatter — adaptive precision + compact volumes. */
+const defaultTooltipFormat: TooltipFormatter = (v, field) =>
+  field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
 
 /** Snapshot of a single series at a point in time, used for tooltip rendering. */
 interface SeriesSnapshot {
@@ -43,7 +63,7 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * separate component ({@link TooltipLegend}), placed as a sibling. Compose
  * them together when you want both; omit either for just one.
  */
-export function Tooltip({ seriesId, sort = 'none' }: TooltipProps) {
+export function Tooltip({ seriesId, sort = 'none', format = defaultTooltipFormat }: TooltipProps) {
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
@@ -109,6 +129,7 @@ export function Tooltip({ seriesId, sort = 'none' }: TooltipProps) {
       chartHeight={mediaSize.height - chart.xAxisHeight}
       theme={theme}
       dataInterval={dataInterval}
+      format={format}
     />
   );
 }
@@ -148,6 +169,7 @@ function FloatingTooltip({
   chartHeight,
   theme,
   dataInterval,
+  format,
 }: {
   snapshots: SeriesSnapshot[];
   x: number;
@@ -156,6 +178,7 @@ function FloatingTooltip({
   chartHeight: number;
   theme: ChartTheme;
   dataInterval: number;
+  format: TooltipFormatter;
 }) {
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
@@ -222,12 +245,12 @@ function FloatingTooltip({
           const valColor = isUp ? upColor : downColor;
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
-              <TooltipRow label="Open" value={ohlc.open} color={valColor} />
-              <TooltipRow label="High" value={ohlc.high} color={valColor} />
-              <TooltipRow label="Low" value={ohlc.low} color={valColor} />
-              <TooltipRow label="Close" value={ohlc.close} color={valColor} />
+              <TooltipRow label="Open" color={valColor} display={format(ohlc.open, 'open')} />
+              <TooltipRow label="High" color={valColor} display={format(ohlc.high, 'high')} />
+              <TooltipRow label="Low" color={valColor} display={format(ohlc.low, 'low')} />
+              <TooltipRow label="Close" color={valColor} display={format(ohlc.close, 'close')} />
               {ohlc.volume != null && (
-                <TooltipRow label="Volume" value={ohlc.volume} color={theme.tooltip.textColor} volume />
+                <TooltipRow label="Volume" color={theme.tooltip.textColor} display={format(ohlc.volume, 'volume')} />
               )}
             </div>
           );
@@ -245,7 +268,7 @@ function FloatingTooltip({
               }}
             />
             <span style={{ opacity: 0.6, flex: 1 }}>{s.label ?? 'Value'}</span>
-            <span style={{ fontWeight: 600, color: s.color }}>{line.value.toFixed(2)}</span>
+            <span style={{ fontWeight: 600, color: s.color }}>{format(line.value, 'value')}</span>
           </div>
         );
       })}
@@ -253,31 +276,11 @@ function FloatingTooltip({
   );
 }
 
-function TooltipRow({
-  label,
-  value,
-  color,
-  volume,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  volume?: boolean;
-}) {
+function TooltipRow({ label, color, display }: { label: string; color: string; display: string }) {
   return (
     <>
       <span style={{ opacity: 0.5 }}>{label}</span>
-      <span style={{ fontWeight: 600, color, textAlign: 'right' }}>
-        {volume ? formatVolume(value) : value.toFixed(2)}
-      </span>
+      <span style={{ fontWeight: 600, color, textAlign: 'right' }}>{display}</span>
     </>
   );
-}
-
-/** Format a volume number with K/M/B suffixes for compact display. */
-function formatVolume(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return v.toFixed(0);
 }

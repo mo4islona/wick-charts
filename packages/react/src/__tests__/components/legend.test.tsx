@@ -30,9 +30,18 @@ describe('Legend', () => {
 
   it('renders one item per layer for multi-layer line series', () => {
     const threeLayers = [
-      [{ time: 1, value: 1 }, { time: 2, value: 2 }],
-      [{ time: 1, value: 3 }, { time: 2, value: 4 }],
-      [{ time: 1, value: 5 }, { time: 2, value: 6 }],
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+      [
+        { time: 1, value: 3 },
+        { time: 2, value: 4 },
+      ],
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: 6 },
+      ],
     ];
     mounted = mountChart(
       <>
@@ -46,7 +55,12 @@ describe('Legend', () => {
   });
 
   it('legend item swatch color matches the series color', () => {
-    const data = [[{ time: 1, value: 1 }, { time: 2, value: 2 }]];
+    const data = [
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+    ];
     mounted = mountChart(
       <>
         <LineSeries data={data} options={{ colors: ['#ff00aa'] }} />
@@ -62,8 +76,14 @@ describe('Legend', () => {
 
   it('click toggles layer visibility in the ChartInstance', () => {
     const twoLayers = [
-      [{ time: 1, value: 10 }, { time: 2, value: 20 }],
-      [{ time: 1, value: 100 }, { time: 2, value: 200 }],
+      [
+        { time: 1, value: 10 },
+        { time: 2, value: 20 },
+      ],
+      [
+        { time: 1, value: 100 },
+        { time: 2, value: 200 },
+      ],
     ];
     mounted = mountChart(
       <>
@@ -83,11 +103,7 @@ describe('Legend', () => {
   });
 
   it('solo mode isolates one layer then restores all on second click', () => {
-    const threeLayers = [
-      [{ time: 1, value: 10 }],
-      [{ time: 1, value: 100 }],
-      [{ time: 1, value: 1000 }],
-    ];
+    const threeLayers = [[{ time: 1, value: 10 }], [{ time: 1, value: 100 }], [{ time: 1, value: 1000 }]];
     mounted = mountChart(
       <>
         <BarSeries data={threeLayers} />
@@ -96,8 +112,7 @@ describe('Legend', () => {
     );
     const seriesId = mounted.chart.getSeriesIds()[0];
 
-    const secondItem = () =>
-      mounted!.container.querySelectorAll('[data-legend] > div')[1] as HTMLElement;
+    const secondItem = () => mounted!.container.querySelectorAll('[data-legend] > div')[1] as HTMLElement;
     fireEvent.click(secondItem());
     mounted.flushScheduler();
 
@@ -123,7 +138,12 @@ describe('Legend', () => {
   });
 
   it('position="right" changes container flex direction', () => {
-    const data = [[{ time: 1, value: 1 }, { time: 2, value: 2 }]];
+    const data = [
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+    ];
     mounted = mountChart(
       <>
         <LineSeries data={data} />

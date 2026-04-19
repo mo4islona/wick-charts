@@ -116,6 +116,22 @@ const props = defineProps(['data']);
 | `Legend` | Clickable legend with toggle/solo modes |
 | `PieTooltip` | Tooltip for pie/donut hover |
 
+## Custom number formatting
+
+Every numeric overlay accepts a `format` prop so you can override the default label rendering. Two shared helpers ship in each framework package (`@wick-charts/react`, `@wick-charts/vue`, `@wick-charts/svelte`):
+
+- `formatCompact(v)` — K/M/B/T suffixes with adaptive precision. Default for `YAxis` (at ranges ≥ 1e6), `PieLegend`, `PieTooltip`, `Sparkline`.
+- `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `TooltipLegend` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
+
+```tsx
+import { Tooltip, YAxis, formatCompact } from '@wick-charts/react';
+
+<YAxis format={(v) => `$${formatCompact(v)}`} />
+<Tooltip format={(v, field) => field === 'volume' ? formatCompact(v) : v.toFixed(4)} />
+```
+
+Tooltip / TooltipLegend pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
+
 ## Themes
 
 22 built-in themes. Import only the ones you need (tree-shakable) and pass them to `ChartContainer` or `ThemeProvider` for global theming.
@@ -197,13 +213,21 @@ chart.batch(() => {
 
 ## Bundle Size
 
-| Package | Gzip | Brotli |
-|---|---|---|
-| `@wick-charts/react` | 29 KB | 25 KB |
-| `@wick-charts/vue` | 28 KB | 24 KB |
-| `@wick-charts/svelte` | 35 KB | 30 KB |
+Full `dist/index.js` (minified + gzipped):
 
-Tree-shaking reduces this further — a candlestick-only chart is ~20 KB gzip.
+| Package | Raw | Gzip |
+|---|---|---|
+| `@wick-charts/react`  | 181 KB | 45.6 KB |
+| `@wick-charts/vue`    | 176 KB | 44.2 KB |
+| `@wick-charts/svelte` | 230 KB | 54.2 KB |
+
+Tree-shaking on the consumer side cuts this down further — `pnpm size` builds representative React scenarios through esbuild with production settings:
+
+| Scenario | Raw | Gzip |
+|---|---|---|
+| Candlestick only | 98 KB | 28.5 KB |
+| Line only | 98 KB | 28.6 KB |
+| Full React (all overlays) | 115 KB | 32.8 KB |
 
 ## License
 

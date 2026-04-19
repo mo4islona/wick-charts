@@ -4,7 +4,8 @@ import { computed, onMounted, ref } from 'vue';
 const props = withDefaults(
   defineProps<{
     value: number;
-    format?: Intl.NumberFormatOptions;
+    /** Value-to-string formatter. Defaults to the current locale's `Intl.NumberFormat`. */
+    format?: (value: number) => string;
     locale?: string;
     spinDuration?: number;
   }>(),
@@ -19,7 +20,10 @@ onMounted(() => {
   mounted.value = true;
 });
 
-const formatter = computed(() => new Intl.NumberFormat(props.locale, props.format));
+const defaultFormat = computed(() => {
+  const nf = new Intl.NumberFormat(props.locale);
+  return (v: number) => nf.format(v);
+});
 
 interface CharPart {
   type: 'digit' | 'symbol';
@@ -27,7 +31,8 @@ interface CharPart {
 }
 
 const parts = computed<CharPart[]>(() => {
-  const formatted = formatter.value.format(props.value);
+  const fn = props.format ?? defaultFormat.value;
+  const formatted = fn(props.value);
   const result: CharPart[] = [];
   for (const char of formatted) {
     if (char >= '0' && char <= '9') {

@@ -88,7 +88,7 @@ function PieChart({ data }: { data: PieSliceData[] }) {
     <ChartContainer style={{ width: 400, height: 400 }}>
       <PieSeries id={seriesId} data={data} />
       <PieTooltip seriesId={seriesId} />
-      <PieLegend seriesId={seriesId} format="percent" />
+      <PieLegend seriesId={seriesId} mode="percent" />
     </ChartContainer>
   );
 }
@@ -156,7 +156,7 @@ const data: PieSliceData[] = [
       :options="{ innerRadiusRatio: 0.6 }"
     />
     <PieTooltip :series-id="seriesId" />
-    <PieLegend :series-id="seriesId" format="value" />
+    <PieLegend :series-id="seriesId" mode="value" />
   </ChartContainer>
 </template>
 ```
@@ -193,7 +193,7 @@ id?: string
     options={{ innerRadiusRatio: 0.6 }}
   />
   <PieTooltip {seriesId} />
-  <PieLegend {seriesId} format="value" />
+  <PieLegend {seriesId} mode="value" />
 </ChartContainer>
 ```
 
@@ -211,7 +211,7 @@ id?: string
 | Component | Props | Description |
 |-----------|-------|-------------|
 | `PieTooltip` | `seriesId` | Shows slice label, value, and percentage on hover |
-| `PieLegend` | `seriesId`, `format?: 'value' \| 'percent'` | Slice labels with values or percentages |
+| `PieLegend` | `seriesId`, `mode?: 'value' \| 'percent'`, `format?: (v) => string` | Slice labels with values or percentages (custom formatter optional) |
 
 **Do not use** `Tooltip`, `Crosshair`, `YAxis`, `TimeAxis`, or `YLabel` with pie charts — they are for time-based series only.
 

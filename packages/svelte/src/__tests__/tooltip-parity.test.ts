@@ -107,6 +107,45 @@ describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
     unmount();
   });
 
+  it('<TooltipLegend> renders sub-cent OHLC values with enough precision', async () => {
+    const satoshi = 0.00001234;
+    const data = [
+      { time: 1, open: satoshi, high: satoshi * 1.5, low: satoshi * 0.8, close: satoshi * 1.2 },
+      { time: 2, open: satoshi * 1.2, high: satoshi * 2, low: satoshi, close: satoshi * 1.8 },
+    ];
+    const { unmount } = render(TooltipParityHarness, {
+      props: { variant: 'precision-legend', candlestickData: data },
+    });
+    await settle();
+
+    const bar = document.body.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    const text = bar?.textContent ?? '';
+    // Not collapsed to "0.00" — the significant digits of 0.00001234 come through.
+    expect(text).toMatch(/1234|0000123/);
+
+    unmount();
+  });
+
+  it('<TooltipLegend> custom `format` prop overrides rendered values', async () => {
+    const lineData = [
+      [
+        { time: 1, value: 42 },
+        { time: 2, value: 84 },
+      ],
+    ];
+    const { unmount } = render(TooltipParityHarness, {
+      props: { variant: 'custom-format-legend', lineData },
+    });
+    await settle();
+
+    const bar = document.body.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent ?? '').toMatch(/<value:\d+>/);
+
+    unmount();
+  });
+
   it('<Tooltip> declared before series mounts cleanly (seriesChange handler wired up)', async () => {
     const { container, unmount } = render(TooltipParityHarness, {
       props: { variant: 'ordered-tooltip', candlestickData },

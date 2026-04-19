@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
+import {
+  type LineData,
+  type OHLCData,
+  type TooltipFormatter,
+  formatCompact,
+  formatDate,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
@@ -14,14 +22,20 @@ interface SeriesSnapshot {
   color: string;
 }
 
-const props = withDefaults(
-  defineProps<{
-    seriesId?: string;
-    sort?: TooltipSort;
-  }>(),
-  {
-    sort: 'none',
-  },
+const props = defineProps<{
+  seriesId?: string;
+  sort?: TooltipSort;
+  format?: TooltipFormatter;
+}>();
+
+// Vue's `withDefaults` is inconsistent for function-typed props (sometimes
+// treats the default as a factory, sometimes as the value). Use a computed
+// fallback instead — deterministic and framework-agnostic.
+const effectiveSort = computed<TooltipSort>(() => props.sort ?? 'none');
+const effectiveFormat = computed<TooltipFormatter>(
+  () =>
+    props.format ??
+    ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
 );
 
 const chart = useChartInstance();
@@ -73,13 +87,6 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
   });
 }
 
-function formatVolume(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return v.toFixed(0);
-}
-
 const hoverSnapshots = computed(() => {
   if (!crosshair.value) return [];
   // Reference `lastY` so streaming `dataUpdate`s invalidate the hovered
@@ -118,7 +125,7 @@ const hoverSnapshots = computed(() => {
 
 const snapshots = computed(() => {
   void lastY.value;
-  return sortSnapshots(hoverSnapshots.value, props.sort);
+  return sortSnapshots(hoverSnapshots.value, effectiveSort.value);
 });
 
 const displayTime = computed(() => {
@@ -200,10 +207,10 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
       >
         <template
           v-for="row in [
-            { label: 'Open', val: (s.data as OHLCData).open },
-            { label: 'High', val: (s.data as OHLCData).high },
-            { label: 'Low', val: (s.data as OHLCData).low },
-            { label: 'Close', val: (s.data as OHLCData).close },
+            { label: 'Open', val: (s.data as OHLCData).open, field: 'open' as const },
+            { label: 'High', val: (s.data as OHLCData).high, field: 'high' as const },
+            { label: 'Low', val: (s.data as OHLCData).low, field: 'low' as const },
+            { label: 'Close', val: (s.data as OHLCData).close, field: 'close' as const },
           ]"
           :key="row.label"
         >
@@ -217,13 +224,13 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
                   : theme.candlestick.downColor,
               textAlign: 'right',
             }"
-            >{{ row.val.toFixed(2) }}</span
+            >{{ effectiveFormat(row.val, row.field) }}</span
           >
         </template>
         <template v-if="(s.data as OHLCData).volume != null">
           <span :style="{ opacity: 0.5 }">Volume</span>
           <span :style="{ fontWeight: 600, color: theme.tooltip.textColor, textAlign: 'right' }">
-            {{ formatVolume((s.data as OHLCData).volume!) }}
+            {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
           </span>
         </template>
       </div>
@@ -242,7 +249,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
         <span :style="{ fontWeight: 600, color: s.color }">
-          {{ (s.data as LineData).value.toFixed(2) }}
+          {{ effectiveFormat((s.data as LineData).value, 'value') }}
         </span>
       </div>
     </template>

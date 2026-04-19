@@ -3,6 +3,7 @@ import {
   BarSeries,
   CandlestickSeries,
   ChartContainer,
+  LineSeries,
   Title,
   Tooltip,
   TooltipLegend,
@@ -154,6 +155,67 @@ describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
       },
     });
     expect(() => mount(Bad, { attachTo: host })).toThrow(/<Title> must be used within <ChartContainer>/);
+  });
+
+  it('<TooltipLegend> renders sub-cent OHLC values with enough precision (regression for `.toFixed(2)`)', async () => {
+    const satoshi = 0.00001234;
+    const App = defineComponent({
+      components: { ChartContainer, CandlestickSeries, TooltipLegend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: darkTheme }, () => [
+            h(TooltipLegend),
+            h(CandlestickSeries, {
+              data: [
+                { time: 1, open: satoshi, high: satoshi * 1.5, low: satoshi * 0.8, close: satoshi * 1.2 },
+                { time: 2, open: satoshi * 1.2, high: satoshi * 2, low: satoshi, close: satoshi * 1.8 },
+              ],
+            }),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const bar = host.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    const text = bar?.textContent ?? '';
+    // Not collapsed to "0.00" — at least one of the first significant digits of 0.00001234 comes through.
+    expect(text).toMatch(/1234|0000123/);
+
+    wrapper.unmount();
+  });
+
+  it('<TooltipLegend> custom `format` prop overrides rendered values', async () => {
+    const App = defineComponent({
+      components: { ChartContainer, LineSeries, TooltipLegend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: darkTheme }, () => [
+            h(TooltipLegend, {
+              format: (v: number, field: string) => `<${field}:${v}>`,
+            }),
+            h(LineSeries, {
+              data: [
+                [
+                  { time: 1, value: 42 },
+                  { time: 2, value: 84 },
+                ],
+              ],
+            }),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const bar = host.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent ?? '').toMatch(/<value:\d+>/);
+
+    wrapper.unmount();
   });
 
   it('<Tooltip> is order-independent — renders nothing on mount without hover, but is correctly wired for later hover', async () => {

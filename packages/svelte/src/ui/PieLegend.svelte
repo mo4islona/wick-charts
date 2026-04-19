@@ -1,38 +1,46 @@
 <script lang="ts">
-  import { get } from 'svelte/store';
-  import { onDestroy } from 'svelte';
-  import { getChartContext, getThemeContext } from '../context';
-  import { createLastYValue } from '../stores';
+import { type ValueFormatter, formatCompact } from '@wick-charts/core';
+import { onDestroy } from 'svelte';
 
-  export let seriesId: string;
-  export let format: 'value' | 'percent' = 'value';
+import { getChartContext, getThemeContext } from '../context';
+import { createLastYValue } from '../stores';
 
-  const chartStore = getChartContext();
-  const themeStore = getThemeContext();
-  let lastValue: { value: number; isLive: boolean } | null = null;
-  let unsub: (() => void) | null = null;
+export let seriesId: string;
+/** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
+export let mode: 'value' | 'percent' | undefined = undefined;
+/**
+ * Custom formatter for the absolute slice value.
+ * @deprecated Passing `'value' | 'percent'` is the legacy display-mode
+ * shorthand — use the `mode` prop instead.
+ */
+export let format: ValueFormatter | 'value' | 'percent' | undefined = undefined;
 
-  $: {
-    const chart = $chartStore;
-    if (chart && !unsub) {
-      const store = createLastYValue(chart, seriesId);
-      unsub = store.subscribe((v) => { lastValue = v; });
-    }
+$: resolvedMode = (typeof format === 'string' ? format : (mode ?? 'value')) as 'value' | 'percent';
+$: resolvedFormat = (typeof format === 'function' ? format : formatCompact) as ValueFormatter;
+
+const chartStore = getChartContext();
+const themeStore = getThemeContext();
+let lastValue: { value: number; isLive: boolean } | null = null;
+let unsub: (() => void) | null = null;
+
+$: {
+  const chart = $chartStore;
+  if (chart && !unsub) {
+    const store = createLastYValue(chart, seriesId);
+    unsub = store.subscribe((v) => {
+      lastValue = v;
+    });
   }
+}
 
-  onDestroy(() => { unsub?.(); });
+onDestroy(() => {
+  unsub?.();
+});
 
-  $: chart = $chartStore;
-  $: theme = $themeStore;
-  // Reference lastValue to trigger reactivity on dataUpdate events
-  $: slices = (void lastValue, chart?.getSliceInfo(seriesId) ?? []);
-
-  function formatCompact(v: number): string {
-    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
-    if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
-    if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-    return v.toLocaleString();
-  }
+$: chart = $chartStore;
+$: theme = $themeStore;
+// Reference lastValue to trigger reactivity on dataUpdate events
+$: slices = (void lastValue, chart?.getSliceInfo(seriesId) ?? []);
 </script>
 
 {#if slices.length > 0 && theme}
@@ -43,11 +51,11 @@
       <div style="display:flex;align-items:center;gap:10px;">
         <span style="width:10px;height:10px;border-radius:50%;background:{slice.color};flex-shrink:0;" />
         <span style="flex:1;opacity:0.8;">{slice.label}</span>
-        {#if format === 'value'}
-          <span style="font-weight:600;font-variant-numeric:tabular-nums;">{formatCompact(slice.value)}</span>
+        {#if resolvedMode === 'value'}
+          <span style="font-weight:600;font-variant-numeric:tabular-nums;">{resolvedFormat(slice.value)}</span>
         {/if}
         <span
-          style="opacity:{format === 'percent' ? 1 : 0.5};font-weight:{format === 'percent' ? 600 : 400};font-size:{format === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
+          style="opacity:{resolvedMode === 'percent' ? 1 : 0.5};font-weight:{resolvedMode === 'percent' ? 600 : 400};font-size:{resolvedMode === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
         >
           {slice.percent.toFixed(1)}%
         </span>

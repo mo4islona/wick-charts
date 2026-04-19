@@ -26,11 +26,7 @@ const twoLayerLine = [
   ],
 ];
 
-const threeLayerBars = [
-  [{ time: 1, value: 10 }],
-  [{ time: 1, value: 100 }],
-  [{ time: 1, value: 1000 }],
-];
+const threeLayerBars = [[{ time: 1, value: 10 }], [{ time: 1, value: 100 }], [{ time: 1, value: 1000 }]];
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 8; i++) {

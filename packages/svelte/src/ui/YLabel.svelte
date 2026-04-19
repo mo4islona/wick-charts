@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ChartInstance } from '@wick-charts/core';
+import type { ValueFormatter } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -9,6 +9,8 @@ import NumberFlow from './NumberFlow.svelte';
 
 export let seriesId: string;
 export let color: string | undefined = undefined;
+/** Custom formatter; routed through NumberFlow so the digit animation plays. */
+export let format: ValueFormatter | undefined = undefined;
 
 const chartStore = getChartContext();
 let lastY: { value: number; isLive: boolean } | null = null;
@@ -73,6 +75,19 @@ $: fractionDigits = (() => {
   if (range < 1000) return 2;
   return 0;
 })();
+
+// Fall back to a range-adaptive Intl formatter when no custom format is set.
+// Build the Intl.NumberFormat once per `fractionDigits` change instead of on
+// every NumberFlow tick — matches the Vue / React implementations.
+$: intlFallback = (() => {
+  const nf = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+    useGrouping: false,
+  });
+  return (v: number) => nf.format(v);
+})();
+$: effectiveFormat = format ?? intlFallback;
 </script>
 
 {#if lastY !== null && chart && theme}
@@ -84,10 +99,6 @@ $: fractionDigits = (() => {
   <div
     style="position:absolute;right:4px;top:{y}px;transform:translateY(-50%);pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.typography.yFontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
   >
-    <NumberFlow
-      value={lastY.value}
-      format={{ minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits, useGrouping: false }}
-      spinDuration={350}
-    />
+    <NumberFlow value={lastY.value} format={effectiveFormat} spinDuration={350} />
   </div>
 {/if}

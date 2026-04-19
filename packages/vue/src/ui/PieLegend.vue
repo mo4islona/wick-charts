@@ -1,32 +1,55 @@
 <script setup lang="ts">
+import { type ValueFormatter, formatCompact } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
+
 import { useChartInstance, useTheme } from '../context';
 
-const props = withDefaults(defineProps<{
-  seriesId: string;
-  format?: 'value' | 'percent';
-}>(), {
-  format: 'value',
-});
+const props = withDefaults(
+  defineProps<{
+    seriesId: string;
+    /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
+    mode?: 'value' | 'percent';
+    /**
+     * Custom formatter for the absolute slice value.
+     * @deprecated Passing `'value' | 'percent'` is the pre-rename display mode
+     * shorthand — use the `mode` prop instead.
+     */
+    format?: ValueFormatter | 'value' | 'percent';
+  }>(),
+  {
+    mode: undefined,
+    format: undefined,
+  },
+);
+
+// Back-compat: when `format` is a string, it's the legacy display mode.
+const resolvedMode = computed<'value' | 'percent'>(() =>
+  typeof props.format === 'string' ? props.format : (props.mode ?? 'value'),
+);
+const resolvedFormat = computed<ValueFormatter>(() =>
+  typeof props.format === 'function' ? props.format : formatCompact,
+);
 
 const chart = useChartInstance();
 const themeRef = useTheme();
 
 // Subscribe to dataUpdate directly to re-render when pie data changes
 const tick = ref(0);
-const handler = () => { tick.value++; };
-onMounted(() => { chart.on('dataUpdate', handler); });
-onUnmounted(() => { chart.off('dataUpdate', handler); });
+const handler = () => {
+  tick.value++;
+};
+onMounted(() => {
+  chart.on('dataUpdate', handler);
+});
+onUnmounted(() => {
+  chart.off('dataUpdate', handler);
+});
 
 const theme = computed(() => themeRef.value);
-const slices = computed(() => { void tick.value; return chart.getSliceInfo(props.seriesId) ?? []; });
-
-function formatCompact(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toLocaleString();
-}
+const slices = computed(() => {
+  void tick.value;
+  return chart.getSliceInfo(props.seriesId) ?? [];
+});
 </script>
 
 <template>
@@ -51,16 +74,16 @@ function formatCompact(v: number): string {
       <span :style="{ width: '10px', height: '10px', borderRadius: '50%', background: slice.color, flexShrink: 0 }" />
       <span :style="{ flex: 1, opacity: 0.8 }">{{ slice.label }}</span>
       <span
-        v-if="format === 'value'"
+        v-if="resolvedMode === 'value'"
         :style="{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }"
       >
-        {{ formatCompact(slice.value) }}
+        {{ resolvedFormat(slice.value) }}
       </span>
       <span
         :style="{
-          opacity: format === 'percent' ? 1 : 0.5,
-          fontWeight: format === 'percent' ? 600 : 400,
-          fontSize: (format === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize) + 'px',
+          opacity: resolvedMode === 'percent' ? 1 : 0.5,
+          fontWeight: resolvedMode === 'percent' ? 600 : 400,
+          fontSize: (resolvedMode === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize) + 'px',
           fontVariantNumeric: 'tabular-nums',
           minWidth: '40px',
           textAlign: 'right',
