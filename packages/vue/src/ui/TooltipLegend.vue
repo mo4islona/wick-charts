@@ -21,18 +21,18 @@ interface SeriesSnapshot {
   color: string;
 }
 
-const props = withDefaults(
-  defineProps<{
-    seriesId?: string;
-    sort?: TooltipSort;
-    format?: TooltipFormatter;
-  }>(),
-  {
-    sort: 'none',
-    // For Function-typed props `withDefaults` stores the value as-is — no
-    // factory wrapper (otherwise `props.format(...)` returns the inner fn).
-    format: (v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v)),
-  },
+const props = defineProps<{
+  seriesId?: string;
+  sort?: TooltipSort;
+  format?: TooltipFormatter;
+}>();
+
+// Use computed fallbacks — `withDefaults` is inconsistent for function props.
+const effectiveSort = computed<TooltipSort>(() => props.sort ?? 'none');
+const effectiveFormat = computed<TooltipFormatter>(
+  () =>
+    props.format ??
+    ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
 );
 
 const chart = useChartInstance();
@@ -117,7 +117,7 @@ const snapshots = computed(() => {
       if (d) hover.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
     }
   }
-  if (hover.length > 0) return sortSnapshots(hover, props.sort);
+  if (hover.length > 0) return sortSnapshots(hover, effectiveSort.value);
   const last: SeriesSnapshot[] = [];
   for (const id of targetIds.value) {
     const d = chart.getLastData(id);
@@ -136,7 +136,7 @@ const snapshots = computed(() => {
     }
     last.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
   }
-  return sortSnapshots(last, props.sort);
+  return sortSnapshots(last, effectiveSort.value);
 });
 
 const dataInterval = computed(() => chart.getDataInterval());
@@ -187,13 +187,13 @@ const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots
                 marginLeft: '2px',
               }"
             >
-              {{ props.format(cell.val, cell.field) }}
+              {{ effectiveFormat(cell.val, cell.field) }}
             </span>
           </template>
           <template v-if="(s.data as OHLCData).volume != null">
             <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
             <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
-              {{ props.format((s.data as OHLCData).volume!, 'volume') }}
+              {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
             </span>
           </template>
         </span>
@@ -208,7 +208,7 @@ const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots
             }"
           />
           <span :style="{ color: s.color, fontWeight: 500 }">
-            {{ props.format((s.data as LineData).value, 'value') }}
+            {{ effectiveFormat((s.data as LineData).value, 'value') }}
           </span>
         </span>
       </template>

@@ -22,17 +22,20 @@ interface SeriesSnapshot {
   color: string;
 }
 
-const props = withDefaults(
-  defineProps<{
-    seriesId?: string;
-    sort?: TooltipSort;
-    format?: TooltipFormatter;
-  }>(),
-  {
-    sort: 'none',
-    // Function-typed props pass the default as-is (no factory wrapper).
-    format: (v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v)),
-  },
+const props = defineProps<{
+  seriesId?: string;
+  sort?: TooltipSort;
+  format?: TooltipFormatter;
+}>();
+
+// Vue's `withDefaults` is inconsistent for function-typed props (sometimes
+// treats the default as a factory, sometimes as the value). Use a computed
+// fallback instead — deterministic and framework-agnostic.
+const effectiveSort = computed<TooltipSort>(() => props.sort ?? 'none');
+const effectiveFormat = computed<TooltipFormatter>(
+  () =>
+    props.format ??
+    ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
 );
 
 const chart = useChartInstance();
@@ -122,7 +125,7 @@ const hoverSnapshots = computed(() => {
 
 const snapshots = computed(() => {
   void lastY.value;
-  return sortSnapshots(hoverSnapshots.value, props.sort);
+  return sortSnapshots(hoverSnapshots.value, effectiveSort.value);
 });
 
 const displayTime = computed(() => {
@@ -221,13 +224,13 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
                   : theme.candlestick.downColor,
               textAlign: 'right',
             }"
-            >{{ props.format(row.val, row.field) }}</span
+            >{{ effectiveFormat(row.val, row.field) }}</span
           >
         </template>
         <template v-if="(s.data as OHLCData).volume != null">
           <span :style="{ opacity: 0.5 }">Volume</span>
           <span :style="{ fontWeight: 600, color: theme.tooltip.textColor, textAlign: 'right' }">
-            {{ props.format((s.data as OHLCData).volume!, 'volume') }}
+            {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
           </span>
         </template>
       </div>
@@ -246,7 +249,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
         <span :style="{ fontWeight: 600, color: s.color }">
-          {{ props.format((s.data as LineData).value, 'value') }}
+          {{ effectiveFormat((s.data as LineData).value, 'value') }}
         </span>
       </div>
     </template>

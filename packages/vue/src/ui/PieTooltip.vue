@@ -5,16 +5,14 @@ import { computed } from 'vue';
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
 
-const props = withDefaults(
-  defineProps<{
-    seriesId: string;
-    /** Custom formatter for the slice value. Default: shared `formatCompact`. */
-    format?: ValueFormatter;
-  }>(),
-  {
-    format: formatCompact,
-  },
-);
+const props = defineProps<{
+  seriesId: string;
+  /** Custom formatter for the slice value. Default: shared `formatCompact`. */
+  format?: ValueFormatter;
+}>();
+
+// Computed fallback — `withDefaults` is unreliable for function-typed props.
+const effectiveFormat = computed<ValueFormatter>(() => props.format ?? formatCompact);
 
 const chart = useChartInstance();
 const crosshair = useCrosshairPosition(chart);
@@ -87,7 +85,7 @@ const tooltipPos = computed(() => {
     </div>
     <!-- Value + percent -->
     <div :style="{ display: 'flex', justifyContent: 'space-between', gap: '16px' }">
-      <span :style="{ opacity: 0.6 }">{{ props.format(info.value) }}</span>
+      <span :style="{ opacity: 0.6 }">{{ effectiveFormat(info.value) }}</span>
       <span :style="{ fontWeight: 600 }">{{ info.percent.toFixed(1) }}%</span>
     </div>
   </div>
