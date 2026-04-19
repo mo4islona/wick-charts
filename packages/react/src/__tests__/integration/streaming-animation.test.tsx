@@ -207,7 +207,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       <LineSeries
         id={sid}
         data={initial}
-        options={{ areaFill: false, appendAnimation: 'grow', appendDurationMs: 400 }}
+        options={{ areaFill: false, enterAnimation: 'grow', enterMs: 400 }}
       />,
       { width: 800, height: 400 },
     );
@@ -216,7 +216,7 @@ describe('streaming data routes new points through appendData (entrance animatio
 
     const next: TimePoint[][] = [[...initial[0], { time: 1_000_000 + 20 * 60_000, value: 25 }]];
     mounted.rerender(
-      <LineSeries id={sid} data={next} options={{ areaFill: false, appendAnimation: 'grow', appendDurationMs: 400 }} />,
+      <LineSeries id={sid} data={next} options={{ areaFill: false, enterAnimation: 'grow', enterMs: 400 }} />,
     );
 
     // Entry should be registered immediately.

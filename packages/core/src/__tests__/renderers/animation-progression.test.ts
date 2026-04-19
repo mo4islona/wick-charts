@@ -41,7 +41,7 @@ describe('entrance animation — frame-by-frame progression', () => {
     const store = mkOhlcStore([{ time: 10, open: 10, high: 12, low: 9, close: 11 }]);
     const r = new CandlestickRenderer(store, {
       enterAnimation: 'fade',
-      enterDurationMs: 250,
+      enterMs: 250,
       candleGradient: false,
     });
     const { ctx: priming } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
@@ -69,7 +69,7 @@ describe('entrance animation — frame-by-frame progression', () => {
   });
 
   it('bar fade-grow: bar height on the new bar strictly increases while alpha rises', () => {
-    const r = new BarRenderer(1, { enterAnimation: 'fade-grow', enterDurationMs: 250 });
+    const r = new BarRenderer(1, { enterAnimation: 'fade-grow', enterMs: 250 });
     r.setData([{ time: 10, value: 5 }]);
     const { ctx: priming } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
     r.render(priming);
@@ -101,7 +101,7 @@ describe('entrance animation — frame-by-frame progression', () => {
     // Disable areaFill so the only `lineTo` calls are for the polyline itself —
     // with areaFill enabled, two extra `lineTo` calls at the chart's bottom
     // corners close the fill path and would clobber our "last lineTo" heuristic.
-    const r = new LineRenderer(1, { appendAnimation: 'grow', appendDurationMs: 250, areaFill: false });
+    const r = new LineRenderer(1, { enterAnimation: 'grow', enterMs: 250, areaFill: false });
     const base: LineData[] = [
       { time: 10, value: 5 },
       { time: 20, value: 6 },
@@ -142,9 +142,9 @@ describe('entrance animation — frame-by-frame progression', () => {
     }
   });
 
-  it('candlestick entrance completes exactly at enterDurationMs', () => {
+  it('candlestick entrance completes exactly at enterMs', () => {
     const store = mkOhlcStore([{ time: 10, open: 10, high: 12, low: 9, close: 11 }]);
-    const r = new CandlestickRenderer(store, { enterAnimation: 'fade', enterDurationMs: 250 });
+    const r = new CandlestickRenderer(store, { enterAnimation: 'fade', enterMs: 250 });
     const { ctx: priming } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
     r.render(priming);
 

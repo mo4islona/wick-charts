@@ -56,8 +56,8 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
           enterAnimation: props.barEnterAnimation,
-          enterDurationMs: props.enterDurationMs,
-          liveSmoothRate: props.liveTracking ? undefined : 0,
+          enterMs: props.enterMs,
+          smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip />
@@ -91,8 +91,8 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: props.stacking,
           enterAnimation: props.barEnterAnimation,
-          enterDurationMs: props.enterDurationMs,
-          liveSmoothRate: props.liveTracking ? undefined : 0,
+          enterMs: props.enterMs,
+          smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip />

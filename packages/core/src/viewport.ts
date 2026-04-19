@@ -1,3 +1,4 @@
+import { DEFAULT_REBOUND_MS } from './animation-constants';
 import { EventEmitter } from './events';
 import type { VisibleRange, YRange } from './types';
 import { lerp } from './utils/math';
@@ -41,6 +42,11 @@ export interface ViewportOptions {
      */
     left?: HorizontalPadding;
   };
+  /**
+   * Rebound (snap-back) animation duration in milliseconds. `0` disables the
+   * ease-out so the viewport snaps back instantly.
+   */
+  reboundMs?: number;
 }
 
 interface ResolvedPadding {
@@ -57,8 +63,6 @@ const DEFAULT_PADDING: ResolvedPadding = {
   left: { intervals: 0 },
 };
 
-/** Rebound animation duration (ms). Cubic ease-out via animateTo/tick. */
-const REBOUND_DURATION_MS = 350;
 /** Minimum overshoot fraction of visible range before edgeReached fires on rebound. */
 const EDGE_REACHED_MIN_FRACTION = 0.1;
 /** Maximum overshoot as a fraction of the visible range during a pan gesture. */
@@ -88,9 +92,17 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private _yRange: YRange = { min: 0, max: 0 };
   private _autoScroll = true;
   private padding: ResolvedPadding;
+  private reboundMs: number;
   private dataInterval = 60_000;
   private _dataStart: number | null = null;
   private _dataEnd: number | null = null;
+  /**
+   * The value of `_dataEnd` *before* the most recent `setDataEnd` call.
+   * `scrollToEnd` uses this to slide the viewport by the data's advance
+   * distance — preserving any pan offset the user established instead of
+   * snapping the right edge back to the natural-pin position on every tick.
+   */
+  private _prevDataEnd: number | null = null;
 
   // Animation state — no own rAF, ticked by the render loop. Used by API-driven
   // transitions (fitToData, scrollToEnd) and post-gesture rebound.
@@ -104,7 +116,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
    * when startRebound is called from an event handler that doesn't pass width. */
   private _lastChartWidth = 0;
 
-  constructor({ padding }: ViewportOptions = {}) {
+  constructor({ padding, reboundMs }: ViewportOptions = {}) {
     super();
     this.padding = {
       top: padding?.top ?? DEFAULT_PADDING.top,
@@ -112,6 +124,15 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       right: padding?.right ?? DEFAULT_PADDING.right,
       left: padding?.left ?? DEFAULT_PADDING.left,
     };
+    this.reboundMs = reboundMs ?? DEFAULT_REBOUND_MS;
+  }
+
+  /**
+   * Update the rebound (snap-back) duration. `0` disables the ease-out so
+   * the range snaps back instantly. Takes effect on the next rebound.
+   */
+  setReboundMs(reboundMs: number): void {
+    this.reboundMs = Math.max(0, reboundMs);
   }
 
   /**
@@ -169,6 +190,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   }
 
   setDataEnd(time: number): void {
+    this._prevDataEnd = this._dataEnd;
     this._dataEnd = time;
   }
 
@@ -208,10 +230,8 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     const span = this._dataEnd - this._dataStart;
     if (span <= 0) return null;
 
-    const leftPad =
-      typeof this.padding.left === 'object' ? this.padding.left.intervals * this.dataInterval : null;
-    const rightPad =
-      typeof this.padding.right === 'object' ? this.padding.right.intervals * this.dataInterval : null;
+    const leftPad = typeof this.padding.left === 'object' ? this.padding.left.intervals * this.dataInterval : null;
+    const rightPad = typeof this.padding.right === 'object' ? this.padding.right.intervals * this.dataInterval : null;
 
     if (leftPad !== null || rightPad !== null) {
       return span + (leftPad ?? 0) + (rightPad ?? 0);
@@ -412,7 +432,13 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       newTo += excess;
     }
 
-    this._autoScroll = false;
+    // Auto-scroll policy: a pan that leaves the last data point on screen
+    // is effectively "still live" — keep tracking so new ticks continue to
+    // slide into view. A pan that pushes the last point off-screen is a
+    // deliberate history inspection and opts out of tracking until the user
+    // fits / scrolls back.
+    const lastVisible = this._dataEnd !== null && this._dataEnd >= newFrom && this._dataEnd <= newTo;
+    this._autoScroll = lastVisible;
     this.applyRange(newFrom, newTo);
     this.emit('interact');
   }
@@ -478,7 +504,11 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       edgeBoundaryTime = softLeft;
     }
 
-    this.animateTo(targetFrom, targetTo, REBOUND_DURATION_MS);
+    if (this.reboundMs <= 0) {
+      this.applyRange(targetFrom, targetTo);
+    } else {
+      this.animateTo(targetFrom, targetTo, this.reboundMs);
+    }
 
     if (edgeSide !== null) {
       this.emit('edgeReached', {
@@ -541,7 +571,32 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     const range = this._visibleRange.to - this._visibleRange.from;
     if (range <= 0) return;
     const pr = this.resolveHPad(this.padding.right, range, chartWidth);
-    const targetTo = lastTime + pr;
+
+    // Preserve the user's offset from the live tail across ticks.
+    //
+    // Base case (no prior `dataEnd` recorded): fall back to `lastTime + pr`,
+    // matching the old pin behavior on the first scroll.
+    //
+    // Panned case (user scrolled while the tail was still visible, autoScroll
+    // stayed true per task #12): the offset between the current right edge
+    // and `_prevDataEnd` is carried forward, so sequential streaming ticks
+    // slide the viewport without snapping the pan back every frame.
+    //
+    // Anchor on `animTo.to` when mid-animation so rapid back-to-back ticks
+    // compute the offset against the intended target, not the partway
+    // position — otherwise the viewport would drift behind the tail.
+    //
+    // Clamp the preserved offset to `[0, pr]`. The lower bound matters when
+    // the user panned/zoomed so far right that `dataEnd` landed left of the
+    // viewport edge; the upper bound matters when a gesture left the right
+    // edge past the natural-pin position — preserving a larger-than-pr gap
+    // across ticks reads as "pulse drifting off screen" as new data arrives.
+    // In both cases, pulling back toward the natural tail-track position is
+    // the right next step.
+    const anchorTo = this._animating ? this.animTo.to : this._visibleRange.to;
+    const rawOffset = this._prevDataEnd !== null ? anchorTo - this._prevDataEnd : pr;
+    const offset = Math.max(0, Math.min(pr, rawOffset));
+    const targetTo = lastTime + offset;
     const targetFrom = targetTo - range;
     this._autoScroll = true;
 
@@ -550,6 +605,12 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     const pxThreshold = chartWidth > 0 ? (AUTOSCROLL_MIN_DELTA_PX / chartWidth) * range : barsThreshold;
     const threshold = Math.min(barsThreshold, pxThreshold);
 
+    // `_prevDataEnd` is folded forward only when the call actually retargets
+    // the animation. Sub-threshold streaming ticks (updateLast bursts) early-
+    // return below; advancing `_prevDataEnd` on those paths would drift it
+    // ahead of the fixed animation target and eventually make `rawOffset`
+    // negative — clamping to 0 and snapping the viewport to bare `dataEnd`,
+    // silently discarding any preserved pan offset.
     if (this._animating) {
       // Retarget in flight — don't reset animStartTime unless the delta is large
       // enough to be worth perceiving as a new animation beat.
@@ -557,12 +618,14 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       if (retargetDelta < threshold) return; // let current animation finish
       this.animFrom = { ...this._visibleRange };
       this.animTo = { from: targetFrom, to: targetTo };
+      this._prevDataEnd = this._dataEnd;
       // Keep animStartTime + animDuration as-is so the ease-out continues from
       // its current progress rather than snapping to fresh-start.
     } else {
       const pending = Math.abs(targetTo - this._visibleRange.to);
       if (pending < threshold) return; // sub-pixel drift, not worth animating
       this.animateTo(targetFrom, targetTo, 150);
+      this._prevDataEnd = this._dataEnd;
     }
   }
 

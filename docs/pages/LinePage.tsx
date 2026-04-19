@@ -87,9 +87,9 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
           areaFill: props.areaFill,
           lineWidth: props.lineWidth,
           pulse: props.streaming,
-          appendAnimation: props.lineAppendAnimation,
-          appendDurationMs: props.enterDurationMs,
-          liveSmoothRate: props.liveTracking ? undefined : 0,
+          enterAnimation: props.lineEnterAnimation,
+          enterMs: props.enterMs,
+          smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip seriesId={sid} sort={props.tooltipSort} />
@@ -121,9 +121,9 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
           lineWidth: props.lineWidth,
           pulse: props.streaming,
           stacking: props.stacking,
-          appendAnimation: props.lineAppendAnimation,
-          appendDurationMs: props.enterDurationMs,
-          liveSmoothRate: props.liveTracking ? undefined : 0,
+          enterAnimation: props.lineEnterAnimation,
+          enterMs: props.enterMs,
+          smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
       <Tooltip sort={props.tooltipSort} />

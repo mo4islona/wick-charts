@@ -472,7 +472,10 @@ describe('Viewport', () => {
     v.zoomAt(9_000_000, 1.5); // zoom-out — same
     expect(v.autoScroll).toBe(true);
 
-    v.pan(INTERVAL, 800); // pan explicitly disables it
+    // A pan large enough to push the last point off screen disables
+    // auto-scroll. Separate coverage in viewport-autoscroll-pan.test.ts
+    // confirms small pans that keep the last point in view leave it on.
+    v.pan(-100 * INTERVAL, 800);
     expect(v.autoScroll).toBe(false);
   });
 

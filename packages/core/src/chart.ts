@@ -1,4 +1,12 @@
+import {
+  DEFAULT_ENTER_MS,
+  DEFAULT_PULSE_MS,
+  DEFAULT_REBOUND_MS,
+  DEFAULT_SMOOTH_MS,
+  DEFAULT_Y_AXIS_MS,
+} from './animation-constants';
 import { CanvasManager } from './canvas-manager';
+import { registerChartViewport } from './internal/test-handles';
 import { renderCrosshair } from './components/crosshair';
 import { renderEdgeIndicator } from './components/edge-indicator';
 import { renderGrid } from './components/grid';
@@ -62,20 +70,88 @@ interface ChartEvents {
 
 /** Options passed when creating a new {@link ChartInstance}. */
 /**
- * Granular control over which animation categories are enabled at the chart level.
- * Both flags default to `true`. Per-series options always win over chart-level
- * settings — use those for fine-grained control.
+ * Time-value or boolean used throughout the animation API. `false` disables
+ * the category; a number configures its duration/time-constant in milliseconds
+ * (`0` also disables, useful when the caller wants a number shape).
+ */
+export type AnimationTime = number | false;
+
+/**
+ * Chart-level animation configuration. Split into two independent domains so
+ * per-series defaults can't bleed into viewport-interaction timings:
  *
- * User-initiated pan/zoom (wheel, drag, touch) always applies instantly; the
+ * - `points` — animations applied to data: per-series entrance tween, live-
+ *   tracking smoothing of the last candle/bar/line value, pulse cadence.
+ *   These values act as defaults for each series. Per-series options always
+ *   win unless the chart-level category is explicitly `false`, in which case
+ *   the whole category is forced off.
+ *
+ * - `viewport` — animations applied to viewport interactions: post-gesture
+ *   rebound duration and Y-axis range smoothing.
+ *
+ * User-initiated pan/zoom (wheel, drag, touch) always applies instantly. The
  * latency of an exponential chase reads as laggy in practice. API-driven
- * transitions like `fitToData` and `scrollToEnd` still tween via their own
- * fixed-duration ease-out.
+ * transitions (`fitToData`, `scrollToEnd`) and post-gesture rebound still
+ * tween via their own fixed-duration ease-out.
  */
 export interface AnimationsConfig {
-  /** Entrance animations for new candles/bars/line points. Default: `true`. */
-  entrance?: boolean;
-  /** Smooth interpolation of the last candle/bar/line value toward live updates. Default: `true`. */
-  liveTracking?: boolean;
+  /**
+   * Data-series animations. `false` disables every point animation (entrance,
+   * live-smoothing, pulse) across every series. An object overrides individual
+   * categories; omitted fields fall back to the built-in defaults.
+   */
+  points?:
+    | false
+    | {
+        /** Per-point entrance duration (ms). `false`/`0` disables. Default: 400. */
+        enterMs?: AnimationTime;
+        /**
+         * Exponential-smoothing time constant (ms) for live last-value chase.
+         * `false`/`0` disables smoothing — the last point snaps to the target.
+         * Default: 70 ms (equivalent to the legacy `liveSmoothRate = 14`).
+         */
+        smoothMs?: AnimationTime;
+        /** Pulse cycle period (ms) for the line last-point halo. Default: 600. */
+        pulseMs?: AnimationTime;
+      };
+  /**
+   * Viewport interaction animations. `false` disables both rebound and Y-axis
+   * smoothing — viewport changes snap instantly.
+   */
+  viewport?:
+    | false
+    | {
+        /** Rebound (snap-back) duration after pan/zoom overshoot (ms). Default: 350. */
+        reboundMs?: AnimationTime;
+        /**
+         * Y-axis range transition scale (ms). Calibrated at 60 Hz: each
+         * render frame closes `min(1, 16 / yAxisMs)` of the remaining gap.
+         * Default 80 ms ≈ the legacy 0.2 per 16 ms frame closure. `false`
+         * / `0` snaps the Y range instantly. Note: unlike `smoothMs` /
+         * `enterMs` / `reboundMs` this knob is frame-count-based, not
+         * wall-clock-based, so the perceptual duration scales with frame
+         * time on refresh rates far from 60 Hz.
+         */
+        yAxisMs?: AnimationTime;
+      };
+}
+
+/**
+ * Resolved, flat view of {@link AnimationsConfig} — every field concrete.
+ * `0` in any numeric field means "disabled" (matches {@link AnimationTime}).
+ *
+ * @internal
+ */
+export interface ResolvedAnimationsConfig {
+  points: {
+    enterMs: number;
+    smoothMs: number;
+    pulseMs: number;
+  };
+  viewport: {
+    reboundMs: number;
+    yAxisMs: number;
+  };
 }
 
 export interface ChartOptions {
@@ -96,9 +172,19 @@ export interface ChartOptions {
   /** Show the background grid. Defaults to true. */
   grid?: boolean;
   /**
-   * Animation control. Defaults: entrance + live-tracking animations are on.
-   * `false` disables both; `true` is equivalent to the default; an
-   * {@link AnimationsConfig} object toggles each category individually.
+   * Animation control. Split into `points` (data-series animations) and
+   * `viewport` (pan/zoom rebound + Y-axis smoothing). See
+   * {@link AnimationsConfig} for the full shape and defaults.
+   *
+   * Shorthands:
+   * - `animations: true` (or omitted) uses built-in defaults.
+   * - `animations: false` disables every animation category.
+   * - `animations: { points: false }` disables all data-series animations.
+   * - `animations: { viewport: false }` disables rebound + Y-axis smoothing.
+   *
+   * Per-series options (`enterMs`, `smoothMs`, etc.) override chart-level
+   * defaults unless the category is explicitly `false` — then the chart-
+   * level gate wins.
    */
   animations?: boolean | AnimationsConfig;
   /**
@@ -112,24 +198,58 @@ export interface ChartOptions {
 }
 
 /**
- * Collapse the public `animations: boolean | AnimationsConfig` surface into a
- * flat struct of boolean gates. Both gates default to `true`; `animations: false`
- * turns them off; an object lets callers toggle each category individually.
+ * Normalize an {@link AnimationTime} against a default. `false` or `0`
+ * collapses to `0` (the "disabled" marker in the resolved config); any
+ * other number flows through untouched; `undefined` falls back to the
+ * built-in default.
+ */
+function resolveTime(value: AnimationTime | undefined, fallback: number): number {
+  if (value === false || value === 0) return 0;
+  if (value === undefined) return fallback;
+
+  return value;
+}
+
+/**
+ * Collapse the public `animations` surface into a flat resolved config.
+ * `animations: false` disables everything; category-level `false` disables
+ * every field in that category; otherwise missing fields inherit built-in
+ * defaults.
  *
  * @internal
  */
-export function resolveAnimationsConfig(input: ChartOptions['animations']): Required<AnimationsConfig> {
+export function resolveAnimationsConfig(input: ChartOptions['animations']): ResolvedAnimationsConfig {
   if (input === false) {
-    return { entrance: false, liveTracking: false };
-  }
-  if (input === true || input === undefined) {
-    return { entrance: true, liveTracking: true };
+    return {
+      points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
+      viewport: { reboundMs: 0, yAxisMs: 0 },
+    };
   }
 
-  return {
-    entrance: input.entrance ?? true,
-    liveTracking: input.liveTracking ?? true,
-  };
+  // `true` (or undefined) means "all defaults on" — fall through to the
+  // default-resolution path with no overrides.
+  const cfg = input === true || input === undefined ? undefined : input;
+  const rawPoints = cfg?.points;
+  const rawViewport = cfg?.viewport;
+
+  const points =
+    rawPoints === false
+      ? { enterMs: 0, smoothMs: 0, pulseMs: 0 }
+      : {
+          enterMs: resolveTime(rawPoints?.enterMs, DEFAULT_ENTER_MS),
+          smoothMs: resolveTime(rawPoints?.smoothMs, DEFAULT_SMOOTH_MS),
+          pulseMs: resolveTime(rawPoints?.pulseMs, DEFAULT_PULSE_MS),
+        };
+
+  const viewport =
+    rawViewport === false
+      ? { reboundMs: 0, yAxisMs: 0 }
+      : {
+          reboundMs: resolveTime(rawViewport?.reboundMs, DEFAULT_REBOUND_MS),
+          yAxisMs: resolveTime(rawViewport?.yAxisMs, DEFAULT_Y_AXIS_MS),
+        };
+
+  return { points, viewport };
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -207,8 +327,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return x?.visible === false ? 0 : (x?.height ?? 30);
   }
 
-  /** Resolved animation gates derived from `options.animations` at construction. */
-  readonly #animationsConfig: Required<AnimationsConfig>;
+  /** Resolved animation config derived from `options.animations` at construction. */
+  readonly #animationsConfig: ResolvedAnimationsConfig;
 
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
@@ -223,7 +343,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#onEdgeReached = options?.onEdgeReached;
 
     this.#canvasManager = new CanvasManager(container);
-    this.#viewport = new Viewport({ padding: options?.padding });
+    this.#viewport = new Viewport({
+      padding: options?.padding,
+      reboundMs: this.#animationsConfig.viewport.reboundMs,
+    });
+    registerChartViewport(this, this.#viewport);
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
     if (this.#axis.y?.format) this.yScale.setFormat(this.#axis.y.format);
@@ -242,12 +366,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.syncScales();
       this.#mainScheduler.markDirty();
       this.emit('viewportChange');
-    });
-
-    this.#viewport.on('interact', () => {
-      // User is dragging or zooming — abort per-point entrance tweens so
-      // new bars don't flash while the user moves the chart around.
-      for (const entry of this.#series) entry.renderer.cancelEntranceAnimations?.();
     });
 
     this.#viewport.on('edgeReached', (info: EdgeReachedInfo) => {
@@ -296,20 +414,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /**
-   * Option overrides derived from the chart-level `animations` config. Merged
-   * BEFORE user-supplied series options so explicit series options always win
-   * (the documented precedence).
+   * Option overrides derived from the chart-level `animations.points` config.
+   * Merged BEFORE user-supplied series options so explicit series options
+   * always win — except when a chart-level category resolved to `0`
+   * (disabled), in which case the category is forced off here and the
+   * per-series option cannot re-enable it. Enforcement of the "chart-level
+   * false wins" contract lives in the `addXSeries` wrappers below: they call
+   * `#seriesAnimationDefaults(kind, options)` so the result merges *after*
+   * the user's options for the disable paths.
    */
   #seriesAnimationDefaults(kind: 'candle' | 'bar' | 'line'): Record<string, unknown> {
-    const { entrance, liveTracking } = this.#animationsConfig;
+    const { enterMs, smoothMs, pulseMs } = this.#animationsConfig.points;
+    // `enterAnimation` style stays per-series — chart-level config only
+    // influences durations. `pulseMs` is line-only; bars/candles ignore it.
+    return kind === 'line' ? { enterMs, smoothMs, pulseMs } : { enterMs, smoothMs };
+  }
+
+  /**
+   * Chart-level animation overrides — these *win over* any per-series value
+   * because `animations.points: false` (or any category set to `false`) is
+   * documented as a hard disable. Merged AFTER user options in the
+   * `addXSeries` wrappers.
+   */
+  #seriesAnimationForceOff(): Record<string, unknown> {
+    const { enterMs, smoothMs, pulseMs } = this.#animationsConfig.points;
     const out: Record<string, unknown> = {};
-    if (!entrance) {
-      if (kind === 'candle' || kind === 'bar') out.enterAnimation = 'none';
-      if (kind === 'line') out.appendAnimation = 'none';
-    }
-    if (!liveTracking) {
-      out.liveSmoothRate = 0;
-    }
+    if (enterMs === 0) out.enterMs = 0;
+    if (smoothMs === 0) out.smoothMs = 0;
+    if (pulseMs === 0) out.pulseMs = 0;
 
     return out;
   }
@@ -325,6 +457,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       bodyWidthRatio: 0.6,
       ...this.#seriesAnimationDefaults('candle'),
       ...options,
+      ...this.#seriesAnimationForceOff(),
     });
     const id = this.#resolveId(options?.id);
     renderer.onDataChanged?.(() => this.onDataChanged());
@@ -346,6 +479,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       areaFill: true,
       ...this.#seriesAnimationDefaults('line'),
       ...rest,
+      ...this.#seriesAnimationForceOff(),
     });
     const id = this.#resolveId(rest.id);
     renderer.onDataChanged?.(() => this.onDataChanged());
@@ -366,6 +500,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       barWidthRatio: 0.6,
       ...this.#seriesAnimationDefaults('bar'),
       ...rest,
+      ...this.#seriesAnimationForceOff(),
     });
     const id = this.#resolveId(rest.id);
     renderer.onDataChanged?.(() => this.onDataChanged());
@@ -440,7 +575,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
-    entry.renderer.updateOptions(options);
+    // React / Vue / Svelte wrappers replay the user's options on every
+    // render via this path. If the chart-level `animations.points` category
+    // is disabled, the per-series force-off must be re-applied here —
+    // otherwise a simple parent re-render silently re-enables animations
+    // the chart asked to hold off.
+    entry.renderer.updateOptions({ ...options, ...this.#seriesAnimationForceOff() });
     // Keep stored label in sync with options (affects tooltip/legend)
     if ('label' in options && typeof options.label === 'string') {
       entry.label = options.label;
@@ -948,12 +1088,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     min = this.resolveBound(this.#yBounds.min, min, max, allValues ?? [], 'min');
     max = this.resolveBound(this.#yBounds.max, max, min, allValues ?? [], 'max');
 
-    if (!this.#yInited || snap) {
+    const yAxisMs = this.#animationsConfig.viewport.yAxisMs;
+    if (!this.#yInited || snap || yAxisMs <= 0) {
       this.#smoothMin = min;
       this.#smoothMax = max;
       this.#yInited = true;
     } else {
-      const speed = 0.2;
+      // Per-frame exponential chase — closes `min(1, 16 / yAxisMs)` of the
+      // remaining gap each render. This is calibrated for 60 Hz (default
+      // yAxisMs = 80 matches the legacy 0.2-per-16ms closure). On displays
+      // with significantly different refresh rates the perceptual duration
+      // scales with frame time — a documented tradeoff; other timing knobs
+      // (`smoothMs`, `enterMs`, `reboundMs`) use wall-clock `dt` instead,
+      // but Y-axis smoothing piggybacks on the render scheduler and must
+      // stay deterministic for pan/zoom integration tests that mock RAF
+      // without mocking `performance.now()`.
+      const speed = Math.min(1, 16 / yAxisMs);
       this.#smoothMin += (min - this.#smoothMin) * speed;
       this.#smoothMax += (max - this.#smoothMax) * speed;
       // Never clip data — expand immediately if data exceeds smooth range

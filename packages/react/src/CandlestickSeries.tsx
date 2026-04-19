@@ -96,8 +96,8 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     options?.bodyWidthRatio,
     options?.candleGradient,
     options?.enterAnimation,
-    options?.enterDurationMs,
-    options?.liveSmoothRate,
+    options?.enterMs,
+    options?.smoothMs,
   ]);
 
   return null;

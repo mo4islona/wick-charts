@@ -117,12 +117,35 @@ export interface CandlestickSeriesOptions {
   bodyWidthRatio: number;
   /** Apply a subtle vertical gradient to candle bodies. Default: true. */
   candleGradient?: boolean;
-  /** Entrance animation style for newly appended candles. Default: `'fade-unfold'`. */
+  /**
+   * Entrance animation style for newly appended candles. Style is specific to
+   * the candlestick; there is no chart-level override for style — only for
+   * duration. Default: `'fade-unfold'`.
+   *
+   * @see enterMs — cross-linked duration for this animation.
+   */
   enterAnimation?: CandlestickEnterAnimation;
-  /** Entrance animation duration in ms. Default: 400. */
-  enterDurationMs?: number;
-  /** Exponential decay rate (1/s) for live-tracking the last candle's O/H/L/C. Default: 14. */
-  liveSmoothRate?: number;
+  /**
+   * Entrance animation duration in milliseconds. `false` or `0` disables the
+   * per-candle entrance (equivalent to `enterAnimation: 'none'`). Omit to
+   * inherit from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   *
+   * When `animations.points.enterMs` is `false` at the chart level, the
+   * entrance is forced off regardless of this field.
+   *
+   * @see CandlestickSeriesOptions.enterAnimation
+   */
+  enterMs?: number | false;
+  /**
+   * Exponential-smoothing time constant (ms) for live-tracking the last
+   * candle's O/H/L/C under `updateLastPoint`. `0` or `false` snaps directly
+   * to the target (no smoothing). Omit to inherit from
+   * {@link AnimationsConfig.points}.`smoothMs` (default 70 ms).
+   *
+   * When `animations.points.smoothMs` is `false` at the chart level, smoothing
+   * is forced off regardless of this field.
+   */
+  smoothMs?: number | false;
 }
 
 /**
@@ -131,7 +154,10 @@ export interface CandlestickSeriesOptions {
  * - `'grow'` *(default)* — trailing segment reveals left-to-right.
  * - `'fade'` — geometry fixed; trailing segment strokes in with alpha 0→1.
  */
-export type LineAppendAnimation = 'none' | 'grow' | 'fade';
+export type LineEnterAnimation = 'none' | 'grow' | 'fade';
+
+/** @deprecated Use {@link LineEnterAnimation} instead. */
+export type LineAppendAnimation = LineEnterAnimation;
 
 /** Visual options for a line series. */
 export interface LineSeriesOptions {
@@ -142,16 +168,49 @@ export interface LineSeriesOptions {
   lineWidth: number;
   /** Whether to render a gradient area fill below the line (or between stacked layers). */
   areaFill: boolean;
-  /** Whether to show an animated pulsing dot at the last data point. */
+  /**
+   * Whether to show an animated pulsing dot at the last data point.
+   */
   pulse: boolean;
+  /**
+   * Pulse cycle period in milliseconds. `false`/`0` disables the halo (both
+   * the drawing and the associated animation loop). Omit to inherit from
+   * {@link AnimationsConfig.points}.`pulseMs` (default 600 ms). When
+   * `animations.points.pulseMs` is `false` at the chart level the pulse is
+   * forced off regardless of this field.
+   */
+  pulseMs?: number | false;
   /** Stacking mode. Default: 'off'. */
   stacking: StackingMode;
-  /** Entrance animation style for new points. Default: `'grow'`. */
-  appendAnimation?: LineAppendAnimation;
-  /** Entrance animation duration in ms. Default: 400. */
-  appendDurationMs?: number;
-  /** Exponential decay rate (1/s) for live-tracking the last point's value. Default: 14. */
-  liveSmoothRate?: number;
+  /**
+   * Entrance animation style for new points. Style is specific to the line
+   * series; there is no chart-level override for style — only for duration.
+   * Default: `'grow'`.
+   *
+   * @see enterMs — cross-linked duration for this animation.
+   */
+  enterAnimation?: LineEnterAnimation;
+  /**
+   * Entrance animation duration in milliseconds. `false` or `0` disables the
+   * per-point entrance (equivalent to `enterAnimation: 'none'`). Omit to
+   * inherit from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   *
+   * When `animations.points.enterMs` is `false` at the chart level, the
+   * entrance is forced off regardless of this field.
+   *
+   * @see LineSeriesOptions.enterAnimation
+   */
+  enterMs?: number | false;
+  /**
+   * Exponential-smoothing time constant (ms) for live-tracking the last
+   * point's value under `updateLastPoint`. `0` or `false` snaps directly to
+   * the target (no smoothing). Omit to inherit from
+   * {@link AnimationsConfig.points}.`smoothMs` (default 70 ms).
+   *
+   * When `animations.points.smoothMs` is `false` at the chart level, smoothing
+   * is forced off regardless of this field.
+   */
+  smoothMs?: number | false;
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */
@@ -179,12 +238,35 @@ export interface BarSeriesOptions {
   barWidthRatio: number;
   /** Stacking mode. Default: 'off'. */
   stacking: StackingMode;
-  /** Entrance animation style for newly appended bars. Default: `'fade-grow'`. */
+  /**
+   * Entrance animation style for newly appended bars. Style is specific to
+   * the bar series; there is no chart-level override for style — only for
+   * duration. Default: `'fade-grow'`.
+   *
+   * @see enterMs — cross-linked duration for this animation.
+   */
   enterAnimation?: BarEnterAnimation;
-  /** Entrance animation duration in ms. Default: 400. */
-  enterDurationMs?: number;
-  /** Exponential decay rate (1/s) for live-tracking the last bar's value. Default: 14. */
-  liveSmoothRate?: number;
+  /**
+   * Entrance animation duration in milliseconds. `false` or `0` disables the
+   * per-bar entrance (equivalent to `enterAnimation: 'none'`). Omit to inherit
+   * from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   *
+   * When `animations.points.enterMs` is `false` at the chart level, the
+   * entrance is forced off regardless of this field.
+   *
+   * @see BarSeriesOptions.enterAnimation
+   */
+  enterMs?: number | false;
+  /**
+   * Exponential-smoothing time constant (ms) for live-tracking the last
+   * bar's value under `updateLastPoint`. `0` or `false` snaps directly to the
+   * target (no smoothing). Omit to inherit from
+   * {@link AnimationsConfig.points}.`smoothMs` (default 70 ms).
+   *
+   * When `animations.points.smoothMs` is `false` at the chart level, smoothing
+   * is forced off regardless of this field.
+   */
+  smoothMs?: number | false;
 }
 
 /**

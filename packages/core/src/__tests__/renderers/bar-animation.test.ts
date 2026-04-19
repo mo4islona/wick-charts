@@ -72,8 +72,8 @@ describe('BarRenderer — animation', () => {
     expect(r.needsAnimation).toBe(false);
   });
 
-  it('liveSmoothRate: 0 disables smoothing', () => {
-    const r = new BarRenderer(1, { liveSmoothRate: 0 });
+  it('smoothMs: 0 disables smoothing', () => {
+    const r = new BarRenderer(1, { smoothMs: 0 });
     r.setData(DATA);
     renderFrame(r);
 
@@ -169,8 +169,8 @@ describe('BarRenderer — animation', () => {
     expect(faded.length).toBe(0);
   });
 
-  it('reaches full state after enterDurationMs and clears entries', () => {
-    const r = new BarRenderer(1, { enterDurationMs: 250 });
+  it('reaches full state after enterMs and clears entries', () => {
+    const r = new BarRenderer(1, { enterMs: 250 });
     r.setData(DATA);
     renderFrame(r);
 
