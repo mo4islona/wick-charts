@@ -33,20 +33,22 @@ describe('ChartInstance.setPadding — refit discipline', () => {
     container.remove();
   });
 
-  it('does not emit `viewportChange` when only vertical padding changes', () => {
-    // `fitToData` is the only path in `setPadding` that mutates the visible
-    // range and triggers viewport 'change' → chart 'viewportChange'. If we
-    // correctly skip the refit for vertical-only updates, no event fires.
+  it('emits `viewportChange` when only vertical padding changes — yScale has shifted', () => {
+    // Vertical padding changes the Y-range layout (padding.top/bottom extend
+    // the mapped value range), so valueToY returns different pixels for the
+    // same value. React consumers (YLabel, YAxis) need to pick that up —
+    // without an emit they'd render against a stale scale. Horizontal
+    // refits are still suppressed; only the notification fires.
     let fired = 0;
     chart.on('viewportChange', () => {
       fired++;
     });
 
     chart.setPadding({ top: 80 });
-    expect(fired).toBe(0);
+    expect(fired).toBe(1);
 
     chart.setPadding({ bottom: 60 });
-    expect(fired).toBe(0);
+    expect(fired).toBe(2);
   });
 
   it('does emit `viewportChange` when horizontal padding changes', () => {
@@ -57,6 +59,23 @@ describe('ChartInstance.setPadding — refit discipline', () => {
 
     chart.setPadding({ right: { intervals: 10 } });
     expect(fired).toBeGreaterThan(0);
+  });
+
+  it('re-emits `viewportChange` after yRange refit when both horizontal and vertical change', () => {
+    // `fitToData` (triggered by the horizontal change) emits via viewport
+    // 'change' *before* `updateYRange(true)` runs, so subscribers that read
+    // the yScale on that first emit see stale gutters. A second emit after
+    // syncScales pushes the new yRange gives subscribers a chance to
+    // reconcile. Without the re-emit they'd be stuck with a stale scale.
+    let fired = 0;
+    chart.on('viewportChange', () => {
+      fired++;
+    });
+
+    chart.setPadding({ top: 80, right: { intervals: 10 } });
+    // One emit from fitToData (horizontal refit) + one from the explicit
+    // vertical-change emit after updateYRange.
+    expect(fired).toBeGreaterThanOrEqual(2);
   });
 
   it('no-ops on identical padding — fitToData is not re-entered', () => {

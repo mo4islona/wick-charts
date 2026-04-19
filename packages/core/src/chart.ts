@@ -138,6 +138,7 @@ interface SeriesEntry {
   label?: string;
   renderer: SeriesRenderer;
   /** Null for non-time-series types like Pie. */
+  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous storage — the concrete item type (TimePoint / OHLCData / LineData) depends on the series and is narrowed at the use site.
   store: TimeSeriesStore<any> | null;
   visible: boolean;
 }
@@ -178,6 +179,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Cached series ID list — invalidated on add/remove. */
   #seriesIdCache: string[] | null = null;
   /** Whether a YLabel overlay is active (used for right-padding calculation). */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: written via setYLabel, reserved for the right-padding reflow that accommodates the badge — kept so the flag stays consistent with the public API while the reflow logic is in progress.
   #hasYLabel = false;
   /** Axis visibility and sizing configuration. */
   #axis: AxisConfig = {};
@@ -577,7 +579,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Get all layers' data at a given time for multi-layer series (Bar/Line with stacking). */
   getLayerSnapshots(seriesId: string, time: number): { value: number; color: string }[] | null {
     const entry = this.#series.find((s) => s.id === seriesId);
-    if (!entry || !entry.visible) return null;
+    if (!entry?.visible) return null;
+
     return entry.renderer.getLayerSnapshots?.(time, this.#dataInterval) ?? null;
   }
 
@@ -697,6 +700,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const next = this.#viewport.getPadding();
     const horizontalChanged =
       !isSameHorizontalPadding(prev.left, next.left) || !isSameHorizontalPadding(prev.right, next.right);
+    const verticalChanged = prev.top !== next.top || prev.bottom !== next.bottom;
     if (horizontalChanged) {
       const { first, last } = this.getDataBounds();
       if (first !== undefined && last !== undefined) {
@@ -704,8 +708,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         this.#viewport.fitToData(first, last, chartWidth, false);
       }
     }
+    if (verticalChanged) {
+      // Refit yRange against the new padding — otherwise valueToY keeps
+      // mapping with the old top/bottom gutters until the next full render.
+      this.updateYRange(true);
+    }
     this.syncScales();
     this.#mainScheduler.markDirty();
+    // Vertical changes need their own emit: fitToData's viewport 'change'
+    // fires *before* updateYRange runs, so subscribers that land on it see
+    // a stale yScale. Re-emit after syncScales pushes the new yRange so
+    // React components (YLabel, YAxis) pick up the final scale. Covers both
+    // vertical-only (no prior emit) and combined changes (first emit stale).
+    if (verticalChanged) {
+      this.emit('viewportChange');
+    }
   }
 
   /** Show or hide the background grid. Takes effect on the next render frame. */
@@ -859,24 +876,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.emit('dataUpdate');
   }
 
-  /** Check whether the last data point of any series falls within the visible time range. */
-  private isLastPointVisible(): boolean {
-    const { from, to } = this.#viewport.visibleRange;
-    for (const entry of this.#series) {
-      if (!entry.visible) continue;
-      if (!entry.store) continue;
-      const last = entry.store.last();
-      if (last && last.time >= from && last.time <= to) return true;
-    }
-    return false;
-  }
-
   private updateDataInterval(): void {
     for (const entry of this.#series) {
       if (!entry.store) continue;
       const all = entry.store.getAll();
       if (all.length >= 2) {
-        const times = all.slice(0, 20).map((d: any) => d.time);
+        const times = all.slice(0, 20).map((d) => d.time);
         this.#dataInterval = detectInterval(times);
         this.#viewport.setDataInterval(this.#dataInterval);
         break;
