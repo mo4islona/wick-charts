@@ -226,6 +226,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#viewport = new Viewport({ padding: options?.padding });
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
+    if (this.#axis.y?.format) this.yScale.setFormat(this.#axis.y.format);
     this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
     this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
 
@@ -659,6 +660,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const newBounds: { min?: AxisBound; max?: AxisBound } = { min: config.y?.min, max: config.y?.max };
     this.#yBounds = newBounds;
     this.#yInited = false;
+    this.yScale.setFormat(config.y?.format ?? null);
     this.updateYRange(true);
     if (this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH) {
       this.updateScales(true);

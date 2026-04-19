@@ -2,7 +2,16 @@ import { type CSSProperties, useEffect, useMemo, useRef } from 'react';
 
 export interface NumberFlowProps {
   value: number;
-  format?: Intl.NumberFormatOptions;
+  /**
+   * Value-to-string formatter. Defaults to the current locale's
+   * `Intl.NumberFormat` when omitted. Pass the shared `formatCompact` /
+   * `formatPriceAdaptive` helpers or your own function to customize.
+   *
+   * `Intl.NumberFormatOptions` is also accepted (legacy) — it's routed
+   * through the built-in `Intl.NumberFormat` for back-compat with callers
+   * from before this prop was a function.
+   */
+  format?: ((value: number) => string) | Intl.NumberFormatOptions;
   locale?: string;
   spinDuration?: number;
   className?: string;
@@ -29,9 +38,13 @@ function decompose(formatted: string): CharPart[] {
 }
 
 export function NumberFlow({ value, format, locale = 'en-US', spinDuration = 350, className, style }: NumberFlowProps) {
-  const formatter = useMemo(() => new Intl.NumberFormat(locale, format), [locale, format]);
+  const effectiveFormat = useMemo<(v: number) => string>(() => {
+    if (typeof format === 'function') return format;
+    const nf = new Intl.NumberFormat(locale, typeof format === 'object' ? format : undefined);
+    return (v: number) => nf.format(v);
+  }, [format, locale]);
 
-  const formatted = formatter.format(value);
+  const formatted = effectiveFormat(value);
   const parts = decompose(formatted);
 
   return (
@@ -46,7 +59,7 @@ export function NumberFlow({ value, format, locale = 'en-US', spinDuration = 350
     >
       {parts.map((part, i) =>
         part.type === 'digit' ? (
-          <DigitSlot key={`d${i}`} digit={parseInt(part.value)} duration={spinDuration} />
+          <DigitSlot key={`d${i}`} digit={parseInt(part.value, 10)} duration={spinDuration} />
         ) : (
           <span key={`s${i}`} style={{ display: 'inline-block' }}>
             {part.value}

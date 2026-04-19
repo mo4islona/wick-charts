@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ValueFormatter } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted } from 'vue';
 
 import { useLastYValue, usePreviousClose } from '../composables';
@@ -8,6 +9,8 @@ import NumberFlow from './NumberFlow.vue';
 const props = defineProps<{
   seriesId: string;
   color?: string;
+  /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. */
+  format?: ValueFormatter;
 }>();
 
 const chart = useChartInstance();
@@ -44,11 +47,18 @@ const fractionDigits = computed(() => {
   return 0;
 });
 
-const numberFormat = computed(() => ({
-  minimumFractionDigits: fractionDigits.value,
-  maximumFractionDigits: fractionDigits.value,
-  useGrouping: false,
-}));
+// Fall back to a range-adaptive Intl formatter when the caller doesn't pass
+// their own `format`. Routed through NumberFlow as `formatter` so the digit
+// animation keeps working in either case.
+const effectiveFormat = computed<ValueFormatter>(() => {
+  if (props.format) return props.format;
+  const nf = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: fractionDigits.value,
+    maximumFractionDigits: fractionDigits.value,
+    useGrouping: false,
+  });
+  return (v: number) => nf.format(v);
+});
 </script>
 
 <template>
@@ -86,11 +96,7 @@ const numberFormat = computed(() => ({
         transition: 'background-color 0.3s ease',
       }"
     >
-      <NumberFlow
-        :value="lastY.value"
-        :format="numberFormat"
-        :spin-duration="350"
-      />
+      <NumberFlow :value="lastY.value" :format="effectiveFormat" :spin-duration="350" />
     </div>
   </template>
 </template>

@@ -1,11 +1,14 @@
 <script lang="ts">
-import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
+import type { CrosshairPosition, ValueFormatter } from '@wick-charts/core';
+import { formatCompact } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
 import { createCrosshairPosition } from '../stores';
 
 export let seriesId: string;
+/** Custom formatter for the slice value. Default: shared `formatCompact`. */
+export let format: ValueFormatter = formatCompact;
 
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
@@ -63,7 +66,7 @@ $: tooltipPos = (() => {
     </div>
     <!-- Value + percent -->
     <div style="display:flex;justify-content:space-between;gap:16px;">
-      <span style="opacity:0.6;">{info.value.toLocaleString()}</span>
+      <span style="opacity:0.6;">{format(info.value)}</span>
       <span style="font-weight:600;">{info.percent.toFixed(1)}%</span>
     </div>
   </div>

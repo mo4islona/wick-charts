@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { type LineData, type OHLCData, formatTime } from '@wick-charts/core';
+import {
+  type LineData,
+  type OHLCData,
+  type TooltipFormatter,
+  formatCompact,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
@@ -18,9 +25,13 @@ const props = withDefaults(
   defineProps<{
     seriesId?: string;
     sort?: TooltipSort;
+    format?: TooltipFormatter;
   }>(),
   {
     sort: 'none',
+    // For Function-typed props `withDefaults` stores the value as-is — no
+    // factory wrapper (otherwise `props.format(...)` returns the inner fn).
+    format: (v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v)),
   },
 );
 
@@ -78,13 +89,6 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
     const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
     return sort === 'asc' ? av - bv : bv - av;
   });
-}
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return v.toFixed(0);
 }
 
 function isOHLC(data: OHLCData | LineData): data is OHLCData {
@@ -163,8 +167,16 @@ const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots
       </span>
       <template v-for="s in snapshots" :key="s.id">
         <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">
-          <template v-for="field in (['O', 'H', 'L', 'C'] as const)" :key="field">
-            <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ field }}</span>
+          <template
+            v-for="cell in [
+              { label: 'O', field: 'open' as const, val: (s.data as OHLCData).open },
+              { label: 'H', field: 'high' as const, val: (s.data as OHLCData).high },
+              { label: 'L', field: 'low' as const, val: (s.data as OHLCData).low },
+              { label: 'C', field: 'close' as const, val: (s.data as OHLCData).close },
+            ]"
+            :key="cell.label"
+          >
+            <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ cell.label }}</span>
             <span
               :style="{
                 color:
@@ -175,17 +187,13 @@ const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots
                 marginLeft: '2px',
               }"
             >
-              {{
-                (
-                  { O: (s.data as OHLCData).open, H: (s.data as OHLCData).high, L: (s.data as OHLCData).low, C: (s.data as OHLCData).close }
-                )[field].toFixed(2)
-              }}
+              {{ props.format(cell.val, cell.field) }}
             </span>
           </template>
           <template v-if="(s.data as OHLCData).volume != null">
             <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
             <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
-              {{ formatVolume((s.data as OHLCData).volume!) }}
+              {{ props.format((s.data as OHLCData).volume!, 'volume') }}
             </span>
           </template>
         </span>
@@ -200,7 +208,7 @@ const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots
             }"
           />
           <span :style="{ color: s.color, fontWeight: 500 }">
-            {{ (s.data as LineData).value.toFixed(2) }}
+            {{ props.format((s.data as LineData).value, 'value') }}
           </span>
         </span>
       </template>

@@ -57,14 +57,18 @@ Placed as children of `ChartContainer`.
 | Component | Props | Notes |
 |---|---|---|
 | `Title` | `children`, `sub?` | Title bar, hoisted above canvas |
-| `TooltipLegend` | `seriesId?`, `sort?` | OHLC / values info bar, hoisted above canvas |
-| `Tooltip` | `seriesId?`, `sort?` | Floating glass tooltip near cursor (hover only) |
+| `TooltipLegend` | `seriesId?`, `sort?`, `format?` | OHLC / values info bar, hoisted above canvas |
+| `Tooltip` | `seriesId?`, `sort?`, `format?` | Floating glass tooltip near cursor (hover only) |
 | `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Series legend, hoisted below / beside canvas |
 | `Crosshair` | — | Axis labels at cursor |
-| `YAxis` / `TimeAxis` (alias `XAxis`) | — | Default axes |
-| `YLabel` | `seriesId`, `color?` | Floating price badge + dashed line |
-| `PieTooltip` / `PieLegend` | `seriesId` (+ `format?`) | Pie-only variants |
+| `YAxis` | `format?` | Vertical tick axis |
+| `TimeAxis` (alias `XAxis`) | — | Horizontal time axis |
+| `YLabel` | `seriesId`, `color?`, `format?` | Floating price badge + dashed line |
+| `PieTooltip` | `seriesId`, `format?` | Pie hover tooltip |
+| `PieLegend` | `seriesId`, `mode?: 'value'\|'percent'`, `format?` | Pie slice list |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
+
+**Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `TooltipLegend` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
 
 **Hoisting**: `Title` + `TooltipLegend` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / TooltipLegend so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="solo"` isolates that item and a second click restores all).
 

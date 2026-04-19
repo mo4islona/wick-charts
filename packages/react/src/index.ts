@@ -25,7 +25,10 @@ export type {
   TimePoint,
   TimePointInput,
   TimeValue,
+  TooltipField,
+  TooltipFormatter,
   Typography,
+  ValueFormatter,
   VisibleRange,
   XAxisConfig,
   YAxisConfig,
@@ -40,7 +43,9 @@ export {
   darkTheme,
   detectInterval,
   dracula,
+  formatCompact,
   formatDate,
+  formatPriceAdaptive,
   formatTime,
   githubLight,
   gruvbox,
@@ -85,7 +90,7 @@ export type { LegendItem, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
 export { NumberFlow } from './ui/NumberFlow';
-export type { PieLegendFormat, PieLegendProps } from './ui/PieLegend';
+export type { PieLegendMode, PieLegendProps } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
 export { PieTooltip } from './ui/PieTooltip';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
@@ -98,5 +103,6 @@ export type { TooltipSort } from './ui/Tooltip';
 export { Tooltip } from './ui/Tooltip';
 export type { TooltipLegendProps } from './ui/TooltipLegend';
 export { TooltipLegend } from './ui/TooltipLegend';
+export type { YAxisProps } from './ui/YAxis';
 export { YAxis } from './ui/YAxis';
 export { YLabel } from './ui/YLabel';

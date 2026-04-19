@@ -19,11 +19,11 @@ describe('PieLegend', () => {
 
   const id = 'pie';
 
-  function PieWithLegend(props: { format?: 'value' | 'percent' }) {
+  function PieWithLegend(props: { mode?: 'value' | 'percent' }) {
     return (
       <>
         <PieSeries id={id} data={slices} />
-        <PieLegend seriesId={id} format={props.format} />
+        <PieLegend seriesId={id} mode={props.mode} />
       </>
     );
   }
@@ -44,16 +44,16 @@ describe('PieLegend', () => {
     expect(text).toContain('50.0%');
   });
 
-  it('format="value" shows absolute values alongside percentages', () => {
-    mounted = mountChart(<PieWithLegend format="value" />);
+  it('mode="value" shows absolute values alongside percentages', () => {
+    mounted = mountChart(<PieWithLegend mode="value" />);
     const text = mounted.container.textContent ?? '';
     // Absolute values formatted by formatCompact — 25 stays as "25".
     expect(text).toContain('25');
     expect(text).toContain('50');
   });
 
-  it('format="percent" omits absolute values', () => {
-    mounted = mountChart(<PieWithLegend format="percent" />);
+  it('mode="percent" omits absolute values', () => {
+    mounted = mountChart(<PieWithLegend mode="percent" />);
     const text = mounted.container.textContent ?? '';
     const spanTexts = Array.from(mounted.container.querySelectorAll('span')).map(
       (span) => span.textContent?.trim() ?? '',

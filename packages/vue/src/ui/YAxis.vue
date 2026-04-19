@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import type { ValueFormatter } from '@wick-charts/core';
+import { computed, onMounted, onUnmounted, watch } from 'vue';
 
 import { useVisibleRange } from '../composables';
 import { useChartInstance } from '../context';
+
+const props = defineProps<{
+  /** Custom tick-label formatter. Overrides the built-in range-adaptive default. */
+  format?: ValueFormatter;
+}>();
 
 interface TrackedTick {
   opacity: number;
@@ -11,15 +17,27 @@ interface TrackedTick {
 
 const chart = useChartInstance();
 // Subscribe to visible range to trigger re-renders on viewport changes
-const _visibleRange = useVisibleRange(chart);
+const visibleRange = useVisibleRange(chart);
+
+// Route the formatter through yScale so Crosshair / YLabel fallback use the
+// same function as the axis labels. Otherwise the crosshair readout would
+// keep showing the built-in range-adaptive format.
+onMounted(() => {
+  if (props.format) chart.yScale.setFormat(props.format);
+});
+watch(
+  () => props.format,
+  (fn) => chart.yScale.setFormat(fn ?? null),
+);
+onUnmounted(() => chart.yScale.setFormat(null));
 
 const tickMap = new Map<number, TrackedTick>();
 
 const theme = computed(() => chart.getTheme());
 
 const allTicks = computed(() => {
-  // Access _visibleRange.value to track dependency
-  void _visibleRange.value;
+  // Access visibleRange.value to track dependency
+  void visibleRange.value;
 
   const currentTicks = chart.yScale.niceTickValues();
   const currentSet = new Set(currentTicks);

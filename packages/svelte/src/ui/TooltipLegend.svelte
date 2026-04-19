@@ -1,6 +1,6 @@
 <script lang="ts">
-import type { ChartInstance, CrosshairPosition, LineData, OHLCData } from '@wick-charts/core';
-import { formatTime } from '@wick-charts/core';
+import type { CrosshairPosition, LineData, OHLCData, TooltipFormatter } from '@wick-charts/core';
+import { formatCompact, formatPriceAdaptive, formatTime } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext, getThemeContext, getTooltipLegendAnchor } from '../context';
@@ -11,6 +11,8 @@ import { portal } from './portal';
 export let seriesId: string | undefined = undefined;
 /** Sort order for line values when showing all series (default: 'none'). */
 export let sort: 'none' | 'asc' | 'desc' = 'none';
+/** Custom formatter for every displayed number (OHLC / volume / line value). */
+export let format: TooltipFormatter = (v, field) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v));
 
 interface SeriesSnapshot {
   id: string;
@@ -86,13 +88,6 @@ function sortSnapshots(s: SeriesSnapshot[], order: 'none' | 'asc' | 'desc'): Ser
   });
 }
 
-function formatVolume(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return v.toFixed(0);
-}
-
 $: chart = $chartStore;
 $: theme = $themeStore;
 $: anchor = $anchorStore;
@@ -166,23 +161,23 @@ $: displayTime = snapshots.length > 0 ? snapshots[0].data.time : 0;
         {@const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor}
         <span style="display:inline-flex;align-items:center;gap:4px;">
           <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.open.toFixed(2)}</span>
+          <span style="color:{c};font-weight:500;margin-left:2px;">{format(ohlc.open, 'open')}</span>
           <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">H</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.high.toFixed(2)}</span>
+          <span style="color:{c};font-weight:500;margin-left:2px;">{format(ohlc.high, 'high')}</span>
           <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">L</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.low.toFixed(2)}</span>
+          <span style="color:{c};font-weight:500;margin-left:2px;">{format(ohlc.low, 'low')}</span>
           <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">C</span>
-          <span style="color:{c};font-weight:500;margin-left:2px;">{ohlc.close.toFixed(2)}</span>
+          <span style="color:{c};font-weight:500;margin-left:2px;">{format(ohlc.close, 'close')}</span>
           {#if ohlc.volume != null}
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
-            <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;">{formatVolume(ohlc.volume)}</span>
+            <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;">{format(ohlc.volume, 'volume')}</span>
           {/if}
         </span>
       {:else}
         {@const line = /** @type {LineData} */ (s.data)}
         <span style="display:inline-flex;align-items:center;gap:3px;">
           <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;" />
-          <span style="color:{s.color};font-weight:500;">{line.value.toFixed(2)}</span>
+          <span style="color:{s.color};font-weight:500;">{format(line.value, 'value')}</span>
         </span>
       {/if}
     {/each}

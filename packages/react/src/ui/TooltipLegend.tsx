@@ -1,6 +1,13 @@
 import { useLayoutEffect, useState } from 'react';
 
-import { type OHLCData, type TimePoint, formatTime } from '@wick-charts/core';
+import {
+  type OHLCData,
+  type TimePoint,
+  type TooltipFormatter,
+  formatCompact,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
@@ -13,7 +20,17 @@ export interface TooltipLegendProps {
   seriesId?: string;
   /** Sort order for line values when showing all series (default: 'none'). */
   sort?: TooltipSort;
+  /**
+   * Custom formatter for every displayed number. Called per cell with the
+   * field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
+   * Defaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.
+   */
+  format?: TooltipFormatter;
 }
+
+/** Default tooltip-legend formatter — adaptive for ohlc/value, compact for volume. */
+const defaultTooltipLegendFormat: TooltipFormatter = (v, field) =>
+  field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
 
 interface SeriesSnapshot {
   id: string;
@@ -37,7 +54,7 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * Its presence causes the chart plot area to shrink by the bar's height and the
  * Y-range to recompute — via the same DOM-flex + ResizeObserver path used by {@link Legend}.
  */
-export function TooltipLegend({ seriesId, sort = 'none' }: TooltipLegendProps) {
+export function TooltipLegend({ seriesId, sort = 'none', format = defaultTooltipLegendFormat }: TooltipLegendProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const crosshair = useCrosshairPosition(chart);
@@ -143,17 +160,16 @@ export function TooltipLegend({ seriesId, sort = 'none' }: TooltipLegendProps) {
           const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor;
           return (
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <LegendItem label="O" value={ohlc.open} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="H" value={ohlc.high} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="L" value={ohlc.low} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="C" value={ohlc.close} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="O" display={format(ohlc.open, 'open')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="H" display={format(ohlc.high, 'high')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="L" display={format(ohlc.low, 'low')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="C" display={format(ohlc.close, 'close')} color={c} dim={theme.axis.textColor} />
               {ohlc.volume != null && (
                 <LegendItem
                   label="V"
-                  value={ohlc.volume}
+                  display={format(ohlc.volume, 'volume')}
                   color={theme.axis.textColor}
                   dim={theme.axis.textColor}
-                  volume
                 />
               )}
             </span>
@@ -171,7 +187,7 @@ export function TooltipLegend({ seriesId, sort = 'none' }: TooltipLegendProps) {
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: s.color, fontWeight: 500 }}>{line.value.toFixed(2)}</span>
+            <span style={{ color: s.color, fontWeight: 500 }}>{format(line.value, 'value')}</span>
           </span>
         );
       })}
@@ -179,30 +195,11 @@ export function TooltipLegend({ seriesId, sort = 'none' }: TooltipLegendProps) {
   );
 }
 
-function LegendItem({
-  label,
-  value,
-  color,
-  dim,
-  volume,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  dim: string;
-  volume?: boolean;
-}) {
+function LegendItem({ label, display, color, dim }: { label: string; display: string; color: string; dim: string }) {
   return (
     <>
       <span style={{ color: dim, opacity: 0.5, marginLeft: 5 }}>{label}</span>
-      <span style={{ color, fontWeight: 500, marginLeft: 2 }}>{volume ? formatVolume(value) : value.toFixed(2)}</span>
+      <span style={{ color, fontWeight: 500, marginLeft: 2 }}>{display}</span>
     </>
   );
-}
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toFixed(0);
 }

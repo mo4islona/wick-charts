@@ -1,6 +1,6 @@
 import { type CSSProperties, useMemo } from 'react';
 
-import type { ChartTheme, TimePoint } from '@wick-charts/core';
+import { type ChartTheme, type TimePoint, formatCompact } from '@wick-charts/core';
 
 import { BarSeries } from '../BarSeries';
 import { ChartContainer } from '../ChartContainer';
@@ -49,15 +49,6 @@ function hexToRgba(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function formatDefault(v: number): string {
-  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 10_000) return `${(v / 1_000).toFixed(1)}K`;
-  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(2)}K`;
-  if (Math.abs(v) < 1) return v.toFixed(4);
-  if (Math.abs(v) < 10) return v.toFixed(2);
-  return v.toFixed(1);
-}
-
 function computeChange(data: TimePoint[]): { value: number; pct: number; positive: boolean } {
   if (data.length < 2) return { value: 0, pct: 0, positive: true };
   const first = data[0].value;
@@ -72,7 +63,7 @@ export function Sparkline({
   theme,
   variant = 'line',
   valuePosition = 'right',
-  formatValue = formatDefault,
+  formatValue = formatCompact,
   label,
   sublabel,
   color,

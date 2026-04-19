@@ -1,12 +1,16 @@
+import { type ValueFormatter, formatCompact } from '@wick-charts/core';
+
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 
 export interface PieTooltipProps {
   seriesId: string;
+  /** Custom formatter for the slice value. Default: shared `formatCompact`. */
+  format?: ValueFormatter;
 }
 
 /** Tooltip for pie/donut charts. Shows hovered slice label, value, and percentage. */
-export function PieTooltip({ seriesId }: PieTooltipProps) {
+export function PieTooltip({ seriesId, format = formatCompact }: PieTooltipProps) {
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
@@ -68,7 +72,7 @@ export function PieTooltip({ seriesId }: PieTooltipProps) {
       </div>
       {/* Value + percent */}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <span style={{ opacity: 0.6 }}>{info.value.toLocaleString()}</span>
+        <span style={{ opacity: 0.6 }}>{format(info.value)}</span>
         <span style={{ fontWeight: 600 }}>{info.percent.toFixed(1)}%</span>
       </div>
     </div>

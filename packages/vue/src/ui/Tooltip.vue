@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { type LineData, type OHLCData, formatDate, formatTime } from '@wick-charts/core';
+import {
+  type LineData,
+  type OHLCData,
+  type TooltipFormatter,
+  formatCompact,
+  formatDate,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
@@ -18,9 +26,12 @@ const props = withDefaults(
   defineProps<{
     seriesId?: string;
     sort?: TooltipSort;
+    format?: TooltipFormatter;
   }>(),
   {
     sort: 'none',
+    // Function-typed props pass the default as-is (no factory wrapper).
+    format: (v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v)),
   },
 );
 
@@ -71,13 +82,6 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
     const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
     return sort === 'asc' ? av - bv : bv - av;
   });
-}
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(2)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return v.toFixed(0);
 }
 
 const hoverSnapshots = computed(() => {
@@ -200,10 +204,10 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
       >
         <template
           v-for="row in [
-            { label: 'Open', val: (s.data as OHLCData).open },
-            { label: 'High', val: (s.data as OHLCData).high },
-            { label: 'Low', val: (s.data as OHLCData).low },
-            { label: 'Close', val: (s.data as OHLCData).close },
+            { label: 'Open', val: (s.data as OHLCData).open, field: 'open' as const },
+            { label: 'High', val: (s.data as OHLCData).high, field: 'high' as const },
+            { label: 'Low', val: (s.data as OHLCData).low, field: 'low' as const },
+            { label: 'Close', val: (s.data as OHLCData).close, field: 'close' as const },
           ]"
           :key="row.label"
         >
@@ -217,13 +221,13 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
                   : theme.candlestick.downColor,
               textAlign: 'right',
             }"
-            >{{ row.val.toFixed(2) }}</span
+            >{{ props.format(row.val, row.field) }}</span
           >
         </template>
         <template v-if="(s.data as OHLCData).volume != null">
           <span :style="{ opacity: 0.5 }">Volume</span>
           <span :style="{ fontWeight: 600, color: theme.tooltip.textColor, textAlign: 'right' }">
-            {{ formatVolume((s.data as OHLCData).volume!) }}
+            {{ props.format((s.data as OHLCData).volume!, 'volume') }}
           </span>
         </template>
       </div>
@@ -242,7 +246,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
         <span :style="{ fontWeight: 600, color: s.color }">
-          {{ (s.data as LineData).value.toFixed(2) }}
+          {{ props.format((s.data as LineData).value, 'value') }}
         </span>
       </div>
     </template>

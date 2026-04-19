@@ -1,23 +1,30 @@
 import { useLayoutEffect, useState } from 'react';
 
+import { type ValueFormatter, formatCompact } from '@wick-charts/core';
+
 import { useChartInstance } from '../context';
 
-export type PieLegendFormat = 'value' | 'percent';
+export type PieLegendMode = 'value' | 'percent';
 
 export interface PieLegendProps {
   seriesId: string;
-  /** Display format: 'value' shows absolute + percent, 'percent' shows only percent. Default: 'value'. */
-  format?: PieLegendFormat;
+  /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. Default: 'value'. */
+  mode?: PieLegendMode;
+  /**
+   * Custom formatter for the absolute slice value. Default: shared `formatCompact`.
+   *
+   * @deprecated Passing a string (`'value'` | `'percent'`) is the pre-rename
+   * display-mode shorthand — use the {@link mode} prop instead. The string
+   * form is accepted for backward compatibility and will be removed later.
+   */
+  format?: ValueFormatter | PieLegendMode;
 }
 
-function formatCompact(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toLocaleString();
-}
-
-export function PieLegend({ seriesId, format = 'value' }: PieLegendProps) {
+export function PieLegend({ seriesId, mode: modeProp, format }: PieLegendProps) {
+  // Back-compat: historically `format` was `'value' | 'percent'`. If a string
+  // slipped in, route it to `mode` instead of calling it as a formatter.
+  const mode: PieLegendMode = typeof format === 'string' ? format : (modeProp ?? 'value');
+  const formatter: ValueFormatter = typeof format === 'function' ? format : formatCompact;
   const chart = useChartInstance();
   const theme = chart.getTheme();
 
@@ -71,14 +78,14 @@ export function PieLegend({ seriesId, format = 'value' }: PieLegendProps) {
             }}
           />
           <span style={{ flex: 1, opacity: 0.8 }}>{slice.label}</span>
-          {format === 'value' && (
-            <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatCompact(slice.value)}</span>
+          {mode === 'value' && (
+            <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatter(slice.value)}</span>
           )}
           <span
             style={{
-              opacity: format === 'percent' ? 1 : 0.5,
-              fontWeight: format === 'percent' ? 600 : 400,
-              fontSize: format === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize,
+              opacity: mode === 'percent' ? 1 : 0.5,
+              fontWeight: mode === 'percent' ? 600 : 400,
+              fontSize: mode === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize,
               fontVariantNumeric: 'tabular-nums',
               minWidth: 40,
               textAlign: 'right',

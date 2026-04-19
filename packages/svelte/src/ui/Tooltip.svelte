@@ -1,6 +1,6 @@
 <script lang="ts">
-import type { ChartInstance, CrosshairPosition, LineData, OHLCData } from '@wick-charts/core';
-import { formatDate, formatTime } from '@wick-charts/core';
+import type { CrosshairPosition, LineData, OHLCData, TooltipFormatter } from '@wick-charts/core';
+import { formatCompact, formatDate, formatPriceAdaptive, formatTime } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
@@ -10,6 +10,12 @@ import { createCrosshairPosition } from '../stores';
 export let seriesId: string | undefined = undefined;
 /** Sort order for line values when showing all series (default: 'none'). */
 export let sort: 'none' | 'asc' | 'desc' = 'none';
+/**
+ * Custom formatter for every displayed number. Called with the field hint
+ * (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
+ * Defaults: adaptive precision for ohlc/value, compact for volume.
+ */
+export let format: TooltipFormatter = (v, field) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v));
 
 interface SeriesSnapshot {
   id: string;
@@ -82,13 +88,6 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sortOrder: 'none' | 'asc' | 
     const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
     return sortOrder === 'asc' ? av - bv : bv - av;
   });
-}
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toFixed(0);
 }
 
 $: chart = $chartStore;
@@ -188,16 +187,16 @@ $: showFloating = crosshair && hoverSnapshots.length > 0;
           {@const valColor = isUp ? theme.candlestick.upColor : theme.candlestick.downColor}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">
             <span style="opacity:0.5;">Open</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;">{ohlc.open.toFixed(2)}</span>
+            <span style="font-weight:600;color:{valColor};text-align:right;">{format(ohlc.open, 'open')}</span>
             <span style="opacity:0.5;">High</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;">{ohlc.high.toFixed(2)}</span>
+            <span style="font-weight:600;color:{valColor};text-align:right;">{format(ohlc.high, 'high')}</span>
             <span style="opacity:0.5;">Low</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;">{ohlc.low.toFixed(2)}</span>
+            <span style="font-weight:600;color:{valColor};text-align:right;">{format(ohlc.low, 'low')}</span>
             <span style="opacity:0.5;">Close</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;">{ohlc.close.toFixed(2)}</span>
+            <span style="font-weight:600;color:{valColor};text-align:right;">{format(ohlc.close, 'close')}</span>
             {#if ohlc.volume != null}
               <span style="opacity:0.5;">Volume</span>
-              <span style="font-weight:600;color:{theme.tooltip.textColor};text-align:right;">{formatVolume(ohlc.volume)}</span>
+              <span style="font-weight:600;color:{theme.tooltip.textColor};text-align:right;">{format(ohlc.volume, 'volume')}</span>
             {/if}
           </div>
         {:else}
@@ -207,7 +206,7 @@ $: showFloating = crosshair && hoverSnapshots.length > 0;
               style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"
             />
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
-            <span style="font-weight:600;color:{s.color};">{line.value.toFixed(2)}</span>
+            <span style="font-weight:600;color:{s.color};">{format(line.value, 'value')}</span>
           </div>
         {/if}
       {/each}

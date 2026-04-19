@@ -1,4 +1,6 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
+
+import type { ValueFormatter } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useYRange } from '../store-bridge';
@@ -9,9 +11,27 @@ interface TrackedTick {
   fadedAt?: number;
 }
 
-export function YAxis() {
+export interface YAxisProps {
+  /**
+   * Custom tick-label formatter. When supplied, overrides the built-in
+   * range-adaptive formatter for this axis.
+   */
+  format?: ValueFormatter;
+}
+
+export function YAxis({ format }: YAxisProps = {}) {
   const chart = useChartInstance();
   useYRange(chart); // subscribe to viewport changes so ticks re-render
+
+  // Route the prop through `yScale.setFormat` so the *same* formatter drives
+  // every surface that reads `yScale.formatY()` (Crosshair, YLabel fallback)
+  // — otherwise the crosshair keeps showing the built-in format while axis
+  // labels show the user's.
+  useLayoutEffect(() => {
+    chart.yScale.setFormat(format ?? null);
+    return () => chart.yScale.setFormat(null);
+  }, [chart, format]);
+
   const theme = chart.getTheme();
   const currentTicks = chart.yScale.niceTickValues();
   const currentSet = new Set(currentTicks);

@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+
+import type { ValueFormatter } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useLastYValue, usePreviousClose } from '../store-bridge';
@@ -8,9 +10,15 @@ export interface YLabelProps {
   seriesId: string;
   /** Override badge color (e.g. line color). If not set, uses up/down/neutral from theme. */
   color?: string;
+  /**
+   * Custom formatter. Routed through NumberFlow as its `format` prop so the
+   * digit-by-digit animation still plays on the output string — NumberFlow
+   * animates whichever characters the formatter returns.
+   */
+  format?: ValueFormatter;
 }
 
-export function YLabel({ seriesId, color }: YLabelProps) {
+export function YLabel({ seriesId, color, format }: YLabelProps) {
   const chart = useChartInstance();
 
   // Notify chart that YLabel is present (affects right padding)
@@ -20,6 +28,22 @@ export function YLabel({ seriesId, color }: YLabelProps) {
   }, [chart]);
   const last = useLastYValue(chart, seriesId);
   const previousClose = usePreviousClose(chart, seriesId);
+
+  const yRange = chart.yScale.getRange();
+  const range = yRange.max - yRange.min;
+  const fractionDigits = range < 0.1 ? 6 : range < 10 ? 4 : range < 1000 ? 2 : 0;
+
+  // Build the fallback range-adaptive Intl formatter before the early return
+  // so this hook call can't be skipped on subsequent renders (Rules of Hooks).
+  const effectiveFormat = useMemo<ValueFormatter>(() => {
+    if (format) return format;
+    const nf = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+      useGrouping: false,
+    });
+    return (v: number) => nf.format(v);
+  }, [format, fractionDigits]);
 
   if (!last) return null;
 
@@ -34,13 +58,7 @@ export function YLabel({ seriesId, color }: YLabelProps) {
     bgColor = color;
   } else {
     const direction =
-      previousClose === null
-        ? 'neutral'
-        : value > previousClose
-          ? 'up'
-          : value < previousClose
-            ? 'down'
-            : 'neutral';
+      previousClose === null ? 'neutral' : value > previousClose ? 'up' : value < previousClose ? 'down' : 'neutral';
     bgColor =
       direction === 'up'
         ? theme.yLabel.upBackground
@@ -48,10 +66,6 @@ export function YLabel({ seriesId, color }: YLabelProps) {
           ? theme.yLabel.downBackground
           : theme.yLabel.neutralBackground;
   }
-
-  const yRange = chart.yScale.getRange();
-  const range = yRange.max - yRange.min;
-  const fractionDigits = range < 0.1 ? 6 : range < 10 ? 4 : range < 1000 ? 2 : 0;
 
   return (
     <>
@@ -88,11 +102,7 @@ export function YLabel({ seriesId, color }: YLabelProps) {
           transition: 'background-color 0.3s ease',
         }}
       >
-        <NumberFlow
-          value={value}
-          format={{ minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits, useGrouping: false }}
-          spinDuration={350}
-        />
+        <NumberFlow value={value} format={effectiveFormat} spinDuration={350} />
       </div>
     </>
   );
