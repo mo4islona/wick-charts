@@ -145,31 +145,61 @@ function handleClick(index: number) {
         flexShrink: 0,
       }"
     >
-      <div
-        v-for="(item, i) in resolved"
-        :key="i"
-        @click="item.seriesId ? handleClick(i) : undefined"
-        :style="{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          cursor: item.seriesId ? 'pointer' : 'default',
-          opacity: disabled.has(i) ? 0.35 : 1,
-          transition: 'opacity 0.15s ease',
-          userSelect: 'none',
-        }"
-      >
-        <span
+      <template v-for="(item, i) in resolved" :key="i">
+        <button
+          v-if="item.seriesId"
+          type="button"
+          @click="handleClick(i)"
           :style="{
-            width: '8px',
-            height: '8px',
-            borderRadius: '2px',
-            background: item.color,
-            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            cursor: 'pointer',
+            opacity: disabled.has(i) ? 0.35 : 1,
+            transition: 'opacity 0.15s ease',
+            userSelect: 'none',
+            border: 'none',
+            background: 'transparent',
+            padding: 0,
+            margin: 0,
+            font: 'inherit',
+            color: 'inherit',
+            textAlign: 'left',
           }"
-        />
-        <span style="white-space: nowrap">{{ item.label }}</span>
-      </div>
+        >
+          <span
+            :style="{
+              width: '8px',
+              height: '8px',
+              borderRadius: '2px',
+              background: item.color,
+              flexShrink: 0,
+            }"
+          />
+          <span style="white-space: nowrap">{{ item.label }}</span>
+        </button>
+        <div
+          v-else
+          :style="{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            opacity: disabled.has(i) ? 0.35 : 1,
+            userSelect: 'none',
+          }"
+        >
+          <span
+            :style="{
+              width: '8px',
+              height: '8px',
+              borderRadius: '2px',
+              background: item.color,
+              flexShrink: 0,
+            }"
+          />
+          <span style="white-space: nowrap">{{ item.label }}</span>
+        </div>
+      </template>
     </div>
   </Teleport>
 </template>

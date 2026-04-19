@@ -58,17 +58,23 @@
   $: theme = $themeStore;
   $: anchor = position === 'right' ? $rightAnchorStore : $bottomAnchorStore;
 
-  $: resolved = (() => {
-    void bump;
-    if (items) {
-      return items.map((item, i) => ({ ...item, seriesId: '', layerIndex: i, isLayer: false }));
+  // Reference bump + chart + items explicitly so Svelte's compiler tracks the
+  // deps without relying on detection inside an IIFE body.
+  function buildResolved(
+    c: typeof chart,
+    itemsArg: LegendItem[] | undefined,
+    _bumpDep: number,
+  ): ResolvedItem[] {
+    void _bumpDep;
+    if (itemsArg) {
+      return itemsArg.map((item, i) => ({ ...item, seriesId: '', layerIndex: i, isLayer: false }));
     }
-    if (!chart) return [] as ResolvedItem[];
+    if (!c) return [];
     const result: ResolvedItem[] = [];
-    for (const id of chart.getSeriesIds()) {
-      const layers = chart.getSeriesLayers(id);
+    for (const id of c.getSeriesIds()) {
+      const layers = c.getSeriesLayers(id);
       if (layers) {
-        const baseLabel = chart.getSeriesLabel(id);
+        const baseLabel = c.getSeriesLabel(id);
         for (let i = 0; i < layers.length; i++) {
           result.push({
             label: baseLabel ? `${baseLabel} ${i + 1}` : `Series ${i + 1}`,
@@ -79,13 +85,15 @@
           });
         }
       } else {
-        const color = chart.getSeriesColor(id);
-        const label = chart.getSeriesLabel(id);
+        const color = c.getSeriesColor(id);
+        const label = c.getSeriesLabel(id);
         if (color) result.push({ label: label ?? 'Series', color, seriesId: id, layerIndex: 0, isLayer: false });
       }
     }
     return result;
-  })();
+  }
+
+  $: resolved = buildResolved(chart, items, bump);
 
   function apply(next: Set<number>) {
     disabled = next;
@@ -142,16 +150,27 @@
       : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
   >
     {#each resolved as item, i (i)}
-      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-      <div
-        on:click={() => item.seriesId && handleClick(i)}
-        style="display:flex;align-items:center;gap:4px;cursor:{item.seriesId
-          ? 'pointer'
-          : 'default'};opacity:{disabled.has(i) ? 0.35 : 1};transition:opacity 0.15s ease;user-select:none;"
-      >
-        <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
-        <span style="white-space:nowrap;">{item.label}</span>
-      </div>
+      {#if item.seriesId}
+        <button
+          type="button"
+          on:click={() => handleClick(i)}
+          style="display:flex;align-items:center;gap:4px;cursor:pointer;opacity:{disabled.has(i)
+            ? 0.35
+            : 1};transition:opacity 0.15s ease;user-select:none;border:none;background:transparent;padding:0;margin:0;font:inherit;color:inherit;text-align:left;"
+        >
+          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
+          <span style="white-space:nowrap;">{item.label}</span>
+        </button>
+      {:else}
+        <div
+          style="display:flex;align-items:center;gap:4px;opacity:{disabled.has(i)
+            ? 0.35
+            : 1};user-select:none;"
+        >
+          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
+          <span style="white-space:nowrap;">{item.label}</span>
+        </div>
+      {/if}
     {/each}
   </div>
 {/if}

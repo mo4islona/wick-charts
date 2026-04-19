@@ -13,12 +13,12 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 - `@wick-charts/vue` — components + composables
 - `@wick-charts/svelte` — components + stores
 
-Core components (`ChartContainer`, all `*Series`, `Tooltip`, `TooltipLegend`, `Title`, `Crosshair`, axes, `YLabel`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
+Core components (`ChartContainer`, all `*Series`, `Tooltip`, `TooltipLegend`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
 Framework-specific gaps to know about:
 
-- **React** has the richest surface: `ThemeProvider`, `Legend`, `Sparkline`, and several hooks (`useChartInstance`, `useVisibleRange`, `useYRange`, `useLastYValue`, `usePreviousClose`, `useCrosshairPosition`, `useTheme`). `ChartContainer` accepts `padding`, `gradient`, `grid`, `interactive`, `style`, `className`.
-- **Vue** and **Svelte** `ChartContainer` currently accept only `theme` + `axis` (+ `style` in Svelte); `padding`/`gradient`/`grid`/`interactive` props are React-only for now. `Legend` is not yet ported.
+- **React** has the richest surface: `ThemeProvider`, `Sparkline`, and several hooks (`useChartInstance`, `useVisibleRange`, `useYRange`, `useLastYValue`, `usePreviousClose`, `useCrosshairPosition`, `useTheme`). `ChartContainer` accepts `padding`, `gradient`, `grid`, `interactive`, `style`, `className`.
+- **Vue** and **Svelte** `ChartContainer` currently accept only `theme` + `axis` (+ `style` in Svelte); `padding`/`gradient`/`grid`/`interactive` props are React-only for now.
 
 ## Chart types (reference pages)
 
@@ -59,14 +59,14 @@ Placed as children of `ChartContainer`.
 | `Title` | `children`, `sub?` | Title bar, hoisted above canvas |
 | `TooltipLegend` | `seriesId?`, `sort?` | OHLC / values info bar, hoisted above canvas |
 | `Tooltip` | `seriesId?`, `sort?` | Floating glass tooltip near cursor (hover only) |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Series legend, hoisted below / beside canvas (**React only**) |
+| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Series legend, hoisted below / beside canvas |
 | `Crosshair` | — | Axis labels at cursor |
 | `YAxis` / `TimeAxis` (alias `XAxis`) | — | Default axes |
 | `YLabel` | `seriesId`, `color?` | Floating price badge + dashed line |
 | `PieTooltip` / `PieLegend` | `seriesId` (+ `format?`) | Pie-only variants |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
 
-**Hoisting**: `Title` + `TooltipLegend` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / TooltipLegend so it reads clearly when the cursor hovers near the header. `Legend` (**React only**) sits as a flex sibling below (or beside, with `position="right"`).
+**Hoisting**: `Title` + `TooltipLegend` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / TooltipLegend so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="solo"` isolates that item and a second click restores all).
 
 `Tooltip` is **floating-only**. For the top info bar, use `<TooltipLegend>` — the two are complementary and usually composed together.
 

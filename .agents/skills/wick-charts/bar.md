@@ -132,7 +132,7 @@ interface BarSeriesProps {
 
 ```vue
 <script setup lang="ts">
-import { ChartContainer, BarSeries, Tooltip, Crosshair, YAxis, TimeAxis } from '@wick-charts/vue';
+import { ChartContainer, BarSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis } from '@wick-charts/vue';
 import type { TimePoint } from '@wick-charts/vue';
 
 const props = defineProps<{ data: TimePoint[] }>();
@@ -189,7 +189,7 @@ id?: string
 
 ```svelte
 <script>
-  import { ChartContainer, BarSeries, Tooltip, Crosshair, YAxis, TimeAxis } from '@wick-charts/svelte';
+  import { ChartContainer, BarSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis } from '@wick-charts/svelte';
   export let data = [];
 </script>
 

@@ -113,7 +113,7 @@ const props = defineProps(['data']);
 | `YAxis` | Vertical price/value axis with animated ticks |
 | `TimeAxis` | Horizontal time axis with animated ticks |
 | `YLabel` | Floating price badge with dashed line |
-| `Legend` | Clickable legend with toggle/solo modes (React only) |
+| `Legend` | Clickable legend with toggle/solo modes |
 | `PieTooltip` | Tooltip for pie/donut hover |
 
 ## Themes
