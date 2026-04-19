@@ -20,6 +20,8 @@ export interface BuildContextOptions {
   dataInterval?: number;
   /** Theme override. Defaults to darkTheme. */
   theme?: ChartTheme;
+  /** Top/bottom padding in CSS pixels. Defaults to {top:0, bottom:0}. */
+  padding?: { top: number; bottom: number };
 }
 
 export interface BuiltRenderContext {
@@ -45,6 +47,7 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
     pixelRatio = 1,
     dataInterval = 1,
     theme = darkTheme,
+    padding = { top: 0, bottom: 0 },
   } = opts;
 
   const { ctx: recordingCtx, spy } = createRecordingContext();
@@ -71,6 +74,7 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
     yScale,
     theme,
     dataInterval,
+    padding,
   };
 
   const overlayCtx: BuiltRenderContext['overlayCtx'] = (crosshair = null) => ({

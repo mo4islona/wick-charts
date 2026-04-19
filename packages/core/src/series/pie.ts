@@ -1,7 +1,7 @@
 import type { ChartTheme } from '../theme/types';
 import type { PieSeriesOptions, PieSliceData } from '../types';
 import { smoothToward } from '../utils/math';
-import type { HoverInfo, SeriesRenderContext, SeriesRenderer, SliceInfo } from './types';
+import type { HoverInfo, RenderPadding, SeriesRenderContext, SeriesRenderer, SliceInfo } from './types';
 
 const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
@@ -11,6 +11,34 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
 };
 
 const TWO_PI = Math.PI * 2;
+
+/**
+ * Compute pie geometry inside an area shrunk by `padTop` / `padBottom`. The
+ * pie is centered horizontally on the full width and vertically inside the
+ * usable band — that's how it shifts down when a Title overlay reserves space.
+ *
+ * Inputs and outputs are all in bitmap pixels so the same helper drives both
+ * `render` (which paints) and `hitTest` (which interprets pointer coords).
+ */
+function computePieGeometry(
+  bitmapWidth: number,
+  bitmapHeight: number,
+  padTop: number,
+  padBottom: number,
+): { cx: number; cy: number; maxR: number } {
+  // Clamp padding so it never exceeds the bitmap. Without the upper bound a
+  // malformed setPadding can push `cy` past the bottom edge — the resulting
+  // pie has zero radius and would render off-screen anyway, but keeping `cy`
+  // inside the bitmap avoids surprising downstream math (shadows, gradients,
+  // future overlays that read the center).
+  const top = Math.min(Math.max(0, padTop), bitmapHeight);
+  const bottom = Math.min(Math.max(0, padBottom), bitmapHeight - top);
+  const usableHeight = bitmapHeight - top - bottom;
+  const cx = bitmapWidth / 2;
+  const cy = top + usableHeight / 2;
+  const maxR = (Math.min(bitmapWidth, usableHeight) / 2) * 0.85;
+  return { cx, cy, maxR };
+}
 
 function isLightColor(hex: string): boolean {
   if (!hex.startsWith('#')) return false;
@@ -91,14 +119,12 @@ export class PieRenderer implements SeriesRenderer {
   }
 
   /** Hit-test: which slice is at this bitmap coordinate? Returns index or -1. */
-  hitTest(bx: number, by: number, bitmapWidth: number, bitmapHeight: number): number {
+  hitTest(bx: number, by: number, bitmapWidth: number, bitmapHeight: number, padding?: RenderPadding): number {
     if (this.data.length === 0) return -1;
     const total = this.data.reduce((sum, d) => sum + d.value, 0);
     if (total <= 0) return -1;
 
-    const cx = bitmapWidth / 2;
-    const cy = bitmapHeight / 2;
-    const maxR = (Math.min(bitmapWidth, bitmapHeight) / 2) * 0.85;
+    const { cx, cy, maxR } = computePieGeometry(bitmapWidth, bitmapHeight, padding?.top ?? 0, padding?.bottom ?? 0);
     const outerR = maxR;
     const innerR = outerR * this.options.innerRadiusRatio;
 
@@ -174,8 +200,8 @@ export class PieRenderer implements SeriesRenderer {
 
   render(ctx: SeriesRenderContext): void {
     if (this.data.length === 0) return;
-    const { scope, theme } = ctx;
-    const { context, bitmapSize, horizontalPixelRatio } = scope;
+    const { scope, theme, padding } = ctx;
+    const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
     const now = performance.now();
     // Clamp dt: when the renderer goes idle (animation finished, no markDirty),
@@ -197,9 +223,13 @@ export class PieRenderer implements SeriesRenderer {
     }
 
     const palette = this.options.colors ?? theme.seriesColors;
-    const cx = bitmapSize.width / 2;
-    const cy = bitmapSize.height / 2;
-    const maxR = (Math.min(bitmapSize.width, bitmapSize.height) / 2) * 0.85;
+    // Padding arrives in CSS pixels; geometry is in bitmap pixels.
+    const { cx, cy, maxR } = computePieGeometry(
+      bitmapSize.width,
+      bitmapSize.height,
+      padding.top * verticalPixelRatio,
+      padding.bottom * verticalPixelRatio,
+    );
     const outerR = maxR;
     const innerR = outerR * this.options.innerRadiusRatio;
     const pad = this.options.padAngle;

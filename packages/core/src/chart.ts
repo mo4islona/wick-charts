@@ -746,6 +746,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
    */
   #updateHover(pos: CrosshairPosition | null): void {
     const size = this.#canvasManager.size;
+    const vpad = this.#viewport.getPadding();
+    const padding = {
+      top: vpad.top * size.verticalPixelRatio,
+      bottom: vpad.bottom * size.verticalPixelRatio,
+    };
     let changed = false;
     for (const entry of this.#series) {
       if (!entry.renderer.hitTest || !entry.renderer.setHoverIndex) continue;
@@ -753,7 +758,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       if (pos) {
         const bx = pos.mediaX * size.horizontalPixelRatio;
         const by = pos.mediaY * size.verticalPixelRatio;
-        index = entry.renderer.hitTest(bx, by, size.bitmap.width, size.bitmap.height);
+        index = entry.renderer.hitTest(bx, by, size.bitmap.width, size.bitmap.height, padding);
       }
       if (entry.renderer.setHoverIndex(index)) {
         changed = true;
@@ -1045,6 +1050,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         renderGrid(scope, this.timeScale, this.yScale, this.#theme, this.#dataInterval);
       }
 
+      const vpad = this.#viewport.getPadding();
+      const padding = { top: vpad.top, bottom: vpad.bottom };
       for (const entry of this.#series) {
         if (!entry.visible) continue;
         entry.renderer.render({
@@ -1053,6 +1060,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           yScale: this.yScale,
           theme: this.#theme,
           dataInterval: this.#dataInterval,
+          padding,
         });
       }
 
@@ -1111,6 +1119,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       }
 
       // Dispatch to each renderer's overlay hook — crosshair dots, pulses, etc.
+      const ovpad = this.#viewport.getPadding();
+      const overlayPadding = { top: ovpad.top, bottom: ovpad.bottom };
       for (const entry of this.#series) {
         if (!entry.visible) continue;
         entry.renderer.drawOverlay?.({
@@ -1119,6 +1129,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           yScale: this.yScale,
           theme: this.#theme,
           dataInterval: this.#dataInterval,
+          padding: overlayPadding,
           crosshair: this.#crosshairPos,
         });
       }

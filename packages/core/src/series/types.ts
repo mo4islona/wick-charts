@@ -4,12 +4,32 @@ import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { OHLCData, TimePoint } from '../types';
 
+/**
+ * Vertical padding reserved at the top/bottom of the chart area.
+ *
+ * **Unitless on its own** — the unit is fixed by the call site:
+ *  - In {@link SeriesRenderContext} / {@link OverlayRenderContext}: **CSS pixels**
+ *    (multiply by `scope.verticalPixelRatio` to convert to bitmap pixels).
+ *  - In {@link SeriesRenderer.hitTest}: **bitmap pixels** (the chart pre-scales
+ *    so the values align with the `bx`/`by` bitmap-space pointer coords).
+ *
+ * Time-based renderers absorb this implicitly via the YScale's value range,
+ * but spatial renderers (Pie) need the raw pixel reservation to keep their
+ * layout out of the Title / TooltipLegend overlay regions.
+ */
+export interface RenderPadding {
+  top: number;
+  bottom: number;
+}
+
 export interface SeriesRenderContext {
   scope: BitmapCoordinateSpace;
   timeScale: TimeScale;
   yScale: YScale;
   theme: ChartTheme;
   dataInterval: number;
+  /** Vertical padding in **CSS pixels** — see {@link RenderPadding}. */
+  padding: RenderPadding;
 }
 
 /** Overlay render state passed to {@link SeriesRenderer.drawOverlay}. */
@@ -19,6 +39,8 @@ export interface OverlayRenderContext {
   yScale: YScale;
   theme: ChartTheme;
   dataInterval: number;
+  /** Vertical padding in **CSS pixels** — see {@link RenderPadding}. */
+  padding: RenderPadding;
   /** Current crosshair position, or null when none. */
   crosshair: { mediaX: number; mediaY: number; time: number; y: number } | null;
 }
@@ -86,8 +108,13 @@ export interface SeriesRenderer {
 
   // --- Spatial hover (pie / future scatter / heatmap) ----------------------
 
-  /** Hit-test a bitmap-space coordinate; return the hovered index or -1. Optional. */
-  hitTest?(bx: number, by: number, bitmapWidth: number, bitmapHeight: number): number;
+  /**
+   * Hit-test a bitmap-space coordinate; return the hovered index or -1. Optional.
+   * `padding` is in **bitmap pixels** (already scaled by `verticalPixelRatio`)
+   * so its values align with the `bx`/`by`/`bitmapWidth`/`bitmapHeight` arguments
+   * — the hit area then matches the painted geometry exactly.
+   */
+  hitTest?(bx: number, by: number, bitmapWidth: number, bitmapHeight: number, padding?: RenderPadding): number;
   /** Set the currently hovered index. Returns true if the value changed. Optional. */
   setHoverIndex?(index: number): boolean;
   /** Get info about the currently hovered element, or null. Optional. */
