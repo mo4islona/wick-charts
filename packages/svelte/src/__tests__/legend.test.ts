@@ -159,3 +159,29 @@ describe('Svelte <Legend> parity', () => {
     unmount();
   });
 });
+
+describe('installSizePatch cleanup', () => {
+  // Regression: an earlier version patched HTMLElement.prototype.clientWidth +
+  // clientHeight but only restored clientWidth in its cleanup, leaking the
+  // clientHeight getter across test files and causing order-dependent
+  // failures. This asserts cleanup fully restores prototype state.
+  it('restores both clientWidth and clientHeight descriptors after cleanup', () => {
+    const origWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const origHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+
+    const cleanup = installSizePatch(1234, 567);
+    // While patched, both getters return the injected values.
+    const probe = document.createElement('div');
+    expect(probe.clientWidth).toBe(1234);
+    expect(probe.clientHeight).toBe(567);
+
+    cleanup();
+
+    // Descriptors match the pre-patch state: either both present and equal, or
+    // both undefined (jsdom default). No stray getters left behind.
+    const afterWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const afterHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    expect(afterWidth).toEqual(origWidth);
+    expect(afterHeight).toEqual(origHeight);
+  });
+});
