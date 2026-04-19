@@ -209,9 +209,9 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
               label="Line width"
               value={s.lineWidth}
               onChange={(v) => set({ lineWidth: v })}
-              min={1}
-              max={6}
-              step={1}
+              min={0}
+              max={5}
+              step={0.5}
               suffix="px"
               theme={theme}
             />

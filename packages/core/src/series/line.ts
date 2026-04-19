@@ -388,6 +388,7 @@ export class LineRenderer implements SeriesRenderer {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
+    const hasStroke = this.options.lineWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
     const now = performance.now();
     const style = this.options.appendAnimation ?? 'grow';
@@ -431,11 +432,13 @@ export class LineRenderer implements SeriesRenderer {
         context.lineTo(timeScale.timeToBitmapX(data[i].time), yScale.valueToBitmapY(data[i].value));
       }
       context.lineTo(trailingX, trailingY);
-      context.strokeStyle = color;
-      context.lineWidth = lineWidth;
-      context.lineJoin = 'round';
-      context.lineCap = 'round';
-      context.stroke();
+      if (hasStroke) {
+        context.strokeStyle = color;
+        context.lineWidth = lineWidth;
+        context.lineJoin = 'round';
+        context.lineCap = 'round';
+        context.stroke();
+      }
 
       // Area fill
       if (this.options.areaFill) {
@@ -468,6 +471,7 @@ export class LineRenderer implements SeriesRenderer {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
+    const hasStroke = this.options.lineWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
 
     // Collect per-layer data
@@ -606,16 +610,18 @@ export class LineRenderer implements SeriesRenderer {
       }
 
       // Stroke the upper edge
-      context.beginPath();
-      context.moveTo(upperXY[0][0], upperXY[0][1]);
-      for (let i = 1; i < upperXY.length; i++) {
-        context.lineTo(upperXY[i][0], upperXY[i][1]);
+      if (hasStroke) {
+        context.beginPath();
+        context.moveTo(upperXY[0][0], upperXY[0][1]);
+        for (let i = 1; i < upperXY.length; i++) {
+          context.lineTo(upperXY[i][0], upperXY[i][1]);
+        }
+        context.strokeStyle = color;
+        context.lineWidth = lineWidth;
+        context.lineJoin = 'round';
+        context.lineCap = 'round';
+        context.stroke();
       }
-      context.strokeStyle = color;
-      context.lineWidth = lineWidth;
-      context.lineJoin = 'round';
-      context.lineCap = 'round';
-      context.stroke();
 
       if (useFade) context.restore();
     }
