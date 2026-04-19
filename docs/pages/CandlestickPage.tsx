@@ -43,6 +43,7 @@ function CandleChart({
   candleEnterAnimation,
   enterDurationMs,
   liveTracking,
+  headerLayout,
   startDelay,
   title,
   sub,
@@ -54,7 +55,7 @@ function CandleChart({
   const display = streaming ? d : data;
   const sid = 'candle';
   return (
-    <ChartContainer theme={theme} axis={axis} gradient={gradient}>
+    <ChartContainer theme={theme} axis={axis} gradient={gradient} headerLayout={headerLayout}>
       <Title sub={sub}>{title}</Title>
       {showTooltipLegend && <TooltipLegend seriesId={sid} />}
       <CandlestickSeries

@@ -17,6 +17,8 @@ export type CandleEnterAnim = 'fade' | 'unfold' | 'slide' | 'fade-unfold' | 'non
 export type BarEnterAnim = 'fade' | 'grow' | 'fade-grow' | 'slide' | 'none';
 export type LineAppendAnim = 'grow' | 'fade' | 'none';
 
+type HeaderLayout = 'overlay' | 'inline';
+
 interface CommonState {
   streaming: boolean;
   showGrid: boolean;
@@ -38,6 +40,8 @@ interface CommonState {
   enterDurationMs: number;
   /** Live-tracking of the last candle/bar/line value (smooth O/H/L/C updates). */
   liveTracking: boolean;
+  /** Header positioning — overlay keeps the canvas full-height; inline shifts it below the header. */
+  headerLayout: HeaderLayout;
 }
 
 const COMMON_DEFAULTS: CommonState = {
@@ -56,6 +60,7 @@ const COMMON_DEFAULTS: CommonState = {
   lineAppendAnimation: 'grow',
   enterDurationMs: 400,
   liveTracking: true,
+  headerLayout: 'overlay',
 };
 
 export interface PlaygroundChartProps {
@@ -71,6 +76,8 @@ export interface PlaygroundChartProps {
   enterDurationMs: number;
   /** Live-tracking smoothing of the last candle/bar/line value. */
   liveTracking: boolean;
+  /** Header layout: overlay (canvas full-height) or inline (canvas shifted below header). */
+  headerLayout: HeaderLayout;
 }
 
 export type AnimationKind = 'candle' | 'bar' | 'line';
@@ -249,6 +256,7 @@ export function Playground<T extends object>({
     lineAppendAnimation: state.lineAppendAnimation,
     enterDurationMs: state.enterDurationMs,
     liveTracking: state.liveTracking,
+    headerLayout: state.headerLayout,
   };
 
   const codeConfigValue = codeConfig?.(chartProps);
@@ -295,6 +303,18 @@ export function Playground<T extends object>({
           onChange={(v) => setCommon({ showGradient: v })}
           theme={theme}
         />
+        {!hideCartesian && (
+          <Select
+            label="Header layout"
+            options={[
+              { value: 'overlay', label: 'Overlay (grid full-height)' },
+              { value: 'inline', label: 'Inline (shift chart down)' },
+            ]}
+            value={state.headerLayout}
+            onChange={(v) => setCommon({ headerLayout: v as HeaderLayout })}
+            theme={theme}
+          />
+        )}
       </Section>
 
       {!hideCartesian && (

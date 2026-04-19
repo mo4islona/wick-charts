@@ -44,6 +44,15 @@ export interface ChartContainerProps {
   interactive?: boolean;
   /** Show the background grid. Defaults to true. */
   grid?: boolean;
+  /**
+   * How `<Title>` and `<TooltipLegend>` are positioned relative to the canvas.
+   * - `'overlay'` (default): absolute overlays on top of the canvas — the grid
+   *   and Y-axis labels render full-height behind the header strip.
+   * - `'inline'`: flex siblings above the canvas — the canvas (and grid) are
+   *   shifted down by the measured header height, so nothing renders behind
+   *   the title. The chart background still spans the full container.
+   */
+  headerLayout?: 'overlay' | 'inline';
   style?: CSSProperties;
   className?: string;
 }
@@ -120,6 +129,7 @@ export function ChartContainer({
   gradient = true,
   interactive,
   grid,
+  headerLayout = 'overlay',
   style,
   className,
 }: ChartContainerProps) {
@@ -172,12 +182,19 @@ export function ChartContainer({
   const topOverlayRef = useRef<HTMLDivElement>(null);
   const [topOverlayHeight, setTopOverlayHeight] = useState(0);
 
+  // In 'inline' mode the canvas itself is shorter (browser flex reserves the
+  // header height), so adding topOverlayHeight here would double-shift the
+  // data. Only the overlay mode needs the fold-in. Depend on `headerExtra`
+  // below instead of `topOverlayHeight` so inline-mode header resizes don't
+  // fire redundant `chart.setPadding(...)` calls (headerExtra stays 0).
+  const headerExtra = headerLayout === 'overlay' ? topOverlayHeight : 0;
+
   useEffect(() => {
     const current = chartRef.current;
     if (!current) return;
     const userTop = padding?.top ?? 20;
     const merged: ChartOptions['padding'] = {
-      top: userTop + topOverlayHeight,
+      top: userTop + headerExtra,
       ...(padding?.bottom !== undefined ? { bottom: padding.bottom } : {}),
       ...(padding?.right !== undefined ? { right: padding.right } : {}),
       ...(padding?.left !== undefined ? { left: padding.left } : {}),
@@ -188,7 +205,7 @@ export function ChartContainer({
     padding?.bottom,
     typeof padding?.right === 'object' ? padding.right.intervals : padding?.right,
     typeof padding?.left === 'object' ? padding.left.intervals : padding?.left,
-    topOverlayHeight,
+    headerExtra,
   ]);
 
   useEffect(() => {
@@ -210,8 +227,14 @@ export function ChartContainer({
 
   // Measure the stacked overlay (Title + TooltipLegend) height and feed it
   // into the padding effect above so data stays below them even though the
-  // canvas itself fills the whole container.
+  // canvas itself fills the whole container. Only needed in 'overlay' mode —
+  // 'inline' mode lets browser flex layout reserve header height directly,
+  // so we skip the ResizeObserver entirely and clear any stale measurement.
   useLayoutEffect(() => {
+    if (headerLayout !== 'overlay') {
+      setTopOverlayHeight(0);
+      return;
+    }
     const el = topOverlayRef.current;
     if (!el) {
       // When neither Title nor TooltipLegend is present the overlay wrapper
@@ -225,9 +248,46 @@ export function ChartContainer({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [titleEl !== null, tooltipLegendEl !== null]);
+    // `chart !== null` is in deps so the measurement re-runs once the
+    // ChartInstance is attached — on the first pass the overlay wrapper is
+    // gated behind `chart && (...)` so the ref is null; without this dep
+    // React wouldn't re-fire when the overlay finally mounts.
+  }, [titleEl !== null, tooltipLegendEl !== null, headerLayout, chart !== null]);
 
-  const canvasBlock = (
+  const headerStack = (titleEl || tooltipLegendEl) && (
+    <div
+      data-chart-header=""
+      data-chart-top-overlay={headerLayout === 'overlay' ? '' : undefined}
+      ref={topOverlayRef}
+      style={
+        headerLayout === 'overlay'
+          ? {
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              // Lower than the series-overlay layer below, so the floating
+              // <Tooltip> glass panel renders *above* Title/TooltipLegend
+              // when the cursor hovers near them.
+              zIndex: 2,
+              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+            }
+          : {
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              pointerEvents: 'none',
+            }
+      }
+    >
+      {titleEl}
+      {tooltipLegendEl}
+    </div>
+  );
+
+  const chartInner = (
     <div
       ref={containerRef}
       style={{
@@ -241,28 +301,7 @@ export function ChartContainer({
       {chart && (
         <ChartContext.Provider value={chart}>
           <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>
-            {(titleEl || tooltipLegendEl) && (
-              <div
-                ref={topOverlayRef}
-                data-chart-top-overlay=""
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  // Lower than the series-overlay layer below, so the floating
-                  // <Tooltip> glass panel renders *above* Title/TooltipLegend
-                  // when the cursor hovers near them.
-                  zIndex: 2,
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                {titleEl}
-                {tooltipLegendEl}
-              </div>
-            )}
+            {headerLayout === 'overlay' && headerStack}
             <div
               data-chart-series-overlay=""
               style={{
@@ -279,6 +318,23 @@ export function ChartContainer({
       )}
     </div>
   );
+
+  const canvasBlock =
+    headerLayout === 'inline' ? (
+      <div
+        data-chart-canvas-block=""
+        style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, minHeight: 0 }}
+      >
+        {chart && headerStack && (
+          <ChartContext.Provider value={chart}>
+            <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{headerStack}</ThemeProvider>
+          </ChartContext.Provider>
+        )}
+        {chartInner}
+      </div>
+    ) : (
+      chartInner
+    );
 
   const hoistedLegend = chart && legendEl && (
     <ChartContext.Provider value={chart}>

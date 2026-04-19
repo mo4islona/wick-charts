@@ -77,7 +77,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const sid = 'line';
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={props.areaFill ? 'area' : 'line'}>Single</Title>
       {props.showTooltipLegend && <TooltipLegend seriesId={sid} sort={props.tooltipSort} />}
       <LineSeries
@@ -110,7 +110,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   });
   const display = props.streaming ? datasets : props.allData;
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
       {props.showTooltipLegend && <TooltipLegend sort={props.tooltipSort} />}
       <LineSeries
