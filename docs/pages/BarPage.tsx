@@ -46,7 +46,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   });
   const display = props.streaming ? datasets[0] : singleData;
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient}>
+    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub="Up/Down">Single</Title>
       {props.showTooltipLegend && <TooltipLegend />}
       <BarSeries
@@ -81,7 +81,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
     return props.axis ?? {};
   }, [props.axis, props.stacking]);
   return (
-    <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient}>
+    <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
       {props.showTooltipLegend && <TooltipLegend />}
       <BarSeries
