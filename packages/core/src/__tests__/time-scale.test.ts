@@ -136,4 +136,71 @@ describe('TimeScale', () => {
       expect(s.timeToBitmapX(500)).toBe(0);
     });
   });
+
+  describe('niceTickValues — spacing floor & config', () => {
+    it('default 80px floor is respected', () => {
+      const width = 800;
+      const s = makeScale(0, DAY * 7, width);
+      const { ticks, tickInterval } = s.niceTickValues(HOUR);
+      if (ticks.length >= 2) {
+        const timePerPixel = (DAY * 7) / width;
+        const pixelGap = tickInterval / timePerPixel;
+        expect(pixelGap).toBeGreaterThanOrEqual(80 - 1e-9);
+      }
+    });
+
+    it('custom minLabelSpacing is respected', () => {
+      const width = 800;
+      const s = new TimeScale();
+      s.setMinSpacing(160);
+      s.update({ from: 0, to: DAY * 7 }, width, 1, HOUR);
+      const { ticks, tickInterval } = s.niceTickValues(HOUR);
+      if (ticks.length >= 2) {
+        const timePerPixel = (DAY * 7) / width;
+        const pixelGap = tickInterval / timePerPixel;
+        expect(pixelGap).toBeGreaterThanOrEqual(160 - 1e-9);
+      }
+    });
+
+    it('dataInterval bucket change resets hysteresis', () => {
+      // First prime with HOUR → resolvedInterval from sub_day tier.
+      const s = new TimeScale();
+      s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);
+      s.niceTickValues(HOUR);
+
+      // Switch to DAY-scale data; the niceTimeIntervals list starts from a
+      // different tier, so lastInterval should be discarded.
+      s.update({ from: 0, to: DAY * 365 }, 800, 1, DAY);
+      const { tickInterval } = s.niceTickValues(DAY);
+      expect(tickInterval).toBeGreaterThan(HOUR);
+    });
+
+    it('returned tickInterval equals resolvedInterval, not the dataInterval argument', () => {
+      // Passing HOUR as dataInterval but viewing 7 days at 800px should
+      // escalate to DAY-scale tickInterval.
+      const s = new TimeScale();
+      s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);
+      const { tickInterval } = s.niceTickValues(HOUR);
+      expect(tickInterval).not.toBe(HOUR);
+      expect(tickInterval).toBeGreaterThan(HOUR);
+    });
+
+    it('rejects invalid setter inputs', () => {
+      const s = new TimeScale();
+      s.setLabelCount(Number.NaN);
+      s.setMinSpacing(-1);
+      s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);
+      const { ticks, tickInterval } = s.niceTickValues(HOUR);
+      expect(ticks.length).toBeGreaterThan(0);
+      expect(tickInterval).toBeGreaterThan(0);
+    });
+
+    it('multi-year range returns finite array without crashing', () => {
+      const s = makeScale(0, DAY * 365 * 5, 800);
+      const { ticks, tickInterval } = s.niceTickValues(DAY);
+      expect(Array.isArray(ticks)).toBe(true);
+      expect(ticks.length).toBeLessThanOrEqual(50);
+      expect(Number.isFinite(tickInterval)).toBe(true);
+    });
+  });
 });

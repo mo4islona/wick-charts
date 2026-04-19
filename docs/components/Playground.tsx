@@ -242,7 +242,10 @@ export function Playground<T extends object>({
         max: parseBound(state.maxBound),
         visible: state.showYAxis,
       },
-      x: { height: state.xAxisHeight, visible: state.showXAxis },
+      x: {
+        height: state.xAxisHeight,
+        visible: state.showXAxis,
+      },
     }),
     [state.yAxisWidth, state.xAxisHeight, state.minBound, state.maxBound, state.showYAxis, state.showXAxis],
   );

@@ -6,13 +6,13 @@ import {
   DEFAULT_Y_AXIS_MS,
 } from './animation-constants';
 import { CanvasManager } from './canvas-manager';
-import { registerChartViewport } from './internal/test-handles';
 import { renderCrosshair } from './components/crosshair';
 import { renderEdgeIndicator } from './components/edge-indicator';
 import { renderGrid } from './components/grid';
 import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
+import { registerChartViewport } from './internal/test-handles';
 import { RenderScheduler } from './render-scheduler';
 import { TimeScale } from './scales/time-scale';
 import { YScale } from './scales/y-scale';
@@ -350,7 +350,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     registerChartViewport(this, this.#viewport);
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
-    if (this.#axis.y?.format) this.yScale.setFormat(this.#axis.y.format);
     this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
     this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
 
@@ -795,17 +794,57 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   setAxis(config: AxisConfig): void {
     const prevYW = this.yAxisWidth;
     const prevXH = this.xAxisHeight;
+
     this.#axis = config;
     // Sync Y bounds from axis config
-    const newBounds: { min?: AxisBound; max?: AxisBound } = { min: config.y?.min, max: config.y?.max };
-    this.#yBounds = newBounds;
+    this.#yBounds = { min: config.y?.min, max: config.y?.max };
     this.#yInited = false;
-    this.yScale.setFormat(config.y?.format ?? null);
     this.updateYRange(true);
     if (this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH) {
       this.updateScales(true);
     }
     this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * Apply label-density knobs driven by `<YAxis labelCount=… minLabelSpacing=…>`
+   * — kept separate from {@link setAxis} so component props don't force a
+   * Y-animation reset. Triggers a viewportChange + repaint so static charts
+   * react without waiting for pan/zoom.
+   */
+  setYAxisLabelDensity(params: { labelCount?: number | null; minLabelSpacing?: number | null }): void {
+    let dirty = false;
+    if ('labelCount' in params) {
+      this.yScale.setLabelCount(params.labelCount ?? null);
+      dirty = true;
+    }
+    if ('minLabelSpacing' in params) {
+      this.yScale.setMinSpacing(params.minLabelSpacing ?? null);
+      dirty = true;
+    }
+    if (dirty) {
+      this.syncScales();
+      this.emit('viewportChange');
+      this.#mainScheduler.markDirty();
+    }
+  }
+
+  /** Label-density knobs for the time axis — mirror of {@link setYAxisLabelDensity}. */
+  setTimeAxisLabelDensity(params: { labelCount?: number | null; minLabelSpacing?: number | null }): void {
+    let dirty = false;
+    if ('labelCount' in params) {
+      this.timeScale.setLabelCount(params.labelCount ?? null);
+      dirty = true;
+    }
+    if ('minLabelSpacing' in params) {
+      this.timeScale.setMinSpacing(params.minLabelSpacing ?? null);
+      dirty = true;
+    }
+    if (dirty) {
+      this.syncScales();
+      this.emit('viewportChange');
+      this.#mainScheduler.markDirty();
+    }
   }
 
   getMediaSize() {
@@ -1157,7 +1196,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const chartWidth = size.media.width - this.yAxisWidth;
     const chartHeight = size.media.height - this.xAxisHeight;
 
-    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
+    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio, this.#dataInterval);
     this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);
   }
 
@@ -1168,7 +1207,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     const chartWidth = size.media.width - this.yAxisWidth; // Y axis
     const chartHeight = size.media.height - this.xAxisHeight; // time axis
 
-    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio);
+    this.timeScale.update(this.#viewport.visibleRange, chartWidth, size.horizontalPixelRatio, this.#dataInterval);
     this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);
     this.updateYRange(snap);
     this.yScale.update(this.#viewport.yRange, chartHeight, size.verticalPixelRatio);

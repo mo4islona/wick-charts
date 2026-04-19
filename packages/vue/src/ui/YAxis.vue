@@ -19,31 +19,12 @@ const chart = useChartInstance();
 // Subscribe to visible range to trigger re-renders on viewport changes
 const visibleRange = useVisibleRange(chart);
 
-// Route the formatter through yScale so Crosshair / YLabel fallback use the
-// same function as the axis labels. Capture the previous formatter (e.g.
-// one set via `axis.y.format` on `ChartContainer`) on first install and
-// restore it on unmount so YAxis never clobbers a chart-level default.
-let savedFormat: ValueFormatter | null = null;
-let installed = false;
-const installIfNeeded = () => {
-  if (props.format === undefined || installed) return;
-  savedFormat = chart.yScale.getFormat();
-  chart.yScale.setFormat(props.format);
-  installed = true;
-};
-onMounted(installIfNeeded);
-watch(
-  () => props.format,
-  (fn) => {
-    if (fn === undefined) return;
-    if (!installed) savedFormat = chart.yScale.getFormat();
-    chart.yScale.setFormat(fn);
-    installed = true;
-  },
-);
-onUnmounted(() => {
-  if (installed) chart.yScale.setFormat(savedFormat);
-});
+// Route the formatter through yScale so Crosshair / YLabel fallback use
+// the same function as the axis labels.
+const syncFormat = () => chart.yScale.setFormat(props.format ?? null);
+onMounted(syncFormat);
+watch(() => props.format, syncFormat);
+onUnmounted(() => chart.yScale.setFormat(null));
 
 const tickMap = new Map<number, TrackedTick>();
 
