@@ -150,7 +150,7 @@ interface LineSeriesProps {
 
 ```vue
 <script setup lang="ts">
-import { ChartContainer, LineSeries, Tooltip, Crosshair, YAxis, TimeAxis, dracula } from '@wick-charts/vue';
+import { ChartContainer, LineSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis, dracula } from '@wick-charts/vue';
 import type { TimePoint } from '@wick-charts/vue';
 
 const props = defineProps<{ data: TimePoint[] }>();
@@ -208,7 +208,7 @@ id?: string
 
 ```svelte
 <script>
-  import { ChartContainer, LineSeries, Tooltip, Crosshair, YAxis, TimeAxis, dracula } from '@wick-charts/svelte';
+  import { ChartContainer, LineSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis, dracula } from '@wick-charts/svelte';
   export let data = [];
 </script>
 

@@ -44,12 +44,25 @@ function installSizePatch(width = 800, height = 400): () => void {
     if (r.width > 0 && r.height > 0) return r;
     return { x: 0, y: 0, top: 0, left: 0, bottom: height, right: width, width, height, toJSON: () => ({}) } as DOMRect;
   };
-  const origDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+  // Capture descriptors for *both* patched properties so the cleanup fully
+  // restores the prototype — otherwise a leaked clientHeight getter causes
+  // order-dependent failures in later tests.
+  const origWidthDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+  const origHeightDesc = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => width });
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => height });
   return () => {
     HTMLDivElement.prototype.getBoundingClientRect = origRect;
-    if (origDesc) Object.defineProperty(HTMLElement.prototype, 'clientWidth', origDesc);
+    if (origWidthDesc) {
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', origWidthDesc);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    }
+    if (origHeightDesc) {
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', origHeightDesc);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight;
+    }
   };
 }
 
