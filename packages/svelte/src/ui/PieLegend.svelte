@@ -8,15 +8,11 @@ import { createLastYValue } from '../stores';
 export let seriesId: string;
 /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
 export let mode: 'value' | 'percent' | undefined = undefined;
-/**
- * Custom formatter for the absolute slice value.
- * @deprecated Passing `'value' | 'percent'` is the legacy display-mode
- * shorthand — use the `mode` prop instead.
- */
-export let format: ValueFormatter | 'value' | 'percent' | undefined = undefined;
+/** Custom formatter for the absolute slice value. */
+export let format: ValueFormatter | undefined = undefined;
 
-$: resolvedMode = (typeof format === 'string' ? format : (mode ?? 'value')) as 'value' | 'percent';
-$: resolvedFormat = (typeof format === 'function' ? format : formatCompact) as ValueFormatter;
+$: resolvedMode = (mode ?? 'value') as 'value' | 'percent';
+$: resolvedFormat = (format ?? formatCompact) as ValueFormatter;
 
 const chartStore = getChartContext();
 const themeStore = getThemeContext();

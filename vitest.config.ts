@@ -26,6 +26,9 @@ export default defineConfig({
       // https://github.com/capricorn86/happy-dom/issues or similar). jsdom
       // handles Svelte's scheduler correctly.
       ['packages/svelte/**', 'jsdom'],
+      // Playground React tests + hooks that touch localStorage/DOM.
+      ['docs/__tests__/useSettings.test.ts', 'happy-dom'],
+      ['docs/__tests__/search.test.tsx', 'happy-dom'],
     ],
     setupFiles: ['packages/react/test-setup.ts'],
     // Svelte 4's dev helper calls `set_current_component` with a stale component

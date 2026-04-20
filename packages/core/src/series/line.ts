@@ -10,11 +10,37 @@ import type { OverlayRenderContext, SeriesRenderContext, SeriesRenderer } from '
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
   colors: ['#2962FF'],
-  lineWidth: 1,
-  areaFill: true,
+  strokeWidthPx: 1,
+  area: { visible: true },
   pulse: true,
   stacking: 'off',
 };
+
+/**
+ * Normalize caller-supplied line options onto the new shape. Deprecated
+ * aliases (`lineWidth`, `areaFill`, `enterAnimation`, `enterMs`) are folded
+ * into their renamed counterparts so the rest of the renderer only reads the
+ * canonical fields.
+ */
+function normalizeLineOptions(input?: Partial<LineSeriesOptions>): Partial<LineSeriesOptions> {
+  if (!input) return {};
+
+  const out: Partial<LineSeriesOptions> = { ...input };
+  if (input.lineWidth !== undefined && input.strokeWidthPx === undefined) {
+    out.strokeWidthPx = input.lineWidth;
+  }
+  if ((input as { areaFill?: boolean }).areaFill !== undefined && input.area === undefined) {
+    out.area = { visible: !!(input as { areaFill?: boolean }).areaFill };
+  }
+  if (input.enterAnimation !== undefined && input.entryAnimation === undefined) {
+    out.entryAnimation = input.enterAnimation;
+  }
+  if (input.enterMs !== undefined && input.entryMs === undefined) {
+    out.entryMs = input.enterMs;
+  }
+
+  return out;
+}
 
 /** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
 function resolveMs(value: number | false | undefined, fallback: number): number {
@@ -50,7 +76,7 @@ export class LineRenderer implements SeriesRenderer {
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
     this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...DEFAULT_OPTIONS, ...normalizeLineOptions(options) };
     this.displayedLastValues = new Array(layerCount).fill(null);
     this.lastSeededTimes = new Array(layerCount).fill(Number.NaN);
     this.entries = Array.from({ length: layerCount }, () => new Map());
@@ -62,7 +88,7 @@ export class LineRenderer implements SeriesRenderer {
   }
 
   updateOptions(options: Partial<LineSeriesOptions>): void {
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...normalizeLineOptions(options) };
   }
 
   getColor(): string {
@@ -93,8 +119,8 @@ export class LineRenderer implements SeriesRenderer {
     const penultimate = store.last();
     const time = normalizeTime(p.time);
     store.append({ ...p, time });
-    const style = this.options.enterAnimation ?? 'grow';
-    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const style = this.options.entryAnimation ?? 'grow';
+    const enterMs = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (style !== 'none' && enterMs > 0) {
       this.entries[layerIndex]?.set(time, {
         startTime: performance.now(),
@@ -206,7 +232,7 @@ export class LineRenderer implements SeriesRenderer {
     const m = this.entries[layerIndex];
     const entry = m?.get(time);
     if (!entry) return 1;
-    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const duration = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       m.delete(time);
       return 1;
@@ -381,7 +407,7 @@ export class LineRenderer implements SeriesRenderer {
     const lastRawX = timeScale.timeToBitmapX(last.time);
     const lastRawY = yScale.valueToBitmapY(this.effectiveValue(layerIndex, last.time, last.value));
 
-    const style = this.options.enterAnimation ?? 'grow';
+    const style = this.options.entryAnimation ?? 'grow';
     const entry = this.peekEntry(layerIndex, last.time);
     if (!entry || style !== 'grow') {
       return { x: lastRawX, y: lastRawY };
@@ -410,10 +436,10 @@ export class LineRenderer implements SeriesRenderer {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
-    const hasStroke = this.options.lineWidth > 0;
-    const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
+    const hasStroke = this.options.strokeWidthPx > 0;
+    const lineWidth = Math.max(1, Math.round(this.options.strokeWidthPx * verticalPixelRatio));
     const now = performance.now();
-    const style = this.options.enterAnimation ?? 'grow';
+    const style = this.options.entryAnimation ?? 'grow';
 
     for (let li = 0; li < this.#stores.length; li++) {
       if (!this.#stores[li].isVisible()) continue;
@@ -463,7 +489,7 @@ export class LineRenderer implements SeriesRenderer {
       }
 
       // Area fill
-      if (this.options.areaFill) {
+      if (this.options.area.visible) {
         const firstX = timeScale.timeToBitmapX(data[0].time);
         const bottomY = scope.bitmapSize.height;
         context.lineTo(trailingX, bottomY);
@@ -493,8 +519,8 @@ export class LineRenderer implements SeriesRenderer {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
-    const hasStroke = this.options.lineWidth > 0;
-    const lineWidth = Math.max(1, Math.round(this.options.lineWidth * verticalPixelRatio));
+    const hasStroke = this.options.strokeWidthPx > 0;
+    const lineWidth = Math.max(1, Math.round(this.options.strokeWidthPx * verticalPixelRatio));
 
     // Collect per-layer data
     const pixelWidth = scope.mediaSize.width;
@@ -550,7 +576,7 @@ export class LineRenderer implements SeriesRenderer {
     // already-superseded segment or pull an off-screen point into the on-screen
     // tail.
     const now = performance.now();
-    const style = this.options.enterAnimation ?? 'grow';
+    const style = this.options.entryAnimation ?? 'grow';
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
     const lastVisibleIdx = times.length - 1;
@@ -617,7 +643,7 @@ export class LineRenderer implements SeriesRenderer {
       }
 
       // Fill area between upper and lower
-      if (this.options.areaFill) {
+      if (this.options.area.visible) {
         context.beginPath();
         context.moveTo(upperXY[0][0], upperXY[0][1]);
         for (let i = 1; i < upperXY.length; i++) {
@@ -789,7 +815,7 @@ export class LineRenderer implements SeriesRenderer {
         let pulseX = timeScale.timeToBitmapX(t);
         let pulseY = yScale.valueToBitmapY(cumulativeAt(t));
 
-        const appendStyle = this.options.enterAnimation ?? 'grow';
+        const appendStyle = this.options.entryAnimation ?? 'grow';
         const entry = this.peekEntry(li, t);
         if (appendStyle === 'grow' && entry) {
           const progress = this.entranceProgress(li, t, now);

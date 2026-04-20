@@ -3,9 +3,9 @@ import { type ReactNode, isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { siftContainerChildren } from '../ChartContainer';
+import { InfoBar as TooltipLegend } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
 import { Title } from '../ui/Title';
-import { TooltipLegend } from '../ui/TooltipLegend';
 
 // `<ChartContainer>` receives `children` as whatever React passes for JSX
 // children — typically an array of elements (for multiple children) or a

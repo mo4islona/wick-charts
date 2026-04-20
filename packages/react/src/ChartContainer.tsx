@@ -15,9 +15,9 @@ import { type AxisConfig, ChartInstance, type ChartOptions, type ChartTheme } fr
 
 import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
+import { InfoBar } from './ui/InfoBar';
 import { Legend } from './ui/Legend';
 import { Title } from './ui/Title';
-import { TooltipLegend } from './ui/TooltipLegend';
 
 /** Props for the {@link ChartContainer} component. */
 export interface ChartContainerProps {
@@ -42,10 +42,10 @@ export interface ChartContainerProps {
   gradient?: boolean;
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
-  /** Show the background grid. Defaults to true. */
-  grid?: boolean;
+  /** Background grid configuration. Default: `{ visible: true }`. */
+  grid?: { visible: boolean };
   /**
-   * How `<Title>` and `<TooltipLegend>` are positioned relative to the canvas.
+   * How `<Title>` and `<InfoBar>` are positioned relative to the canvas.
    * - `'overlay'` (default): absolute overlays on top of the canvas — the grid
    *   and Y-axis labels render full-height behind the header strip.
    * - `'inline'`: flex siblings above the canvas — the canvas (and grid) are
@@ -58,14 +58,14 @@ export interface ChartContainerProps {
 }
 
 /**
- * Split children into `<Title>`, `<Legend>`, `<TooltipLegend>`, and the rest.
+ * Split children into `<Title>`, `<Legend>`, `<InfoBar>`, and the rest.
  *
  * Transparently walks through `<React.Fragment>` wrappers so the caller can
  * use normal React patterns — e.g. wrapping children in a conditional
  * fragment or returning fragments from parent components — and still get
  * hoisting. Deeper component boundaries are left alone on purpose: a custom
- * component that internally renders a `<Title>` / `<TooltipLegend>` is its
- * own DOM subtree and should stay there.
+ * component that internally renders a `<Title>` / `<InfoBar>` is its own DOM
+ * subtree and should stay there.
  *
  * Exported for testing — this is pure React-children iteration with no DOM
  * dependencies, so it can be asserted in Node.
@@ -84,7 +84,7 @@ export function siftContainerChildren(children: ReactNode): {
   const visit = (child: ReactNode): void => {
     if (isValidElement(child) && child.type === Fragment) {
       // Unwrap fragments recursively — fragments don't produce DOM nodes,
-      // so a Title/Legend/TooltipLegend nested in one is still a layout-level sibling.
+      // so a Title/Legend/InfoBar nested in one is still a layout-level sibling.
       Children.forEach((child as ReactElement<{ children?: ReactNode }>).props.children, visit);
       return;
     }
@@ -97,7 +97,7 @@ export function siftContainerChildren(children: ReactNode): {
         legendEl = child;
         return;
       }
-      if (child.type === TooltipLegend) {
+      if (child.type === InfoBar) {
         tooltipLegendEl = child;
         return;
       }
@@ -113,8 +113,8 @@ export function siftContainerChildren(children: ReactNode): {
  * Top-level React wrapper that creates a {@link ChartInstance} and provides it to children via context.
  * Owns the DOM container and canvas lifecycle; renders children as an overlay layer.
  *
- * Detects `<Title>`, `<TooltipLegend>`, and `<Legend>` children and positions them as:
- *   - Title + TooltipLegend — absolutely-positioned *overlays* stacked at the top of the canvas
+ * Detects `<Title>`, `<InfoBar>`, and `<Legend>` children and positions them as:
+ *   - Title + InfoBar — absolutely-positioned *overlays* stacked at the top of the canvas
  *     block, so the canvas (and therefore the grid) fills the full container height. The stacked
  *     height is measured and fed back into `chart.setPadding({ top })` so series data stays below
  *     them.
@@ -152,6 +152,10 @@ export function ChartContainer({
     if (interactive !== undefined) options.interactive = interactive;
     if (grid !== undefined) options.grid = grid;
     chartRef.current = new ChartInstance(containerRef.current, options);
+
+    // Note: the init path above already propagated `grid` into the chart. The
+    // effect below handles live updates, but also needs to run on the same
+    // commit so an initial `grid={{visible:false}}` isn't silently reset.
     setRevision((r) => r + 1);
 
     return () => {
@@ -175,7 +179,16 @@ export function ChartContainer({
     if (chartRef.current && axis) {
       chartRef.current.setAxis(axis);
     }
-  }, [axis?.y?.width, axis?.y?.min, axis?.y?.max, axis?.y?.visible, axis?.x?.height, axis?.x?.visible]);
+  }, [
+    axis?.y?.widthPx,
+    axis?.y?.width,
+    axis?.y?.min,
+    axis?.y?.max,
+    axis?.y?.visible,
+    axis?.x?.heightPx,
+    axis?.x?.height,
+    axis?.x?.visible,
+  ]);
 
   // Top-overlay height (title + info bar) — measured below. Declared here so
   // the padding effect can fold it into `padding.top`.
@@ -212,7 +225,7 @@ export function ChartContainer({
     if (chartRef.current && grid !== undefined) {
       chartRef.current.setGrid(grid);
     }
-  }, [grid]);
+  }, [grid?.visible]);
 
   const chart = chartRef.current;
 

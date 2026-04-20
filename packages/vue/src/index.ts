@@ -79,6 +79,7 @@ export { useChartInstance, useTheme } from './context';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
+export { default as InfoBar } from './ui/InfoBar.vue';
 export { default as Legend } from './ui/Legend.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
@@ -87,6 +88,7 @@ export { default as TimeAxis } from './ui/TimeAxis.vue';
 export { default as Title } from './ui/Title.vue';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.vue';
+/** @deprecated Use {@link InfoBar} instead. */
 export { default as TooltipLegend } from './ui/TooltipLegend.vue';
 export { default as YAxis } from './ui/YAxis.vue';
 export { default as YLabel } from './ui/YLabel.vue';

@@ -86,6 +86,10 @@ export {
 } from './store-bridge';
 export { ThemeProvider, useTheme } from './ThemeContext';
 export { Crosshair } from './ui/Crosshair';
+/** @deprecated Use {@link InfoBarProps} instead. */
+export type { InfoBarProps, TooltipLegendProps } from './ui/InfoBar';
+/** @deprecated Use {@link InfoBar} instead. */
+export { InfoBar, TooltipLegend } from './ui/InfoBar';
 export type { LegendItem, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
@@ -101,8 +105,6 @@ export { Title } from './ui/Title';
 export type { TooltipSort } from './ui/Tooltip';
 // UI overlays
 export { Tooltip } from './ui/Tooltip';
-export type { TooltipLegendProps } from './ui/TooltipLegend';
-export { TooltipLegend } from './ui/TooltipLegend';
 export type { YAxisProps } from './ui/YAxis';
 export { YAxis } from './ui/YAxis';
 export { YLabel } from './ui/YLabel';

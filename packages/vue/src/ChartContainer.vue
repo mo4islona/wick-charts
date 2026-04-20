@@ -2,12 +2,14 @@
 import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
-import { ChartKey, LegendAnchorKey, LegendRightAnchorKey, ThemeKey, TitleAnchorKey, TooltipLegendAnchorKey } from './context';
+import { ChartKey, InfoBarAnchorKey, LegendAnchorKey, LegendRightAnchorKey, ThemeKey, TitleAnchorKey } from './context';
 
 const props = withDefaults(
   defineProps<{
     theme?: ChartTheme;
     axis?: AxisConfig;
+    /** Background grid configuration. Default: `{ visible: true }`. */
+    grid?: { visible: boolean };
   }>(),
   {
     theme: () => darkTheme,
@@ -25,14 +27,14 @@ const themeRef = shallowRef<ChartTheme>(props.theme);
 // so data stays below the header.
 const topOverlayRef = ref<HTMLElement | null>(null);
 const titleAnchor = ref<HTMLElement | null>(null);
-const tooltipLegendAnchor = ref<HTMLElement | null>(null);
+const infoBarAnchor = ref<HTMLElement | null>(null);
 const legendAnchor = ref<HTMLElement | null>(null);
 const legendRightAnchor = ref<HTMLElement | null>(null);
 
 provide(ChartKey, chart);
 provide(ThemeKey, themeRef);
 provide(TitleAnchorKey, titleAnchor);
-provide(TooltipLegendAnchorKey, tooltipLegendAnchor);
+provide(InfoBarAnchorKey, infoBarAnchor);
 provide(LegendAnchorKey, legendAnchor);
 provide(LegendRightAnchorKey, legendRightAnchor);
 
@@ -49,6 +51,7 @@ onMounted(async () => {
   const options: any = {};
   if (props.axis) options.axis = props.axis;
   if (props.theme) options.theme = props.theme;
+  if (props.grid !== undefined) options.grid = props.grid;
   chart.value = new ChartInstance(containerRef.value, options);
 
   await nextTick();
@@ -87,6 +90,13 @@ watch(
   { deep: true },
 );
 
+watch(
+  () => props.grid?.visible,
+  () => {
+    if (chart.value && props.grid !== undefined) chart.value.setGrid(props.grid);
+  },
+);
+
 const rootStyle = computed(() => {
   const t = themeRef.value;
   const [gtop, gbot] = t?.chartGradient ?? ['transparent', 'transparent'];
@@ -105,7 +115,7 @@ const rootStyle = computed(() => {
         ref="containerRef"
         style="position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden"
       >
-        <!-- Top overlay (Title + TooltipLegend) — stacked absolute inside the
+        <!-- Top overlay (Title + InfoBar) — stacked absolute inside the
              canvas block so the grid extends full-height behind them. -->
         <div
           ref="topOverlayRef"
@@ -113,7 +123,7 @@ const rootStyle = computed(() => {
           style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
         >
           <div ref="titleAnchor" data-chart-title-anchor="" />
-          <div ref="tooltipLegendAnchor" data-tooltip-legend-anchor="" />
+          <div ref="infoBarAnchor" data-tooltip-legend-anchor="" />
         </div>
         <div
           v-if="chart"

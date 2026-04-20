@@ -17,7 +17,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('single-layer: beginPath → moveTo → (N-1) lineTo → stroke', () => {
-    const r = new LineRenderer(1, { areaFill: false });
+    const r = new LineRenderer(1, { area: { visible: false } });
     r.setData(seed(5), 0);
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
     r.render(ctx);
@@ -29,7 +29,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('stroke color matches the layer color', () => {
-    const r = new LineRenderer(1, { areaFill: false, colors: ['#abcdef'] });
+    const r = new LineRenderer(1, { area: { visible: false }, colors: ['#abcdef'] });
     r.setData(seed(3), 0);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -39,7 +39,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('multi-layer stacking=off: one beginPath per visible layer, distinct colors', () => {
-    const r = new LineRenderer(3, { areaFill: false, stacking: 'off', colors: ['#111', '#222', '#333'] });
+    const r = new LineRenderer(3, { area: { visible: false }, stacking: 'off', colors: ['#111', '#222', '#333'] });
     r.setData(seed(3), 0);
     r.setData(seed(3, 10), 1);
     r.setData(seed(3, 20), 2);
@@ -52,8 +52,8 @@ describe('LineRenderer.render', () => {
     expect(strokeColors).toEqual(['#111', '#222', '#333']);
   });
 
-  it('areaFill: true → each layer also calls fill() with a gradient fillStyle', () => {
-    const r = new LineRenderer(1, { areaFill: true, colors: ['#00f'] });
+  it('area: { visible: true } → each layer also calls fill() with a gradient fillStyle', () => {
+    const r = new LineRenderer(1, { area: { visible: true }, colors: ['#00f'] });
     r.setData(seed(4), 0);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -64,7 +64,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('hidden layer is skipped (no beginPath/stroke for it)', () => {
-    const r = new LineRenderer(2, { areaFill: false, stacking: 'off', colors: ['#111', '#222'] });
+    const r = new LineRenderer(2, { area: { visible: false }, stacking: 'off', colors: ['#111', '#222'] });
     r.setData(seed(3), 0);
     r.setData(seed(3, 10), 1);
     r.setLayerVisible(1, false);
@@ -76,7 +76,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('fewer than 2 points → layer is skipped (cannot draw a line)', () => {
-    const r = new LineRenderer(2, { areaFill: false, stacking: 'off' });
+    const r = new LineRenderer(2, { area: { visible: false }, stacking: 'off' });
     r.setData([{ time: 5, value: 1 }], 0); // single point
     r.setData(seed(3), 1);
     const { ctx, spy } = buildRenderContext();
@@ -88,7 +88,7 @@ describe('LineRenderer.render', () => {
   it('stacking=normal: each visible layer draws a stroked edge (top-down order)', () => {
     const r = new LineRenderer(2, {
       stacking: 'normal',
-      areaFill: false,
+      area: { visible: false },
       colors: ['#aaa', '#bbb'],
     });
     r.setData(seed(3, 0, 1), 0);
@@ -109,7 +109,7 @@ describe('LineRenderer.render', () => {
   });
 
   it('mixed Date/number input normalizes through setData (regression #4)', () => {
-    const r = new LineRenderer(1, { areaFill: false });
+    const r = new LineRenderer(1, { area: { visible: false } });
     r.setData([
       { time: 10, value: 1 },
       { time: new Date(30), value: 2 }, // Date in the middle
@@ -128,7 +128,7 @@ describe('LineRenderer.render', () => {
 
 describe('LineRenderer.drawOverlay', () => {
   it('pulse dots: each visible layer with data draws a glow + dot arc on the overlay', () => {
-    const r = new LineRenderer(2, { areaFill: false, pulse: true, colors: ['#111', '#222'] });
+    const r = new LineRenderer(2, { area: { visible: false }, pulse: true, colors: ['#111', '#222'] });
     r.setData(seed(3), 0);
     r.setData(seed(3, 10), 1);
     const { overlayCtx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
@@ -139,7 +139,7 @@ describe('LineRenderer.drawOverlay', () => {
   });
 
   it('crosshair present → extra arcs for nearest-point markers', () => {
-    const r = new LineRenderer(1, { areaFill: false, pulse: false, colors: ['#111'] });
+    const r = new LineRenderer(1, { area: { visible: false }, pulse: false, colors: ['#111'] });
     r.setData(seed(5), 0);
     const { overlayCtx, spy } = buildRenderContext({ yRange: { min: 0, max: 10 } });
     r.drawOverlay(overlayCtx({ mediaX: 50, mediaY: 100, time: 25, y: 2 }));

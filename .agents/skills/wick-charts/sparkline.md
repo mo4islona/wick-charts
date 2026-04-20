@@ -38,10 +38,10 @@ interface SparklineProps {
   sublabel?: string;                      // text below the value (overrides change %)
   color?: string;                         // line/bar color override
   negativeColor?: string;                 // color for negative bars
-  areaFill?: boolean;                     // default: true (line variant only)
+  area?: { visible: boolean };            // default: { visible: true } (line variant only)
   width?: number;                         // chart width, default: 140
   height?: number;                        // container height, default: 48
-  lineWidth?: number;                     // default: 1.5
+  strokeWidthPx?: number;                 // default: 1.5
   gradient?: boolean;                     // background gradient, default: true
   style?: CSSProperties;                  // container style override
 }
@@ -116,4 +116,4 @@ import { Sparkline, darkTheme } from '@wick-charts/react';
 
 - The component reads `theme.seriesColors[0]`, `theme.candlestick.upColor/downColor`, `theme.tooltip.*`, and `theme.axis.textColor` — all themes in `@wick-charts/core` provide these.
 - Pass `theme` explicitly — `Sparkline` does not read from `ThemeProvider` context.
-- For a fully-custom layout, render a `ChartContainer` with `interactive={false}`, `grid={false}`, and hidden axes directly instead.
+- For a fully-custom layout, render a `ChartContainer` with `interactive={false}`, `grid={{ visible: false }}`, and hidden axes directly instead.

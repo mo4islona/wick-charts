@@ -8,8 +8,6 @@ export interface BarSeriesProps {
   /** Array of datasets — one per layer. A single-layer bar chart uses `[data]`. */
   data: TimePoint[][];
   options?: Partial<BarSeriesOptions>;
-  /** Display label shown in the tooltip. */
-  label?: string;
   /** Stable series ID — same value across remounts. */
   id?: string;
 }
@@ -19,7 +17,7 @@ export interface BarSeriesProps {
  * like bulk loads and the renderer would clear its entrance-animation entries. */
 const BULK_THRESHOLD = 20;
 
-export function BarSeries({ data, options, label, id: idProp }: BarSeriesProps) {
+export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLensRef = useRef<number[]>([]);
@@ -27,7 +25,7 @@ export function BarSeries({ data, options, label, id: idProp }: BarSeriesProps) 
   const prevLastTimesRef = useRef<(number | null)[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addBarSeries({ ...options, label: label ?? options?.label, layers: data.length, id: idProp });
+    const id = chart.addBarSeries({ ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);
@@ -98,7 +96,9 @@ export function BarSeries({ data, options, label, id: idProp }: BarSeriesProps) 
     options?.colors?.join(','),
     options?.barWidthRatio,
     options?.stacking,
+    options?.entryAnimation,
     options?.enterAnimation,
+    options?.entryMs,
     options?.enterMs,
     options?.smoothMs,
   ]);

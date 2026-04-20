@@ -7,7 +7,6 @@ import { useChartInstance } from './context';
 const props = defineProps<{
   data: TimePoint[][];
   options?: Partial<BarSeriesOptions>;
-  label?: string;
   /** Stable series ID — same value across remounts. */
   id?: string;
 }>();
@@ -18,7 +17,6 @@ const seriesId = ref<string | null>(null);
 onMounted(() => {
   const id = chart.addBarSeries({
     ...props.options,
-    label: props.label ?? props.options?.label,
     layers: props.data.length,
     id: props.id,
   });

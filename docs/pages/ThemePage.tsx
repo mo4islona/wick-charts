@@ -7,11 +7,11 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  InfoBar,
   LineSeries,
   TimeAxis,
   Title,
   Tooltip,
-  TooltipLegend,
   YAxis,
 } from '@wick-charts/react';
 
@@ -106,7 +106,7 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="custom theme">Candlestick</Title>
-      <TooltipLegend seriesId={sid} />
+      <InfoBar seriesId={sid} />
       <CandlestickSeries id={sid} data={ohlcData} />
       <Tooltip seriesId={sid} />
       <Crosshair />
@@ -122,14 +122,14 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="3 series">Line</Title>
-      <TooltipLegend seriesId={sid} />
+      <InfoBar seriesId={sid} />
       <LineSeries
         id={sid}
         data={allData}
         options={{
           colors: theme.seriesColors.slice(0, allData.length),
-          areaFill: true,
-          lineWidth: 1,
+          area: { visible: true },
+          strokeWidthPx: 1,
           pulse: true,
         }}
       />

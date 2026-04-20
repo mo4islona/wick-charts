@@ -4,28 +4,30 @@ import { onDestroy, onMount, tick } from 'svelte';
 
 import {
   initChartContext,
+  initInfoBarAnchor,
   initLegendAnchor,
   initLegendRightAnchor,
   initThemeContext,
   initTitleAnchor,
-  initTooltipLegendAnchor,
 } from './context';
 
 export let theme: ChartTheme = darkTheme;
 export let axis: AxisConfig | undefined = undefined;
+/** Background grid configuration. Default: `{ visible: true }`. */
+export let grid: { visible: boolean } | undefined = undefined;
 export let style: string = '';
 
 let containerEl: HTMLDivElement;
 let topOverlayEl: HTMLDivElement;
 let titleAnchorEl: HTMLDivElement;
-let tooltipLegendAnchorEl: HTMLDivElement;
+let infoBarAnchorEl: HTMLDivElement;
 let legendAnchorEl: HTMLDivElement;
 let legendRightAnchorEl: HTMLDivElement;
 
 const chartStore = initChartContext();
 const themeStore = initThemeContext(theme);
 const titleAnchorStore = initTitleAnchor();
-const tooltipLegendAnchorStore = initTooltipLegendAnchor();
+const infoBarAnchorStore = initInfoBarAnchor();
 const legendAnchorStore = initLegendAnchor();
 const legendRightAnchorStore = initLegendRightAnchor();
 
@@ -41,13 +43,14 @@ onMount(() => {
   const options: any = {};
   if (axis) options.axis = axis;
   if (theme) options.theme = theme;
+  if (grid !== undefined) options.grid = grid;
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
   // Publish anchors only after DOM is mounted so child components (Title,
-  // TooltipLegend, Legend) can subscribe and portal into them.
+  // InfoBar, Legend) can subscribe and portal into them.
   void tick().then(() => {
     titleAnchorStore.set(titleAnchorEl);
-    tooltipLegendAnchorStore.set(tooltipLegendAnchorEl);
+    infoBarAnchorStore.set(infoBarAnchorEl);
     legendAnchorStore.set(legendAnchorEl);
     legendRightAnchorStore.set(legendRightAnchorEl);
     // Measure the stacked top overlay (title + info bar) so data respects
@@ -71,7 +74,7 @@ onDestroy(() => {
   instance = null;
   chartStore.set(null);
   titleAnchorStore.set(null);
-  tooltipLegendAnchorStore.set(null);
+  infoBarAnchorStore.set(null);
   legendAnchorStore.set(null);
   legendRightAnchorStore.set(null);
 });
@@ -83,6 +86,10 @@ $: if (instance && theme) {
 
 $: if (instance && axis) {
   instance.setAxis(axis);
+}
+
+$: if (instance && grid !== undefined) {
+  instance.setGrid(grid);
 }
 
 $: gradientBg = (() => {
@@ -114,7 +121,7 @@ $: gradientBg = (() => {
         style="position:absolute;top:0;left:0;right:0;z-index:2;pointer-events:none;display:flex;flex-direction:column"
       >
         <div bind:this={titleAnchorEl} data-chart-title-anchor=""></div>
-        <div bind:this={tooltipLegendAnchorEl} data-tooltip-legend-anchor=""></div>
+        <div bind:this={infoBarAnchorEl} data-tooltip-legend-anchor=""></div>
       </div>
       {#if $chartStore}
         <div

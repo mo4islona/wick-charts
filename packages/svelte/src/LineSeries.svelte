@@ -7,7 +7,6 @@ import { getChartContext } from './context';
 
 export let data: TimePoint[][] = [];
 export let options: Partial<LineSeriesOptions> | undefined = undefined;
-export let label: string | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;
 
@@ -17,7 +16,7 @@ let seriesId: string | null = null;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addLineSeries({ ...options, label: label ?? options?.label, layers: data.length, id });
+  seriesId = chart.addLineSeries({ ...options, layers: data.length, id });
 });
 
 onDestroy(() => {

@@ -13,7 +13,7 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 - `@wick-charts/vue` — components + composables
 - `@wick-charts/svelte` — components + stores
 
-Core components (`ChartContainer`, all `*Series`, `Tooltip`, `TooltipLegend`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
+Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
 Framework-specific gaps to know about:
 
@@ -37,14 +37,15 @@ Root component. Requires a defined width + height.
   theme={darkTheme}
   axis={{ y: { min: 0, max: 'auto' }, x: { visible: true } }}
   padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
-  gradient grid interactive
+  gradient grid={{ visible: true }} interactive
+  headerLayout="overlay"
   style={{ width: '100%', height: 400 }}
 >
   {/* series + overlays */}
 </ChartContainer>
 ```
 
-React props: `theme`, `axis`, `padding`, `gradient`, `grid`, `interactive`, `style`, `className` (all optional, safe defaults). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots.
+React props: `theme`, `axis`, `padding`, `gradient`, `grid`, `interactive`, `headerLayout`, `style`, `className` (all optional, safe defaults). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible: boolean }` — pass `grid={{ visible: false }}` to hide. `axis.y` / `axis.x` accept `widthPx` / `heightPx` respectively for axis gutter sizing. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead.
 
 Vue / Svelte props (current subset): `theme`, `axis` (+ `style` in Svelte). `padding`/`gradient`/`grid`/`interactive` are React-only at the moment — use the sensible defaults on Vue and Svelte, or size via the wrapping element.
 
@@ -57,22 +58,22 @@ Placed as children of `ChartContainer`.
 | Component | Props | Notes |
 |---|---|---|
 | `Title` | `children`, `sub?` | Title bar, hoisted above canvas |
-| `TooltipLegend` | `seriesId?`, `sort?`, `format?` | OHLC / values info bar, hoisted above canvas |
+| `InfoBar` | `seriesId?`, `sort?`, `format?` | OHLC / values info bar, hoisted above canvas |
 | `Tooltip` | `seriesId?`, `sort?`, `format?` | Floating glass tooltip near cursor (hover only) |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'solo'` | Series legend, hoisted below / beside canvas |
+| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | Series legend, hoisted below / beside canvas |
 | `Crosshair` | — | Axis labels at cursor |
 | `YAxis` | `format?` | Vertical tick axis |
 | `TimeAxis` (alias `XAxis`) | — | Horizontal time axis |
 | `YLabel` | `seriesId`, `color?`, `format?` | Floating price badge + dashed line |
 | `PieTooltip` | `seriesId`, `format?` | Pie hover tooltip |
-| `PieLegend` | `seriesId`, `mode?: 'value'\|'percent'`, `format?` | Pie slice list |
+| `PieLegend` | `seriesId`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | Pie slice list (function formatter only) |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
 
-**Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `TooltipLegend` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
+**Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `InfoBar` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
 
-**Hoisting**: `Title` + `TooltipLegend` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / TooltipLegend so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="solo"` isolates that item and a second click restores all).
+**Hoisting**: `Title` + `InfoBar` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / InfoBar so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="isolate"` isolates that item and a second click restores all).
 
-`Tooltip` is **floating-only**. For the top info bar, use `<TooltipLegend>` — the two are complementary and usually composed together.
+`Tooltip` is **floating-only**. For the top info bar, use `<InfoBar>` — the two are complementary and usually composed together.
 
 ## Themes
 
@@ -111,16 +112,16 @@ React/Vue return plain values / refs; Svelte returns `Readable<T>` — read with
 
 ## Multi-series overlay
 
-Pass a stable `id` prop to the series and reuse it across overlays that target it (`TooltipLegend`, `Tooltip`, `YLabel`, `PieTooltip`, `PieLegend`).
+Pass a stable `id` prop to the series and reuse it across overlays that target it (`InfoBar`, `Tooltip`, `YLabel`, `PieTooltip`, `PieLegend`).
 
 ```tsx
 const candleId = 'btc-ohlc';
 
 <ChartContainer theme={darkTheme}>
   <Title sub="BTC · 1h">BTC/USD</Title>
-  <TooltipLegend seriesId={candleId} />
+  <InfoBar seriesId={candleId} />
   <CandlestickSeries id={candleId} data={ohlc} />
-  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], lineWidth: 1 }} label="SMA 20" />
+  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], strokeWidthPx: 1, label: 'SMA 20' }} />
   <Tooltip />
   <Crosshair />
   <YAxis />

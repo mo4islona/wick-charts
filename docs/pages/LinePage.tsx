@@ -3,35 +3,40 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  InfoBar,
   Legend,
   type LineData,
   LineSeries,
   Title,
   Tooltip,
-  TooltipLegend,
   type TooltipSort,
   XAxis,
   YAxis,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Select, Slider, Switch, ToggleGroup } from '../components/controls';
-import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import { ICONS } from '../components/playground/icons';
+import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
+import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { type LineStrategy, generateLineData, generateWaveData, lineDriftStrategy, waveStrategy } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
 
 type DataMode = 'wave' | 'line';
+type LegendPos = 'off' | 'bottom' | 'right';
+type LegendMode = 'toggle' | 'isolate';
 
 interface LineSettings {
   dataMode: DataMode;
-  areaFill: boolean;
-  lineWidth: number;
+  areaVisible: boolean;
+  strokeWidthPx: number;
   stacking: BarStacking;
   tooltipSort: TooltipSort;
-  legendPos: 'off' | 'bottom' | 'right';
-  legendMode: 'toggle' | 'solo';
-  showTooltipLegend: boolean;
+  legendPos: LegendPos;
+  legendMode: LegendMode;
+  infoBarVisible: boolean;
+  tooltipVisible: boolean;
 }
 
 const MULTI_COUNT = 6;
@@ -47,6 +52,7 @@ function makeData(mode: DataMode, count: number, index: number): LineData[] {
       interval: DEMO_INTERVAL,
     });
   }
+
   return generateLineData(count, 80 + index * 30, DEMO_INTERVAL);
 }
 
@@ -69,30 +75,29 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const { datasets } = useLineStreams(props.allData, {
     startDelay: 300,
     interval: DEMO_INTERVAL,
-    // See CandlestickPage for why a playground speed multiplier is needed even
-    // at the canonical interval: keeps append animations visibly frequent.
     speed: 5,
     strategy: strategyFor(props.dataMode),
   });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const sid = 'line';
+
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
-      <Title sub={props.areaFill ? 'area' : 'line'}>Single</Title>
-      {props.showTooltipLegend && <TooltipLegend seriesId={sid} sort={props.tooltipSort} />}
+      <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
+      {props.infoBarVisible && <InfoBar seriesId={sid} sort={props.tooltipSort} />}
       <LineSeries
         id={sid}
         data={data}
         options={{
-          areaFill: props.areaFill,
-          lineWidth: props.lineWidth,
+          area: { visible: props.areaVisible },
+          strokeWidthPx: props.strokeWidthPx,
           pulse: props.streaming,
-          enterAnimation: props.lineEnterAnimation,
-          enterMs: props.enterMs,
+          entryAnimation: props.lineEntryAnimation,
+          entryMs: props.entryMs,
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      <Tooltip seriesId={sid} sort={props.tooltipSort} />
+      {props.tooltipVisible && <Tooltip seriesId={sid} sort={props.tooltipSort} />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -109,24 +114,25 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
     strategy: strategyFor(props.dataMode),
   });
   const display = props.streaming ? datasets : props.allData;
+
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
-      {props.showTooltipLegend && <TooltipLegend sort={props.tooltipSort} />}
+      {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         data={display}
         options={{
           colors: props.theme.seriesColors.slice(0, display.length),
-          areaFill: props.areaFill,
-          lineWidth: props.lineWidth,
+          area: { visible: props.areaVisible },
+          strokeWidthPx: props.strokeWidthPx,
           pulse: props.streaming,
           stacking: props.stacking,
-          enterAnimation: props.lineEnterAnimation,
-          enterMs: props.enterMs,
+          entryAnimation: props.lineEntryAnimation,
+          entryMs: props.entryMs,
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      <Tooltip sort={props.tooltipSort} />
+      {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -135,26 +141,161 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   );
 }
 
+const DISPLAY_EXTRA: SectionSpec = {
+  id: 'display-line',
+  title: 'Display',
+  extend: 'display',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'tooltipVisible',
+      label: 'Tooltip',
+      hint: 'On hover',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'infoBarVisible',
+      label: 'Info bar',
+      hint: 'Series values above the chart',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'areaVisible',
+      label: 'Area gradient',
+      hint: 'Below the line',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+  ] as RowSpec[],
+};
+
+const SERIES_SECTION: SectionSpec = {
+  id: 'series',
+  title: 'Series',
+  icon: ICONS.series,
+  rows: [
+    {
+      key: 'dataMode',
+      label: 'Data',
+      render: (v, onChange) => (
+        <Select<DataMode>
+          value={v as DataMode}
+          options={[
+            { value: 'wave', label: 'Wave' },
+            { value: 'line', label: 'Random' },
+          ]}
+          onChange={onChange as (v: DataMode) => void}
+        />
+      ),
+    },
+    {
+      key: 'stacking',
+      label: 'Stack',
+      render: (v, onChange) => (
+        <ToggleGroup<BarStacking>
+          value={v as BarStacking}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'percent', label: '100%' },
+          ]}
+          onChange={onChange as (v: BarStacking) => void}
+        />
+      ),
+    },
+    {
+      key: 'strokeWidthPx',
+      label: 'Stroke width',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={5} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const TOOLTIP_SECTION: SectionSpec = {
+  id: 'tooltip',
+  title: 'Tooltip',
+  icon: ICONS.tooltip,
+  rows: [
+    {
+      key: 'tooltipSort',
+      label: 'Sort',
+      render: (v, onChange) => (
+        <ToggleGroup<TooltipSort>
+          value={v as TooltipSort}
+          options={[
+            { value: 'none', label: 'None' },
+            { value: 'asc', label: 'Asc' },
+            { value: 'desc', label: 'Desc' },
+          ]}
+          onChange={onChange as (v: TooltipSort) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const LEGEND_SECTION: SectionSpec = {
+  id: 'legend',
+  title: 'Legend',
+  icon: ICONS.legend,
+  rows: [
+    {
+      key: 'legendPos',
+      label: 'Position',
+      render: (v, onChange) => (
+        <Select<LegendPos>
+          value={v as LegendPos}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'bottom', label: 'Bottom' },
+            { value: 'right', label: 'Right' },
+          ]}
+          onChange={onChange as (v: LegendPos) => void}
+        />
+      ),
+    },
+    {
+      key: 'legendMode',
+      label: 'On click',
+      visible: (s) => s.legendPos !== 'off',
+      render: (v, onChange) => (
+        <ToggleGroup<LegendMode>
+          value={v as LegendMode}
+          options={[
+            { value: 'toggle', label: 'Show / Hide' },
+            { value: 'isolate', label: 'Focus' },
+          ]}
+          onChange={onChange as (v: LegendMode) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
 export function LinePage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<LineSettings>
       id="line"
       theme={theme}
       animationKinds={['line']}
-      defaults={{
+      extraDefaults={{
         dataMode: 'wave',
-        areaFill: false,
-        lineWidth: 1,
+        areaVisible: false,
+        strokeWidthPx: 1,
         stacking: 'off',
         tooltipSort: 'desc',
         legendPos: 'bottom',
         legendMode: 'toggle',
-        showTooltipLegend: true,
+        infoBarVisible: true,
+        tooltipVisible: true,
       }}
+      sections={[DISPLAY_EXTRA, SERIES_SECTION, TOOLTIP_SECTION, LEGEND_SECTION]}
       charts={(props) => {
         const single = [makeData(props.dataMode, 300, 0)];
         const multi = Array.from({ length: MULTI_COUNT }, (_, i) => makeData(props.dataMode, 300, i));
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
+
         return (
           <>
             <Cell theme={props.theme}>
@@ -171,97 +312,6 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
           </>
         );
       }}
-      settings={(s, set) => (
-        <>
-          <Section title="Series" theme={theme} noBorder>
-            <ToggleGroup
-              label="Fill"
-              options={[
-                { value: 'line', label: 'Line' },
-                { value: 'area', label: 'Area' },
-              ]}
-              value={s.areaFill ? 'area' : 'line'}
-              onChange={(v) => set({ areaFill: v === 'area' })}
-              theme={theme}
-            />
-            <Select
-              label="Data"
-              options={[
-                { value: 'wave', label: 'Wave' },
-                { value: 'line', label: 'Random' },
-              ]}
-              value={s.dataMode}
-              onChange={(v) => set({ dataMode: v as DataMode })}
-              theme={theme}
-            />
-            <ToggleGroup
-              label="Stack"
-              options={[
-                { value: 'off', label: 'Off' },
-                { value: 'normal', label: 'Normal' },
-                { value: 'percent', label: '100%' },
-              ]}
-              value={s.stacking}
-              onChange={(v) => set({ stacking: v as BarStacking })}
-              theme={theme}
-            />
-            <Slider
-              label="Line width"
-              value={s.lineWidth}
-              onChange={(v) => set({ lineWidth: v })}
-              min={0}
-              max={5}
-              step={0.5}
-              suffix="px"
-              theme={theme}
-            />
-          </Section>
-          <Section title="Tooltip" theme={theme} accent={theme.axis.textColor}>
-            <ToggleGroup
-              label="Sort"
-              options={[
-                { value: 'none', label: 'None' },
-                { value: 'asc', label: 'Asc' },
-                { value: 'desc', label: 'Desc' },
-              ]}
-              value={s.tooltipSort}
-              onChange={(v) => set({ tooltipSort: v as TooltipSort })}
-              theme={theme}
-            />
-            <Switch
-              label="Info bar"
-              checked={s.showTooltipLegend}
-              onChange={(v) => set({ showTooltipLegend: v })}
-              theme={theme}
-            />
-          </Section>
-          <Section title="Legend" theme={theme} accent={theme.axis.textColor}>
-            <Select
-              label="Position"
-              options={[
-                { value: 'off', label: 'Off' },
-                { value: 'bottom', label: 'Bottom' },
-                { value: 'right', label: 'Right' },
-              ]}
-              value={s.legendPos}
-              onChange={(v) => set({ legendPos: v as 'off' | 'bottom' | 'right' })}
-              theme={theme}
-            />
-            {s.legendPos !== 'off' && (
-              <ToggleGroup
-                label="On click"
-                options={[
-                  { value: 'toggle', label: 'Show / Hide' },
-                  { value: 'solo', label: 'Focus' },
-                ]}
-                value={s.legendMode}
-                onChange={(v) => set({ legendMode: v as 'toggle' | 'solo' })}
-                theme={theme}
-              />
-            )}
-          </Section>
-        </>
-      )}
       codeConfig={(s) => ({
         theme: 'darkTheme',
         components: [
@@ -270,13 +320,14 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             props: {
               data: 'data',
               options: {
-                ...(s.areaFill ? { areaFill: true } : {}),
-                ...(s.lineWidth !== 1 ? { lineWidth: s.lineWidth } : {}),
+                ...(s.areaVisible ? { area: { visible: true } } : {}),
+                ...(s.strokeWidthPx !== 1 ? { strokeWidthPx: s.strokeWidthPx } : {}),
                 ...(s.streaming ? { pulse: true } : {}),
                 ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
               },
             },
           },
+          ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
           { component: 'Tooltip' },
           { component: 'Crosshair' },
           { component: 'YAxis' },

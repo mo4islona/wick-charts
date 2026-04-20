@@ -75,8 +75,8 @@ describe('PieRenderer.render', () => {
     for (const f of fills) expect(f.fillStyle).toContain('gradient(radial');
   });
 
-  it('stroke-draw suppressed when strokeWidth=0 or strokeColor=transparent', () => {
-    const r = new PieRenderer({ strokeWidth: 0, strokeColor: 'transparent' });
+  it('stroke-draw suppressed when stroke.widthPx=0 or stroke.color=transparent', () => {
+    const r = new PieRenderer({ stroke: { widthPx: 0, color: 'transparent' } });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);

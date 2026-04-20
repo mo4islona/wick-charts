@@ -44,25 +44,25 @@ describe('ChartContainer props', () => {
     expect(mounted.chart.xAxisHeight).toBe(0);
   });
 
-  it('custom axis.y.width overrides the default', () => {
-    mounted = mountChart(<CandlestickSeries data={ohlc} />, { axis: { y: { width: 80 } } });
+  it('custom axis.y.widthPx overrides the default', () => {
+    mounted = mountChart(<CandlestickSeries data={ohlc} />, { axis: { y: { widthPx: 80 } } });
     expect(mounted.chart.yAxisWidth).toBe(80);
   });
 
-  it('grid=false skips background grid draw calls', () => {
+  it('grid={{visible:false}} skips background grid draw calls', () => {
     const lineData: [Array<{ time: number; value: number }>] = [
       [
         { time: 1, value: 1 },
         { time: 2, value: 2 },
       ],
     ];
-    // Baseline: grid=true draws grid lines (stroke calls with grid color).
+    // Baseline: grid={{visible:true}} draws grid lines (stroke calls with grid color).
     const withGrid = mountChart(
       <>
         <LineSeries data={lineData} />
         <YAxis />
       </>,
-      { grid: true },
+      { grid: { visible: true } },
     );
     const withGridStrokes = withGrid.mainSpy.countOf('stroke');
     withGrid.unmount();
@@ -72,11 +72,11 @@ describe('ChartContainer props', () => {
         <LineSeries data={lineData} />
         <YAxis />
       </>,
-      { grid: false },
+      { grid: { visible: false } },
     );
     const withoutGridStrokes = mounted.mainSpy.countOf('stroke');
 
-    // grid=false produces strictly fewer strokes (grid is the biggest stroke contributor).
+    // grid.visible=false produces strictly fewer strokes (grid is the biggest stroke contributor).
     expect(withoutGridStrokes).toBeLessThan(withGridStrokes);
   });
 

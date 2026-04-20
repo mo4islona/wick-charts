@@ -3,31 +3,37 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  InfoBar,
   type OHLCData,
   Title,
   Tooltip,
-  TooltipLegend,
   XAxis,
   YAxis,
   YLabel,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Switch } from '../components/controls';
-import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import type { PropValue } from '../components/CodePreview';
+import { ICONS } from '../components/playground/icons';
+import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Toggle } from '../components/playground/primitives';
+import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateOHLCData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useOHLCStream } from '../hooks';
 
 interface CandleSettings {
-  showYLabel: boolean;
-  showTooltip: boolean;
-  showTooltipLegend: boolean;
-  candleGradient: boolean;
+  yLabelVisible: boolean;
+  tooltipVisible: boolean;
+  infoBarVisible: boolean;
+  bodyGradient: boolean;
 }
 
-const steadyData = generateOHLCData(300, 42000, DEMO_INTERVAL);
-const volatileData = generateOHLCData(300, 100, DEMO_INTERVAL);
+// Different zoom across charts — close-up on the first, mid-range on the
+// second, full history on the third, so the user sees three levels of
+// detail at once.
+const steadyData = generateOHLCData(300, 42000, DEMO_INTERVAL).slice(-50);
+const volatileData = generateOHLCData(300, 100, DEMO_INTERVAL).slice(-120);
 const trendingData = generateOHLCData(300, 1500, DEMO_INTERVAL);
 
 function CandleChart({
@@ -36,12 +42,12 @@ function CandleChart({
   streaming,
   gradient,
   data,
-  showYLabel,
-  showTooltip,
-  showTooltipLegend,
-  candleGradient,
-  candleEnterAnimation,
-  enterMs,
+  yLabelVisible,
+  tooltipVisible,
+  infoBarVisible,
+  bodyGradient,
+  candleEntryAnimation,
+  entryMs,
   liveTracking,
   headerLayout,
   startDelay,
@@ -54,22 +60,23 @@ function CandleChart({
   const { data: d } = useOHLCStream(data, { startDelay, interval: DEMO_INTERVAL, speed: 5 });
   const display = streaming ? d : data;
   const sid = 'candle';
+
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient} headerLayout={headerLayout}>
       <Title sub={sub}>{title}</Title>
-      {showTooltipLegend && <TooltipLegend seriesId={sid} />}
+      {infoBarVisible && <InfoBar seriesId={sid} />}
       <CandlestickSeries
         id={sid}
         data={display}
         options={{
-          candleGradient,
-          enterAnimation: candleEnterAnimation,
-          enterMs,
+          bodyGradient,
+          entryAnimation: candleEntryAnimation,
+          entryMs,
           smoothMs: liveTracking ? undefined : 0,
         }}
       />
-      {showYLabel && <YLabel seriesId={sid} />}
-      {showTooltip && <Tooltip seriesId={sid} />}
+      {yLabelVisible && <YLabel seriesId={sid} />}
+      {tooltipVisible && <Tooltip seriesId={sid} />}
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
@@ -77,14 +84,47 @@ function CandleChart({
   );
 }
 
+const DISPLAY_EXTRA: SectionSpec = {
+  id: 'display-candle',
+  title: 'Display',
+  extend: 'display',
+  rows: [
+    {
+      key: 'yLabelVisible',
+      label: 'Value label',
+      hint: 'Last value pill on y-axis',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'tooltipVisible',
+      label: 'Tooltip',
+      hint: 'On hover',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'infoBarVisible',
+      label: 'Info bar',
+      hint: 'OHLC values above the chart',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'bodyGradient',
+      label: 'Candle shading',
+      hint: 'Vertical gradient on candle bodies for depth',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+  ] as RowSpec[],
+};
+
 export function CandlestickPage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<CandleSettings>
       id="candlestick"
       theme={theme}
-      defaults={{ showYLabel: true, showTooltip: true, showTooltipLegend: true, candleGradient: true }}
+      extraDefaults={{ yLabelVisible: true, tooltipVisible: true, infoBarVisible: true, bodyGradient: true }}
       gridTemplate="1fr 1fr 1fr"
       animationKinds={['candle']}
+      sections={[{ ...DISPLAY_EXTRA, icon: ICONS.display }]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -119,36 +159,43 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
           </Cell>
         </>
       )}
-      settings={(s, set) => (
-        <Section title="Series" theme={theme} noBorder>
-          <Switch label="Price label" checked={s.showYLabel} onChange={(v) => set({ showYLabel: v })} theme={theme} />
-          <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
-          <Switch
-            label="Info bar"
-            checked={s.showTooltipLegend}
-            onChange={(v) => set({ showTooltipLegend: v })}
-            theme={theme}
-          />
-          <Switch
-            label="Gradient"
-            checked={s.candleGradient}
-            onChange={(v) => set({ candleGradient: v })}
-            theme={theme}
-          />
-        </Section>
-      )}
-      codeConfig={(s) => ({
-        theme: 'darkTheme',
-        components: [
-          { component: 'CandlestickSeries', props: { id: 'sid', data: 'ohlcData' } },
-          ...(s.showTooltipLegend ? [{ component: 'TooltipLegend', props: { seriesId: 'sid' } }] : []),
-          ...(s.showYLabel ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
-          ...(s.showTooltip ? [{ component: 'Tooltip', props: { seriesId: 'sid' } }] : []),
-          { component: 'Crosshair' },
-          { component: 'YAxis' },
-          { component: 'XAxis' },
-        ],
-      })}
+      codeConfig={(s) => {
+        const opts: Record<string, PropValue> = {};
+        if (!s.bodyGradient) opts.bodyGradient = false;
+        if (s.candleEntryAnimation !== 'unfold') opts.entryAnimation = s.candleEntryAnimation;
+        if (s.entryMs !== 400) opts.entryMs = s.entryMs;
+
+        const containerProps: Record<string, PropValue> = {};
+        if (!s.grid.visible) containerProps.grid = { visible: false };
+        if (!s.gradient) containerProps.gradient = false;
+        if (s.headerLayout !== 'overlay') containerProps.headerLayout = s.headerLayout;
+        if (!s.liveTracking) containerProps.liveTracking = false;
+        if (!s.streaming) containerProps.streaming = false;
+
+        const yVisible = s.axis.y?.visible !== false;
+        const xVisible = s.axis.x?.visible !== false;
+
+        return {
+          theme: 'darkTheme',
+          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+          components: [
+            {
+              component: 'CandlestickSeries',
+              props: {
+                id: 'sid',
+                data: 'ohlcData',
+                ...(Object.keys(opts).length > 0 ? { options: opts } : {}),
+              },
+            },
+            ...(s.infoBarVisible ? [{ component: 'InfoBar', props: { seriesId: 'sid' } }] : []),
+            ...(s.yLabelVisible ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
+            ...(s.tooltipVisible ? [{ component: 'Tooltip', props: { seriesId: 'sid' } }] : []),
+            { component: 'Crosshair' },
+            ...(yVisible ? [{ component: 'YAxis' }] : []),
+            ...(xVisible ? [{ component: 'XAxis' }] : []),
+          ],
+        };
+      }}
     />
   );
 }

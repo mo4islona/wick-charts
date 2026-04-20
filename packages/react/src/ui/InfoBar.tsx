@@ -14,8 +14,8 @@ import { useCrosshairPosition } from '../store-bridge';
 import { useTheme } from '../ThemeContext';
 import type { TooltipSort } from './Tooltip';
 
-/** Props for the {@link TooltipLegend} component. */
-export interface TooltipLegendProps {
+/** Props for the {@link InfoBar} component. */
+export interface InfoBarProps {
   /** Show only this series. When omitted, show all series. */
   seriesId?: string;
   /** Sort order for line values when showing all series (default: 'none'). */
@@ -28,8 +28,11 @@ export interface TooltipLegendProps {
   format?: TooltipFormatter;
 }
 
-/** Default tooltip-legend formatter — adaptive for ohlc/value, compact for volume. */
-const defaultTooltipLegendFormat: TooltipFormatter = (v, field) =>
+/** @deprecated Use {@link InfoBarProps} instead. */
+export type TooltipLegendProps = InfoBarProps;
+
+/** Default InfoBar formatter — adaptive for ohlc/value, compact for volume. */
+const defaultInfoBarFormat: TooltipFormatter = (v, field) =>
   field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
 
 interface SeriesSnapshot {
@@ -52,9 +55,9 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * Compact OHLC/series info bar rendered as a flex row above the chart canvas.
  * Pairs with {@link Tooltip} (which then only renders its floating near-cursor part).
  * Its presence causes the chart plot area to shrink by the bar's height and the
- * Y-range to recompute — via the same DOM-flex + ResizeObserver path used by {@link Legend}.
+ * Y-range to recompute — via the same DOM-flex + ResizeObserver path used by the Legend.
  */
-export function TooltipLegend({ seriesId, sort = 'none', format = defaultTooltipLegendFormat }: TooltipLegendProps) {
+export function InfoBar({ seriesId, sort = 'none', format = defaultInfoBarFormat }: InfoBarProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const crosshair = useCrosshairPosition(chart);
@@ -203,3 +206,6 @@ function LegendItem({ label, display, color, dim }: { label: string; display: st
     </>
   );
 }
+
+/** @deprecated Use {@link InfoBar} instead. */
+export const TooltipLegend = InfoBar;

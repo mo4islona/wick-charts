@@ -1,14 +1,9 @@
-import type { ChartTheme } from '@wick-charts/react';
-
-import { useFramework } from '../context/framework';
-import { HighlightedCode } from './controls';
-
 // ── Types ────────────────────────────────────────────────────
 
 interface PropObject {
   [key: string]: PropValue;
 }
-type PropValue = string | number | boolean | undefined | PropValue[] | PropObject;
+export type PropValue = string | number | boolean | undefined | PropValue[] | PropObject;
 
 export interface ChartCodeChild {
   component: string;
@@ -54,7 +49,11 @@ function isVarRef(v: PropValue): boolean {
   return typeof v === 'string' && /^[a-zA-Z_$][\w$.]*$/.test(v) && !v.includes(' ');
 }
 
-function renderProps(props: Record<string, PropValue>, fw: Framework, indent: number): string {
+/** Wrap threshold: if the one-liner component + props exceeds this, break
+ * each prop onto its own line. Tuned to fit the playground's ~440px panel. */
+const WRAP_AT = 60;
+
+function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent: number): string[] {
   const parts: string[] = [];
   for (const [key, val] of Object.entries(props)) {
     if (val === undefined) continue;
@@ -70,68 +69,67 @@ function renderProps(props: Record<string, PropValue>, fw: Framework, indent: nu
       else parts.push(`${key}={${formatted}}`);
     }
   }
-  return parts.length > 0 ? ` ${parts.join(' ')}` : '';
+  return parts;
 }
 
 function renderChild(child: ChartCodeChild, fw: Framework, indent: number): string {
   const pad = '  '.repeat(indent);
-  const propsStr = child.props ? renderProps(child.props, fw, indent) : '';
-  return `${pad}<${child.component}${propsStr} />`;
+  const pairs = child.props ? renderPropPairs(child.props, fw, indent) : [];
+  if (pairs.length === 0) return `${pad}<${child.component} />`;
+
+  const oneLine = `${pad}<${child.component} ${pairs.join(' ')} />`;
+  if (oneLine.length <= WRAP_AT + pad.length) return oneLine;
+
+  const innerPad = '  '.repeat(indent + 1);
+  const wrapped = pairs.map((p) => `${innerPad}${p}`).join('\n');
+  return `${pad}<${child.component}\n${wrapped}\n${pad}/>`;
 }
 
-function generateCode(config: ChartCodeConfig, fw: Framework): string {
+function wrapImport(importList: string[], pkg: string, leading: string): string {
+  const oneLine = `${leading}import { ${importList.join(', ')} } from '${pkg}';`;
+  if (oneLine.length <= WRAP_AT + 10) return oneLine;
+  const inner = importList.map((s) => `${leading}  ${s},`).join('\n');
+  return `${leading}import {\n${inner}\n${leading}} from '${pkg}';`;
+}
+
+function openChartContainer(themeAttr: string, containerPairs: string[]): string {
+  const allPairs = [themeAttr, ...containerPairs].filter(Boolean);
+  const inline = allPairs.length > 0 ? ` ${allPairs.join(' ')}` : '';
+  const oneLine = `<ChartContainer${inline}>`;
+  if (oneLine.length <= WRAP_AT) return oneLine;
+
+  return `<ChartContainer\n  ${allPairs.join('\n  ')}\n>`;
+}
+
+export function generateCode(config: ChartCodeConfig, fw: Framework): string {
   const imports = new Set<string>(['ChartContainer']);
   for (const child of config.components) imports.add(child.component);
   if (config.theme) imports.add(config.theme);
 
-  const importList = Array.from(imports).sort().join(', ');
+  const importList = Array.from(imports).sort();
   const pkg = PACKAGES[fw];
 
-  const containerProps = config.containerProps ? renderProps(config.containerProps, fw, 0) : '';
-  const themeStr = config.theme ? (fw === 'vue' ? ` :theme="${config.theme}"` : ` theme={${config.theme}}`) : '';
+  const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 0) : [];
+  const themeAttr = config.theme ? (fw === 'vue' ? `:theme="${config.theme}"` : `theme={${config.theme}}`) : '';
 
-  const children = config.components.map((c) => renderChild(c, fw, 2)).join('\n');
+  const openTag = openChartContainer(themeAttr, containerPairs);
+  const children = config.components.map((c) => renderChild(c, fw, 1)).join('\n');
 
   if (fw === 'react') {
-    return `import { ${importList} } from '${pkg}';
-
-<ChartContainer${themeStr}${containerProps}>
-${children}
-</ChartContainer>`;
+    const imp = wrapImport(importList, pkg, '');
+    return `${imp}\n\n${openTag}\n${children}\n</ChartContainer>`;
   }
 
   if (fw === 'svelte') {
-    return `<script>
-  import { ${importList} } from '${pkg}';
-</script>
-
-<ChartContainer${themeStr}${containerProps}>
-${children}
-</ChartContainer>`;
+    const imp = wrapImport(importList, pkg, '  ');
+    return `<script>\n${imp}\n</script>\n\n${openTag}\n${children}\n</ChartContainer>`;
   }
 
-  // vue
-  return `<script setup>
-import { ${importList} } from '${pkg}';
-</script>
-
-<template>
-  <ChartContainer${themeStr}${containerProps}>
-${children.replace(/^/gm, '  ')}
-  </ChartContainer>
-</template>`;
+  // vue — indent the container block two spaces inside <template>
+  const imp = wrapImport(importList, pkg, '');
+  const tmplOpen = openTag.replace(/^/gm, '  ');
+  const tmplChildren = children.replace(/^/gm, '  ');
+  return `<script setup>\n${imp}\n</script>\n\n<template>\n${tmplOpen}\n${tmplChildren}\n  </ChartContainer>\n</template>`;
 }
 
-// ── Component ────────────────────────────────────────────────
-
-export function CodePreview({ config, theme }: { config: ChartCodeConfig; theme: ChartTheme }) {
-  const [fw] = useFramework();
-
-  const code = generateCode(config, fw);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <HighlightedCode code={code} theme={theme} />
-    </div>
-  );
-}
+export type { Framework };

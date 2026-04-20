@@ -10,21 +10,13 @@ export interface PieLegendProps {
   seriesId: string;
   /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. Default: 'value'. */
   mode?: PieLegendMode;
-  /**
-   * Custom formatter for the absolute slice value. Default: shared `formatCompact`.
-   *
-   * @deprecated Passing a string (`'value'` | `'percent'`) is the pre-rename
-   * display-mode shorthand — use the {@link mode} prop instead. The string
-   * form is accepted for backward compatibility and will be removed later.
-   */
-  format?: ValueFormatter | PieLegendMode;
+  /** Custom formatter for the absolute slice value. Default: shared `formatCompact`. */
+  format?: ValueFormatter;
 }
 
 export function PieLegend({ seriesId, mode: modeProp, format }: PieLegendProps) {
-  // Back-compat: historically `format` was `'value' | 'percent'`. If a string
-  // slipped in, route it to `mode` instead of calling it as a formatter.
-  const mode: PieLegendMode = typeof format === 'string' ? format : (modeProp ?? 'value');
-  const formatter: ValueFormatter = typeof format === 'function' ? format : formatCompact;
+  const mode: PieLegendMode = modeProp ?? 'value';
+  const formatter: ValueFormatter = format ?? formatCompact;
   const chart = useChartInstance();
   const theme = chart.getTheme();
 
