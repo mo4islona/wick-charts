@@ -1,40 +1,39 @@
 <script lang="ts">
-import type { CrosshairPosition, LineData, OHLCData, TooltipFormatter } from '@wick-charts/core';
-import { formatCompact, formatDate, formatPriceAdaptive, formatTime } from '@wick-charts/core';
+import type {
+  CrosshairPosition,
+  LineData,
+  OHLCData,
+  SeriesSnapshot,
+  SnapshotSort,
+  TooltipFormatter,
+} from '@wick-charts/core';
+import {
+  buildHoverSnapshots,
+  computeTooltipPosition,
+  formatCompact,
+  formatDate,
+  formatPriceAdaptive,
+  formatTime,
+} from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
 import { createCrosshairPosition } from '../stores';
 
-/** Show only this series. When omitted, show all series. */
-export let seriesId: string | undefined = undefined;
-/** Sort order for line values when showing all series (default: 'none'). */
-export let sort: 'none' | 'asc' | 'desc' = 'none';
+/** Sort order for line values (default: 'none'). */
+export let sort: SnapshotSort = 'none';
 /**
- * Custom formatter for every displayed number. Called with the field hint
+ * Custom formatter for every displayed number. Ignored when a slot is
+ * provided. Called with the field hint
  * (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
- * Defaults: adaptive precision for ohlc/value, compact for volume.
  */
 export let format: TooltipFormatter = (v, field) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v));
 
-interface SeriesSnapshot {
-  id: string;
-  label?: string;
-  data: OHLCData | LineData;
-  color: string;
-}
-
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
-let lastY: { value: number; isLive: boolean } | null = null;
 let crosshairUnsub: (() => void) | null = null;
-let lastYUnsub: (() => void) | null = null;
-let seriesChangeUnsub: (() => void) | null = null;
-
-let prevPrimaryId = '';
-// `bump` forces targetIds / hover snapshots to recompute after sibling series
-// register. Without a seriesChange subscription, a Tooltip mounted before
-// its series would see `getSeriesIds() === []` and never recover.
+let overlayUnsub: (() => void) | null = null;
+// `bump` re-runs snapshot computations on any overlay-relevant chart mutation.
 let bump = 0;
 
 $: {
@@ -46,134 +45,116 @@ $: {
         crosshair = v;
       });
     }
-    if (!seriesChangeUnsub) {
+    if (!overlayUnsub) {
       const handler = () => {
         bump++;
       };
-      chart.on('seriesChange', handler);
-      seriesChangeUnsub = () => chart.off('seriesChange', handler);
+      chart.on('overlayChange', handler);
+      overlayUnsub = () => chart.off('overlayChange', handler);
       if (chart.getSeriesIds().length > 0) bump++;
-    }
-    // Reference bump so the reactive block re-runs when series change.
-    void bump;
-    const allIds = chart.getSeriesIds();
-    const targetIds = seriesId ? [seriesId] : allIds;
-    const primaryId = targetIds[0] ?? '';
-
-    if (primaryId !== prevPrimaryId) {
-      lastYUnsub?.();
-      if (primaryId) {
-        const handler = () => {
-          lastY = chart.getLastValue(primaryId);
-        };
-        chart.on('dataUpdate', handler);
-        lastYUnsub = () => chart.off('dataUpdate', handler);
-        handler();
-      }
-      prevPrimaryId = primaryId;
     }
   }
 }
 
 onDestroy(() => {
   crosshairUnsub?.();
-  lastYUnsub?.();
-  seriesChangeUnsub?.();
+  overlayUnsub?.();
 });
-
-function sortSnapshots(snapshots: SeriesSnapshot[], sortOrder: 'none' | 'asc' | 'desc'): SeriesSnapshot[] {
-  if (sortOrder === 'none' || snapshots.length <= 1) return snapshots;
-  return [...snapshots].sort((a, b) => {
-    const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
-    const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
-    return sortOrder === 'asc' ? av - bv : bv - av;
-  });
-}
 
 $: chart = $chartStore;
 $: theme = chart?.getTheme();
 $: dataInterval = chart?.getDataInterval() ?? 86400;
 
-// `bump` referenced explicitly so the Svelte compiler keeps it as a
-// reactive dep — `void bump;` is sometimes dead-code-eliminated.
-$: targetIds = chart && bump >= 0 ? (seriesId ? [seriesId] : chart.getSeriesIds()) : [];
+// `bump >= 0` referenced at the top level so the Svelte compiler keeps `bump`
+// as a reactive dep — `void bump` inside an IIFE is dead-code-eliminated in
+// some build configs.
+$: snapshots =
+  chart && crosshair && bump >= 0
+    ? buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'tooltip' })
+    : ([] as readonly SeriesSnapshot[]);
 
-$: hoverSnapshots = (() => {
-  if (!chart || !crosshair) return [];
-  const _touch = bump;
-  void _touch;
-  const time = crosshair.time;
-  const result: SeriesSnapshot[] = [];
-  for (const id of targetIds) {
-    // Multi-layer series (stacked Line/Bar) expose per-layer snapshots so
-    // each stack layer gets its own row — matches React's behavior.
-    const layers = chart.getLayerSnapshots(id, time);
-    if (layers) {
-      for (let i = 0; i < layers.length; i++) {
-        result.push({
-          id: `${id}_layer${i}`,
-          label: chart.getSeriesLabel(id),
-          data: { time, value: layers[i].value } as LineData,
-          color: layers[i].color,
-        });
-      }
-      continue;
-    }
-    const d = chart.getDataAtTime(id, time);
-    if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-  }
-  return result;
-})();
-
-$: lastSnapshots = (() => {
-  if (!chart) return [];
-  // Reference lastY to trigger reactivity on data updates
-  void lastY;
-  const result: SeriesSnapshot[] = [];
-  for (const id of targetIds) {
-    const d = chart.getLastData(id);
-    if (d) result.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-  }
-  return result;
-})();
-
-$: rawSnapshots = hoverSnapshots.length > 0 ? hoverSnapshots : lastSnapshots;
-$: snapshots = sortSnapshots(rawSnapshots, sort);
-$: displayTime = snapshots.length > 0 ? snapshots[0].data.time : 0;
-
+// `crosshair.time` is the semantic truth — `snapshots[0].data.time` would
+// shift with `sort` and, for ragged multi-layer data, disagree with the
+// actual hover moment.
+$: displayTime = crosshair?.time ?? 0;
 $: mediaSize = chart?.getMediaSize();
 
+let measuredSize: { width: number; height: number } | null = null;
+
+// A Svelte action so the observer's lifecycle is tied to the slot container:
+// when the `{#if}` block unmounts the node (hover ends) the action's
+// `destroy()` disconnects, and on the next mount a fresh observer attaches
+// to the new node. Without this the observer stays attached to a detached
+// node and `measuredSize` goes stale on the second hover.
+function measureOnResize(node: HTMLDivElement) {
+  if (typeof ResizeObserver === 'undefined') return { destroy() {} };
+
+  const ro = new ResizeObserver((entries) => {
+    const box = entries[0]?.contentRect;
+    if (!box) return;
+    if (!measuredSize || measuredSize.width !== box.width || measuredSize.height !== box.height) {
+      measuredSize = { width: box.width, height: box.height };
+    }
+  });
+  ro.observe(node);
+
+  return {
+    destroy() {
+      ro.disconnect();
+      // Reset so the next hover starts hidden-until-measured rather than
+      // reusing the previous tooltip's size for one frame.
+      measuredSize = null;
+    },
+  };
+}
+
 $: floatingPos = (() => {
-  if (!crosshair || !chart || !mediaSize) return { left: 0, top: 0 };
+  if (!crosshair || !chart || !mediaSize || snapshots.length === 0) return null;
+  const chartWidth = mediaSize.width - chart.yAxisWidth;
+  const chartHeight = mediaSize.height - chart.xAxisHeight;
+
+  if ($$slots.default) {
+    if (!measuredSize) return { left: 0, top: 0 };
+
+    return computeTooltipPosition({
+      x: crosshair.mediaX,
+      y: crosshair.mediaY,
+      chartWidth,
+      chartHeight,
+      tooltipWidth: measuredSize.width,
+      tooltipHeight: measuredSize.height,
+    });
+  }
+
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
   const tooltipWidth = 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
-  const offsetX = 16;
-  const offsetY = 16;
-  const chartWidth = mediaSize.width - chart.yAxisWidth;
-  const chartHeight = mediaSize.height - chart.xAxisHeight;
 
-  const left =
-    crosshair.mediaX + offsetX + tooltipWidth > chartWidth
-      ? crosshair.mediaX - offsetX - tooltipWidth
-      : crosshair.mediaX + offsetX;
-  const top =
-    crosshair.mediaY + offsetY + tooltipHeight > chartHeight
-      ? crosshair.mediaY - offsetY - tooltipHeight
-      : crosshair.mediaY + offsetY;
-
-  return { left, top };
+  return computeTooltipPosition({
+    x: crosshair.mediaX,
+    y: crosshair.mediaY,
+    chartWidth,
+    chartHeight,
+    tooltipWidth,
+    tooltipHeight,
+  });
 })();
-
-$: showFloating = crosshair && hoverSnapshots.length > 0;
 </script>
 
-{#if showFloating && chart && theme}
+{#if crosshair && snapshots.length > 0 && chart && theme && floatingPos}
+  {#if $$slots.default}
+    <div
+      use:measureOnResize
+      data-measured={measuredSize ? 'true' : 'false'}
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.typography.tooltipFontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? mediaSize.width - chart.yAxisWidth : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
+    >
+      <slot {snapshots} time={displayTime} />
+    </div>
+  {:else}
     <div
       style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.typography.tooltipFontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};min-width:140px;z-index:10;transition:opacity 0.15s ease;"
     >
-      <!-- Time header -->
       <div
         style="font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
@@ -202,13 +183,12 @@ $: showFloating = crosshair && hoverSnapshots.length > 0;
         {:else}
           {@const line = /** @type {LineData} */ (s.data)}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
-            <span
-              style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"
-            />
+            <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;" />
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
             <span style="font-weight:600;color:{s.color};">{format(line.value, 'value')}</span>
           </div>
         {/if}
       {/each}
     </div>
+  {/if}
 {/if}

@@ -1,9 +1,12 @@
-import { useLayoutEffect, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useState } from 'react';
 
 import {
   type OHLCData,
+  type SeriesSnapshot,
   type TimePoint,
   type TooltipFormatter,
+  buildHoverSnapshots,
+  buildLastSnapshots,
   formatCompact,
   formatPriceAdaptive,
   formatTime,
@@ -14,18 +17,32 @@ import { useCrosshairPosition } from '../store-bridge';
 import { useTheme } from '../ThemeContext';
 import type { TooltipSort } from './Tooltip';
 
+/** Context passed to the {@link InfoBar} render-prop. */
+export interface InfoBarRenderContext {
+  readonly snapshots: readonly SeriesSnapshot[];
+  /** Timestamp displayed. In hover mode it's the crosshair time; in last-mode it's the newest point. */
+  readonly time: number;
+  /** `true` while the user's pointer is over the chart (hover mode). */
+  readonly isHover: boolean;
+}
+
 /** Props for the {@link InfoBar} component. */
 export interface InfoBarProps {
-  /** Show only this series. When omitted, show all series. */
-  seriesId?: string;
-  /** Sort order for line values when showing all series (default: 'none'). */
+  /** Sort order for line values (default: 'none'). */
   sort?: TooltipSort;
   /**
-   * Custom formatter for every displayed number. Called per cell with the
-   * field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
+   * Custom formatter for every displayed number in the default UI. Called per
+   * cell with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
    * Defaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.
+   * Ignored when {@link children} is a render-prop.
    */
   format?: TooltipFormatter;
+  /**
+   * Render-prop escape hatch. Receives the computed snapshots and replaces the
+   * entire built-in layout. Filter, reorder, or re-style rows here without
+   * re-implementing any data wiring.
+   */
+  children?: (ctx: InfoBarRenderContext) => ReactNode;
 }
 
 /** @deprecated Use {@link InfoBarProps} instead. */
@@ -35,106 +52,66 @@ export type TooltipLegendProps = InfoBarProps;
 const defaultInfoBarFormat: TooltipFormatter = (v, field) =>
   field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
 
-interface SeriesSnapshot {
-  id: string;
-  label?: string;
-  data: OHLCData | TimePoint;
-  color: string;
-}
-
-function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSnapshot[] {
-  if (sort === 'none' || snapshots.length <= 1) return snapshots;
-  return [...snapshots].sort((a, b) => {
-    const av = 'value' in a.data ? (a.data as TimePoint).value : (a.data as OHLCData).close;
-    const bv = 'value' in b.data ? (b.data as TimePoint).value : (b.data as OHLCData).close;
-    return sort === 'asc' ? av - bv : bv - av;
-  });
-}
-
 /**
  * Compact OHLC/series info bar rendered as a flex row above the chart canvas.
  * Pairs with {@link Tooltip} (which then only renders its floating near-cursor part).
- * Its presence causes the chart plot area to shrink by the bar's height and the
- * Y-range to recompute — via the same DOM-flex + ResizeObserver path used by the Legend.
+ *
+ * Pass a render-prop child for a custom layout — the built-in UI is used when
+ * {@link children} is omitted.
  */
-export function InfoBar({ seriesId, sort = 'none', format = defaultInfoBarFormat }: InfoBarProps) {
+export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children }: InfoBarProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const crosshair = useCrosshairPosition(chart);
 
-  const targetIds = seriesId ? [seriesId] : chart.getSeriesIds();
-
   const [, bump] = useState(0);
   useLayoutEffect(() => {
-    const onDataUpdate = () => bump((n) => n + 1);
-    const onSeriesChange = () => bump((n) => n + 1);
-    chart.on('dataUpdate', onDataUpdate);
-    chart.on('seriesChange', onSeriesChange);
-    // Catch-up: a sibling CandlestickSeries/LineSeries layout effect may have
-    // already registered data in this same commit. Bump so the next
-    // synchronous render reflects it before paint.
+    const onOverlayChange = () => bump((n) => n + 1);
+    chart.on('overlayChange', onOverlayChange);
+    // Catch-up: a sibling series' layout effect may have registered data in
+    // the same commit. Bump so the next synchronous render picks it up.
     if (chart.getSeriesIds().length > 0) bump((n) => n + 1);
+
     return () => {
-      chart.off('dataUpdate', onDataUpdate);
-      chart.off('seriesChange', onSeriesChange);
+      chart.off('overlayChange', onOverlayChange);
     };
   }, [chart]);
 
-  const hoverSnapshots: SeriesSnapshot[] = [];
-  if (crosshair) {
-    for (const id of targetIds) {
-      const layers = chart.getLayerSnapshots(id, crosshair.time);
-      if (layers) {
-        for (let i = 0; i < layers.length; i++) {
-          hoverSnapshots.push({
-            id: `${id}_layer${i}`,
-            label: chart.getSeriesLabel(id),
-            data: { time: crosshair.time, value: layers[i].value } as TimePoint,
-            color: layers[i].color,
-          });
-        }
-      } else {
-        const d = chart.getDataAtTime(id, crosshair.time);
-        if (d)
-          hoverSnapshots.push({
-            id,
-            label: chart.getSeriesLabel(id),
-            data: d,
-            color: chart.getSeriesColor(id) ?? '#888',
-          });
-      }
-    }
-  }
+  const isHover = crosshair !== null;
+  const snapshots = isHover
+    ? buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'infobar-hover' })
+    : buildLastSnapshots(chart, { sort, cacheKey: 'infobar-last' });
 
-  let raw: SeriesSnapshot[];
-  if (hoverSnapshots.length > 0) {
-    raw = hoverSnapshots;
-  } else {
-    const lastSnapshots: SeriesSnapshot[] = [];
-    for (const id of targetIds) {
-      const d = chart.getLastData(id);
-      if (!d) continue;
-      const layers = chart.getLayerSnapshots(id, d.time);
-      if (layers) {
-        for (let i = 0; i < layers.length; i++) {
-          lastSnapshots.push({
-            id: `${id}_layer${i}`,
-            label: chart.getSeriesLabel(id),
-            data: { time: d.time, value: layers[i].value } as TimePoint,
-            color: layers[i].color,
-          });
-        }
-      } else {
-        lastSnapshots.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-      }
-    }
-    raw = lastSnapshots;
-  }
-  const snapshots = sortSnapshots(raw, sort);
   if (snapshots.length === 0) return null;
 
+  // `snapshots[0].data.time` is index-0 → shifts when `sort` reorders and,
+  // in last-mode, drifts across ragged per-layer timestamps. Pick a stable
+  // rule per mode: crosshair time for hover (what the user is pointing at),
+  // newest point across all visible series for last-mode.
+  const displayTime = isHover ? crosshair.time : Math.max(...snapshots.map((s) => s.data.time));
+
+  if (children) {
+    return (
+      <div
+        data-tooltip-legend=""
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexShrink: 0,
+          fontFamily: theme.typography.fontFamily,
+          fontSize: theme.typography.fontSize,
+          fontVariantNumeric: 'tabular-nums',
+          opacity: isHover ? 1 : 0.6,
+          transition: 'opacity 0.2s ease',
+          pointerEvents: 'none',
+        }}
+      >
+        {children({ snapshots, time: displayTime, isHover })}
+      </div>
+    );
+  }
+
   const dataInterval = chart.getDataInterval();
-  const displayTime = snapshots[0].data.time;
 
   return (
     <div
@@ -149,7 +126,7 @@ export function InfoBar({ seriesId, sort = 'none', format = defaultInfoBarFormat
         fontSize: theme.typography.fontSize,
         fontFamily: theme.typography.fontFamily,
         fontVariantNumeric: 'tabular-nums',
-        opacity: crosshair ? 1 : 0.6,
+        opacity: isHover ? 1 : 0.6,
         transition: 'opacity 0.2s ease',
         pointerEvents: 'none',
       }}
@@ -179,6 +156,7 @@ export function InfoBar({ seriesId, sort = 'none', format = defaultInfoBarFormat
           );
         }
         const line = s.data as TimePoint;
+
         return (
           <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <span

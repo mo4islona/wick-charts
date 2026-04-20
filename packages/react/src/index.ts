@@ -99,7 +99,7 @@ export {
 export { ThemeProvider, useTheme } from './ThemeContext';
 export { Crosshair } from './ui/Crosshair';
 /** @deprecated Use {@link InfoBarProps} instead. */
-export type { InfoBarProps, TooltipLegendProps } from './ui/InfoBar';
+export type { InfoBarProps, InfoBarRenderContext, TooltipLegendProps } from './ui/InfoBar';
 /** @deprecated Use {@link InfoBar} instead. */
 export { InfoBar, TooltipLegend } from './ui/InfoBar';
 export type { LegendItemOverride, LegendProps } from './ui/Legend';
@@ -114,7 +114,7 @@ export { Sparkline } from './ui/Sparkline';
 export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
 export type { TitleProps } from './ui/Title';
 export { Title } from './ui/Title';
-export type { TooltipSort } from './ui/Tooltip';
+export type { TooltipProps, TooltipRenderContext, TooltipSort } from './ui/Tooltip';
 // UI overlays
 export { Tooltip } from './ui/Tooltip';
 export type { YAxisProps } from './ui/YAxis';

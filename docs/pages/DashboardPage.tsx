@@ -61,10 +61,10 @@ function CandleChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Candlestick">BTC/USD</Title>
-      <InfoBar seriesId={sid} />
+      <InfoBar />
       <CandlestickSeries id={sid} data={data} />
       <YLabel seriesId={sid} />
-      <Tooltip seriesId={sid} />
+      <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />

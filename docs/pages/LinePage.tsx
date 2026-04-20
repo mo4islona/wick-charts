@@ -84,7 +84,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
-      {props.infoBarVisible && <InfoBar seriesId={sid} sort={props.tooltipSort} />}
+      {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         id={sid}
         data={data}
@@ -97,7 +97,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      {props.tooltipVisible && <Tooltip seriesId={sid} sort={props.tooltipSort} />}
+      {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
