@@ -102,4 +102,57 @@ describe('YAxis', () => {
     const host = mounted.container.querySelector('div[style*="right: 0px"][style*="width: 0px"]');
     expect(host).not.toBeNull();
   });
+
+  describe('labelCount / minLabelSpacing props', () => {
+    it('<YAxis labelCount> live-updates interval', () => {
+      const m = mountChart(
+        <>
+          <LineSeries data={data} />
+          <YAxis labelCount={4} />
+        </>,
+      );
+      mounted = m;
+
+      const intervalOf = (chart: typeof m.chart) => {
+        const t = chart.yScale.niceTickValues();
+        return t.length >= 2 ? t[1] - t[0] : Number.NaN;
+      };
+
+      const low = intervalOf(m.chart);
+
+      m.rerender(
+        <>
+          <LineSeries data={data} />
+          <YAxis labelCount={12} />
+        </>,
+      );
+      const high = intervalOf(m.chart);
+
+      // Asking for more labels shrinks the tick interval (or keeps it at the
+      // pixel-floor cap). It must never grow.
+      expect(high).toBeLessThanOrEqual(low);
+    });
+
+    it('unmounting <YAxis labelCount> clears the hint', () => {
+      // labelCount=2 forces a coarser interval than auto. Unmounting the
+      // prop should restore the auto density (strictly more labels).
+      mounted = mountChart(
+        <>
+          <LineSeries data={data} />
+          <YAxis labelCount={2} />
+        </>,
+      );
+      const withHint = mounted.chart.yScale.niceTickValues().length;
+
+      mounted.rerender(
+        <>
+          <LineSeries data={data} />
+          <YAxis />
+        </>,
+      );
+      const withoutHint = mounted.chart.yScale.niceTickValues().length;
+
+      expect(withoutHint).toBeGreaterThan(withHint);
+    });
+  });
 });

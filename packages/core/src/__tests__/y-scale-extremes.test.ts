@@ -69,9 +69,10 @@ describe('YScale — extreme ranges', () => {
     expect(s.formatY(42_000)).toBe('42000');
   });
 
-  it('formatY uses more decimals for sub-unit ranges', () => {
+  it('formatY uses as many decimals as the resolved tick interval demands', () => {
+    // Range 0..0.005 @ 400px → resolved interval is 0.001 → 3 decimals.
     const s = makeScale(0, 0.005, 400);
-    expect(s.formatY(0.00123)).toBe('0.001230');
+    expect(s.formatY(0.00123)).toBe('0.001');
   });
 
   it('honors a custom formatter installed via setFormat', () => {

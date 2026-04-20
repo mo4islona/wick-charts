@@ -314,11 +314,6 @@ export interface YAxisConfig {
   max?: AxisBound;
   /** Whether the axis is visible. Default: true. When false, width is treated as 0. */
   visible?: boolean;
-  /**
-   * Custom tick-label formatter. Overrides the built-in range-adaptive
-   * formatter; receives each tick value and returns the string to render.
-   */
-  format?: (value: number) => string;
 }
 
 /** Configuration for the X (time) axis. */

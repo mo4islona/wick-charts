@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 import { formatTime } from '@wick-charts/core';
 
@@ -11,9 +11,27 @@ interface TrackedTick {
   fadedAt?: number;
 }
 
-export function TimeAxis() {
+export interface TimeAxisProps {
+  /** Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`. */
+  labelCount?: number;
+  /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
+  minLabelSpacing?: number;
+}
+
+export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
   const chart = useChartInstance();
-  const visibleRange = useVisibleRange(chart);
+  useVisibleRange(chart); // subscribe to viewport changes so ticks re-render
+
+  useLayoutEffect(() => {
+    chart.setTimeAxisLabelDensity({
+      labelCount: labelCount ?? null,
+      minLabelSpacing: minLabelSpacing ?? null,
+    });
+
+    return () => {
+      chart.setTimeAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
+    };
+  }, [chart, labelCount, minLabelSpacing]);
   const theme = chart.getTheme();
   const dataInterval = chart.getDataInterval();
   const { ticks: currentTicks, tickInterval } = chart.timeScale.niceTickValues(dataInterval);

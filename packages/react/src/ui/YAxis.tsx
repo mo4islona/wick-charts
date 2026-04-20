@@ -17,24 +17,37 @@ export interface YAxisProps {
    * range-adaptive formatter for this axis.
    */
   format?: ValueFormatter;
+  /**
+   * Desired number of labels (≥ 2). Overrides any chart-level `axis.y.labelCount`.
+   * Realized count may differ ±1 after the 1-2-5 snap.
+   */
+  labelCount?: number;
+  /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
+  minLabelSpacing?: number;
 }
 
-export function YAxis({ format }: YAxisProps = {}) {
+export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) {
   const chart = useChartInstance();
   useYRange(chart); // subscribe to viewport changes so ticks re-render
 
-  // Route the prop through `yScale.setFormat` so the *same* formatter drives
-  // every surface that reads `yScale.formatY()` (Crosshair, YLabel fallback)
-  // — otherwise the crosshair keeps showing the built-in format while axis
-  // labels show the user's. Capture the previous formatter (e.g. one set via
-  // `axis.y.format` on `ChartContainer`) and restore it on unmount so YAxis
-  // never clobbers a chart-level default.
+  // Route the prop through yScale so the *same* formatter drives every
+  // surface that reads `yScale.formatY()` (Crosshair, YLabel fallback).
   useLayoutEffect(() => {
-    if (format === undefined) return;
-    const prev = chart.yScale.getFormat();
-    chart.yScale.setFormat(format);
-    return () => chart.yScale.setFormat(prev);
+    chart.yScale.setFormat(format ?? null);
+
+    return () => chart.yScale.setFormat(null);
   }, [chart, format]);
+
+  useLayoutEffect(() => {
+    chart.setYAxisLabelDensity({
+      labelCount: labelCount ?? null,
+      minLabelSpacing: minLabelSpacing ?? null,
+    });
+
+    return () => {
+      chart.setYAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
+    };
+  }, [chart, labelCount, minLabelSpacing]);
 
   const theme = chart.getTheme();
   const currentTicks = chart.yScale.niceTickValues();
