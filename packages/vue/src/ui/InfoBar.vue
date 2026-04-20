@@ -62,24 +62,35 @@ onUnmounted(() => {
   chart.off('overlayChange', onOverlayChange);
 });
 
-const isHover = computed(() => crosshair.value !== null);
-
-const snapshots = computed<readonly SeriesSnapshot[]>(() => {
+// Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
+// so a crosshair event fires for offsets past the plotted data. The
+// nearest-time lookup then snaps to an out-of-range timestamp and returns
+// no samples. Falling back to the last-mode snapshots keeps the bar
+// populated (showing last values at 0.6 opacity) instead of blinking out
+// every time the pointer grazes the y-axis.
+const hoverSnapshots = computed<readonly SeriesSnapshot[] | null>(() => {
   void bump.value;
+  const pos = crosshair.value;
+  if (pos === null) return null;
 
-  return crosshair.value
-    ? buildHoverSnapshots(chart, { time: crosshair.value.time, sort: effectiveSort.value, cacheKey: 'infobar-hover' })
-    : buildLastSnapshots(chart, { sort: effectiveSort.value, cacheKey: 'infobar-last' });
+  return buildHoverSnapshots(chart, { time: pos.time, sort: effectiveSort.value, cacheKey: 'infobar-hover' });
 });
 
+const lastSnapshots = computed<readonly SeriesSnapshot[]>(() => {
+  void bump.value;
+
+  return buildLastSnapshots(chart, { sort: effectiveSort.value, cacheKey: 'infobar-last' });
+});
+
+const isHover = computed(() => hoverSnapshots.value !== null && hoverSnapshots.value.length > 0);
+const snapshots = computed<readonly SeriesSnapshot[]>(() =>
+  isHover.value ? (hoverSnapshots.value as readonly SeriesSnapshot[]) : lastSnapshots.value,
+);
+
 const dataInterval = computed(() => chart.getDataInterval());
-// `snapshots[0].data.time` is index-0 → shifts when `sort` reorders and,
-// in last-mode, drifts across ragged per-layer timestamps. Pick a stable
-// rule per mode: crosshair time for hover, newest point across all
-// visible series for last-mode.
 const displayTime = computed(() => {
   if (snapshots.value.length === 0) return 0;
-  if (crosshair.value) return crosshair.value.time;
+  if (isHover.value && crosshair.value) return crosshair.value.time;
 
   return Math.max(...snapshots.value.map((s) => s.data.time));
 });

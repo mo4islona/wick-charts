@@ -26,6 +26,7 @@ interface CandleSettings {
   yLabelVisible: boolean;
   tooltipVisible: boolean;
   infoBarVisible: boolean;
+  crosshairVisible: boolean;
   bodyGradient: boolean;
 }
 
@@ -45,6 +46,7 @@ function CandleChart({
   yLabelVisible,
   tooltipVisible,
   infoBarVisible,
+  crosshairVisible,
   bodyGradient,
   candleEntryAnimation,
   entryMs,
@@ -77,7 +79,7 @@ function CandleChart({
       />
       {yLabelVisible && <YLabel seriesId={sid} />}
       {tooltipVisible && <Tooltip />}
-      <Crosshair />
+      {crosshairVisible && <Crosshair />}
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
     </ChartContainer>
@@ -108,6 +110,12 @@ const DISPLAY_EXTRA: SectionSpec = {
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
+      key: 'crosshairVisible',
+      label: 'Crosshair',
+      hint: 'Vertical + horizontal cursor lines',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
       key: 'bodyGradient',
       label: 'Candle shading',
       hint: 'Vertical gradient on candle bodies for depth',
@@ -121,7 +129,13 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
     <Playground<CandleSettings>
       id="candlestick"
       theme={theme}
-      extraDefaults={{ yLabelVisible: true, tooltipVisible: true, infoBarVisible: true, bodyGradient: true }}
+      extraDefaults={{
+        yLabelVisible: true,
+        tooltipVisible: true,
+        infoBarVisible: true,
+        crosshairVisible: true,
+        bodyGradient: true,
+      }}
       gridTemplate="1fr 1fr 1fr"
       animationKinds={['candle']}
       sections={[{ ...DISPLAY_EXTRA, icon: ICONS.display }]}
@@ -190,7 +204,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
             ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
             ...(s.yLabelVisible ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
             ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
-            { component: 'Crosshair' },
+            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
           ],

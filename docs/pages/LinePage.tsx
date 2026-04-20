@@ -37,6 +37,7 @@ interface LineSettings {
   legendMode: LegendMode;
   infoBarVisible: boolean;
   tooltipVisible: boolean;
+  crosshairVisible: boolean;
 }
 
 const MULTI_COUNT = 6;
@@ -98,7 +99,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
         }}
       />
       {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
-      <Crosshair />
+      {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
@@ -133,7 +134,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
         }}
       />
       {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
-      <Crosshair />
+      {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
@@ -157,6 +158,12 @@ const DISPLAY_EXTRA: SectionSpec = {
       key: 'infoBarVisible',
       label: 'Info bar',
       hint: 'Series values above the chart',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'crosshairVisible',
+      label: 'Crosshair',
+      hint: 'Vertical + horizontal cursor lines',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -289,6 +296,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         legendMode: 'toggle',
         infoBarVisible: true,
         tooltipVisible: true,
+        crosshairVisible: true,
       }}
       sections={[DISPLAY_EXTRA, SERIES_SECTION, TOOLTIP_SECTION, LEGEND_SECTION]}
       charts={(props) => {
@@ -328,8 +336,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             },
           },
           ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-          { component: 'Tooltip' },
-          { component: 'Crosshair' },
+          ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
+          ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
           { component: 'YAxis' },
           { component: 'XAxis' },
         ],

@@ -64,24 +64,28 @@ $: chart = $chartStore;
 $: theme = $themeStore;
 $: anchor = $anchorStore;
 $: dataInterval = chart?.getDataInterval() ?? 86400;
-$: isHover = crosshair !== null;
 
-// `bump >= 0` referenced at the top level so the Svelte compiler keeps `bump`
-// as a reactive dep for this statement — `void bump` inside an IIFE is
-// dead-code-eliminated in some build configs.
-$: snapshots =
+// Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
+// so a crosshair event fires for offsets past the plotted data. The
+// nearest-time lookup then snaps to an out-of-range timestamp and returns
+// no samples. Falling back to last-mode snapshots keeps the bar populated
+// (0.6 opacity) instead of blinking out every time the pointer grazes the
+// y-axis.
+// `bump >= 0` keeps the Svelte compiler from eliminating `bump` from the
+// reactive dep graph.
+$: hoverSnapshots =
+  chart && bump >= 0 && crosshair
+    ? buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'infobar-hover' })
+    : null;
+$: lastSnapshots =
   chart && bump >= 0
-    ? crosshair
-      ? buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'infobar-hover' })
-      : buildLastSnapshots(chart, { sort, cacheKey: 'infobar-last' })
+    ? buildLastSnapshots(chart, { sort, cacheKey: 'infobar-last' })
     : ([] as readonly SeriesSnapshot[]);
+$: isHover = hoverSnapshots !== null && hoverSnapshots.length > 0;
+$: snapshots = isHover ? (hoverSnapshots as readonly SeriesSnapshot[]) : lastSnapshots;
 
-// `snapshots[0].data.time` is index-0 → shifts when `sort` reorders and,
-// in last-mode, drifts across ragged per-layer timestamps. Pick a stable
-// rule per mode: crosshair time for hover, newest point across all
-// visible series for last-mode.
 $: displayTime =
-  snapshots.length === 0 ? 0 : crosshair ? crosshair.time : Math.max(...snapshots.map((s) => s.data.time));
+  snapshots.length === 0 ? 0 : isHover && crosshair ? crosshair.time : Math.max(...snapshots.map((s) => s.data.time));
 </script>
 
 {#if anchor && theme && snapshots.length > 0}

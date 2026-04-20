@@ -12,14 +12,21 @@ const theme = computed(() => chart.getTheme());
 const dataInterval = computed(() => chart.getDataInterval());
 
 const labelStyle = computed(() => ({
-  background: theme.value.crosshair.labelBackground,
+  // Blend the theme's labelBackground at 80% opacity so the axis grid
+  // shows through — keeps the badge from looking like an opaque block
+  // while still masking whatever tick sits underneath.
+  background: `color-mix(in srgb, ${theme.value.crosshair.labelBackground} 80%, transparent)`,
   color: theme.value.crosshair.labelTextColor,
   fontSize: theme.value.typography.axisFontSize + 'px',
   fontFamily: theme.value.typography.fontFamily,
+  fontVariantNumeric: 'tabular-nums' as const,
   padding: '2px 6px',
   borderRadius: '2px',
   whiteSpace: 'nowrap' as const,
   pointerEvents: 'none' as const,
+  // Sit above axis ticks (z:0) but below the YLabel badge (z:3) so the
+  // live last-value stays visible when the crosshair crosses its row.
+  zIndex: 2,
 }));
 </script>
 
