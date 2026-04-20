@@ -11,6 +11,7 @@ High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canva
 - **25 built-in themes** — dark, light, and custom
 - **Interactive** — zoom, pan, crosshair, tooltips
 - **Stacking** — normal and percent modes for line/bar
+- **Custom-render helpers** — `buildHoverSnapshots` / `buildLastSnapshots` / `computeTooltipPosition` for overlays that need to escape the built-in UI (structural-equality cache included)
 - **Tree-shakeable** — import only what you use
 - **Zero dependencies** — just your framework
 

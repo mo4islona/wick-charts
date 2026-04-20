@@ -6,6 +6,7 @@ import type { LineSeriesOptions, TimePoint, TimePointInput } from '../types';
 import { hexToRgba } from '../utils/color';
 import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
+import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
 import type { OverlayRenderContext, SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
@@ -259,25 +260,105 @@ export class LineRenderer implements SeriesRenderer {
     return this.#stores[0]?.findNearest(time, interval) ?? null;
   }
 
-  getLayerSnapshots(time: number, interval: number): { value: number; color: string }[] | null {
+  getLayerSnapshots(
+    time: number,
+    interval: number,
+  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
     if (this.#stores.length <= 1) return null;
+
     const colors = this.options.colors;
-    const results: { value: number; color: string }[] = [];
+    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
     for (let li = 0; li < this.#stores.length; li++) {
       if (!this.#stores[li].isVisible()) continue;
       const data = this.#stores[li].getVisibleData(time - interval, time + interval);
       if (data.length === 0) continue;
+
       let closest = data[0];
       let minDist = Math.abs(data[0].time - time);
+      // Midpoint tie → later point wins. Matches `TimeSeriesStore.findNearest`
+      // so single-layer (getDataAtTime) and multi-layer snapshots agree on
+      // the same sample at exactly-between cursor times.
       for (let i = 1; i < data.length; i++) {
         const dist = Math.abs(data[i].time - time);
-        if (dist < minDist) {
+        if (dist <= minDist) {
           minDist = dist;
           closest = data[i];
         }
       }
-      results.push({ value: closest.value, color: colors[li % colors.length] });
+
+      results.push({
+        layerIndex: li,
+        time: closest.time,
+        value: closest.value,
+        color: colors[li % colors.length],
+      });
     }
+
+    return results.length > 0 ? results : null;
+  }
+
+  getStackedLastValue(): { value: number; isLive: boolean } | null {
+    if (this.#stores.length <= 1) {
+      const last = this.#stores[0]?.last();
+
+      return last ? { value: last.value, isLive: true } : null;
+    }
+
+    // Stacked renderers draw the top edge as the cumulative sum of visible
+    // layers at the *last shared time*. Mirrors renderStacked's cumulative
+    // construction but evaluated at a single time point.
+    let lastTime = -Infinity;
+    for (const s of this.#stores) {
+      if (!s.isVisible()) continue;
+      const l = s.last();
+      if (l && l.time > lastTime) lastTime = l.time;
+    }
+    if (lastTime === -Infinity) return null;
+
+    if (this.options.stacking === 'off') {
+      // Non-stacked multi-layer line: there's no single "top" — report the
+      // last value of the last visible layer. Callers that want per-layer
+      // values should use getLayerLastSnapshots.
+      for (let i = this.#stores.length - 1; i >= 0; i--) {
+        if (!this.#stores[i].isVisible()) continue;
+        const last = this.#stores[i].last();
+        if (last) return { value: last.value, isLive: true };
+      }
+
+      return null;
+    }
+
+    const values: number[] = [];
+    for (const s of this.#stores) {
+      if (!s.isVisible()) continue;
+      const l = s.last();
+      values.push(l && l.time === lastTime ? l.value : 0);
+    }
+
+    const totals = sumStack(values);
+    const value = this.options.stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
+
+    return { value, isLive: true };
+  }
+
+  getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {
+    if (this.#stores.length <= 1) return null;
+
+    const colors = this.options.colors;
+    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
+    for (let li = 0; li < this.#stores.length; li++) {
+      if (!this.#stores[li].isVisible()) continue;
+      const last = this.#stores[li].last();
+      if (!last) continue;
+
+      results.push({
+        layerIndex: li,
+        time: last.time,
+        value: last.value,
+        color: colors[li % colors.length],
+      });
+    }
+
     return results.length > 0 ? results : null;
   }
 
