@@ -33,8 +33,8 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     chart,
     options?.innerRadiusRatio,
     options?.padAngle,
-    options?.strokeColor,
-    options?.strokeWidth,
+    options?.stroke?.color,
+    options?.stroke?.widthPx,
     options?.colors,
   ]);
 

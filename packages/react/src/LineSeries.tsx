@@ -8,7 +8,6 @@ export interface LineSeriesProps {
   /** Array of datasets — one per layer. A single line uses `[data]`. */
   data: TimePoint[][];
   options?: Partial<LineSeriesOptions>;
-  label?: string;
   /** Stable series ID — same value across remounts. */
   id?: string;
 }
@@ -18,7 +17,7 @@ export interface LineSeriesProps {
  * like bulk loads and the renderer would clear its entrance-animation entries. */
 const BULK_THRESHOLD = 20;
 
-export function LineSeries({ data, options, label, id: idProp }: LineSeriesProps) {
+export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevLensRef = useRef<number[]>([]);
@@ -26,7 +25,7 @@ export function LineSeries({ data, options, label, id: idProp }: LineSeriesProps
   const prevLastTimesRef = useRef<(number | null)[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addLineSeries({ ...options, label: label ?? options?.label, layers: data.length, id: idProp });
+    const id = chart.addLineSeries({ ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);
@@ -95,11 +94,15 @@ export function LineSeries({ data, options, label, id: idProp }: LineSeriesProps
   }, [
     chart,
     options?.colors?.join(','),
+    options?.strokeWidthPx,
     options?.lineWidth,
-    options?.areaFill,
+    options?.area?.visible,
+    (options as { areaFill?: boolean } | undefined)?.areaFill,
     options?.pulse,
     options?.stacking,
+    options?.entryAnimation,
     options?.enterAnimation,
+    options?.entryMs,
     options?.enterMs,
     options?.smoothMs,
   ]);

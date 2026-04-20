@@ -8,8 +8,10 @@ import {
   type SparklineVariant,
 } from '@wick-charts/react';
 
-import { Section, Select, ToggleGroup } from '../components/controls';
-import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import { ICONS } from '../components/playground/icons';
+import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Select, ToggleGroup } from '../components/playground/primitives';
+import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateBarData, generateLineData, generateWaveData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile } from '../hooks';
@@ -50,11 +52,13 @@ const METRIC_LABELS = ['Revenue', 'Users', 'Conversion', 'Latency', 'Throughput'
 
 // ── Settings ────────────────────────────────────────────────
 
+type Preset = 'crypto' | 'servers' | 'metrics';
+
 interface SparklineSettings {
   variant: SparklineVariant;
   valuePos: SparklineValuePosition;
-  areaFill: boolean;
-  preset: 'crypto' | 'servers' | 'metrics';
+  areaVisible: boolean;
+  preset: Preset;
 }
 
 // ── Page ────────────────────────────────────────────────────
@@ -85,7 +89,7 @@ function SparklineGrid(
           label={row.label}
           sublabel={row.sublabel}
           color={row.color}
-          areaFill={props.areaFill}
+          area={{ visible: props.areaVisible }}
           gradient={props.gradient}
           width={props.mobile ? 120 : 150}
           height={props.mobile ? 40 : 48}
@@ -95,6 +99,88 @@ function SparklineGrid(
     </div>
   );
 }
+
+const SERIES_SECTION: SectionSpec = {
+  id: 'series',
+  title: 'Sparkline',
+  icon: ICONS.series,
+  rows: [
+    {
+      key: 'variant',
+      label: 'Type',
+      render: (v, onChange) => (
+        <ToggleGroup<SparklineVariant>
+          value={v as SparklineVariant}
+          options={[
+            { value: 'line', label: 'Line' },
+            { value: 'bar', label: 'Bar' },
+          ]}
+          onChange={onChange as (v: SparklineVariant) => void}
+        />
+      ),
+    },
+    {
+      key: 'areaVisible',
+      label: 'Fill',
+      render: (v, onChange) => (
+        <ToggleGroup<'on' | 'off'>
+          value={(v as boolean) ? 'on' : 'off'}
+          options={[
+            { value: 'on', label: 'Area' },
+            { value: 'off', label: 'Line only' },
+          ]}
+          onChange={(next) => (onChange as (v: boolean) => void)(next === 'on')}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const VALUE_SECTION: SectionSpec = {
+  id: 'value',
+  title: 'Value',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'valuePos',
+      label: 'Position',
+      render: (v, onChange) => (
+        <ToggleGroup<SparklineValuePosition>
+          value={v as SparklineValuePosition}
+          options={[
+            { value: 'left', label: 'Left' },
+            { value: 'right', label: 'Right' },
+            { value: 'none', label: 'None' },
+          ]}
+          onChange={onChange as (v: SparklineValuePosition) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const DATASET_SECTION: SectionSpec = {
+  id: 'dataset',
+  title: 'Dataset',
+  icon: ICONS.data,
+  rows: [
+    {
+      key: 'preset',
+      label: 'Preset',
+      render: (v, onChange) => (
+        <Select<Preset>
+          value={v as Preset}
+          options={[
+            { value: 'crypto', label: 'Crypto prices' },
+            { value: 'servers', label: 'Server health' },
+            { value: 'metrics', label: 'KPI metrics' },
+          ]}
+          onChange={onChange as (v: Preset) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
 
 export function SparklinePage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
@@ -115,6 +201,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
       data: i === 5 ? makeBarSparkData(80) : makeSparkData(i + 3, 80),
       variant: (i === 5 ? 'bar' : 'line') as SparklineVariant,
     }));
+
     return { crypto, servers, metrics };
   }, []);
 
@@ -123,72 +210,22 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
       id="sparkline"
       theme={theme}
       hideCartesian
-      defaults={{
+      extraDefaults={{
         variant: 'line',
         valuePos: 'right',
-        areaFill: true,
+        areaVisible: true,
         preset: 'crypto',
       }}
+      sections={[SERIES_SECTION, VALUE_SECTION, DATASET_SECTION]}
       charts={(props) => {
         const presetData = datasets[props.preset];
         const rows: MetricRow[] = presetData.map((d, i) => ({
           ...d,
           color: 'variant' in d && d.variant === 'bar' ? undefined : theme.seriesColors[i % theme.seriesColors.length],
         }));
+
         return <SparklineGrid {...props} rows={rows} mobile={mobile} />;
       }}
-      settings={(s, set) => (
-        <>
-          <Section title="Sparkline" theme={theme} noBorder>
-            <ToggleGroup
-              label="Type"
-              options={[
-                { value: 'line', label: 'Line' },
-                { value: 'bar', label: 'Bar' },
-              ]}
-              value={s.variant}
-              onChange={(v) => set({ variant: v as SparklineVariant })}
-              theme={theme}
-            />
-            <ToggleGroup
-              label="Fill"
-              options={[
-                { value: 'on', label: 'Area' },
-                { value: 'off', label: 'Line only' },
-              ]}
-              value={s.areaFill ? 'on' : 'off'}
-              onChange={(v) => set({ areaFill: v === 'on' })}
-              theme={theme}
-            />
-          </Section>
-          <Section title="Value" theme={theme} accent={theme.axis.textColor}>
-            <ToggleGroup
-              label="Position"
-              options={[
-                { value: 'left', label: 'Left' },
-                { value: 'right', label: 'Right' },
-                { value: 'none', label: 'None' },
-              ]}
-              value={s.valuePos}
-              onChange={(v) => set({ valuePos: v as SparklineValuePosition })}
-              theme={theme}
-            />
-          </Section>
-          <Section title="Dataset" theme={theme} accent={theme.axis.textColor}>
-            <Select
-              label="Preset"
-              options={[
-                { value: 'crypto', label: 'Crypto prices' },
-                { value: 'servers', label: 'Server health' },
-                { value: 'metrics', label: 'KPI metrics' },
-              ]}
-              value={s.preset}
-              onChange={(v) => set({ preset: v as 'crypto' | 'servers' | 'metrics' })}
-              theme={theme}
-            />
-          </Section>
-        </>
-      )}
       codeConfig={(s) => ({
         theme: 'darkTheme',
         components: [
@@ -198,7 +235,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
               data: 'data',
               variant: s.variant,
               valuePosition: s.valuePos,
-              ...(s.areaFill ? { areaFill: true } : {}),
+              ...(s.areaVisible ? { area: { visible: true } } : {}),
             },
           },
         ],

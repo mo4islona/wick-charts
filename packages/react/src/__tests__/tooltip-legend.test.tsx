@@ -3,9 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { CandlestickSeries } from '../CandlestickSeries';
 import { ChartContainer } from '../ChartContainer';
+import { InfoBar as TooltipLegend } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
 import { Tooltip } from '../ui/Tooltip';
-import { TooltipLegend } from '../ui/TooltipLegend';
 
 const OHLC = [
   { time: 1_700_000_000_000, open: 100, high: 110, low: 90, close: 105, volume: 1000 },

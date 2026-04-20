@@ -124,13 +124,13 @@ export interface AnimationsConfig {
         /** Rebound (snap-back) duration after pan/zoom overshoot (ms). Default: 350. */
         reboundMs?: AnimationTime;
         /**
-         * Y-axis range transition scale (ms). Calibrated at 60 Hz: each
-         * render frame closes `min(1, 16 / yAxisMs)` of the remaining gap.
-         * Default 80 ms ≈ the legacy 0.2 per 16 ms frame closure. `false`
-         * / `0` snaps the Y range instantly. Note: unlike `smoothMs` /
-         * `enterMs` / `reboundMs` this knob is frame-count-based, not
-         * wall-clock-based, so the perceptual duration scales with frame
-         * time on refresh rates far from 60 Hz.
+         * Y-axis range transition scale. **Frame-count-based, calibrated at
+         * 60 Hz — not wall-clock ms.** Each render frame closes
+         * `min(1, 16 / yAxisMs)` of the remaining gap. Default 80 ≈ the
+         * legacy 0.2-per-frame closure. `false` / `0` snaps the Y range
+         * instantly. Unlike `smoothMs` / `entryMs` / `reboundMs`, the
+         * perceptual duration scales with frame time on refresh rates far
+         * from 60 Hz.
          */
         yAxisMs?: AnimationTime;
       };
@@ -169,8 +169,8 @@ export interface ChartOptions {
   };
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
-  /** Show the background grid. Defaults to true. */
-  grid?: boolean;
+  /** Background grid configuration. Default: `{ visible: true }`. */
+  grid?: { visible: boolean };
   /**
    * Animation control. Split into `points` (data-series animations) and
    * `viewport` (pan/zoom rebound + Y-axis smoothing). See
@@ -319,12 +319,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   get yAxisWidth(): number {
     const y = this.#axis.y;
-    return y?.visible === false ? 0 : (y?.width ?? 55);
+    return y?.visible === false ? 0 : (y?.widthPx ?? y?.width ?? 55);
   }
 
   get xAxisHeight(): number {
     const x = this.#axis.x;
-    return x?.visible === false ? 0 : (x?.height ?? 30);
+    return x?.visible === false ? 0 : (x?.heightPx ?? x?.height ?? 30);
   }
 
   /** Resolved animation config derived from `options.animations` at construction. */
@@ -338,7 +338,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.#yBounds = { min: options.axis.y?.min, max: options.axis.y?.max };
     }
     this.#theme = options?.theme ?? darkTheme;
-    this.#grid = options?.grid !== false;
+    this.#grid = options?.grid?.visible !== false;
     this.#animationsConfig = resolveAnimationsConfig(options?.animations);
     this.#onEdgeReached = options?.onEdgeReached;
 
@@ -474,8 +474,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     const renderer = new LineRenderer(layerCount, {
       colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
-      lineWidth: this.#theme.line.width,
-      areaFill: true,
+      strokeWidthPx: this.#theme.line.width,
+      area: { visible: true },
       ...this.#seriesAnimationDefaults('line'),
       ...rest,
       ...this.#seriesAnimationForceOff(),
@@ -907,8 +907,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Show or hide the background grid. Takes effect on the next render frame. */
-  setGrid(grid: boolean): void {
-    this.#grid = grid;
+  setGrid(grid: { visible: boolean }): void {
+    this.#grid = grid.visible;
     this.#mainScheduler.markDirty();
   }
 

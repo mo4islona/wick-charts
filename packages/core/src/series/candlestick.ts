@@ -17,6 +17,28 @@ const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
 };
 
 /**
+ * Normalize caller-supplied candlestick options. Folds the deprecated
+ * `candleGradient`, `enterAnimation`, and `enterMs` aliases into
+ * `bodyGradient`, `entryAnimation`, and `entryMs` respectively.
+ */
+function normalizeCandlestickOptions(input?: Partial<CandlestickSeriesOptions>): Partial<CandlestickSeriesOptions> {
+  if (!input) return {};
+
+  const out: Partial<CandlestickSeriesOptions> = { ...input };
+  if (input.candleGradient !== undefined && input.bodyGradient === undefined) {
+    out.bodyGradient = input.candleGradient;
+  }
+  if (input.enterAnimation !== undefined && input.entryAnimation === undefined) {
+    out.entryAnimation = input.enterAnimation;
+  }
+  if (input.enterMs !== undefined && input.entryMs === undefined) {
+    out.entryMs = input.enterMs;
+  }
+
+  return out;
+}
+
+/**
  * Resolve an `enterMs` / `smoothMs` option value to a concrete number. `false`
  * collapses to 0 (disabled); `undefined` falls back to the built-in default.
  */
@@ -47,11 +69,11 @@ export class CandlestickRenderer implements SeriesRenderer {
 
   constructor(store: TimeSeriesStore<OHLCData>, options?: Partial<CandlestickSeriesOptions>) {
     this.store = store;
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...DEFAULT_OPTIONS, ...normalizeCandlestickOptions(options) };
   }
 
   updateOptions(options: Partial<CandlestickSeriesOptions>): void {
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...normalizeCandlestickOptions(options) };
   }
 
   getColor(): string {
@@ -70,8 +92,8 @@ export class CandlestickRenderer implements SeriesRenderer {
     const p = point as OHLCInput;
     const time = normalizeTime(p.time);
     this.store.append({ ...p, time });
-    const style = this.options.enterAnimation ?? 'fade-unfold';
-    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const style = this.options.entryAnimation ?? 'unfold';
+    const enterMs = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (style !== 'none' && enterMs > 0) {
       this.entries.set(time, { startTime: performance.now() });
     }
@@ -168,7 +190,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   private entranceProgress(time: number, now: number): number {
     const entry = this.entries.get(time);
     if (!entry) return 1;
-    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const duration = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       this.entries.delete(time);
       return 1;
@@ -337,7 +359,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     const upVolumeColor = hexToRgba(this.options.upColor, 0.2);
     const downVolumeColor = hexToRgba(this.options.downColor, 0.2);
 
-    const style = this.options.enterAnimation ?? 'fade-unfold';
+    const style = this.options.entryAnimation ?? 'unfold';
 
     for (const c of data) {
       if (c.volume === undefined || c.volume === 0) continue;
@@ -396,7 +418,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   }): void {
     if (candles.length === 0) return;
 
-    const style = this.options.enterAnimation ?? 'fade-unfold';
+    const style = this.options.entryAnimation ?? 'unfold';
     const barWidth = bodyWidth + 2; // approximate slot width used for 'slide' horizontal offset
 
     // Wicks
@@ -428,7 +450,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     }
 
     // Bodies
-    const useGradient = this.options.candleGradient !== false;
+    const useGradient = this.options.bodyGradient !== false;
     const topColor = useGradient ? lighten(bodyColor, 0.2) : bodyColor;
     const bottomColor = useGradient ? darken(bodyColor, 0.15) : bodyColor;
 

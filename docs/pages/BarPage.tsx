@@ -7,17 +7,19 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  InfoBar,
   Legend,
   Title,
   Tooltip,
-  TooltipLegend,
   XAxis,
   YAxis,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Switch, ToggleGroup } from '../components/controls';
-import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import { ICONS } from '../components/playground/icons';
+import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Toggle, ToggleGroup } from '../components/playground/primitives';
+import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateBarData, generateLayerData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
@@ -29,7 +31,8 @@ const LAYER_COUNT = 4;
 interface BarSettings {
   stacking: BarStacking;
   barWidth: BarWidth;
-  showTooltipLegend: boolean;
+  infoBarVisible: boolean;
+  tooltipVisible: boolean;
 }
 
 const singleData = generateBarData(80, DEMO_INTERVAL);
@@ -45,22 +48,23 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
     kind: 'bar',
   });
   const display = props.streaming ? datasets[0] : singleData;
+
   return (
     <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub="Up/Down">Single</Title>
-      {props.showTooltipLegend && <TooltipLegend />}
+      {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={[display]}
         options={{
           colors: [props.theme.candlestick.upColor, props.theme.candlestick.downColor],
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
-          enterAnimation: props.barEnterAnimation,
-          enterMs: props.enterMs,
+          entryAnimation: props.barEntryAnimation,
+          entryMs: props.entryMs,
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      <Tooltip />
+      {props.tooltipVisible && <Tooltip />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -78,24 +82,26 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
     if (props.stacking === 'off') return { ...props.axis, y: { min: 0, ...props.axis?.y } };
+
     return props.axis ?? {};
   }, [props.axis, props.stacking]);
+
   return (
     <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient} headerLayout={props.headerLayout}>
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
-      {props.showTooltipLegend && <TooltipLegend />}
+      {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={display}
         options={{
           colors: props.theme.seriesColors.slice(0, display.length),
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: props.stacking,
-          enterAnimation: props.barEnterAnimation,
-          enterMs: props.enterMs,
+          entryAnimation: props.barEntryAnimation,
+          entryMs: props.entryMs,
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      <Tooltip />
+      {props.tooltipVisible && <Tooltip />}
       <Crosshair />
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -104,15 +110,76 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   );
 }
 
+const SERIES_SECTION: SectionSpec = {
+  id: 'series',
+  title: 'Series',
+  icon: ICONS.series,
+  rows: [
+    {
+      key: 'barWidth',
+      label: 'Width',
+      render: (v, onChange) => (
+        <ToggleGroup<BarWidth>
+          value={v as BarWidth}
+          options={[
+            { value: 'thin', label: 'Thin' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'wide', label: 'Wide' },
+          ]}
+          onChange={onChange as (v: BarWidth) => void}
+        />
+      ),
+    },
+    {
+      key: 'stacking',
+      label: 'Stack',
+      render: (v, onChange) => (
+        <ToggleGroup<BarStacking>
+          value={v as BarStacking}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'percent', label: '100%' },
+          ]}
+          onChange={onChange as (v: BarStacking) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const DISPLAY_EXTRA: SectionSpec = {
+  id: 'display-bar',
+  title: 'Display',
+  extend: 'display',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'tooltipVisible',
+      label: 'Tooltip',
+      hint: 'On hover',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'infoBarVisible',
+      label: 'Info bar',
+      hint: 'Series values above the chart',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+  ] as RowSpec[],
+};
+
 export function BarPage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<BarSettings>
       id="bar"
       theme={theme}
-      defaults={{ stacking: 'normal', barWidth: 'normal', showTooltipLegend: true }}
+      extraDefaults={{ stacking: 'normal', barWidth: 'normal', infoBarVisible: true, tooltipVisible: true }}
       animationKinds={['bar']}
+      sections={[DISPLAY_EXTRA, SERIES_SECTION]}
       charts={(props) => {
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
+
         return (
           <>
             <Cell theme={props.theme}>
@@ -124,38 +191,6 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
           </>
         );
       }}
-      settings={(s, set) => (
-        <Section title="Series" theme={theme} noBorder>
-          <ToggleGroup
-            label="Width"
-            options={[
-              { value: 'thin', label: 'Thin' },
-              { value: 'normal', label: 'Normal' },
-              { value: 'wide', label: 'Wide' },
-            ]}
-            value={s.barWidth}
-            onChange={(v) => set({ barWidth: v as BarWidth })}
-            theme={theme}
-          />
-          <ToggleGroup
-            label="Stack"
-            options={[
-              { value: 'off', label: 'Off' },
-              { value: 'normal', label: 'Normal' },
-              { value: 'percent', label: '100%' },
-            ]}
-            value={s.stacking}
-            onChange={(v) => set({ stacking: v as BarStacking })}
-            theme={theme}
-          />
-          <Switch
-            label="Info bar"
-            checked={s.showTooltipLegend}
-            onChange={(v) => set({ showTooltipLegend: v })}
-            theme={theme}
-          />
-        </Section>
-      )}
       codeConfig={(s) => ({
         theme: 'darkTheme',
         components: [
@@ -163,6 +198,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             component: 'BarSeries',
             props: { data: 'layers', options: { barWidthRatio: BAR_WIDTH_MAP[s.barWidth], stacking: s.stacking } },
           },
+          ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
           { component: 'Crosshair' },
           { component: 'YAxis' },
           { component: 'XAxis' },

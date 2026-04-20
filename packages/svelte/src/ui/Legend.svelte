@@ -1,8 +1,8 @@
 <script context="module" lang="ts">
-  export interface LegendItem {
-    label: string;
-    color: string;
-  }
+export interface LegendItem {
+  label: string;
+  color: string;
+}
 </script>
 
 <script lang="ts">
@@ -13,7 +13,8 @@
 
   export let items: LegendItem[] | undefined = undefined;
   export let position: 'bottom' | 'right' = 'bottom';
-  export let mode: 'toggle' | 'solo' = 'toggle';
+  /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
+  export let mode: 'toggle' | 'isolate' | 'solo' = 'toggle';
 
   interface ResolvedItem extends LegendItem {
     seriesId: string;
@@ -115,7 +116,7 @@
 
   function handleClick(index: number) {
     const list = resolved;
-    if (mode === 'solo') {
+    if (mode === 'isolate' || mode === 'solo') {
       const allOthersOff = list.every((_, i) => i === index || disabled.has(i));
       if (allOthersOff) {
         apply(new Set());

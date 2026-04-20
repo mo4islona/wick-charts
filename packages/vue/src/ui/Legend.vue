@@ -18,7 +18,8 @@ const props = withDefaults(
   defineProps<{
     items?: LegendItem[];
     position?: 'bottom' | 'right';
-    mode?: 'toggle' | 'solo';
+    /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
+    mode?: 'toggle' | 'isolate' | 'solo';
   }>(),
   {
     position: 'bottom',
@@ -108,7 +109,7 @@ function apply(next: Set<number>) {
 
 function handleClick(index: number) {
   const list = resolved.value;
-  if (props.mode === 'solo') {
+  if (props.mode === 'isolate' || props.mode === 'solo') {
     const allOthersOff = list.every((_, i) => i === index || disabled.value.has(i));
     if (allOthersOff) {
       apply(new Set());

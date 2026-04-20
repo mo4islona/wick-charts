@@ -9,12 +9,8 @@ const props = withDefaults(
     seriesId: string;
     /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
     mode?: 'value' | 'percent';
-    /**
-     * Custom formatter for the absolute slice value.
-     * @deprecated Passing `'value' | 'percent'` is the pre-rename display mode
-     * shorthand — use the `mode` prop instead.
-     */
-    format?: ValueFormatter | 'value' | 'percent';
+    /** Custom formatter for the absolute slice value. */
+    format?: ValueFormatter;
   }>(),
   {
     mode: undefined,
@@ -22,13 +18,8 @@ const props = withDefaults(
   },
 );
 
-// Back-compat: when `format` is a string, it's the legacy display mode.
-const resolvedMode = computed<'value' | 'percent'>(() =>
-  typeof props.format === 'string' ? props.format : (props.mode ?? 'value'),
-);
-const resolvedFormat = computed<ValueFormatter>(() =>
-  typeof props.format === 'function' ? props.format : formatCompact,
-);
+const resolvedMode = computed<'value' | 'percent'>(() => props.mode ?? 'value');
+const resolvedFormat = computed<ValueFormatter>(() => props.format ?? formatCompact);
 
 const chart = useChartInstance();
 const themeRef = useTheme();

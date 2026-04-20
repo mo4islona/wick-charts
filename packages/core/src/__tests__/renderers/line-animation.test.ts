@@ -141,7 +141,7 @@ describe('LineRenderer — animation', () => {
 
   describe('stacked mode live-tracking', () => {
     it('normal stacking: the rendered upper edge Y tracks the smoothed layer-1 value', () => {
-      const r = new LineRenderer(2, { stacking: 'normal', areaFill: false });
+      const r = new LineRenderer(2, { stacking: 'normal', area: { visible: false } });
       r.setData(
         [
           { time: 10, value: 3 },
@@ -182,7 +182,7 @@ describe('LineRenderer — animation', () => {
     });
 
     it('percent stacking: the layer-split Y reflects the smoothed last value', () => {
-      const r = new LineRenderer(2, { stacking: 'percent', areaFill: false });
+      const r = new LineRenderer(2, { stacking: 'percent', area: { visible: false } });
       r.setData(
         [
           { time: 10, value: 2 },
@@ -232,7 +232,7 @@ describe('LineRenderer — animation', () => {
     it("normal stacking: trailing X of the rendered stroke is between penultimate and new during 'grow'", () => {
       const r = new LineRenderer(2, {
         stacking: 'normal',
-        areaFill: false,
+        area: { visible: false },
         enterAnimation: 'grow',
         enterMs: 400,
       });
@@ -276,7 +276,7 @@ describe('LineRenderer — animation', () => {
     it('normal stacking: trailing X lands on the new X after the entrance completes', () => {
       const r = new LineRenderer(2, {
         stacking: 'normal',
-        areaFill: false,
+        area: { visible: false },
         enterAnimation: 'grow',
         enterMs: 200,
       });
@@ -320,7 +320,7 @@ describe('LineRenderer — animation', () => {
     it("'fade' entrance ramps globalAlpha on the stacked layer", () => {
       const r = new LineRenderer(2, {
         stacking: 'normal',
-        areaFill: false,
+        area: { visible: false },
         enterAnimation: 'fade',
         enterMs: 400,
       });
@@ -360,7 +360,7 @@ describe('LineRenderer — animation', () => {
     it('off-screen append must not lerp the on-screen trailing segment', () => {
       const r = new LineRenderer(2, {
         stacking: 'normal',
-        areaFill: false,
+        area: { visible: false },
         enterAnimation: 'grow',
         enterMs: 400,
       });
@@ -407,7 +407,7 @@ describe('LineRenderer — animation', () => {
     it("hidden layer 0 with active 'grow' must not shift layer 1's lower edge", () => {
       const r = new LineRenderer(2, {
         stacking: 'normal',
-        areaFill: true,
+        area: { visible: true },
         enterAnimation: 'grow',
         enterMs: 400,
       });
@@ -453,7 +453,7 @@ describe('LineRenderer — animation', () => {
 
   describe('pulse-dot in stacked mode aligns with the rendered cumulative line', () => {
     it("normal stacking: pulse Y on layer 1 is at y(layer-0 + layer-1's smoothed last)", () => {
-      const r = new LineRenderer(2, { pulse: true, stacking: 'normal', areaFill: false });
+      const r = new LineRenderer(2, { pulse: true, stacking: 'normal', area: { visible: false } });
       r.setData(
         [
           { time: 10, value: 3 },
@@ -496,7 +496,7 @@ describe('LineRenderer — animation', () => {
     });
 
     it('percent stacking: pulse Y on layer 0 sits at its percent share, not the raw value', () => {
-      const r = new LineRenderer(2, { pulse: true, stacking: 'percent', areaFill: false });
+      const r = new LineRenderer(2, { pulse: true, stacking: 'percent', area: { visible: false } });
       r.setData(
         [
           { time: 10, value: 2 },

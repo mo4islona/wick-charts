@@ -6,9 +6,32 @@ import type { HoverInfo, RenderPadding, SeriesRenderContext, SeriesRenderer, Sli
 const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
   padAngle: 0.02,
-  strokeColor: 'transparent',
-  strokeWidth: 0,
+  stroke: { color: 'transparent', widthPx: 0 },
 };
+
+/**
+ * Normalize caller-supplied pie options. Folds the removed flat `strokeColor`
+ * / `strokeWidth` props (previously part of the public API) into the grouped
+ * `stroke: { color, widthPx }` shape. Accepts partial stroke objects too.
+ */
+function normalizePieOptions(input?: Partial<PieSeriesOptions>): Partial<PieSeriesOptions> {
+  if (!input) return {};
+
+  // Legacy shape: strokeColor / strokeWidth as top-level fields.
+  const legacy = input as Partial<PieSeriesOptions> & {
+    strokeColor?: string;
+    strokeWidth?: number;
+  };
+  const out: Partial<PieSeriesOptions> = { ...input };
+  if ((legacy.strokeColor !== undefined || legacy.strokeWidth !== undefined) && out.stroke === undefined) {
+    out.stroke = {
+      color: legacy.strokeColor ?? 'transparent',
+      widthPx: legacy.strokeWidth ?? 0,
+    };
+  }
+
+  return out;
+}
 
 const TWO_PI = Math.PI * 2;
 
@@ -68,7 +91,7 @@ export class PieRenderer implements SeriesRenderer {
   #dataListeners: Array<() => void> = [];
 
   constructor(options?: Partial<PieSeriesOptions>) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...DEFAULT_OPTIONS, ...normalizePieOptions(options) };
   }
 
   getData(): PieSliceData[] {
@@ -91,7 +114,7 @@ export class PieRenderer implements SeriesRenderer {
   }
 
   updateOptions(options: Partial<PieSeriesOptions>): void {
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...normalizePieOptions(options) };
   }
 
   getColor(): string {
@@ -233,7 +256,7 @@ export class PieRenderer implements SeriesRenderer {
     const outerR = maxR;
     const innerR = outerR * this.options.innerRadiusRatio;
     const pad = this.options.padAngle;
-    const { strokeColor, strokeWidth } = this.options;
+    const { color: strokeColor, widthPx: strokeWidth } = this.options.stroke;
     const explodeDistance = 8 * horizontalPixelRatio;
 
     let angle = -Math.PI / 2;

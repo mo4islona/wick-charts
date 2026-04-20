@@ -1,0 +1,797 @@
+/* OKLch design tokens, all selectors scoped under .wick-playground. */
+.wick-playground {
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Surfaces — cool neutral, low saturation */
+  --bg-0: oklch(0.16 0.01 250);
+  --bg-1: oklch(0.19 0.012 250);
+  --bg-2: oklch(0.22 0.013 250);
+  --bg-3: oklch(0.26 0.014 250);
+  --line: oklch(0.32 0.012 250 / 0.55);
+  --line-soft: oklch(0.32 0.012 250 / 0.28);
+
+  /* Text */
+  --fg-1: oklch(0.95 0.005 250);
+  --fg-2: oklch(0.78 0.008 250);
+  --fg-3: oklch(0.6 0.01 250);
+  --fg-4: oklch(0.48 0.012 250);
+
+  /* Accents */
+  --accent: oklch(0.78 0.08 200);
+  --bull: oklch(0.78 0.13 155);
+  --bear: oklch(0.72 0.15 20);
+
+  /* Code panel palette — dark defaults (restored from main/pre-redesign);
+   * Playground.tsx overrides these when theme.background is light. */
+  --code-bg: oklch(0.18 0.012 250);
+  --code-fg: #cbd5e1;
+  --code-gutter: #64748b;
+  --code-line-hover: oklch(0.22 0.013 250);
+  --code-border: oklch(0.3 0.012 250 / 0.35);
+  --code-btn-fg: #94a3b8;
+  --code-btn-fg-hover: #e2e8f0;
+  --code-btn-border-hover: oklch(0.3 0.012 250 / 0.55);
+  --tok-tag: #7dd3fc;
+  --tok-class-name: #7dd3fc;
+  --tok-attr: #c4b5fd;
+  --tok-str: #86efac;
+  --tok-num: #fbbf24;
+  --tok-kw: #c4b5fd;
+  --tok-function: #fbbf24;
+  --tok-brace: #cbd5e1;
+  --tok-punct: #64748b;
+  --tok-comment: #64748b;
+  --tok-text: #cbd5e1;
+
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--fg-1);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.wick-playground *,
+.wick-playground *::before,
+.wick-playground *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- Shell layout ---------- */
+.wick-playground .pg-shell {
+  display: flex;
+  gap: 0;
+  height: 100%;
+  min-height: 0;
+}
+.wick-playground .pg-main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.wick-playground .pg-drag {
+  width: 10px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.wick-playground .pg-drag-thumb {
+  width: 2px;
+  height: 48px;
+  border-radius: 2px;
+  background: var(--fg-4);
+  opacity: 0.35;
+  transition:
+    opacity 160ms ease,
+    background 160ms ease;
+}
+.wick-playground .pg-drag:hover .pg-drag-thumb {
+  opacity: 0.8;
+  background: var(--fg-2);
+}
+
+/* Vertical drag handle between settings footer and code panel. */
+.wick-playground .pg-vdrag {
+  height: 6px;
+  width: 100%;
+  cursor: row-resize;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wick-playground .pg-vdrag-thumb {
+  height: 2px;
+  width: 36px;
+  border-radius: 2px;
+  background: var(--fg-4);
+  opacity: 0.35;
+  transition:
+    opacity 160ms ease,
+    background 160ms ease;
+}
+.wick-playground .pg-vdrag:hover .pg-vdrag-thumb {
+  opacity: 0.8;
+  background: var(--fg-2);
+}
+
+.wick-playground .pg-right {
+  flex-shrink: 0;
+  max-width: 960px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: grid;
+  /* grid-template-rows set inline in Playground.tsx so code height stays draggable */
+  min-height: 0;
+}
+
+/* ---------- Panel (top 3 zones: search, settings, reset) ---------- */
+.wick-playground .panel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  height: 44px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--fg-4);
+}
+.wick-playground .panel-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  padding: 0;
+}
+.wick-playground .panel-search input::placeholder {
+  color: var(--fg-4);
+}
+.wick-playground .panel-search .clear {
+  background: var(--bg-3);
+  border: 0;
+  color: var(--fg-2);
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.wick-playground .panel-scroll-shell {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.wick-playground .panel-scroll-shell::before,
+.wick-playground .panel-scroll-shell::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.wick-playground .panel-scroll-shell::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--bg-2), transparent);
+}
+.wick-playground .panel-scroll-shell::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--bg-2), transparent);
+}
+.wick-playground .panel-scroll-shell[data-at-top="false"]::before {
+  opacity: 1;
+}
+.wick-playground .panel-scroll-shell[data-at-bottom="false"]::after {
+  opacity: 1;
+}
+.wick-playground .panel-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 4px 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-3) transparent;
+}
+.wick-playground .panel-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.wick-playground .panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 3px;
+}
+
+.wick-playground .panel-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  min-height: 44px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--bg-1);
+}
+.wick-playground .panel-foot .ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg-2);
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.wick-playground .panel-foot .ghost:hover:not(:disabled) {
+  border-color: var(--fg-4);
+  color: var(--fg-1);
+}
+.wick-playground .panel-foot .ghost:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- Sections ---------- */
+.wick-playground .sec {
+  border-bottom: 1px solid var(--line-soft);
+}
+.wick-playground .sec:last-child {
+  border-bottom: 0;
+}
+.wick-playground .sec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  min-height: 36px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--fg-2);
+  background: transparent;
+  border: 0;
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+}
+.wick-playground .sec-head:hover {
+  background: var(--bg-2);
+}
+.wick-playground .sec-head .chev {
+  color: var(--fg-4);
+  transition: transform 160ms ease;
+  flex-shrink: 0;
+}
+.wick-playground .sec.open .sec-head .chev {
+  transform: rotate(90deg);
+}
+.wick-playground .sec-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+}
+.wick-playground .sec-head h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-1);
+  flex: 1;
+}
+.wick-playground .sec-count {
+  font-size: 10.5px;
+  font-family: var(--mono);
+  color: var(--accent);
+  background: color-mix(in oklab, var(--accent) 22%, var(--bg-2));
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+  padding: 0 8px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.wick-playground .sec-reset {
+  background: transparent;
+  border: 0;
+  color: var(--fg-4);
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.wick-playground .sec-reset:hover {
+  color: var(--fg-1);
+  background: var(--bg-3);
+}
+.wick-playground .sec-collapse {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-height 240ms ease,
+    opacity 160ms ease;
+}
+.wick-playground .sec.open .sec-collapse {
+  max-height: 1200px;
+  opacity: 1;
+  transition:
+    max-height 320ms ease,
+    opacity 200ms ease 60ms;
+}
+.wick-playground .sec-body {
+  padding: 2px 0 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0;
+}
+
+/* ---------- Rows ---------- */
+.wick-playground .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px 7px 32px;
+  min-height: 30px;
+  min-width: 0;
+  grid-column: 1 / -1; /* default: full row across both columns */
+}
+.wick-playground .row-half {
+  grid-column: auto; /* opt-in half column */
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding-left: 32px;
+  padding-right: 0;
+}
+.wick-playground .row-half + .row-half {
+  padding-left: 18px;
+  padding-right: 14px;
+}
+.wick-playground .row-half .row-ctrl {
+  justify-content: flex-start;
+}
+.wick-playground .row:hover {
+  background: var(--bg-2);
+}
+.wick-playground .row-label {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.wick-playground .row-label > span:first-child {
+  font-size: 12.5px;
+  color: var(--fg-1);
+}
+.wick-playground .row-hint {
+  font-size: 11.5px;
+  color: var(--fg-3\.2);
+}
+.wick-playground .row-ctrl {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* ---------- Toggle ---------- */
+.wick-playground .toggle {
+  flex-shrink: 0;
+  width: 30px;
+  height: 17px;
+  border-radius: 999px;
+  background: var(--bg-3);
+  border: 0;
+  cursor: pointer;
+  padding: 2px;
+  position: relative;
+  transition: background 160ms ease;
+}
+.wick-playground .toggle .knob {
+  display: block;
+  width: 13px;
+  height: 13px;
+  background: var(--fg-3);
+  border-radius: 50%;
+  transition:
+    transform 160ms ease,
+    background 160ms ease;
+}
+.wick-playground .toggle.on {
+  background: var(--bull);
+}
+.wick-playground .toggle.on .knob {
+  transform: translateX(13px);
+  background: oklch(0.15 0 0);
+}
+
+/* ---------- ToggleGroup ---------- */
+/* Unscoped so the primitive works outside `.wick-playground` (sidebar).
+ * Uses currentColor-derived alpha so it adapts to whatever parent ink. */
+.tgroup {
+  display: inline-flex;
+  background: color-mix(in oklab, currentColor 6%, transparent);
+  border: 1px solid color-mix(in oklab, currentColor 18%, transparent);
+  border-radius: 6px;
+  padding: 2px;
+}
+.tgroup button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  color: color-mix(in oklab, currentColor 65%, transparent);
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.tgroup button.on {
+  background: color-mix(in oklab, currentColor 14%, transparent);
+  color: currentColor;
+}
+.wick-playground .tgroup {
+  background: color-mix(in oklab, var(--bg-3), transparent 55%);
+  border-color: var(--line-soft);
+}
+.wick-playground .tgroup button {
+  color: var(--fg-3);
+}
+.wick-playground .tgroup button:hover {
+  color: var(--fg-1);
+}
+.wick-playground .tgroup button.on {
+  background: color-mix(in oklab, var(--bg-1), transparent 25%);
+  color: var(--fg-1);
+}
+
+/* ---------- Select ---------- */
+.wick-playground .select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.wick-playground .select select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: color-mix(in oklab, var(--bg-3), transparent 55%);
+  border: 1px solid var(--line-soft);
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 5px 22px 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  width: 100%;
+  max-width: 180px;
+}
+.wick-playground .select select:hover {
+  border-color: var(--fg-4);
+}
+.wick-playground .select .caret {
+  position: absolute;
+  right: 7px;
+  pointer-events: none;
+  color: var(--fg-3);
+}
+
+/* ---------- Slider ---------- */
+.wick-playground .slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 150px;
+  max-width: 100%;
+  min-width: 0;
+}
+.wick-playground .slider input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 16px;
+}
+.wick-playground .slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: var(--bg-3);
+  border-radius: 2px;
+}
+.wick-playground .slider input[type="range"]::-moz-range-track {
+  height: 3px;
+  background: var(--bg-3);
+  border-radius: 2px;
+}
+.wick-playground .slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg-1);
+  margin-top: -4.5px;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px var(--bg-3);
+}
+.wick-playground .slider input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--fg-1);
+  border: 0;
+  cursor: pointer;
+}
+.wick-playground .slider-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-2);
+  min-width: 44px;
+  text-align: right;
+}
+.wick-playground .slider-val em {
+  color: var(--fg-4);
+  font-style: normal;
+  margin-left: 2px;
+  font-size: 10px;
+}
+
+/* ---------- BoundInput ---------- */
+.wick-playground .bound {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 160px;
+  min-width: 0;
+}
+.wick-playground .bound input {
+  background: var(--bg-0);
+  color: var(--fg-1);
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+.wick-playground .bound input::placeholder {
+  color: var(--fg-4);
+}
+.wick-playground .bound input:hover {
+  border-color: var(--line);
+}
+.wick-playground .bound input:focus {
+  border-color: var(--accent);
+  background: var(--bg-1);
+}
+.wick-playground .bound-presets {
+  display: flex;
+  gap: 2px;
+}
+.wick-playground .bound-presets button {
+  flex: 1;
+  background: var(--bg-0);
+  color: var(--fg-3);
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.wick-playground .bound-presets button:hover {
+  color: var(--fg-1);
+  border-color: var(--line);
+}
+.wick-playground .bound-presets button.on {
+  background: var(--bg-3);
+  color: var(--fg-1);
+  border-color: var(--line);
+}
+
+/* ---------- Code panel ---------- */
+/* Defaults are the dark palette; Playground.tsx overrides --code-* vars
+ * for light themes (detected by theme.background luminance). */
+.wick-playground .pg-code-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  margin: 8px;
+}
+.wick-playground .pg-code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--code-btn-fg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition:
+    opacity 160ms ease,
+    color 160ms ease;
+}
+.wick-playground .pg-code-copy:hover {
+  opacity: 1;
+  color: var(--code-btn-fg-hover);
+}
+.wick-playground .pg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 6px 8px;
+  border-bottom: 1px solid var(--code-border);
+  flex-shrink: 0;
+}
+.wick-playground .pg-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.wick-playground .pg-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--code-btn-fg);
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+.wick-playground .pg-actions button:hover {
+  color: var(--code-btn-fg-hover);
+  border-color: var(--code-btn-border-hover);
+}
+
+.wick-playground .pg-code {
+  margin: 0;
+  padding: 8px 0;
+  overflow: auto;
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  tab-size: 2;
+  min-height: 0;
+  min-width: 0;
+}
+.wick-playground .pg-code code {
+  display: block;
+  min-width: max-content;
+  width: max-content;
+}
+.wick-playground .pg-line {
+  display: flex;
+  padding: 0 14px;
+  white-space: pre;
+  min-width: max-content;
+}
+.wick-playground .pg-src {
+  color: var(--code-fg);
+}
+.wick-playground .pg-prompt {
+  color: var(--code-gutter);
+  user-select: none;
+}
+
+/* Code tokens */
+.wick-playground .tok-tag,
+.wick-playground .tok-class-name {
+  color: var(--tok-tag);
+}
+.wick-playground .tok-attr-name {
+  color: var(--tok-attr);
+}
+.wick-playground .tok-attr-value,
+.wick-playground .tok-string {
+  color: var(--tok-str);
+}
+.wick-playground .tok-number {
+  color: var(--tok-num);
+}
+.wick-playground .tok-keyword {
+  color: var(--tok-kw);
+}
+.wick-playground .tok-punctuation,
+.wick-playground .tok-script-punctuation {
+  color: var(--tok-punct);
+}
+.wick-playground .tok-comment {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.wick-playground .tok-function {
+  color: var(--tok-num);
+}
+.wick-playground .tok-operator {
+  color: var(--tok-punct);
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 768px) {
+  .wick-playground .pg-shell {
+    flex-direction: column;
+  }
+  .wick-playground .pg-drag {
+    display: none;
+  }
+  .wick-playground[data-mobile="true"] .pg-right {
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--line-soft);
+    display: flex;
+    flex-direction: column;
+    grid-template-rows: none;
+  }
+  .wick-playground .panel-scroll {
+    overflow-y: visible;
+  }
+  .wick-playground .pg-code-wrap {
+    flex: 0 0 auto;
+  }
+  .wick-playground .pg-code {
+    overflow: auto;
+  }
+}

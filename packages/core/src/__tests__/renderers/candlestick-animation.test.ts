@@ -154,9 +154,9 @@ describe('CandlestickRenderer — live-tracking animation', () => {
       expect(r.needsAnimation).toBe(true);
     });
 
-    it("default 'fade' style: first frame after append uses globalAlpha < 1 for the new candle", () => {
+    it("'fade-unfold' style: first frame after append uses globalAlpha < 1 for the new candle", () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { candleGradient: false });
+      const r = new CandlestickRenderer(store, { candleGradient: false, entryAnimation: 'fade-unfold' });
       renderFrame(r); // prime
 
       r.appendPoint({ time: 30, ...BULL });

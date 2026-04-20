@@ -9,13 +9,15 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { Section, Switch } from '../components/controls';
-import { Playground, type PlaygroundChartProps } from '../components/Playground';
+import { ICONS } from '../components/playground/icons';
+import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Toggle } from '../components/playground/primitives';
+import type { RowSpec, SectionSpec } from '../components/playground/sections';
 
 interface PieSettings {
   donut: boolean;
-  showTooltip: boolean;
-  showLegend: boolean;
+  tooltipVisible: boolean;
+  legendVisible: boolean;
 }
 
 const PORTFOLIO: PieSliceData[] = [
@@ -56,38 +58,68 @@ function PieChart({
   gradient,
   data,
   donut,
-  showTooltip,
-  showLegend,
+  tooltipVisible,
+  legendVisible,
   title,
 }: PlaygroundChartProps & PieSettings & { data: PieSliceData[]; title: string }) {
   const sid = 'pie';
+
   return (
     <ChartContainer
       theme={theme}
-      axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}
+      axis={{ y: { visible: false, widthPx: 0 }, x: { visible: false, heightPx: 0 } }}
       gradient={gradient}
     >
       <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
       <PieSeries
         id={sid}
         data={data}
-        options={{ innerRadiusRatio: donut ? 0.55 : 0, padAngle: 0.03, strokeColor: theme.background, strokeWidth: 2 }}
+        options={{
+          innerRadiusRatio: donut ? 0.55 : 0,
+          padAngle: 0.03,
+          stroke: { color: theme.background, widthPx: 2 },
+        }}
       />
-      {showTooltip && <PieTooltip seriesId={sid} />}
-      {showLegend && <PieLegend seriesId={sid} />}
+      {tooltipVisible && <PieTooltip seriesId={sid} />}
+      {legendVisible && <PieLegend seriesId={sid} />}
     </ChartContainer>
   );
 }
+
+const DISPLAY_EXTRA: SectionSpec = {
+  id: 'display-pie',
+  title: 'Display',
+  extend: 'display',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'donut',
+      label: 'Donut',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'tooltipVisible',
+      label: 'Tooltip',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'legendVisible',
+      label: 'Legend',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+  ] as RowSpec[],
+};
 
 export function PiePage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<PieSettings>
       id="pie"
       theme={theme}
-      defaults={{ donut: false, showTooltip: true, showLegend: true }}
+      extraDefaults={{ donut: false, tooltipVisible: true, legendVisible: true }}
       gridTemplate="1fr 1fr"
       gridColumns="1fr 1fr"
       hideCartesian
+      sections={[DISPLAY_EXTRA]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -104,13 +136,6 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
           </Cell>
         </>
       )}
-      settings={(s, set) => (
-        <Section title="Series" theme={theme} noBorder>
-          <Switch label="Donut" checked={s.donut} onChange={(v) => set({ donut: v })} theme={theme} />
-          <Switch label="Tooltip" checked={s.showTooltip} onChange={(v) => set({ showTooltip: v })} theme={theme} />
-          <Switch label="Legend" checked={s.showLegend} onChange={(v) => set({ showLegend: v })} theme={theme} />
-        </Section>
-      )}
       codeConfig={(s) => ({
         theme: 'darkTheme',
         components: [
@@ -118,8 +143,8 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
             component: 'PieSeries',
             props: { id: 'sid', data: 'data', options: { innerRadiusRatio: s.donut ? 0.55 : 0, padAngle: 0.03 } },
           },
-          ...(s.showTooltip ? [{ component: 'PieTooltip', props: { seriesId: 'sid' } }] : []),
-          ...(s.showLegend ? [{ component: 'PieLegend', props: { seriesId: 'sid' } }] : []),
+          ...(s.tooltipVisible ? [{ component: 'PieTooltip', props: { seriesId: 'sid' } }] : []),
+          ...(s.legendVisible ? [{ component: 'PieLegend', props: { seriesId: 'sid' } }] : []),
         ],
       })}
     />

@@ -6,18 +6,21 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  InfoBar,
   LineSeries,
   TimeAxis,
   Title,
   Tooltip,
-  TooltipLegend,
   YAxis,
   YLabel,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import { HighlightedCode, Slider } from '../components/controls';
 import { FrameworkSelect } from '../components/FrameworkSelect';
+import { HighlightedCode } from '../components/playground/CodeView';
+import { Slider } from '../components/playground/primitives';
+import '../components/playground/styles.css';
+
 import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
 import { type Framework, useFramework, useIsMobile, useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
@@ -58,7 +61,7 @@ function CandleChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Candlestick">BTC/USD</Title>
-      <TooltipLegend seriesId={sid} />
+      <InfoBar seriesId={sid} />
       <CandlestickSeries id={sid} data={data} />
       <YLabel seriesId={sid} />
       <Tooltip seriesId={sid} />
@@ -82,10 +85,16 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
-      <TooltipLegend />
-      <LineSeries data={[datasets[0]]} options={{ areaFill: true, lineWidth: 1 }} />
-      <LineSeries data={[datasets[1]]} options={{ colors: [theme.bands.upper], areaFill: true, lineWidth: 1 }} />
-      <LineSeries data={[datasets[2]]} options={{ colors: [theme.bands.lower], areaFill: true, lineWidth: 1 }} />
+      <InfoBar />
+      <LineSeries data={[datasets[0]]} options={{ area: { visible: true }, strokeWidthPx: 1 }} />
+      <LineSeries
+        data={[datasets[1]]}
+        options={{ colors: [theme.bands.upper], area: { visible: true }, strokeWidthPx: 1 }}
+      />
+      <LineSeries
+        data={[datasets[2]]}
+        options={{ colors: [theme.bands.lower], area: { visible: true }, strokeWidthPx: 1 }}
+      />
       <Tooltip />
       <Crosshair />
       <YAxis />
@@ -101,7 +110,7 @@ function MultiLineChart({ theme, speed }: StreamProps) {
       <Title sub="10 assets · Live">Portfolio</Title>
       <LineSeries
         data={datasets}
-        options={{ colors: theme.seriesColors.slice(0, datasets.length), areaFill: false, lineWidth: 1 }}
+        options={{ colors: theme.seriesColors.slice(0, datasets.length), area: { visible: false }, strokeWidthPx: 1 }}
       />
       <Crosshair />
       <YAxis />
@@ -448,63 +457,6 @@ const props = defineProps(['data']);
 </ChartContainer>`,
 };
 
-function CopyButton({ text, theme }: { text: string; theme: ChartTheme }) {
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <button
-      onClick={() => {
-        navigator.clipboard.writeText(text).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
-      style={{
-        background: 'transparent',
-        border: 'none',
-        color: copied ? theme.candlestick.upColor : hexToRgba(theme.axis.textColor, 0.5),
-        cursor: 'pointer',
-        padding: 4,
-        borderRadius: 4,
-        transition: 'color 0.2s',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {copied ? (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 function SectionHeading({ children, theme }: { children: React.ReactNode; theme: ChartTheme }) {
   return (
     <h3
@@ -589,35 +541,13 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
       >
         {/* Left: Install + AI skill */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-          {/* Install */}
           <div style={cardStyle}>
             <SectionHeading theme={theme}>1. Install</SectionHeading>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: hexToRgba(theme.crosshair.labelBackground, 0.4),
-                border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.3)}`,
-                borderRadius: 6,
-                padding: '8px 10px',
-                fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
-                fontSize: 12,
-                color: theme.tooltip.textColor,
-                overflow: 'hidden',
-              }}
-            >
-              <span>
-                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>$ </span>
-                {INSTALL_COMMANDS[fw]}
-              </span>
-              <CopyButton text={INSTALL_COMMANDS[fw]} theme={theme} />
-            </div>
+            <HighlightedCode code={INSTALL_COMMANDS[fw]} theme={theme} prompt="$" />
           </div>
 
-          {/* AI skill */}
           <div style={cardStyle}>
-            <SectionHeading theme={theme}>2. AI Skill</SectionHeading>
+            <SectionHeading theme={theme}>2. AI skill</SectionHeading>
             <p
               style={{
                 margin: 0,
@@ -627,31 +557,10 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
                 lineHeight: 1.5,
               }}
             >
-              Wick Charts ships with a built-in Claude Code skill. Your AI assistant will know every component, prop,
-              and theme out of the box.
+              Wick Charts ships with a built-in AI skill. Your AI assistant will know every component, prop, and theme
+              out of the box.
             </p>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-                background: hexToRgba(theme.crosshair.labelBackground, 0.4),
-                border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.3)}`,
-                borderRadius: 6,
-                padding: '8px 10px',
-                fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
-                fontSize: 11,
-                color: theme.tooltip.textColor,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: hexToRgba(theme.axis.textColor, 0.5) }}>$</span>
-                <span style={{ color: theme.tooltip.textColor, wordBreak: 'break-all', flex: 1 }}>
-                  npx skills add mo4islona/wick-charts
-                </span>
-                <CopyButton text="npx skills add mo4islona/wick-charts" theme={theme} />
-              </div>
-            </div>
+            <HighlightedCode code="npx skills add mo4islona/wick-charts" theme={theme} prompt="$" />
           </div>
         </div>
 

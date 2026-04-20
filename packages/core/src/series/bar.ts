@@ -12,6 +12,25 @@ const DEFAULT_OPTIONS: BarSeriesOptions = {
   stacking: 'off',
 };
 
+/**
+ * Normalize caller-supplied bar options. Folds the deprecated `enterAnimation`
+ * / `enterMs` aliases into `entryAnimation` / `entryMs` so the renderer reads
+ * only the canonical fields.
+ */
+function normalizeBarOptions(input?: Partial<BarSeriesOptions>): Partial<BarSeriesOptions> {
+  if (!input) return {};
+
+  const out: Partial<BarSeriesOptions> = { ...input };
+  if (input.enterAnimation !== undefined && input.entryAnimation === undefined) {
+    out.entryAnimation = input.enterAnimation;
+  }
+  if (input.enterMs !== undefined && input.entryMs === undefined) {
+    out.entryMs = input.enterMs;
+  }
+
+  return out;
+}
+
 /** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
 function resolveMs(value: number | false | undefined, fallback: number): number {
   if (value === false) return 0;
@@ -44,7 +63,7 @@ export class BarRenderer implements SeriesRenderer {
 
   constructor(layerCount: number, options?: Partial<BarSeriesOptions>) {
     this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<LineData>());
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = { ...DEFAULT_OPTIONS, ...normalizeBarOptions(options) };
     this.displayedLastValues = new Array(layerCount).fill(null);
     this.lastSeededTimes = new Array(layerCount).fill(Number.NaN);
     this.entries = Array.from({ length: layerCount }, () => new Map());
@@ -56,7 +75,7 @@ export class BarRenderer implements SeriesRenderer {
   }
 
   updateOptions(options: Partial<BarSeriesOptions>): void {
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...normalizeBarOptions(options) };
   }
 
   getColor(): string {
@@ -83,8 +102,8 @@ export class BarRenderer implements SeriesRenderer {
     const p = point as TimePointInput;
     const time = normalizeTime(p.time);
     store.append({ ...p, time });
-    const style = this.options.enterAnimation ?? 'fade-grow';
-    const enterMs = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const style = this.options.entryAnimation ?? 'fade-grow';
+    const enterMs = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (style !== 'none' && enterMs > 0) {
       this.entries[layerIndex]?.set(time, { startTime: performance.now() });
     }
@@ -186,7 +205,7 @@ export class BarRenderer implements SeriesRenderer {
     const m = this.entries[layerIndex];
     const entry = m?.get(time);
     if (!entry) return 1;
-    const duration = resolveMs(this.options.enterMs, DEFAULT_ENTER_MS);
+    const duration = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
     if (duration <= 0) {
       m.delete(time);
       return 1;
@@ -210,7 +229,7 @@ export class BarRenderer implements SeriesRenderer {
     x: number,
     barWidth: number,
   ): { topY: number; barHeight: number; x: number; barWidth: number; alpha: number } {
-    const style = this.options.enterAnimation ?? 'fade-grow';
+    const style = this.options.entryAnimation ?? 'fade-grow';
     if (progress >= 1 || style === 'none') {
       return { topY, barHeight, x, barWidth, alpha: 1 };
     }
@@ -555,7 +574,7 @@ export class BarRenderer implements SeriesRenderer {
     barWidth: number,
     color: string,
   ): void {
-    const style = this.options.enterAnimation ?? 'fade-grow';
+    const style = this.options.entryAnimation ?? 'fade-grow';
     if (progress >= 1 || style === 'none') {
       this.fillBar(context, x, topY, barWidth, barHeight, color);
       return;

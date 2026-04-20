@@ -94,8 +94,11 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     options?.wickUpColor,
     options?.wickDownColor,
     options?.bodyWidthRatio,
+    options?.bodyGradient,
     options?.candleGradient,
+    options?.entryAnimation,
     options?.enterAnimation,
+    options?.entryMs,
     options?.enterMs,
     options?.smoothMs,
   ]);

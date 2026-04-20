@@ -5,7 +5,7 @@ import { type Readable, type Writable, writable } from 'svelte/store';
 const CHART_KEY = Symbol('wick-chart');
 const THEME_KEY = Symbol('wick-theme');
 const TITLE_ANCHOR_KEY = Symbol('wick-title-anchor');
-const TOOLTIP_LEGEND_ANCHOR_KEY = Symbol('wick-tooltip-legend-anchor');
+const INFO_BAR_ANCHOR_KEY = Symbol('wick-info-bar-anchor');
 const LEGEND_ANCHOR_KEY = Symbol('wick-legend-anchor');
 const LEGEND_RIGHT_ANCHOR_KEY = Symbol('wick-legend-right-anchor');
 
@@ -41,11 +41,14 @@ export function initTitleAnchor(): Writable<HTMLElement | null> {
   return store;
 }
 
-export function initTooltipLegendAnchor(): Writable<HTMLElement | null> {
+export function initInfoBarAnchor(): Writable<HTMLElement | null> {
   const store = writable<HTMLElement | null>(null);
-  setContext(TOOLTIP_LEGEND_ANCHOR_KEY, store);
+  setContext(INFO_BAR_ANCHOR_KEY, store);
   return store;
 }
+
+/** @deprecated Use {@link initInfoBarAnchor} instead. */
+export const initTooltipLegendAnchor = initInfoBarAnchor;
 
 export function initLegendAnchor(): Writable<HTMLElement | null> {
   const store = writable<HTMLElement | null>(null);
@@ -63,9 +66,12 @@ export function getTitleAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(TITLE_ANCHOR_KEY);
 }
 
-export function getTooltipLegendAnchor(): Readable<HTMLElement | null> {
-  return getContext<Readable<HTMLElement | null>>(TOOLTIP_LEGEND_ANCHOR_KEY);
+export function getInfoBarAnchor(): Readable<HTMLElement | null> {
+  return getContext<Readable<HTMLElement | null>>(INFO_BAR_ANCHOR_KEY);
 }
+
+/** @deprecated Use {@link getInfoBarAnchor} instead. */
+export const getTooltipLegendAnchor = getInfoBarAnchor;
 
 export function getLegendAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(LEGEND_ANCHOR_KEY);

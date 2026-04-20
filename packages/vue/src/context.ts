@@ -10,7 +10,9 @@ export const ThemeKey: InjectionKey<ShallowRef<ChartTheme>> = Symbol('wick-theme
  * provides, so the chart owns its own header / info-bar / footer layout.
  */
 export const TitleAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-title-anchor');
-export const TooltipLegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-tooltip-legend-anchor');
+export const InfoBarAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-info-bar-anchor');
+/** @deprecated Use {@link InfoBarAnchorKey} instead. */
+export const TooltipLegendAnchorKey = InfoBarAnchorKey;
 export const LegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-anchor');
 export const LegendRightAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-right-anchor');
 

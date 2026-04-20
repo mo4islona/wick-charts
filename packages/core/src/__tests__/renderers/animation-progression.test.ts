@@ -101,7 +101,7 @@ describe('entrance animation — frame-by-frame progression', () => {
     // Disable areaFill so the only `lineTo` calls are for the polyline itself —
     // with areaFill enabled, two extra `lineTo` calls at the chart's bottom
     // corners close the fill path and would clobber our "last lineTo" heuristic.
-    const r = new LineRenderer(1, { enterAnimation: 'grow', enterMs: 250, areaFill: false });
+    const r = new LineRenderer(1, { enterAnimation: 'grow', enterMs: 250, area: { visible: false } });
     const base: LineData[] = [
       { time: 10, value: 5 },
       { time: 20, value: 6 },

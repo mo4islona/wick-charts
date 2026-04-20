@@ -60,7 +60,7 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSn
  * Floating near-cursor glass tooltip that appears while hovering the chart.
  *
  * Only handles the floating panel — the hoisted info bar at the top is a
- * separate component ({@link TooltipLegend}), placed as a sibling. Compose
+ * separate component ({@link InfoBar}), placed as a sibling. Compose
  * them together when you want both; omit either for just one.
  */
 export function Tooltip({ seriesId, sort = 'none', format = defaultTooltipFormat }: TooltipProps) {

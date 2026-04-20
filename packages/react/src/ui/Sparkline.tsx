@@ -27,12 +27,16 @@ export interface SparklineProps {
   /** Secondary color for negative bars */
   negativeColor?: string;
   /** Show area fill under line */
+  area?: { visible: boolean };
+  /** @deprecated Use {@link area} instead. */
   areaFill?: boolean;
   /** Chart width (default: 140) */
   width?: number;
   /** Overall height (default: 48) */
   height?: number;
-  /** Line width (default: 1.5) */
+  /** Stroke width in CSS pixels (default: 1.5) */
+  strokeWidthPx?: number;
+  /** @deprecated Use {@link strokeWidthPx} instead. */
   lineWidth?: number;
   /** Show chart background gradient (default: true) */
   gradient?: boolean;
@@ -68,13 +72,19 @@ export function Sparkline({
   sublabel,
   color,
   negativeColor,
-  areaFill = true,
+  area,
+  areaFill,
   width = 140,
   height = 48,
-  lineWidth = 1.5,
+  strokeWidthPx,
+  lineWidth,
   gradient = true,
   style,
 }: SparklineProps) {
+  // Default area-visible = true. `area` wins if caller passes it; otherwise
+  // fall back to the deprecated flat `areaFill` flag for backward compatibility.
+  const areaVisible = area?.visible ?? areaFill ?? true;
+  const resolvedStrokeWidthPx = strokeWidthPx ?? lineWidth ?? 1.5;
   const lastValue = data.length > 0 ? data[data.length - 1].value : 0;
   const change = useMemo(() => computeChange(data), [data]);
 
@@ -153,21 +163,21 @@ export function Sparkline({
       <ChartContainer
         theme={theme}
         axis={{
-          y: { visible: false, width: 0 },
-          x: { visible: false, height: 0 },
+          y: { visible: false, widthPx: 0 },
+          x: { visible: false, heightPx: 0 },
         }}
         padding={{ top: 5, right: 0, bottom: 0, left: 0 }}
         gradient={gradient}
         interactive={false}
-        grid={false}
+        grid={{ visible: false }}
       >
         {variant === 'line' ? (
           <LineSeries
             data={[data]}
             options={{
               colors: [resolvedColor],
-              lineWidth,
-              areaFill,
+              strokeWidthPx: resolvedStrokeWidthPx,
+              area: { visible: areaVisible },
               pulse: false,
               stacking: 'off',
             }}

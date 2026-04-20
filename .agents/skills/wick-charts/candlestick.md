@@ -1,6 +1,6 @@
 # Candlestick Chart
 
-OHLCV financial chart with automatic volume bars, smart data diffing, and candle gradient rendering.
+OHLCV financial chart with automatic volume bars, smart data diffing, and body gradient rendering.
 
 ## Data format
 
@@ -30,7 +30,7 @@ interface CandlestickSeriesOptions {
   wickUpColor: string;       // bullish wick — default: '#26a69a'
   wickDownColor: string;     // bearish wick — default: '#ef5350'
   bodyWidthRatio: number;    // 0–1, candle body width — default: 0.6
-  candleGradient?: boolean;  // vertical gradient on bodies — default: true
+  bodyGradient?: boolean;    // vertical gradient on bodies — default: true
 }
 ```
 
@@ -74,7 +74,7 @@ function CandlestickChart({ data }: { data: OHLCData[] }) {
           upColor: '#26a69a',
           downColor: '#ef5350',
           bodyWidthRatio: 0.6,
-          candleGradient: true,
+          bodyGradient: true,
         }}
       />
       <Tooltip />
@@ -133,7 +133,7 @@ const seriesId = 'btc-ohlc';
     <CandlestickSeries
       :id="seriesId"
       :data="props.data"
-      :options="{ upColor: '#26a69a', downColor: '#ef5350', candleGradient: true }"
+      :options="{ upColor: '#26a69a', downColor: '#ef5350', bodyGradient: true }"
     />
     <Tooltip />
     <Crosshair />
@@ -185,7 +185,7 @@ function onNewCandle(candle: OHLCData) {
   <CandlestickSeries
     id={seriesId}
     {data}
-    options={{ upColor: '#26a69a', downColor: '#ef5350', candleGradient: true }}
+    options={{ upColor: '#26a69a', downColor: '#ef5350', bodyGradient: true }}
   />
   <Tooltip />
   <Crosshair />
@@ -240,13 +240,11 @@ const id = 'btc-ohlc';
   <CandlestickSeries id={id} data={ohlcData} />
   <LineSeries
     data={[sma20]}
-    options={{ colors: ['#ffd700'], lineWidth: 1, areaFill: false, pulse: false }}
-    label="SMA 20"
+    options={{ colors: ['#ffd700'], strokeWidthPx: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
   />
   <LineSeries
     data={[ema50]}
-    options={{ colors: ['#ff6b6b'], lineWidth: 1, areaFill: false, pulse: false }}
-    label="EMA 50"
+    options={{ colors: ['#ff6b6b'], strokeWidthPx: 1, area: { visible: false }, pulse: false, label: 'EMA 50' }}
   />
   <Tooltip />
   <Crosshair />

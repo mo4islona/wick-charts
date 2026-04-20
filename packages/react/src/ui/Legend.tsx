@@ -14,17 +14,21 @@ interface ResolvedItem extends LegendItem {
   isLayer: boolean; // true = layer within multi-layer, false = whole series
 }
 
+/**
+ * Legend interaction mode.
+ * - `'toggle'` — click toggles individual items on/off (default).
+ * - `'isolate'` — click shows only that item; click again shows all.
+ * - `'solo'` — **@deprecated** alias for `'isolate'`, kept for back-compat.
+ */
+export type LegendMode = 'toggle' | 'isolate' | 'solo';
+
 export interface LegendProps {
   /** Override auto-detected items. When omitted, derived from series layers. */
   items?: LegendItem[];
   /** Layout position. Default: 'bottom'. */
   position?: 'bottom' | 'right';
-  /**
-   * Click behavior:
-   * - `'toggle'` — click toggles individual items on/off (default)
-   * - `'solo'` — click shows only that item; click again shows all
-   */
-  mode?: 'toggle' | 'solo';
+  /** Click behavior. Default: `'toggle'`. */
+  mode?: LegendMode;
 }
 
 export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendProps) {
@@ -95,8 +99,8 @@ export function Legend({ items, position = 'bottom', mode = 'toggle' }: LegendPr
   };
 
   const handleClick = (index: number) => {
-    if (mode === 'solo') {
-      // Solo: if already solo'd on this one → show all, otherwise solo it
+    if (mode === 'isolate' || mode === 'solo') {
+      // Isolate: if already isolated on this one → show all, otherwise isolate it.
       const allOthersOff = resolved.every((_, i) => i === index || disabled.has(i));
       if (allOthersOff) {
         apply(new Set());

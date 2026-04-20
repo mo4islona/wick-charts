@@ -103,7 +103,10 @@ export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie';
  * - `'fade-unfold'` *(default)* — fade + unfold combined; the default because a lone fade is
  *   hard to notice in streaming demos, while the body-unfold gives a clear visual anchor.
  */
-export type CandlestickEnterAnimation = 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold';
+export type CandlestickEntryAnimation = 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold';
+
+/** @deprecated Use {@link CandlestickEntryAnimation} instead. */
+export type CandlestickEnterAnimation = CandlestickEntryAnimation;
 
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
@@ -116,25 +119,31 @@ export interface CandlestickSeriesOptions {
   /** Width of candle body as a fraction of the available bar slot (0-1). */
   bodyWidthRatio: number;
   /** Apply a subtle vertical gradient to candle bodies. Default: true. */
+  bodyGradient?: boolean;
+  /** @deprecated Use {@link bodyGradient} instead. */
   candleGradient?: boolean;
   /**
    * Entrance animation style for newly appended candles. Style is specific to
    * the candlestick; there is no chart-level override for style — only for
-   * duration. Default: `'fade-unfold'`.
+   * duration. Default: `'unfold'`.
    *
-   * @see enterMs — cross-linked duration for this animation.
+   * @see entryMs — cross-linked duration for this animation.
    */
-  enterAnimation?: CandlestickEnterAnimation;
+  entryAnimation?: CandlestickEntryAnimation;
+  /** @deprecated Use {@link entryAnimation} instead. */
+  enterAnimation?: CandlestickEntryAnimation;
   /**
    * Entrance animation duration in milliseconds. `false` or `0` disables the
-   * per-candle entrance (equivalent to `enterAnimation: 'none'`). Omit to
-   * inherit from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   * per-candle entrance (equivalent to `entryAnimation: 'none'`). Omit to
+   * inherit from {@link AnimationsConfig.points}.`entryMs` (default 400).
    *
-   * When `animations.points.enterMs` is `false` at the chart level, the
+   * When `animations.points.entryMs` is `false` at the chart level, the
    * entrance is forced off regardless of this field.
    *
-   * @see CandlestickSeriesOptions.enterAnimation
+   * @see CandlestickSeriesOptions.entryAnimation
    */
+  entryMs?: number | false;
+  /** @deprecated Use {@link entryMs} instead. */
   enterMs?: number | false;
   /**
    * Exponential-smoothing time constant (ms) for live-tracking the last
@@ -154,10 +163,10 @@ export interface CandlestickSeriesOptions {
  * - `'grow'` *(default)* — trailing segment reveals left-to-right.
  * - `'fade'` — geometry fixed; trailing segment strokes in with alpha 0→1.
  */
-export type LineEnterAnimation = 'none' | 'grow' | 'fade';
+export type LineEntryAnimation = 'none' | 'grow' | 'fade';
 
-/** @deprecated Use {@link LineEnterAnimation} instead. */
-export type LineAppendAnimation = LineEnterAnimation;
+/** @deprecated Use {@link LineEntryAnimation} instead. */
+export type LineEnterAnimation = LineEntryAnimation;
 
 /** Visual options for a line series. */
 export interface LineSeriesOptions {
@@ -165,9 +174,12 @@ export interface LineSeriesOptions {
   label?: string;
   /** One color per layer. */
   colors: string[];
-  lineWidth: number;
-  /** Whether to render a gradient area fill below the line (or between stacked layers). */
-  areaFill: boolean;
+  /** Stroke width in CSS pixels. Default: 1. `0` hides the line stroke. */
+  strokeWidthPx: number;
+  /** @deprecated Use {@link strokeWidthPx} instead. */
+  lineWidth?: number;
+  /** Area-fill configuration. Default: `{ visible: true }`. */
+  area: { visible: boolean };
   /**
    * Whether to show an animated pulsing dot at the last data point.
    */
@@ -187,19 +199,23 @@ export interface LineSeriesOptions {
    * series; there is no chart-level override for style — only for duration.
    * Default: `'grow'`.
    *
-   * @see enterMs — cross-linked duration for this animation.
+   * @see entryMs — cross-linked duration for this animation.
    */
-  enterAnimation?: LineEnterAnimation;
+  entryAnimation?: LineEntryAnimation;
+  /** @deprecated Use {@link entryAnimation} instead. */
+  enterAnimation?: LineEntryAnimation;
   /**
    * Entrance animation duration in milliseconds. `false` or `0` disables the
-   * per-point entrance (equivalent to `enterAnimation: 'none'`). Omit to
-   * inherit from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   * per-point entrance (equivalent to `entryAnimation: 'none'`). Omit to
+   * inherit from {@link AnimationsConfig.points}.`entryMs` (default 400).
    *
-   * When `animations.points.enterMs` is `false` at the chart level, the
+   * When `animations.points.entryMs` is `false` at the chart level, the
    * entrance is forced off regardless of this field.
    *
-   * @see LineSeriesOptions.enterAnimation
+   * @see LineSeriesOptions.entryAnimation
    */
+  entryMs?: number | false;
+  /** @deprecated Use {@link entryMs} instead. */
   enterMs?: number | false;
   /**
    * Exponential-smoothing time constant (ms) for live-tracking the last
@@ -227,7 +243,10 @@ export type BarStacking = StackingMode;
  * - `'slide'` — translates in from the right with a fade.
  * - `'fade-grow'` *(default)* — fade + grow combined.
  */
-export type BarEnterAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow';
+export type BarEntryAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow';
+
+/** @deprecated Use {@link BarEntryAnimation} instead. */
+export type BarEnterAnimation = BarEntryAnimation;
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
@@ -243,19 +262,23 @@ export interface BarSeriesOptions {
    * the bar series; there is no chart-level override for style — only for
    * duration. Default: `'fade-grow'`.
    *
-   * @see enterMs — cross-linked duration for this animation.
+   * @see entryMs — cross-linked duration for this animation.
    */
-  enterAnimation?: BarEnterAnimation;
+  entryAnimation?: BarEntryAnimation;
+  /** @deprecated Use {@link entryAnimation} instead. */
+  enterAnimation?: BarEntryAnimation;
   /**
    * Entrance animation duration in milliseconds. `false` or `0` disables the
-   * per-bar entrance (equivalent to `enterAnimation: 'none'`). Omit to inherit
-   * from {@link AnimationsConfig.points}.`enterMs` (default 400).
+   * per-bar entrance (equivalent to `entryAnimation: 'none'`). Omit to inherit
+   * from {@link AnimationsConfig.points}.`entryMs` (default 400).
    *
-   * When `animations.points.enterMs` is `false` at the chart level, the
+   * When `animations.points.entryMs` is `false` at the chart level, the
    * entrance is forced off regardless of this field.
    *
-   * @see BarSeriesOptions.enterAnimation
+   * @see BarSeriesOptions.entryAnimation
    */
+  entryMs?: number | false;
+  /** @deprecated Use {@link entryMs} instead. */
   enterMs?: number | false;
   /**
    * Exponential-smoothing time constant (ms) for live-tracking the last
@@ -296,31 +319,36 @@ export interface PieSeriesOptions {
   innerRadiusRatio: number;
   /** Gap between slices in radians (default 0.02). */
   padAngle: number;
-  /** Slice border color (default transparent). */
-  strokeColor: string;
-  /** Slice border width (default 0). */
-  strokeWidth: number;
+  /**
+   * Slice border. Omit or use `{ color: 'transparent', widthPx: 0 }` for no
+   * stroke (default).
+   */
+  stroke: { color: string; widthPx: number };
   /** Display label shown in tooltip. */
   label?: string;
 }
 
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
-  /** Width in pixels. Default: 55. */
+  /** Width in CSS pixels. Default: 55. */
+  widthPx?: number;
+  /** @deprecated Use {@link widthPx} instead. */
   width?: number;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
   /** Maximum bound. Default: 'auto'. */
   max?: AxisBound;
-  /** Whether the axis is visible. Default: true. When false, width is treated as 0. */
+  /** Whether the axis is visible. Default: true. When false, widthPx is treated as 0. */
   visible?: boolean;
 }
 
 /** Configuration for the X (time) axis. */
 export interface XAxisConfig {
-  /** Height in pixels. Default: 30. */
+  /** Height in CSS pixels. Default: 30. */
+  heightPx?: number;
+  /** @deprecated Use {@link heightPx} instead. */
   height?: number;
-  /** Whether the axis is visible. Default: true. When false, height is treated as 0. */
+  /** Whether the axis is visible. Default: true. When false, heightPx is treated as 0. */
   visible?: boolean;
 }
 
