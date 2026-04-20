@@ -1,171 +1,151 @@
 <script setup lang="ts">
 import {
-  type LineData,
   type OHLCData,
+  type SeriesSnapshot,
+  type SnapshotSort,
+  type TimePoint,
   type TooltipFormatter,
+  buildHoverSnapshots,
+  computeTooltipPosition,
   formatCompact,
   formatDate,
   formatPriceAdaptive,
   formatTime,
 } from '@wick-charts/core';
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
 
-type TooltipSort = 'none' | 'asc' | 'desc';
-
-interface SeriesSnapshot {
-  id: string;
-  label?: string;
-  data: OHLCData | LineData;
-  color: string;
-}
-
 const props = defineProps<{
-  seriesId?: string;
-  sort?: TooltipSort;
+  sort?: SnapshotSort;
   format?: TooltipFormatter;
+}>();
+
+defineSlots<{
+  default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number }): unknown;
 }>();
 
 // Vue's `withDefaults` is inconsistent for function-typed props (sometimes
 // treats the default as a factory, sometimes as the value). Use a computed
-// fallback instead — deterministic and framework-agnostic.
-const effectiveSort = computed<TooltipSort>(() => props.sort ?? 'none');
+// fallback instead.
+const effectiveSort = computed<SnapshotSort>(() => props.sort ?? 'none');
 const effectiveFormat = computed<TooltipFormatter>(
   () =>
-    props.format ??
-    ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
+    props.format ?? ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
 );
 
 const chart = useChartInstance();
 const crosshair = useCrosshairPosition(chart);
 
-// `bump` forces targetIds / hover snapshots to recompute after sibling series
-// register. Without a seriesChange subscription, a Tooltip mounted before
-// its series would see `getSeriesIds() === []` and never recover.
+// `bump` re-runs computed values on any overlay-relevant chart mutation.
 const bump = ref(0);
-const targetIds = computed(() => {
-  void bump.value;
-  if (props.seriesId) return [props.seriesId];
-  return chart.getSeriesIds();
-});
-
-const primaryId = computed(() => targetIds.value[0] ?? '');
-const lastY = ref<{ value: number; isLive: boolean } | null>(
-  primaryId.value ? chart.getLastValue(primaryId.value) : null,
-);
-const dataUpdateHandler = () => {
-  const id = primaryId.value;
-  lastY.value = id ? chart.getLastValue(id) : null;
-};
-const seriesChangeHandler = () => {
+const onOverlayChange = () => {
   bump.value++;
 };
 onMounted(() => {
-  chart.on('dataUpdate', dataUpdateHandler);
-  chart.on('seriesChange', seriesChangeHandler);
-  // Catch-up: sibling series' mount effect may have registered data in the
-  // same synchronous flush, so poke the computed now.
+  chart.on('overlayChange', onOverlayChange);
   if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
-  chart.off('dataUpdate', dataUpdateHandler);
-  chart.off('seriesChange', seriesChangeHandler);
+  chart.off('overlayChange', onOverlayChange);
 });
-watch(primaryId, () => dataUpdateHandler());
 
 const theme = computed(() => chart.getTheme());
 const dataInterval = computed(() => chart.getDataInterval());
 
-function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSnapshot[] {
-  if (sort === 'none' || snapshots.length <= 1) return snapshots;
-  return [...snapshots].sort((a, b) => {
-    const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
-    const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
-    return sort === 'asc' ? av - bv : bv - av;
-  });
-}
-
-const hoverSnapshots = computed(() => {
+const snapshots = computed<readonly SeriesSnapshot[]>(() => {
+  void bump.value;
   if (!crosshair.value) return [];
-  // Reference `lastY` so streaming `dataUpdate`s invalidate the hovered
-  // values too — otherwise the downstream `snapshots` cache yields a stale
-  // glass panel until the crosshair moves.
-  void lastY.value;
-  const time = crosshair.value.time;
-  const result: SeriesSnapshot[] = [];
-  for (const id of targetIds.value) {
-    // Multi-layer series (stacked Line/Bar) expose per-layer snapshots so
-    // each stack layer gets its own row — matches React's behavior.
-    const layers = chart.getLayerSnapshots(id, time);
-    if (layers) {
-      for (let i = 0; i < layers.length; i++) {
-        result.push({
-          id: `${id}_layer${i}`,
-          label: chart.getSeriesLabel(id),
-          data: { time, value: layers[i].value } as LineData,
-          color: layers[i].color,
-        });
-      }
-      continue;
+
+  return buildHoverSnapshots(chart, {
+    time: crosshair.value.time,
+    sort: effectiveSort.value,
+    cacheKey: 'tooltip',
+  });
+});
+
+// `crosshair.time` is the semantic truth — `snapshots[0].data.time` would
+// shift with `sort` and, for ragged multi-layer data, disagree with the
+// actual hover moment.
+const displayTime = computed(() => crosshair.value?.time ?? 0);
+
+const slots = useSlots();
+const hasCustomSlot = computed(() => typeof slots.default === 'function');
+
+const containerRef = ref<HTMLDivElement | null>(null);
+const measuredSize = ref<{ width: number; height: number } | null>(null);
+
+// `ResizeObserver` on the custom-render container — unknown content dimensions
+// mean we can't pre-compute `tooltipWidth/Height` for `computeTooltipPosition`.
+// Measure on mount + any content change, then flip `visibility` to visible.
+let observer: ResizeObserver | null = null;
+watchEffect((onCleanup) => {
+  if (!hasCustomSlot.value) return;
+  const node = containerRef.value;
+  if (!node || typeof ResizeObserver === 'undefined') return;
+
+  observer = new ResizeObserver((entries) => {
+    const box = entries[0]?.contentRect;
+    if (!box) return;
+    const prev = measuredSize.value;
+    if (!prev || prev.width !== box.width || prev.height !== box.height) {
+      measuredSize.value = { width: box.width, height: box.height };
     }
-    const d = chart.getDataAtTime(id, time);
-    if (d) {
-      result.push({
-        id,
-        label: chart.getSeriesLabel(id),
-        data: d,
-        color: chart.getSeriesColor(id) ?? '#888',
-      });
-    }
-  }
-  return result;
+  });
+  observer.observe(node);
+
+  onCleanup(() => {
+    observer?.disconnect();
+    observer = null;
+  });
 });
 
-const snapshots = computed(() => {
-  void lastY.value;
-  return sortSnapshots(hoverSnapshots.value, effectiveSort.value);
-});
-
-const displayTime = computed(() => {
-  if (snapshots.value.length === 0) return 0;
-  return snapshots.value[0].data.time;
-});
-
-const floatingPos = computed(() => {
-  if (!crosshair.value || hoverSnapshots.value.length === 0) return null;
+const floatingPos = computed<{ left: number; top: number } | null>(() => {
+  if (!crosshair.value || snapshots.value.length === 0) return null;
   const mediaSize = chart.getMediaSize();
-  const hasOHLC = hoverSnapshots.value.some((s) => 'open' in s.data);
-  const lineCount = hoverSnapshots.value.filter((s) => !('open' in s.data)).length;
-
-  const tooltipWidth = 160;
-  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
-  const offsetX = 16;
-  const offsetY = 16;
   const chartWidth = mediaSize.width - chart.yAxisWidth;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
-  const left =
-    crosshair.value.mediaX + offsetX + tooltipWidth > chartWidth
-      ? crosshair.value.mediaX - offsetX - tooltipWidth
-      : crosshair.value.mediaX + offsetX;
-  const top =
-    crosshair.value.mediaY + offsetY + tooltipHeight > chartHeight
-      ? crosshair.value.mediaY - offsetY - tooltipHeight
-      : crosshair.value.mediaY + offsetY;
+  if (hasCustomSlot.value) {
+    const size = measuredSize.value;
+    if (!size) return { left: 0, top: 0 };
 
-  return { left, top };
+    return computeTooltipPosition({
+      x: crosshair.value.mediaX,
+      y: crosshair.value.mediaY,
+      chartWidth,
+      chartHeight,
+      tooltipWidth: size.width,
+      tooltipHeight: size.height,
+    });
+  }
+
+  const hasOHLC = snapshots.value.some((s) => 'open' in s.data);
+  const lineCount = snapshots.value.filter((s) => !('open' in s.data)).length;
+  const tooltipWidth = 160;
+  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+
+  return computeTooltipPosition({
+    x: crosshair.value.mediaX,
+    y: crosshair.value.mediaY,
+    chartWidth,
+    chartHeight,
+    tooltipWidth,
+    tooltipHeight,
+  });
 });
 
-function isOHLC(data: OHLCData | LineData): data is OHLCData {
+const measured = computed(() => !hasCustomSlot.value || measuredSize.value !== null);
+
+function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
   return 'open' in data;
 }
 </script>
 
 <template>
   <div
-    v-if="crosshair && hoverSnapshots.length > 0 && floatingPos"
+    v-if="crosshair && snapshots.length > 0 && floatingPos && !hasCustomSlot"
     :style="{
       position: 'absolute',
       left: floatingPos.left + 'px',
@@ -201,10 +181,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
     </div>
 
     <template v-for="s in snapshots" :key="s.id">
-      <div
-        v-if="isOHLC(s.data)"
-        :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }"
-      >
+      <div v-if="isOHLC(s.data)" :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }">
         <template
           v-for="row in [
             { label: 'Open', val: (s.data as OHLCData).open, field: 'open' as const },
@@ -224,8 +201,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
                   : theme.candlestick.downColor,
               textAlign: 'right',
             }"
-            >{{ effectiveFormat(row.val, row.field) }}</span
-          >
+          >{{ effectiveFormat(row.val, row.field) }}</span>
         </template>
         <template v-if="(s.data as OHLCData).volume != null">
           <span :style="{ opacity: 0.5 }">Volume</span>
@@ -234,10 +210,7 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
           </span>
         </template>
       </div>
-      <div
-        v-else
-        :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }"
-      >
+      <div v-else :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }">
         <span
           :style="{
             width: '8px',
@@ -249,9 +222,39 @@ function isOHLC(data: OHLCData | LineData): data is OHLCData {
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
         <span :style="{ fontWeight: 600, color: s.color }">
-          {{ effectiveFormat((s.data as LineData).value, 'value') }}
+          {{ effectiveFormat((s.data as TimePoint).value, 'value') }}
         </span>
       </div>
     </template>
+  </div>
+
+  <div
+    v-if="crosshair && snapshots.length > 0 && floatingPos && hasCustomSlot"
+    ref="containerRef"
+    :data-measured="measured ? 'true' : 'false'"
+    :style="{
+      position: 'absolute',
+      left: floatingPos.left + 'px',
+      top: floatingPos.top + 'px',
+      pointerEvents: 'none',
+      background: theme.tooltip.background,
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      border: '1px solid ' + theme.tooltip.borderColor,
+      borderRadius: '8px',
+      padding: '10px 14px',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
+      fontFamily: theme.typography.fontFamily,
+      fontSize: theme.typography.tooltipFontSize + 'px',
+      fontVariantNumeric: 'tabular-nums',
+      color: theme.tooltip.textColor,
+      width: 'max-content',
+      maxWidth: (chart.getMediaSize().width - chart.yAxisWidth) + 'px',
+      boxSizing: 'border-box',
+      zIndex: 10,
+      visibility: measuredSize !== null ? 'visible' : 'hidden',
+    }"
+  >
+    <slot :snapshots="snapshots" :time="displayTime" />
   </div>
 </template>

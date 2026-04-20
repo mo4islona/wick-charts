@@ -64,7 +64,7 @@ function CandleChart({
   return (
     <ChartContainer theme={theme} axis={axis} gradient={gradient} headerLayout={headerLayout}>
       <Title sub={sub}>{title}</Title>
-      {infoBarVisible && <InfoBar seriesId={sid} />}
+      {infoBarVisible && <InfoBar />}
       <CandlestickSeries
         id={sid}
         data={display}
@@ -76,7 +76,7 @@ function CandleChart({
         }}
       />
       {yLabelVisible && <YLabel seriesId={sid} />}
-      {tooltipVisible && <Tooltip seriesId={sid} />}
+      {tooltipVisible && <Tooltip />}
       <Crosshair />
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
@@ -187,9 +187,9 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
                 ...(Object.keys(opts).length > 0 ? { options: opts } : {}),
               },
             },
-            ...(s.infoBarVisible ? [{ component: 'InfoBar', props: { seriesId: 'sid' } }] : []),
+            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
             ...(s.yLabelVisible ? [{ component: 'YLabel', props: { seriesId: 'sid' } }] : []),
-            ...(s.tooltipVisible ? [{ component: 'Tooltip', props: { seriesId: 'sid' } }] : []),
+            ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
             { component: 'Crosshair' },
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),

@@ -29,7 +29,7 @@ const CONFIG: ChartCodeConfig = {
         options: { stroke: { color: '#000', widthPx: 2 } },
       },
     },
-    { component: 'InfoBar', props: { seriesId: 'sid' } },
+    { component: 'InfoBar' },
     { component: 'Crosshair' },
     { component: 'YAxis' },
   ],

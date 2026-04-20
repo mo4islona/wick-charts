@@ -1,34 +1,32 @@
 <script setup lang="ts">
 import {
-  type LineData,
   type OHLCData,
+  type SeriesSnapshot,
+  type SnapshotSort,
+  type TimePoint,
   type TooltipFormatter,
+  buildHoverSnapshots,
+  buildLastSnapshots,
   formatCompact,
   formatPriceAdaptive,
   formatTime,
 } from '@wick-charts/core';
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { InfoBarAnchorKey, ThemeKey, useChartInstance } from '../context';
 
-type TooltipSort = 'none' | 'asc' | 'desc';
-
-interface SeriesSnapshot {
-  id: string;
-  label?: string;
-  data: OHLCData | LineData;
-  color: string;
-}
-
 const props = defineProps<{
-  seriesId?: string;
-  sort?: TooltipSort;
+  sort?: SnapshotSort;
   format?: TooltipFormatter;
 }>();
 
+defineSlots<{
+  default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number; isHover: boolean }): unknown;
+}>();
+
 // Use computed fallbacks — `withDefaults` is inconsistent for function props.
-const effectiveSort = computed<TooltipSort>(() => props.sort ?? 'none');
+const effectiveSort = computed<SnapshotSort>(() => props.sort ?? 'none');
 const effectiveFormat = computed<TooltipFormatter>(
   () =>
     props.format ?? ((v: number, field: string) => (field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v))),
@@ -48,168 +46,137 @@ if (!anchor) {
   throw new Error('<InfoBar> must be used within <ChartContainer>: missing InfoBarAnchorKey.');
 }
 
-// `bump` forces targetIds / snapshots to recompute after sibling series
-// register. Without this, an InfoBar mounted before its series would
-// see `getSeriesIds() === []` and stay empty.
+// `bump` re-runs computed values after any overlay-relevant mutation
+// (dataUpdate / seriesChange / setSeriesVisible / setTheme / option changes).
 const bump = ref(0);
-const targetIds = computed(() => {
-  void bump.value;
-  return props.seriesId ? [props.seriesId] : chart.getSeriesIds();
-});
-
-const primaryId = computed(() => targetIds.value[0] ?? '');
-const lastY = ref<{ value: number; isLive: boolean } | null>(
-  primaryId.value ? chart.getLastValue(primaryId.value) : null,
-);
-const dataUpdateHandler = () => {
-  const id = primaryId.value;
-  lastY.value = id ? chart.getLastValue(id) : null;
-};
-const seriesChangeHandler = () => {
+const onOverlayChange = () => {
   bump.value++;
 };
 onMounted(() => {
-  chart.on('dataUpdate', dataUpdateHandler);
-  chart.on('seriesChange', seriesChangeHandler);
-  // Catch-up: a sibling series' mount effect may have registered data in
-  // the same synchronous flush, so poke the computed on mount.
+  chart.on('overlayChange', onOverlayChange);
+  // Catch-up: a sibling series' mount effect may have registered data in the
+  // same synchronous flush, so poke the computed now.
   if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
-  chart.off('dataUpdate', dataUpdateHandler);
-  chart.off('seriesChange', seriesChangeHandler);
+  chart.off('overlayChange', onOverlayChange);
 });
-watch(primaryId, () => dataUpdateHandler());
 
-function sortSnapshots(snapshots: SeriesSnapshot[], sort: TooltipSort): SeriesSnapshot[] {
-  if (sort === 'none' || snapshots.length <= 1) return snapshots;
-  return [...snapshots].sort((a, b) => {
-    const av = 'value' in a.data ? (a.data as LineData).value : (a.data as OHLCData).close;
-    const bv = 'value' in b.data ? (b.data as LineData).value : (b.data as OHLCData).close;
-    return sort === 'asc' ? av - bv : bv - av;
-  });
-}
+const isHover = computed(() => crosshair.value !== null);
 
-function isOHLC(data: OHLCData | LineData): data is OHLCData {
-  return 'open' in data;
-}
+const snapshots = computed<readonly SeriesSnapshot[]>(() => {
+  void bump.value;
 
-const snapshots = computed(() => {
-  void lastY.value;
-  const hover: SeriesSnapshot[] = [];
-  if (crosshair.value) {
-    const time = crosshair.value.time;
-    for (const id of targetIds.value) {
-      const layers = chart.getLayerSnapshots(id, time);
-      if (layers) {
-        for (let i = 0; i < layers.length; i++) {
-          hover.push({
-            id: `${id}_layer${i}`,
-            label: chart.getSeriesLabel(id),
-            data: { time, value: layers[i].value } as LineData,
-            color: layers[i].color,
-          });
-        }
-        continue;
-      }
-      const d = chart.getDataAtTime(id, time);
-      if (d) hover.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-    }
-  }
-  if (hover.length > 0) return sortSnapshots(hover, effectiveSort.value);
-  const last: SeriesSnapshot[] = [];
-  for (const id of targetIds.value) {
-    const d = chart.getLastData(id);
-    if (!d) continue;
-    const layers = chart.getLayerSnapshots(id, d.time);
-    if (layers) {
-      for (let i = 0; i < layers.length; i++) {
-        last.push({
-          id: `${id}_layer${i}`,
-          label: chart.getSeriesLabel(id),
-          data: { time: d.time, value: layers[i].value } as LineData,
-          color: layers[i].color,
-        });
-      }
-      continue;
-    }
-    last.push({ id, label: chart.getSeriesLabel(id), data: d, color: chart.getSeriesColor(id) ?? '#888' });
-  }
-  return sortSnapshots(last, effectiveSort.value);
+  return crosshair.value
+    ? buildHoverSnapshots(chart, { time: crosshair.value.time, sort: effectiveSort.value, cacheKey: 'infobar-hover' })
+    : buildLastSnapshots(chart, { sort: effectiveSort.value, cacheKey: 'infobar-last' });
 });
 
 const dataInterval = computed(() => chart.getDataInterval());
-const displayTime = computed(() => (snapshots.value.length === 0 ? 0 : snapshots.value[0].data.time));
+// `snapshots[0].data.time` is index-0 → shifts when `sort` reorders and,
+// in last-mode, drifts across ragged per-layer timestamps. Pick a stable
+// rule per mode: crosshair time for hover, newest point across all
+// visible series for last-mode.
+const displayTime = computed(() => {
+  if (snapshots.value.length === 0) return 0;
+  if (crosshair.value) return crosshair.value.time;
+
+  return Math.max(...snapshots.value.map((s) => s.data.time));
+});
+
+const slots = useSlots();
+const hasCustomSlot = computed(() => typeof slots.default === 'function');
+
+function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
+  return 'open' in data;
+}
 </script>
 
 <template>
   <Teleport v-if="anchor && theme && snapshots.length > 0" :to="anchor">
     <div
       data-tooltip-legend=""
-      :style="{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        flexWrap: 'wrap',
-        padding: '4px 8px',
-        flexShrink: 0,
-        fontSize: theme.typography.fontSize + 'px',
-        fontFamily: theme.typography.fontFamily,
-        fontVariantNumeric: 'tabular-nums',
-        opacity: crosshair ? 1 : 0.6,
-        transition: 'opacity 0.2s ease',
-        pointerEvents: 'none',
-      }"
+      :style="
+        hasCustomSlot
+          ? {
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+              fontSize: theme.typography.fontSize + 'px',
+              fontFamily: theme.typography.fontFamily,
+              fontVariantNumeric: 'tabular-nums',
+              opacity: isHover ? 1 : 0.6,
+              transition: 'opacity 0.2s ease',
+              pointerEvents: 'none',
+            }
+          : {
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              flexWrap: 'wrap',
+              padding: '4px 8px',
+              flexShrink: 0,
+              fontSize: theme.typography.fontSize + 'px',
+              fontFamily: theme.typography.fontFamily,
+              fontVariantNumeric: 'tabular-nums',
+              opacity: isHover ? 1 : 0.6,
+              transition: 'opacity 0.2s ease',
+              pointerEvents: 'none',
+            }
+      "
     >
-      <span :style="{ color: theme.axis.textColor, marginRight: '2px' }">
-        {{ formatTime(displayTime, dataInterval) }}
-      </span>
-      <template v-for="s in snapshots" :key="s.id">
-        <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">
-          <template
-            v-for="cell in [
-              { label: 'O', field: 'open' as const, val: (s.data as OHLCData).open },
-              { label: 'H', field: 'high' as const, val: (s.data as OHLCData).high },
-              { label: 'L', field: 'low' as const, val: (s.data as OHLCData).low },
-              { label: 'C', field: 'close' as const, val: (s.data as OHLCData).close },
-            ]"
-            :key="cell.label"
-          >
-            <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ cell.label }}</span>
+      <slot v-if="hasCustomSlot" :snapshots="snapshots" :time="displayTime" :is-hover="isHover" />
+      <template v-else>
+        <span :style="{ color: theme.axis.textColor, marginRight: '2px' }">
+          {{ formatTime(displayTime, dataInterval) }}
+        </span>
+        <template v-for="s in snapshots" :key="s.id">
+          <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">
+            <template
+              v-for="cell in [
+                { label: 'O', field: 'open' as const, val: (s.data as OHLCData).open },
+                { label: 'H', field: 'high' as const, val: (s.data as OHLCData).high },
+                { label: 'L', field: 'low' as const, val: (s.data as OHLCData).low },
+                { label: 'C', field: 'close' as const, val: (s.data as OHLCData).close },
+              ]"
+              :key="cell.label"
+            >
+              <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ cell.label }}</span>
+              <span
+                :style="{
+                  color:
+                    (s.data as OHLCData).close >= (s.data as OHLCData).open
+                      ? theme.candlestick.upColor
+                      : theme.candlestick.downColor,
+                  fontWeight: 500,
+                  marginLeft: '2px',
+                }"
+              >
+                {{ effectiveFormat(cell.val, cell.field) }}
+              </span>
+            </template>
+            <template v-if="(s.data as OHLCData).volume != null">
+              <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
+              <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
+                {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
+              </span>
+            </template>
+          </span>
+          <span v-else :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
             <span
               :style="{
-                color:
-                  (s.data as OHLCData).close >= (s.data as OHLCData).open
-                    ? theme.candlestick.upColor
-                    : theme.candlestick.downColor,
-                fontWeight: 500,
-                marginLeft: '2px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: s.color,
+                flexShrink: 0,
               }"
-            >
-              {{ effectiveFormat(cell.val, cell.field) }}
+            />
+            <span :style="{ color: s.color, fontWeight: 500 }">
+              {{ effectiveFormat((s.data as TimePoint).value, 'value') }}
             </span>
-          </template>
-          <template v-if="(s.data as OHLCData).volume != null">
-            <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
-            <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
-              {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
-            </span>
-          </template>
-        </span>
-        <span v-else :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
-          <span
-            :style="{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: s.color,
-              flexShrink: 0,
-            }"
-          />
-          <span :style="{ color: s.color, fontWeight: 500 }">
-            {{ effectiveFormat((s.data as LineData).value, 'value') }}
           </span>
-        </span>
+        </template>
       </template>
     </div>
   </Teleport>

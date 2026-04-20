@@ -106,9 +106,9 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="custom theme">Candlestick</Title>
-      <InfoBar seriesId={sid} />
+      <InfoBar />
       <CandlestickSeries id={sid} data={ohlcData} />
-      <Tooltip seriesId={sid} />
+      <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -122,7 +122,7 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="3 series">Line</Title>
-      <InfoBar seriesId={sid} />
+      <InfoBar />
       <LineSeries
         id={sid}
         data={allData}
@@ -133,7 +133,7 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
           pulse: true,
         }}
       />
-      <Tooltip seriesId={sid} />
+      <Tooltip />
       <Crosshair />
       <YAxis />
       <TimeAxis />
