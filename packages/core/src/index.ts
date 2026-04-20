@@ -2,6 +2,16 @@
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
 export { ChartInstance } from './chart';
+// Overlay primitives — helpers, types, and positioning used by framework overlays
+export type { LegendItem } from './legend';
+export type { HoverInfo, SliceInfo } from './series/types';
+export type {
+  BuildHoverSnapshotsArgs,
+  BuildLastSnapshotsArgs,
+  SeriesSnapshot,
+  SnapshotSort,
+} from './snapshots';
+export { buildHoverSnapshots, buildLastSnapshots } from './snapshots';
 // Data
 export { darkTheme } from './theme/dark';
 export { lightTheme } from './theme/light';
@@ -33,6 +43,8 @@ export {
 } from './theme/themes';
 // Theme
 export type { ChartTheme, Typography } from './theme/types';
+export type { TooltipPosition, TooltipPositionArgs } from './tooltip-position';
+export { computeTooltipPosition } from './tooltip-position';
 // Types
 export type {
   AxisBound,

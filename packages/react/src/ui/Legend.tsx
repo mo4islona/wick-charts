@@ -3,12 +3,19 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 import { useChartInstance } from '../context';
 import { useTheme } from '../ThemeContext';
 
-export interface LegendItem {
+/**
+ * Minimal visual shape Legend's `items` override prop accepts — just the
+ * pieces the built-in swatch/label UI needs. The canonical `LegendItem`
+ * (reexported from `@wick-charts/core`) carries full identity + toggle
+ * callbacks; those fields aren't required when a consumer hands in a
+ * pre-baked legend that doesn't drive toggles.
+ */
+export interface LegendItemOverride {
   label: string;
   color: string;
 }
 
-interface ResolvedItem extends LegendItem {
+interface ResolvedItem extends LegendItemOverride {
   seriesId: string;
   layerIndex: number;
   isLayer: boolean; // true = layer within multi-layer, false = whole series
@@ -24,7 +31,7 @@ export type LegendMode = 'toggle' | 'isolate' | 'solo';
 
 export interface LegendProps {
   /** Override auto-detected items. When omitted, derived from series layers. */
-  items?: LegendItem[];
+  items?: LegendItemOverride[];
   /** Layout position. Default: 'bottom'. */
   position?: 'bottom' | 'right';
   /** Click behavior. Default: `'toggle'`. */

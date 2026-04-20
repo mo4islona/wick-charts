@@ -5,11 +5,14 @@ import {
   type OHLCData,
   type TimePoint,
   type TooltipFormatter,
+  computeTooltipPosition,
   formatCompact,
   formatDate,
   formatPriceAdaptive,
   formatTime,
 } from '@wick-charts/core';
+
+export { computeTooltipPosition } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
@@ -132,33 +135,6 @@ export function Tooltip({ seriesId, sort = 'none', format = defaultTooltipFormat
       format={format}
     />
   );
-}
-
-/**
- * Pure positioning for {@link FloatingTooltip}. Flip side when the preferred
- * side would overflow, then clamp into `[0, chart - size]` so the flipped
- * side can't overflow the opposite edge either. Exported for unit tests.
- */
-export function computeTooltipPosition(args: {
-  x: number;
-  y: number;
-  chartWidth: number;
-  chartHeight: number;
-  tooltipWidth: number;
-  tooltipHeight: number;
-  offsetX?: number;
-  offsetY?: number;
-}): { left: number; top: number } {
-  const { x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX = 16, offsetY = 16 } = args;
-  const rawLeft = x + offsetX + tooltipWidth > chartWidth ? x - offsetX - tooltipWidth : x + offsetX;
-  const rawTop = y + offsetY + tooltipHeight > chartHeight ? y - offsetY - tooltipHeight : y + offsetY;
-  const maxLeft = Math.max(0, chartWidth - tooltipWidth);
-  const maxTop = Math.max(0, chartHeight - tooltipHeight);
-
-  return {
-    left: Math.max(0, Math.min(maxLeft, rawLeft)),
-    top: Math.max(0, Math.min(maxTop, rawTop)),
-  };
 }
 
 function FloatingTooltip({

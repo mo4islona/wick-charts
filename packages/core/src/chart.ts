@@ -66,6 +66,14 @@ interface ChartEvents {
   viewportChange: () => void;
   dataUpdate: () => void;
   seriesChange: () => void;
+  /**
+   * Fired whenever any state that affects **overlay components** (InfoBar,
+   * Tooltip, Legend, YLabel, PieLegend, PieTooltip) changes. Superset of
+   * `dataUpdate` and `seriesChange` — also fires on visibility toggles,
+   * series option changes, and theme swaps. Overlay components should
+   * subscribe to this instead of stacking multiple listeners.
+   */
+  overlayChange: () => void;
 }
 
 /** Options passed when creating a new {@link ChartInstance}. */
@@ -316,6 +324,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   #batchDataDirty = false;
   /** True when batched operations include visibility changes (triggers Y-range + redraw on end). */
   #batchVisualDirty = false;
+  /** True when batched operations bumped overlay version (emits a single overlayChange on flush). */
+  #batchOverlayDirty = false;
+
+  /**
+   * Monotonic counter bumped on any mutation that affects overlay output —
+   * data, visibility, series options, theme. Used by snapshot helpers in
+   * `@wick-charts/core` as a cache key so `buildHoverSnapshots` /
+   * `buildLastSnapshots` return the same reference between ticks when
+   * nothing observable has changed.
+   *
+   * @internal
+   */
+  #overlayVersion = 0;
 
   get yAxisWidth(): number {
     const y = this.#axis.y;
@@ -396,6 +417,41 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /**
+   * Bump overlay version + emit `overlayChange`. Call from every mutation
+   * path whose output overlay components care about: data, series list,
+   * per-series/layer visibility, options, theme.
+   *
+   * Inside `batch(...)` the version still increments per call (so the
+   * snapshot cache invalidates at least once per logical change), but the
+   * `overlayChange` emission is coalesced to a single event on flush.
+   * That lets Legend-style isolate toggles — which batch multiple
+   * `setSeriesVisible` / `setLayerVisible` calls — produce one overlay
+   * render instead of N.
+   */
+  #bumpOverlayVersion(): void {
+    this.#overlayVersion++;
+    if (this.#batchDepth > 0) {
+      this.#batchOverlayDirty = true;
+
+      return;
+    }
+
+    this.emit('overlayChange');
+  }
+
+  /**
+   * Monotonic counter incremented on any mutation that affects overlay
+   * output. Snapshot helpers (`buildHoverSnapshots`, `buildLastSnapshots`)
+   * key their structural-equality cache on this value — same version +
+   * same `(time, sort, cacheKey)` returns the same frozen reference.
+   *
+   * @internal
+   */
+  getOverlayVersion(): number {
+    return this.#overlayVersion;
+  }
+
+  /**
    * Return a series ID: use the provided hint if it's non-empty and not already taken,
    * otherwise generate a new auto ID. Auto-generated IDs never collide with each other
    * or with user-provided IDs because they use a monotonically increasing counter.
@@ -464,6 +520,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
+    this.#bumpOverlayVersion();
+
     return id;
   }
 
@@ -486,6 +544,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
+    this.#bumpOverlayVersion();
+
     return id;
   }
 
@@ -507,6 +567,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
+    this.#bumpOverlayVersion();
+
     return id;
   }
 
@@ -521,6 +583,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
+    this.#bumpOverlayVersion();
+
     return id;
   }
 
@@ -534,6 +598,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.updateViewportPadding();
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
+      this.#bumpOverlayVersion();
     }
   }
 
@@ -574,6 +639,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
+
+    // Framework wrappers (notably Vue's deep watch) replay this method on
+    // every render with a fresh options object, usually identical. Bumping
+    // `overlayVersion` blindly would invalidate the snapshot cache on every
+    // tick and defeat the whole point of memoization.
+    //
+    // Compare the inputs that actually feed overlays — label + layer colors —
+    // before and after the update, and only bump when they really changed.
+    const prevLabel = entry.label;
+    const prevColors = entry.renderer.getLayerColors().slice();
+
     // React / Vue / Svelte wrappers replay the user's options on every
     // render via this path. If the chart-level `animations.points` category
     // is disabled, the per-series force-off must be re-applied here —
@@ -585,6 +661,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       entry.label = options.label;
     }
     this.#mainScheduler.markDirty();
+
+    const nextColors = entry.renderer.getLayerColors();
+    const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
+    const labelChanged = prevLabel !== entry.label;
+    if (colorsChanged || labelChanged) {
+      this.#bumpOverlayVersion();
+    }
   }
 
   /**
@@ -607,6 +690,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           this.updateYRange(true);
           this.#mainScheduler.markDirty();
         }
+        if (this.#batchOverlayDirty) {
+          this.#batchOverlayDirty = false;
+          this.emit('overlayChange');
+        }
       }
     }
   }
@@ -615,11 +702,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   setSeriesVisible(seriesId: string, visible: boolean): void {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || entry.visible === visible) return;
+
     entry.visible = visible;
+    this.#bumpOverlayVersion();
     if (this.#batchDepth > 0) {
       this.#batchVisualDirty = true;
+
       return;
     }
+
     this.updateYRange(true);
     this.#mainScheduler.markDirty();
   }
@@ -632,15 +723,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   setLayerVisible(seriesId: string, layerIndex: number, visible: boolean): void {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return;
+
     // Single-layer renderers (candlestick, pie, single-layer line/bar) can't toggle;
     // use setSeriesVisible() instead. Skip to avoid a pointless updateYRange/redraw.
     if (entry.renderer.getLayerCount() <= 1) return;
     if (entry.renderer.isLayerVisible(layerIndex) === visible) return;
+
     entry.renderer.setLayerVisible(layerIndex, visible);
+    this.#bumpOverlayVersion();
     if (this.#batchDepth > 0) {
       this.#batchVisualDirty = true;
+
       return;
     }
+
     this.updateYRange(true);
     this.#mainScheduler.markDirty();
   }
@@ -716,8 +812,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return entry.renderer.getDataAtTime?.(time, this.#dataInterval) ?? null;
   }
 
-  /** Get all layers' data at a given time for multi-layer series (Bar/Line with stacking). */
-  getLayerSnapshots(seriesId: string, time: number): { value: number; color: string }[] | null {
+  /**
+   * Get all layers' data at a given time for multi-layer series (Bar/Line
+   * with stacking). Each entry carries the owning `layerIndex` and the
+   * snapped sample time — callers must not derive layer identity from the
+   * array index, because hidden layers are filtered out.
+   */
+  getLayerSnapshots(
+    seriesId: string,
+    time: number,
+  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.visible) return null;
 
@@ -728,7 +832,90 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if (!this.#seriesIdCache) {
       this.#seriesIdCache = this.#series.map((s) => s.id);
     }
+
     return this.#seriesIdCache.slice();
+  }
+
+  /**
+   * Type of a registered series, or `null` for unknown ids. `'pie'` for
+   * `PieRenderer`; everything else is a time-series (`'time'`).
+   */
+  getSeriesType(seriesId: string): 'pie' | 'time' | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry) return null;
+
+    return entry.renderer instanceof PieRenderer ? 'pie' : 'time';
+  }
+
+  /**
+   * Filter `getSeriesIds()` by renderer type. `'pie'` returns pie series,
+   * `'time'` returns line/bar/candlestick.
+   *
+   * - `opts.visibleOnly` — exclude series with `isSeriesVisible=false`; for
+   *   multi-layer series also exclude when every layer is hidden.
+   * - `opts.singleLayerOnly` — exclude series with more than one layer.
+   *   Useful for YLabel fallback priority (stick to a single line first).
+   */
+  getSeriesIdsByType(type: 'pie' | 'time', opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean }): string[] {
+    const visibleOnly = opts?.visibleOnly === true;
+    const singleLayerOnly = opts?.singleLayerOnly === true;
+    const result: string[] = [];
+    for (const entry of this.#series) {
+      const isPie = entry.renderer instanceof PieRenderer;
+      if (type === 'pie' && !isPie) continue;
+      if (type === 'time' && isPie) continue;
+
+      const layerCount = entry.renderer.getLayerCount();
+      if (singleLayerOnly && layerCount > 1) continue;
+
+      if (visibleOnly) {
+        if (!entry.visible) continue;
+        if (layerCount > 1) {
+          let anyLayerVisible = false;
+          for (let i = 0; i < layerCount; i++) {
+            if (entry.renderer.isLayerVisible(i)) {
+              anyLayerVisible = true;
+              break;
+            }
+          }
+          if (!anyLayerVisible) continue;
+        }
+      }
+
+      result.push(entry.id);
+    }
+
+    return result;
+  }
+
+  /**
+   * Cumulative top last-value for stacked series — the point a YLabel badge
+   * anchors to on the rendered stack head. Falls back to `getLastValue` for
+   * series without stacked concepts (Candlestick, single-layer Line/Bar).
+   * Returns `null` for unknown ids or empty series.
+   */
+  getStackedLastValue(seriesId: string): { value: number; isLive: boolean } | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry) return null;
+
+    const stacked = entry.renderer.getStackedLastValue?.();
+    if (stacked) return stacked;
+
+    const raw = this.getLastValue(seriesId);
+
+    return raw;
+  }
+
+  /**
+   * Per-layer last snapshots with each layer's own `time`. Returns `null`
+   * for single-layer renderers or when no visible layer has data. Used by
+   * overlay components that must display every layer in last-mode even
+   * when layers advance at different rates (ragged streams).
+   */
+  getLayerLastSnapshots(seriesId: string): { layerIndex: number; time: number; value: number; color: string }[] | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+
+    return entry?.renderer.getLayerLastSnapshots?.() ?? null;
   }
 
   /**
@@ -784,6 +971,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       entry.renderer.applyTheme(theme, prev);
     }
     this.#mainScheduler.markDirty();
+    this.#bumpOverlayVersion();
   }
 
   getTheme(): ChartTheme {
@@ -1055,6 +1243,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     this.#mainScheduler.markDirty();
     this.emit('dataUpdate');
+    this.#bumpOverlayVersion();
   }
 
   private updateDataInterval(): void {

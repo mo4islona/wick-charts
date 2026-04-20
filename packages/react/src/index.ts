@@ -6,11 +6,15 @@ export type {
   BarSeriesOptions,
   /** @deprecated Use {@link StackingMode} instead. */
   BarStacking,
+  BuildHoverSnapshotsArgs,
+  BuildLastSnapshotsArgs,
   CandlestickSeriesOptions,
   ChartLayout,
   ChartOptions,
   ChartTheme,
   CrosshairPosition,
+  HoverInfo,
+  LegendItem,
   /** @deprecated Use {@link TimePoint} instead. */
   LineData,
   LineSeriesOptions,
@@ -18,7 +22,10 @@ export type {
   OHLCInput,
   PieSeriesOptions,
   PieSliceData,
+  SeriesSnapshot,
   SeriesType,
+  SliceInfo,
+  SnapshotSort,
   StackingMode,
   ThemeConfig,
   ThemePreset,
@@ -27,6 +34,8 @@ export type {
   TimeValue,
   TooltipField,
   TooltipFormatter,
+  TooltipPosition,
+  TooltipPositionArgs,
   Typography,
   ValueFormatter,
   VisibleRange,
@@ -38,7 +47,10 @@ export {
   ChartInstance,
   andromeda,
   ayuMirage,
+  buildHoverSnapshots,
+  buildLastSnapshots,
   catppuccin,
+  computeTooltipPosition,
   createTheme,
   darkTheme,
   detectInterval,
@@ -90,7 +102,7 @@ export { Crosshair } from './ui/Crosshair';
 export type { InfoBarProps, TooltipLegendProps } from './ui/InfoBar';
 /** @deprecated Use {@link InfoBar} instead. */
 export { InfoBar, TooltipLegend } from './ui/InfoBar';
-export type { LegendItem, LegendProps } from './ui/Legend';
+export type { LegendItemOverride, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
 export { NumberFlow } from './ui/NumberFlow';

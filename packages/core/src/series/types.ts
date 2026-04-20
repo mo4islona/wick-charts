@@ -130,11 +130,34 @@ export interface SeriesRenderer {
   getDataAtTime?(time: number, interval: number): TimePoint | OHLCData | null;
 
   /**
-   * For multi-layer renderers: nearest data point per visible layer at `time`,
-   * tagged with its display color. Used by Chart for tooltips/legends.
-   * Returns null for single-layer renderers (or when no visible layer has data).
+   * For multi-layer renderers: nearest data point per visible layer at `time`.
+   * Each entry carries the owning `layerIndex` (so filtered hidden layers
+   * don't shift the caller's identity mapping) and the **resolved sample
+   * time** of the snapped point (not the query time). Used by Chart for
+   * tooltips/legends.
+   * Returns null for single-layer renderers or when no visible layer has data.
    */
-  getLayerSnapshots?(time: number, interval: number): { value: number; color: string }[] | null;
+  getLayerSnapshots?(
+    time: number,
+    interval: number,
+  ): { layerIndex: number; time: number; value: number; color: string }[] | null;
+
+  /**
+   * Stacked last value — cumulative top of the rendered stack for multi-layer
+   * renderers. Falls back to `getLastValue()` behavior for single-layer
+   * renderers (or when no layer is visible). Chart uses this to anchor a
+   * `<YLabel />` at the same point the canvas paints the stack head.
+   */
+  getStackedLastValue?(): { value: number; isLive: boolean } | null;
+
+  /**
+   * Per-layer last snapshots, each with its own `time`. Useful for ragged
+   * multi-layer series where layers advance independently — last-mode
+   * overlays need to show each layer at its true last time, not at the
+   * primary layer's time.
+   * Returns null for single-layer renderers or when no visible layer has data.
+   */
+  getLayerLastSnapshots?(): { layerIndex: number; time: number; value: number; color: string }[] | null;
 
   /** Total data points across all owned stores. Used by Chart for batch-load detection. */
   getTotalLength?(): number;
