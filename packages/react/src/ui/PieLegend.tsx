@@ -1,42 +1,62 @@
-import { useLayoutEffect, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useState } from 'react';
 
-import { type ValueFormatter, formatCompact } from '@wick-charts/core';
+import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 
 export type PieLegendMode = 'value' | 'percent';
 
+/** Context passed to the {@link PieLegend} render-prop. */
+export interface PieLegendRenderContext {
+  readonly slices: readonly SliceInfo[];
+  readonly mode: PieLegendMode;
+  readonly format: ValueFormatter;
+}
+
 export interface PieLegendProps {
-  seriesId: string;
+  /**
+   * Owning series id. **Optional** — when omitted, the first visible pie
+   * series is picked.
+   */
+  seriesId?: string;
   /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. Default: 'value'. */
   mode?: PieLegendMode;
   /** Custom formatter for the absolute slice value. Default: shared `formatCompact`. */
   format?: ValueFormatter;
+  /** Render-prop escape hatch. Receives slices + mode + format, replaces default UI. */
+  children?: (ctx: PieLegendRenderContext) => ReactNode;
 }
 
-export function PieLegend({ seriesId, mode: modeProp, format }: PieLegendProps) {
+function resolvePieSeriesId(chart: ChartInstance, explicit: string | undefined): string | null {
+  if (explicit !== undefined) return explicit;
+
+  const pies = chart.getSeriesIdsByType('pie', { visibleOnly: true });
+
+  return pies.length > 0 ? pies[0] : null;
+}
+
+export function PieLegend({ seriesId, mode: modeProp, format, children }: PieLegendProps) {
   const mode: PieLegendMode = modeProp ?? 'value';
   const formatter: ValueFormatter = format ?? formatCompact;
   const chart = useChartInstance();
   const theme = chart.getTheme();
 
-  // Subscribe to re-render when series or data changes. Bump once so the
-  // first render — which happens before sibling series have committed their
-  // setup layout-effects — picks up the now-registered slices.
-  const [, setTick] = useState(0);
+  const [, setBumpSignal] = useState(0);
   useLayoutEffect(() => {
-    const handler = () => setTick((t) => t + 1);
-    chart.on('dataUpdate', handler);
-    chart.on('seriesChange', handler);
-    handler();
+    const handler = () => setBumpSignal((n) => n + 1);
+    chart.on('overlayChange', handler);
+    if (chart.getSeriesIds().length > 0) handler();
+
     return () => {
-      chart.off('dataUpdate', handler);
-      chart.off('seriesChange', handler);
+      chart.off('overlayChange', handler);
     };
   }, [chart]);
 
-  const slices = chart.getSliceInfo(seriesId);
+  const resolvedId = resolvePieSeriesId(chart, seriesId);
+  const slices = resolvedId !== null ? chart.getSliceInfo(resolvedId) : null;
   if (!slices || slices.length === 0) return null;
+
+  if (children) return <>{children({ slices, mode, format: formatter })}</>;
 
   return (
     <div
@@ -52,14 +72,8 @@ export function PieLegend({ seriesId, mode: modeProp, format }: PieLegendProps) 
       }}
     >
       {slices.map((slice, i) => (
-        <div
-          key={i}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
+        // biome-ignore lint/suspicious/noArrayIndexKey: slice index is stable within a render
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span
             style={{
               width: 10,

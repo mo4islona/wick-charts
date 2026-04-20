@@ -112,6 +112,63 @@ describe('<YLabel> positioning vs headerLayout', () => {
     expect(afterTop).toBeGreaterThan(beforeTop);
   });
 
+  it('omitted seriesId picks the first visible single-layer time series', () => {
+    const singleData: [Array<{ time: number; value: number }>] = [
+      [
+        { time: 1, value: 0 },
+        { time: 2, value: 50 },
+        { time: 3, value: 100 },
+      ],
+    ];
+    mounted = mountChart(
+      <>
+        <LineSeries id="line" data={singleData} />
+        <YLabel />
+      </>,
+      { width: 400, height: 240 },
+    );
+
+    const expected = mounted.chart.yScale.valueToY(mounted.chart.getLastValue('line')!.value);
+    expect(getYLabelTop(mounted)).toBeCloseTo(expected, 1);
+  });
+
+  it('renders nothing when no compatible series exists', () => {
+    mounted = mountChart(<YLabel />, { width: 400, height: 240 });
+    const overlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement;
+    const badges = Array.from(overlay?.querySelectorAll<HTMLElement>('div') ?? []).filter((el) =>
+      el.style.transform.includes('translateY(-50%)'),
+    );
+    expect(badges.length).toBe(0);
+  });
+
+  it('render-prop replaces the default badge and receives full context', () => {
+    let captured: { value: number; y: number; direction: string } | null = null;
+    mounted = mountChart(
+      <>
+        <LineSeries id="l" data={data} />
+        <YLabel>
+          {({ value, y, direction, format }) => {
+            captured = { value, y, direction };
+
+            return <div data-testid="custom-ylabel">{format(value)}</div>;
+          }}
+        </YLabel>
+      </>,
+      { width: 400, height: 240 },
+    );
+
+    const custom = mounted.container.querySelector('[data-testid="custom-ylabel"]');
+    expect(custom).not.toBeNull();
+    expect(captured).not.toBeNull();
+    expect(captured!.value).toBe(100);
+    // Default badge (translateY(-50%)) should be absent — slot replaces it.
+    const overlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement;
+    const defaultBadges = Array.from(overlay.querySelectorAll<HTMLElement>('div')).filter((el) =>
+      el.style.transform.includes('translateY(-50%)'),
+    );
+    expect(defaultBadges.length).toBe(0);
+  });
+
   it('after toggling, the badge top matches a fresh mount in the same mode (no stale offset carried over)', () => {
     // Direct regression test for "lastY label is positioned incorrectly after
     // toggling header layout — the offset is not accounted for". A toggled

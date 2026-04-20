@@ -77,18 +77,29 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
     };
   }, [chart]);
 
-  const isHover = crosshair !== null;
-  const snapshots = isHover
-    ? buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'infobar-hover' })
-    : buildLastSnapshots(chart, { sort, cacheKey: 'infobar-last' });
+  // Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
+  // so a crosshair event fires for offsets past the plotted data. The
+  // nearest-time lookup then snaps to an out-of-range timestamp and returns
+  // no samples. Falling back to the last-mode snapshots here keeps the bar
+  // populated (showing last values at 0.6 opacity) instead of blinking out
+  // every time the pointer grazes the y-axis.
+  const lastSnapshots = buildLastSnapshots(chart, { sort, cacheKey: 'infobar-last' });
+  let snapshots = lastSnapshots;
+  let displayTime = lastSnapshots.length === 0 ? 0 : Math.max(...lastSnapshots.map((s) => s.data.time));
+  let isHover = false;
+  if (crosshair !== null) {
+    const hoverSnapshots = buildHoverSnapshots(chart, { time: crosshair.time, sort, cacheKey: 'infobar-hover' });
+    if (hoverSnapshots.length > 0) {
+      snapshots = hoverSnapshots;
+      // `snapshots[0].data.time` is index-0 → shifts when `sort` reorders.
+      // Use the raw crosshair time (what the user is pointing at) so the
+      // header stays stable across sort toggles.
+      displayTime = crosshair.time;
+      isHover = true;
+    }
+  }
 
   if (snapshots.length === 0) return null;
-
-  // `snapshots[0].data.time` is index-0 → shifts when `sort` reorders and,
-  // in last-mode, drifts across ragged per-layer timestamps. Pick a stable
-  // rule per mode: crosshair time for hover (what the user is pointing at),
-  // newest point across all visible series for last-mode.
-  const displayTime = isHover ? crosshair.time : Math.max(...snapshots.map((s) => s.data.time));
 
   if (children) {
     return (

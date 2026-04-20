@@ -1,4 +1,5 @@
 import { render } from '@testing-library/svelte';
+import type { LegendItem } from '@wick-charts/core';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -132,6 +133,58 @@ describe('Svelte <Legend> parity', () => {
     expect((buttons()[0] as HTMLButtonElement).style.opacity).toBe('1');
     expect((buttons()[1] as HTMLButtonElement).style.opacity).toBe('1');
     expect((buttons()[2] as HTMLButtonElement).style.opacity).toBe('1');
+
+    unmount();
+  });
+
+  it('back-to-back slot isolate() restores visibility — closure reads live isolatedId, not a stale snapshot', async () => {
+    // Regression: makeItem used to capture `isolatedId` as a parameter, so
+    // two synchronous `item.isolate()` calls (before Svelte flushes a
+    // re-render) both saw the stale `null` and kept re-isolating instead of
+    // toggling back to "all visible" on the second call.
+    delete (window as unknown as { __legendCapture__?: unknown }).__legendCapture__;
+    const { unmount } = render(LegendHarness, {
+      props: { variant: 'custom-slot', lineData: twoLayerLine },
+    });
+    await settle();
+
+    const captured = (window as unknown as { __legendCapture__?: readonly LegendItem[] }).__legendCapture__;
+    expect(captured, 'slot must have fired with items').toBeDefined();
+    const chart = (document.body.querySelector('[data-chart-host]') as unknown as { chart?: unknown })?.chart;
+    void chart;
+    const items = captured as readonly LegendItem[];
+
+    // Call isolate() twice synchronously — we never await between calls, so
+    // the closure must consult the live `isolatedId` to notice it already
+    // isolated this item.
+    items[1].isolate();
+    items[1].isolate();
+    await settle();
+
+    // Post-condition: all layers back on (second call un-isolated).
+    const again = (window as unknown as { __legendCapture__?: readonly LegendItem[] }).__legendCapture__!;
+    expect(again.every((it) => !it.isDisabled)).toBe(true);
+
+    unmount();
+  });
+
+  it('scoped slot replaces the default UI and receives LegendItem[] with closures', async () => {
+    delete (window as unknown as { __legendCapture__?: unknown }).__legendCapture__;
+    const { unmount } = render(LegendHarness, {
+      props: { variant: 'custom-slot', lineData: twoLayerLine },
+    });
+    await settle();
+
+    const custom = document.body.querySelector('[data-testid="custom"]');
+    expect(custom).not.toBeNull();
+    // Default UI uses <button>; slot replaces it entirely.
+    expect(document.body.querySelectorAll('[data-legend] button').length).toBe(0);
+
+    const captured = (window as unknown as { __legendCapture__?: readonly LegendItem[] }).__legendCapture__;
+    expect(captured).toBeDefined();
+    expect(captured!.length).toBe(twoLayerLine.length);
+    expect(typeof captured![0].toggle).toBe('function');
+    expect(typeof captured![0].isolate).toBe('function');
 
     unmount();
   });

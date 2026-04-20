@@ -1,31 +1,38 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
+import type { ChartInstance, LegendItem } from '@wick-charts/core';
+import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { LegendAnchorKey, LegendRightAnchorKey, ThemeKey, useChartInstance } from '../context';
 
-export interface LegendItem {
+/**
+ * Minimal visual shape the {@link LegendProps.items} override accepts. The
+ * canonical {@link LegendItem} (re-exported from `@wick-charts/core`) carries
+ * the full identity + closures; those aren't meaningful for a pre-baked,
+ * non-interactive legend.
+ */
+export interface LegendItemOverride {
   label: string;
   color: string;
 }
 
-interface ResolvedItem extends LegendItem {
-  seriesId: string;
-  layerIndex: number;
-  isLayer: boolean;
-}
+type LegendMode = 'toggle' | 'isolate' | 'solo';
 
 const props = withDefaults(
   defineProps<{
-    items?: LegendItem[];
+    items?: LegendItemOverride[];
     position?: 'bottom' | 'right';
     /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
-    mode?: 'toggle' | 'isolate' | 'solo';
+    mode?: LegendMode;
   }>(),
   {
     position: 'bottom',
     mode: 'toggle',
   },
 );
+
+defineSlots<{
+  default?(ctx: { items: readonly LegendItem[] }): unknown;
+}>();
 
 const chart = useChartInstance();
 const theme = inject(ThemeKey);
@@ -41,95 +48,144 @@ if (!bottomAnchor || !rightAnchor) {
 
 const anchor = computed(() => (props.position === 'right' ? rightAnchor.value : bottomAnchor.value));
 
-const disabled = ref<Set<number>>(new Set());
+const isolatedId = ref<string | null>(null);
 const bump = ref(0);
 
-const seriesChangeHandler = () => {
+const overlayHandler = () => {
   bump.value++;
-  disabled.value = new Set();
 };
-const dataUpdateHandler = () => {
-  bump.value++;
+const seriesChangeHandler = () => {
+  isolatedId.value = null;
 };
 
 onMounted(() => {
+  chart.on('overlayChange', overlayHandler);
   chart.on('seriesChange', seriesChangeHandler);
-  chart.on('dataUpdate', dataUpdateHandler);
   if (chart.getSeriesIds().length > 0) bump.value++;
 });
 
 onUnmounted(() => {
+  chart.off('overlayChange', overlayHandler);
   chart.off('seriesChange', seriesChangeHandler);
-  chart.off('dataUpdate', dataUpdateHandler);
 });
 
-const resolved = computed<ResolvedItem[]>(() => {
-  void bump.value;
-  if (props.items) {
-    return props.items.map((item, i) => ({ ...item, seriesId: '', layerIndex: i, isLayer: false }));
-  }
-  const result: ResolvedItem[] = [];
-  for (const id of chart.getSeriesIds()) {
-    const layers = chart.getSeriesLayers(id);
-    if (layers) {
-      const baseLabel = chart.getSeriesLabel(id);
-      for (let i = 0; i < layers.length; i++) {
-        result.push({
-          label: baseLabel ? `${baseLabel} ${i + 1}` : `Series ${i + 1}`,
-          color: layers[i].color,
-          seriesId: id,
-          layerIndex: i,
-          isLayer: true,
-        });
-      }
-    } else {
-      const color = chart.getSeriesColor(id);
-      const label = chart.getSeriesLabel(id);
-      if (color) result.push({ label: label ?? 'Series', color, seriesId: id, layerIndex: 0, isLayer: false });
-    }
-  }
-  return result;
-});
-
-function apply(next: Set<number>) {
-  disabled.value = next;
-  const list = resolved.value;
-  chart.batch(() => {
-    for (let i = 0; i < list.length; i++) {
-      const item = list[i];
-      if (!item.seriesId) continue;
-      if (item.isLayer) {
-        chart.setLayerVisible(item.seriesId, item.layerIndex, !next.has(i));
-      } else {
-        chart.setSeriesVisible(item.seriesId, !next.has(i));
-      }
-    }
-  });
+interface MakeItemArgs {
+  id: string;
+  seriesId: string;
+  layerIndex: number | undefined;
+  label: string;
+  color: string;
+  isDisabled: boolean;
 }
 
-function handleClick(index: number) {
-  const list = resolved.value;
-  if (props.mode === 'isolate' || props.mode === 'solo') {
-    const allOthersOff = list.every((_, i) => i === index || disabled.value.has(i));
-    if (allOthersOff) {
-      apply(new Set());
+function makeItem(args: MakeItemArgs): LegendItem {
+  const { id, seriesId, layerIndex, label, color, isDisabled } = args;
+
+  const toggle = () => {
+    if (layerIndex !== undefined) {
+      chart.setLayerVisible(seriesId, layerIndex, !chart.isLayerVisible(seriesId, layerIndex));
     } else {
-      const next = new Set(list.map((_, i) => i));
-      next.delete(index);
-      apply(next);
+      chart.setSeriesVisible(seriesId, !chart.isSeriesVisible(seriesId));
     }
-  } else {
-    const s = new Set(disabled.value);
-    if (s.has(index)) s.delete(index);
-    else s.add(index);
-    apply(s);
+  };
+
+  const isolate = () => {
+    if (isolatedId.value === id) {
+      chart.batch(() => {
+        for (const sid of chart.getSeriesIds()) {
+          chart.setSeriesVisible(sid, true);
+          const layers = chart.getSeriesLayers(sid);
+          if (layers) {
+            for (let i = 0; i < layers.length; i++) chart.setLayerVisible(sid, i, true);
+          }
+        }
+      });
+      isolatedId.value = null;
+
+      return;
+    }
+
+    chart.batch(() => {
+      for (const sid of chart.getSeriesIds()) {
+        const layers = chart.getSeriesLayers(sid);
+        if (layers) {
+          chart.setSeriesVisible(sid, sid === seriesId);
+          for (let i = 0; i < layers.length; i++) {
+            chart.setLayerVisible(sid, i, sid === seriesId && i === layerIndex);
+          }
+        } else {
+          chart.setSeriesVisible(sid, sid === id);
+        }
+      }
+    });
+    isolatedId.value = id;
+  };
+
+  return { id, seriesId, layerIndex, label, color, isDisabled, toggle, isolate };
+}
+
+function buildLegendItems(c: ChartInstance): LegendItem[] {
+  const items: LegendItem[] = [];
+  for (const seriesId of c.getSeriesIds()) {
+    const layers = c.getSeriesLayers(seriesId);
+    if (layers) {
+      const baseLabel = c.getSeriesLabel(seriesId);
+      for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+        const id = `${seriesId}_layer${layerIndex}`;
+        const visible = c.isSeriesVisible(seriesId) && c.isLayerVisible(seriesId, layerIndex);
+        items.push(
+          makeItem({
+            id,
+            seriesId,
+            layerIndex,
+            label: baseLabel ? `${baseLabel} ${layerIndex + 1}` : `Series ${layerIndex + 1}`,
+            color: layers[layerIndex].color,
+            isDisabled: !visible,
+          }),
+        );
+      }
+    } else {
+      const color = c.getSeriesColor(seriesId);
+      if (!color) continue;
+
+      const label = c.getSeriesLabel(seriesId);
+      const visible = c.isSeriesVisible(seriesId);
+      items.push(
+        makeItem({
+          id: seriesId,
+          seriesId,
+          layerIndex: undefined,
+          label: label ?? 'Series',
+          color,
+          isDisabled: !visible,
+        }),
+      );
+    }
   }
+
+  return items;
+}
+
+const legendItems = computed<LegendItem[]>(() => {
+  void bump.value;
+  void isolatedId.value;
+
+  return buildLegendItems(chart);
+});
+
+const slots = useSlots();
+const hasCustomSlot = computed(() => typeof slots.default === 'function');
+
+function handleClick(item: LegendItem) {
+  if (props.mode === 'isolate' || props.mode === 'solo') item.isolate();
+  else item.toggle();
 }
 </script>
 
 <template>
-  <Teleport v-if="anchor && theme && resolved.length > 0" :to="anchor">
+  <Teleport v-if="anchor && theme" :to="anchor">
     <div
+      v-if="hasCustomSlot && legendItems.length > 0"
       :data-legend="position"
       :style="{
         display: 'flex',
@@ -146,61 +202,101 @@ function handleClick(index: number) {
         flexShrink: 0,
       }"
     >
-      <template v-for="(item, i) in resolved" :key="i">
-        <button
-          v-if="item.seriesId"
-          type="button"
-          @click="handleClick(i)"
+      <slot :items="legendItems" />
+    </div>
+
+    <div
+      v-else-if="items && items.length > 0"
+      :data-legend="position"
+      :style="{
+        display: 'flex',
+        flexDirection: position === 'right' ? 'column' : 'row',
+        flexWrap: 'wrap',
+        gap: position === 'right' ? '6px' : '14px',
+        padding: position === 'right' ? '8px 6px' : '6px 8px',
+        alignItems: position === 'right' ? 'flex-start' : 'center',
+        justifyContent: position === 'right' ? 'flex-start' : 'center',
+        fontFamily: theme.typography.fontFamily,
+        fontSize: theme.typography.axisFontSize + 'px',
+        color: theme.axis.textColor,
+        pointerEvents: 'auto',
+        flexShrink: 0,
+      }"
+    >
+      <div
+        v-for="(item, i) in items"
+        :key="i"
+        :style="{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          userSelect: 'none',
+        }"
+      >
+        <span
           :style="{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            cursor: 'pointer',
-            opacity: disabled.has(i) ? 0.35 : 1,
-            transition: 'opacity 0.15s ease',
-            userSelect: 'none',
-            border: 'none',
-            background: 'transparent',
-            padding: 0,
-            margin: 0,
-            font: 'inherit',
-            color: 'inherit',
-            textAlign: 'left',
+            width: '8px',
+            height: '8px',
+            borderRadius: '2px',
+            background: item.color,
+            flexShrink: 0,
           }"
-        >
-          <span
-            :style="{
-              width: '8px',
-              height: '8px',
-              borderRadius: '2px',
-              background: item.color,
-              flexShrink: 0,
-            }"
-          />
-          <span style="white-space: nowrap">{{ item.label }}</span>
-        </button>
-        <div
-          v-else
+        />
+        <span style="white-space: nowrap">{{ item.label }}</span>
+      </div>
+    </div>
+
+    <div
+      v-else-if="legendItems.length > 0"
+      :data-legend="position"
+      :style="{
+        display: 'flex',
+        flexDirection: position === 'right' ? 'column' : 'row',
+        flexWrap: 'wrap',
+        gap: position === 'right' ? '6px' : '14px',
+        padding: position === 'right' ? '8px 6px' : '6px 8px',
+        alignItems: position === 'right' ? 'flex-start' : 'center',
+        justifyContent: position === 'right' ? 'flex-start' : 'center',
+        fontFamily: theme.typography.fontFamily,
+        fontSize: theme.typography.axisFontSize + 'px',
+        color: theme.axis.textColor,
+        pointerEvents: 'auto',
+        flexShrink: 0,
+      }"
+    >
+      <button
+        v-for="item in legendItems"
+        :key="item.id"
+        type="button"
+        @click="handleClick(item)"
+        :style="{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          cursor: 'pointer',
+          opacity: item.isDisabled ? 0.35 : 1,
+          transition: 'opacity 0.15s ease',
+          userSelect: 'none',
+          border: 'none',
+          background: 'transparent',
+          padding: 0,
+          margin: 0,
+          font: 'inherit',
+          color: 'inherit',
+          textAlign: 'left',
+        }"
+      >
+        <span
           :style="{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            opacity: disabled.has(i) ? 0.35 : 1,
-            userSelect: 'none',
+            width: '8px',
+            height: '8px',
+            borderRadius: '2px',
+            background: item.color,
+            flexShrink: 0,
           }"
-        >
-          <span
-            :style="{
-              width: '8px',
-              height: '8px',
-              borderRadius: '2px',
-              background: item.color,
-              flexShrink: 0,
-            }"
-          />
-          <span style="white-space: nowrap">{{ item.label }}</span>
-        </div>
-      </template>
+        />
+        <span style="white-space: nowrap">{{ item.label }}</span>
+      </button>
     </div>
   </Teleport>
 </template>

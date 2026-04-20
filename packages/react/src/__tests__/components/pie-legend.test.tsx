@@ -64,4 +64,46 @@ describe('PieLegend', () => {
     expect(spanTexts).not.toContain('25');
     expect(spanTexts).not.toContain('50');
   });
+
+  it('omitted seriesId picks the first visible pie series', () => {
+    mounted = mountChart(
+      <>
+        <PieSeries id={id} data={slices} />
+        <PieLegend />
+      </>,
+    );
+    const swatches = mounted.container.querySelectorAll('span[style*="border-radius: 50%"]');
+    expect(swatches.length).toBe(slices.length);
+  });
+
+  it('children render-prop replaces the default UI and receives slices/mode/format', () => {
+    let captured: { count: number; mode: string } | null = null;
+    mounted = mountChart(
+      <>
+        <PieSeries id={id} data={slices} />
+        <PieLegend mode="percent">
+          {({ slices: s, mode, format }) => {
+            captured = { count: s.length, mode };
+
+            return (
+              <ul data-testid="custom-pie-legend">
+                {s.map((slice) => (
+                  <li key={slice.label}>
+                    {slice.label}:{format(slice.value)}
+                  </li>
+                ))}
+              </ul>
+            );
+          }}
+        </PieLegend>
+      </>,
+    );
+    const custom = mounted.container.querySelector('[data-testid="custom-pie-legend"]');
+    expect(custom).not.toBeNull();
+    expect(captured).not.toBeNull();
+    expect(captured!.count).toBe(slices.length);
+    expect(captured!.mode).toBe('percent');
+    // Default swatch markers absent.
+    expect(mounted.container.querySelectorAll('span[style*="border-radius: 50%"]').length).toBe(0);
+  });
 });

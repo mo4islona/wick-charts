@@ -109,6 +109,75 @@ describe('<InfoBar> children-fn slot', () => {
   });
 });
 
+describe('<InfoBar> hover-gap fallback (y-axis hover regression)', () => {
+  let mounted: ReturnType<typeof mountChart> | null = null;
+
+  afterEach(() => {
+    mounted?.unmount();
+    mounted = null;
+  });
+
+  // Regression: the overlay canvas includes the y-axis strip, so a mousemove
+  // in that region fires `crosshairMove` with a time past the plotted data.
+  // `buildHoverSnapshots` then returns an empty array (every series'
+  // `findNearest` misses), and InfoBar used to short-circuit with
+  // `return null` — blinking out every time the pointer grazed the y-axis.
+  // The fix falls back to last-mode snapshots so the bar stays populated.
+  it('stays visible when the crosshair time is far past the last data point', () => {
+    mounted = mountChart(
+      <>
+        <LineSeries data={MULTI_LINE} />
+        <InfoBar />
+      </>,
+      { width: 400, height: 240 },
+    );
+
+    // Extreme offsetX → xToTime extrapolates well beyond last_time + interval,
+    // so every series' `getDataAtTime` returns null.
+    mounted.dispatchMouse('mousemove', { clientX: 10000, clientY: 100 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
+
+    const crosshair = mounted.chart.getCrosshairPosition();
+    expect(crosshair, 'mousemove must have registered a crosshair').not.toBeNull();
+    // Pre-condition for the regression: this crosshair time is beyond any
+    // series' nearest lookup radius — if the bug were present the bar would
+    // render `null` at this point.
+    const lastTime = Math.max(...MULTI_LINE.flatMap((layer) => layer.map((p) => p.time)));
+    expect(crosshair!.time).toBeGreaterThan(lastTime + mounted.chart.getDataInterval());
+
+    const bar = mounted.container.querySelector('[data-tooltip-legend]');
+    expect(bar, 'InfoBar must stay mounted — last-mode fallback fills the gap').not.toBeNull();
+  });
+
+  it('falls back to last-mode values (isHover=false) when hover returns empty', () => {
+    const captured: Array<{ count: number; isHover: boolean; crosshairTime: number | undefined }> = [];
+    mounted = mountChart(
+      <>
+        <LineSeries data={MULTI_LINE} />
+        <InfoBar>
+          {({ snapshots, isHover, time }) => {
+            captured.push({ count: snapshots.length, isHover, crosshairTime: time });
+
+            return <div data-testid="custom-bar" data-hover={isHover ? 'y' : 'n'} />;
+          }}
+        </InfoBar>
+      </>,
+      { width: 400, height: 240 },
+    );
+
+    mounted.dispatchMouse('mousemove', { clientX: 10000, clientY: 100 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
+
+    // At least one render must correspond to the "hover miss" case — crosshair
+    // is active (position non-null) but `buildHoverSnapshots` returned empty,
+    // so the fallback reports `isHover=false` with a full last-mode snapshot
+    // list. Without the fix that render would simply not happen (`return null`
+    // in InfoBar), and the bar would be gone from the DOM.
+    expect(captured.every((c) => c.count === MULTI_LINE.length)).toBe(true);
+    expect(captured.some((c) => !c.isHover)).toBe(true);
+  });
+});
+
 describe('<Tooltip> children-fn slot', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
 

@@ -1,14 +1,20 @@
 <script setup lang="ts">
-import { type ValueFormatter, formatCompact } from '@wick-charts/core';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact } from '@wick-charts/core';
+import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { useChartInstance, useTheme } from '../context';
 
+type PieLegendMode = 'value' | 'percent';
+
 const props = withDefaults(
   defineProps<{
-    seriesId: string;
+    /**
+     * Owning series id. **Optional** — when omitted, the first visible pie
+     * series is picked.
+     */
+    seriesId?: string;
     /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
-    mode?: 'value' | 'percent';
+    mode?: PieLegendMode;
     /** Custom formatter for the absolute slice value. */
     format?: ValueFormatter;
   }>(),
@@ -18,34 +24,61 @@ const props = withDefaults(
   },
 );
 
-const resolvedMode = computed<'value' | 'percent'>(() => props.mode ?? 'value');
+defineSlots<{
+  default?(ctx: { slices: readonly SliceInfo[]; mode: PieLegendMode; format: ValueFormatter }): unknown;
+}>();
+
+const resolvedMode = computed<PieLegendMode>(() => props.mode ?? 'value');
 const resolvedFormat = computed<ValueFormatter>(() => props.format ?? formatCompact);
 
 const chart = useChartInstance();
 const themeRef = useTheme();
+const slots = useSlots();
+const hasCustomSlot = computed(() => typeof slots.default === 'function');
 
-// Subscribe to dataUpdate directly to re-render when pie data changes
-const tick = ref(0);
+const bump = ref(0);
 const handler = () => {
-  tick.value++;
+  bump.value++;
 };
 onMounted(() => {
-  chart.on('dataUpdate', handler);
+  chart.on('overlayChange', handler);
+  if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
-  chart.off('dataUpdate', handler);
+  chart.off('overlayChange', handler);
 });
 
+function resolvePieSeriesId(c: ChartInstance, explicit: string | undefined): string | null {
+  if (explicit !== undefined) return explicit;
+
+  const pies = c.getSeriesIdsByType('pie', { visibleOnly: true });
+
+  return pies.length > 0 ? pies[0] : null;
+}
+
 const theme = computed(() => themeRef.value);
-const slices = computed(() => {
-  void tick.value;
-  return chart.getSliceInfo(props.seriesId) ?? [];
+const resolvedId = computed<string | null>(() => {
+  void bump.value;
+
+  return resolvePieSeriesId(chart, props.seriesId);
+});
+const slices = computed<readonly SliceInfo[]>(() => {
+  void bump.value;
+  if (resolvedId.value === null) return [];
+
+  return chart.getSliceInfo(resolvedId.value) ?? [];
 });
 </script>
 
 <template>
+  <slot
+    v-if="hasCustomSlot && slices.length > 0"
+    :slices="slices"
+    :mode="resolvedMode"
+    :format="resolvedFormat"
+  />
   <div
-    v-if="slices.length > 0"
+    v-else-if="slices.length > 0"
     :style="{
       display: 'flex',
       flexDirection: 'column',
@@ -64,10 +97,7 @@ const slices = computed(() => {
     >
       <span :style="{ width: '10px', height: '10px', borderRadius: '50%', background: slice.color, flexShrink: 0 }" />
       <span :style="{ flex: 1, opacity: 0.8 }">{{ slice.label }}</span>
-      <span
-        v-if="resolvedMode === 'value'"
-        :style="{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }"
-      >
+      <span v-if="resolvedMode === 'value'" :style="{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }">
         {{ resolvedFormat(slice.value) }}
       </span>
       <span

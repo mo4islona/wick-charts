@@ -1,4 +1,5 @@
 import { fireEvent } from '@testing-library/react';
+import type { LegendItem } from '@wick-charts/core';
 import { BarSeries, CandlestickSeries, Legend, LineSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -135,6 +136,125 @@ describe('Legend', () => {
   it('renders nothing when no series are registered', () => {
     mounted = mountChart(<Legend />);
     expect(mounted.container.querySelector('[data-legend]')).toBeNull();
+  });
+
+  it('children render-prop replaces the default UI and receives LegendItems with toggle/isolate closures', () => {
+    const twoLayers = [[{ time: 1, value: 1 }], [{ time: 1, value: 2 }]];
+    let captured: readonly LegendItem[] | null = null;
+
+    mounted = mountChart(
+      <>
+        <LineSeries data={twoLayers} />
+        <Legend>
+          {({ items }) => {
+            captured = items;
+
+            return (
+              <div data-testid="custom-legend">
+                {items.map((item) => (
+                  <span key={item.id} data-id={item.id} data-disabled={item.isDisabled ? 'y' : 'n'}>
+                    {item.label}
+                  </span>
+                ))}
+              </div>
+            );
+          }}
+        </Legend>
+      </>,
+    );
+
+    const custom = mounted.container.querySelector('[data-testid="custom-legend"]');
+    expect(custom).not.toBeNull();
+    expect(captured).not.toBeNull();
+    expect(captured!.length).toBe(2);
+    expect(captured![0].id).toBe(`${mounted.chart.getSeriesIds()[0]}_layer0`);
+    // Default UI markers (dot swatch divs) should be absent — the slot fully
+    // replaces the built-in layout.
+    expect(mounted.container.querySelectorAll('[data-legend] > div[style*="cursor"]').length).toBe(0);
+  });
+
+  it('LegendItem.toggle() from the slot flips visibility', () => {
+    const twoLayers = [[{ time: 1, value: 1 }], [{ time: 1, value: 2 }]];
+    let items: readonly LegendItem[] = [];
+
+    mounted = mountChart(
+      <>
+        <LineSeries data={twoLayers} />
+        <Legend>
+          {(ctx) => {
+            items = ctx.items;
+
+            return <div data-testid="t" />;
+          }}
+        </Legend>
+      </>,
+    );
+
+    const sid = mounted.chart.getSeriesIds()[0];
+    expect(mounted.chart.isLayerVisible(sid, 0)).toBe(true);
+    items[0].toggle();
+    mounted.flushScheduler();
+    expect(mounted.chart.isLayerVisible(sid, 0)).toBe(false);
+    expect(mounted.chart.isLayerVisible(sid, 1)).toBe(true);
+  });
+
+  it('LegendItem.isolate() hides all other layers, calling again restores everything', () => {
+    const threeLayers = [[{ time: 1, value: 10 }], [{ time: 1, value: 100 }], [{ time: 1, value: 1000 }]];
+    let itemsRef: readonly LegendItem[] = [];
+
+    mounted = mountChart(
+      <>
+        <BarSeries data={threeLayers} />
+        <Legend>
+          {(ctx) => {
+            itemsRef = ctx.items;
+
+            return <div data-testid="t" />;
+          }}
+        </Legend>
+      </>,
+    );
+
+    const sid = mounted.chart.getSeriesIds()[0];
+    itemsRef[1].isolate();
+    mounted.flushScheduler();
+    expect(mounted.chart.isLayerVisible(sid, 0)).toBe(false);
+    expect(mounted.chart.isLayerVisible(sid, 1)).toBe(true);
+    expect(mounted.chart.isLayerVisible(sid, 2)).toBe(false);
+
+    // Second click (by id) on the isolated item restores everything. The slot
+    // re-ran after the visibility change, so `itemsRef` points at a fresh
+    // closure that sees `isolatedId` set.
+    itemsRef[1].isolate();
+    mounted.flushScheduler();
+    expect(mounted.chart.isLayerVisible(sid, 0)).toBe(true);
+    expect(mounted.chart.isLayerVisible(sid, 1)).toBe(true);
+    expect(mounted.chart.isLayerVisible(sid, 2)).toBe(true);
+  });
+
+  it('items-prop override renders a static non-interactive legend', () => {
+    const data = [
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+    ];
+    mounted = mountChart(
+      <>
+        <LineSeries data={data} />
+        <Legend
+          items={[
+            { label: 'Custom A', color: '#f00' },
+            { label: 'Custom B', color: '#0f0' },
+          ]}
+        />
+      </>,
+    );
+    const divs = mounted.container.querySelectorAll('[data-legend] > div');
+    expect(divs.length).toBe(2);
+    // No cursor:pointer on override items — they're non-interactive.
+    const first = divs[0] as HTMLElement;
+    expect(first.style.cursor).toBe('');
   });
 
   it('position="right" changes container flex direction', () => {

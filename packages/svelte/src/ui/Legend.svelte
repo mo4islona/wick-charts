@@ -1,177 +1,254 @@
 <script context="module" lang="ts">
-export interface LegendItem {
+/**
+ * Minimal visual shape the `items` override accepts — just what the built-in
+ * swatch/label UI needs. The canonical `LegendItem` (re-exported from
+ * `@wick-charts/core`) carries identity plus `toggle`/`isolate` closures;
+ * those aren't meaningful for a pre-baked, non-interactive legend.
+ */
+export interface LegendItemOverride {
   label: string;
   color: string;
 }
 </script>
 
 <script lang="ts">
+  import type { ChartInstance, LegendItem } from '@wick-charts/core';
   import { onDestroy } from 'svelte';
 
   import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context';
   import { portal } from './portal';
 
-  export let items: LegendItem[] | undefined = undefined;
+  export let items: LegendItemOverride[] | undefined = undefined;
   export let position: 'bottom' | 'right' = 'bottom';
   /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
   export let mode: 'toggle' | 'isolate' | 'solo' = 'toggle';
-
-  interface ResolvedItem extends LegendItem {
-    seriesId: string;
-    layerIndex: number;
-    isLayer: boolean;
-  }
 
   const chartStore = getChartContext();
   const themeStore = getThemeContext();
   const bottomAnchorStore = getLegendAnchor();
   const rightAnchorStore = getLegendRightAnchor();
 
-  let disabled = new Set<number>();
+  let isolatedId: string | null = null;
   let bump = 0;
+  let overlayUnsub: (() => void) | null = null;
   let seriesChangeUnsub: (() => void) | null = null;
-  let dataUpdateUnsub: (() => void) | null = null;
 
   $: {
     const c = $chartStore;
-    if (c && !seriesChangeUnsub) {
+    if (c && !overlayUnsub) {
+      const onOverlay = () => {
+        bump++;
+      };
       const onSeries = () => {
-        bump++;
-        disabled = new Set();
+        isolatedId = null;
       };
-      const onData = () => {
-        bump++;
-      };
+      c.on('overlayChange', onOverlay);
       c.on('seriesChange', onSeries);
-      c.on('dataUpdate', onData);
+      overlayUnsub = () => c.off('overlayChange', onOverlay);
       seriesChangeUnsub = () => c.off('seriesChange', onSeries);
-      dataUpdateUnsub = () => c.off('dataUpdate', onData);
       if (c.getSeriesIds().length > 0) bump++;
     }
   }
 
   onDestroy(() => {
+    overlayUnsub?.();
     seriesChangeUnsub?.();
-    dataUpdateUnsub?.();
   });
 
   $: chart = $chartStore;
   $: theme = $themeStore;
   $: anchor = position === 'right' ? $rightAnchorStore : $bottomAnchorStore;
 
-  // Reference bump + chart + items explicitly so Svelte's compiler tracks the
-  // deps without relying on detection inside an IIFE body.
-  function buildResolved(
-    c: typeof chart,
-    itemsArg: LegendItem[] | undefined,
+  interface MakeItemArgs {
+    id: string;
+    seriesId: string;
+    layerIndex: number | undefined;
+    label: string;
+    color: string;
+    isDisabled: boolean;
+  }
+
+  function makeItem(c: ChartInstance, args: MakeItemArgs): LegendItem {
+    const { id, seriesId, layerIndex, label, color, isDisabled } = args;
+
+    const toggle = () => {
+      if (layerIndex !== undefined) {
+        c.setLayerVisible(seriesId, layerIndex, !c.isLayerVisible(seriesId, layerIndex));
+      } else {
+        c.setSeriesVisible(seriesId, !c.isSeriesVisible(seriesId));
+      }
+    };
+
+    // Read `isolatedId` live — closing over the component-level `let`, not a
+    // captured-at-build-time snapshot. Without this, back-to-back
+    // `item.isolate()` calls from the slot (before Svelte flushes a
+    // re-render) would see a stale null and keep re-isolating instead of
+    // restoring all series on the second click.
+    const isolate = () => {
+      if (isolatedId === id) {
+        c.batch(() => {
+          for (const sid of c.getSeriesIds()) {
+            c.setSeriesVisible(sid, true);
+            const layers = c.getSeriesLayers(sid);
+            if (layers) {
+              for (let i = 0; i < layers.length; i++) c.setLayerVisible(sid, i, true);
+            }
+          }
+        });
+        isolatedId = null;
+
+        return;
+      }
+
+      c.batch(() => {
+        for (const sid of c.getSeriesIds()) {
+          const layers = c.getSeriesLayers(sid);
+          if (layers) {
+            c.setSeriesVisible(sid, sid === seriesId);
+            for (let i = 0; i < layers.length; i++) {
+              c.setLayerVisible(sid, i, sid === seriesId && i === layerIndex);
+            }
+          } else {
+            c.setSeriesVisible(sid, sid === id);
+          }
+        }
+      });
+      isolatedId = id;
+    };
+
+    return { id, seriesId, layerIndex, label, color, isDisabled, toggle, isolate };
+  }
+
+  function buildLegendItems(
+    c: ChartInstance | undefined,
     _bumpDep: number,
-  ): ResolvedItem[] {
+    _isolatedDep: string | null,
+  ): LegendItem[] {
     void _bumpDep;
-    if (itemsArg) {
-      return itemsArg.map((item, i) => ({ ...item, seriesId: '', layerIndex: i, isLayer: false }));
-    }
+    void _isolatedDep;
     if (!c) return [];
-    const result: ResolvedItem[] = [];
-    for (const id of c.getSeriesIds()) {
-      const layers = c.getSeriesLayers(id);
+
+    const result: LegendItem[] = [];
+    for (const seriesId of c.getSeriesIds()) {
+      const layers = c.getSeriesLayers(seriesId);
       if (layers) {
-        const baseLabel = c.getSeriesLabel(id);
-        for (let i = 0; i < layers.length; i++) {
-          result.push({
-            label: baseLabel ? `${baseLabel} ${i + 1}` : `Series ${i + 1}`,
-            color: layers[i].color,
-            seriesId: id,
-            layerIndex: i,
-            isLayer: true,
-          });
+        const baseLabel = c.getSeriesLabel(seriesId);
+        for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
+          const id = `${seriesId}_layer${layerIndex}`;
+          const visible = c.isSeriesVisible(seriesId) && c.isLayerVisible(seriesId, layerIndex);
+          result.push(
+            makeItem(c, {
+              id,
+              seriesId,
+              layerIndex,
+              label: baseLabel ? `${baseLabel} ${layerIndex + 1}` : `Series ${layerIndex + 1}`,
+              color: layers[layerIndex].color,
+              isDisabled: !visible,
+            }),
+          );
         }
       } else {
-        const color = c.getSeriesColor(id);
-        const label = c.getSeriesLabel(id);
-        if (color) result.push({ label: label ?? 'Series', color, seriesId: id, layerIndex: 0, isLayer: false });
+        const color = c.getSeriesColor(seriesId);
+        if (!color) continue;
+
+        const label = c.getSeriesLabel(seriesId);
+        const visible = c.isSeriesVisible(seriesId);
+        result.push(
+          makeItem(c, isolated, {
+            id: seriesId,
+            seriesId,
+            layerIndex: undefined,
+            label: label ?? 'Series',
+            color,
+            isDisabled: !visible,
+          }),
+        );
       }
     }
+
     return result;
   }
 
-  $: resolved = buildResolved(chart, items, bump);
+  // `isolatedId` is in the dep list so the list rebuilds when isolate state
+  // changes (refreshes `isDisabled` via chart visibility reads).
+  $: legendItems = buildLegendItems(chart, bump, isolatedId);
 
-  function apply(next: Set<number>) {
-    disabled = next;
-    const list = resolved;
-    const c = chart;
-    if (!c) return;
-    c.batch(() => {
-      for (let i = 0; i < list.length; i++) {
-        const item = list[i];
-        if (!item.seriesId) continue;
-        if (item.isLayer) {
-          c.setLayerVisible(item.seriesId, item.layerIndex, !next.has(i));
-        } else {
-          c.setSeriesVisible(item.seriesId, !next.has(i));
-        }
-      }
-    });
-  }
-
-  function handleClick(index: number) {
-    const list = resolved;
-    if (mode === 'isolate' || mode === 'solo') {
-      const allOthersOff = list.every((_, i) => i === index || disabled.has(i));
-      if (allOthersOff) {
-        apply(new Set());
-      } else {
-        const next = new Set(list.map((_, i) => i));
-        next.delete(index);
-        apply(next);
-      }
-    } else {
-      const s = new Set(disabled);
-      if (s.has(index)) s.delete(index);
-      else s.add(index);
-      apply(s);
-    }
+  function handleClick(item: LegendItem) {
+    if (mode === 'isolate' || mode === 'solo') item.isolate();
+    else item.toggle();
   }
 </script>
 
-{#if anchor && theme && resolved.length > 0}
-  <div
-    use:portal={anchor}
-    data-legend={position}
-    style="display:flex;flex-direction:{position === 'right'
-      ? 'column'
-      : 'row'};flex-wrap:wrap;gap:{position === 'right'
-      ? '6px'
-      : '14px'};padding:{position === 'right'
-      ? '8px 6px'
-      : '6px 8px'};align-items:{position === 'right'
-      ? 'flex-start'
-      : 'center'};justify-content:{position === 'right'
-      ? 'flex-start'
-      : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
-  >
-    {#each resolved as item, i (i)}
-      {#if item.seriesId}
+{#if anchor && theme}
+  {#if $$slots.default && legendItems.length > 0}
+    <div
+      use:portal={anchor}
+      data-legend={position}
+      style="display:flex;flex-direction:{position === 'right'
+        ? 'column'
+        : 'row'};flex-wrap:wrap;gap:{position === 'right'
+        ? '6px'
+        : '14px'};padding:{position === 'right'
+        ? '8px 6px'
+        : '6px 8px'};align-items:{position === 'right'
+        ? 'flex-start'
+        : 'center'};justify-content:{position === 'right'
+        ? 'flex-start'
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+    >
+      <slot items={legendItems} />
+    </div>
+  {:else if items && items.length > 0}
+    <div
+      use:portal={anchor}
+      data-legend={position}
+      style="display:flex;flex-direction:{position === 'right'
+        ? 'column'
+        : 'row'};flex-wrap:wrap;gap:{position === 'right'
+        ? '6px'
+        : '14px'};padding:{position === 'right'
+        ? '8px 6px'
+        : '6px 8px'};align-items:{position === 'right'
+        ? 'flex-start'
+        : 'center'};justify-content:{position === 'right'
+        ? 'flex-start'
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+    >
+      {#each items as item, i (i)}
+        <div style="display:flex;align-items:center;gap:4px;user-select:none;">
+          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
+          <span style="white-space:nowrap;">{item.label}</span>
+        </div>
+      {/each}
+    </div>
+  {:else if legendItems.length > 0}
+    <div
+      use:portal={anchor}
+      data-legend={position}
+      style="display:flex;flex-direction:{position === 'right'
+        ? 'column'
+        : 'row'};flex-wrap:wrap;gap:{position === 'right'
+        ? '6px'
+        : '14px'};padding:{position === 'right'
+        ? '8px 6px'
+        : '6px 8px'};align-items:{position === 'right'
+        ? 'flex-start'
+        : 'center'};justify-content:{position === 'right'
+        ? 'flex-start'
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+    >
+      {#each legendItems as item (item.id)}
         <button
           type="button"
-          on:click={() => handleClick(i)}
-          style="display:flex;align-items:center;gap:4px;cursor:pointer;opacity:{disabled.has(i)
+          on:click={() => handleClick(item)}
+          style="display:flex;align-items:center;gap:4px;cursor:pointer;opacity:{item.isDisabled
             ? 0.35
             : 1};transition:opacity 0.15s ease;user-select:none;border:none;background:transparent;padding:0;margin:0;font:inherit;color:inherit;text-align:left;"
         >
           <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
           <span style="white-space:nowrap;">{item.label}</span>
         </button>
-      {:else}
-        <div
-          style="display:flex;align-items:center;gap:4px;opacity:{disabled.has(i)
-            ? 0.35
-            : 1};user-select:none;"
-        >
-          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
-          <span style="white-space:nowrap;">{item.label}</span>
-        </div>
-      {/if}
-    {/each}
-  </div>
+      {/each}
+    </div>
+  {/if}
 {/if}

@@ -27,11 +27,7 @@ const twoLayerLine = [
   ],
 ];
 
-const threeLayerBars = [
-  [{ time: 1, value: 10 }],
-  [{ time: 1, value: 100 }],
-  [{ time: 1, value: 1000 }],
-];
+const threeLayerBars = [[{ time: 1, value: 10 }], [{ time: 1, value: 100 }], [{ time: 1, value: 1000 }]];
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 8; i++) {
@@ -93,11 +89,7 @@ describe('Vue <Legend> parity', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries, Legend },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: darkTheme }, () => [
-            h(Legend),
-            h(LineSeries, { data: twoLayerLine }),
-          ]);
+        return () => h(ChartContainer, { theme: darkTheme }, () => [h(Legend), h(LineSeries, { data: twoLayerLine })]);
       },
     });
 
@@ -113,11 +105,7 @@ describe('Vue <Legend> parity', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries, Legend },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: darkTheme }, () => [
-            h(LineSeries, { data: twoLayerLine }),
-            h(Legend),
-          ]);
+        return () => h(ChartContainer, { theme: darkTheme }, () => [h(LineSeries, { data: twoLayerLine }), h(Legend)]);
       },
     });
 
@@ -175,6 +163,81 @@ describe('Vue <Legend> parity', () => {
     expect((buttons()[1] as HTMLButtonElement).style.opacity).toBe('1');
     expect((buttons()[2] as HTMLButtonElement).style.opacity).toBe('1');
 
+    wrapper.unmount();
+  });
+
+  it('scoped slot replaces the default UI and receives LegendItem[] with closures', async () => {
+    let captured: unknown[] = [];
+    const App = defineComponent({
+      components: { ChartContainer, LineSeries, Legend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: darkTheme }, () => [
+            h(LineSeries, { data: twoLayerLine }),
+            h(
+              Legend,
+              {},
+              {
+                default: ({ items }: { items: readonly unknown[] }) => {
+                  captured = items as unknown[];
+                  return h(
+                    'div',
+                    { 'data-testid': 'custom' },
+                    items.map((it: unknown) => {
+                      const item = it as { id: string; label: string };
+                      return h('span', { key: item.id, 'data-id': item.id }, item.label);
+                    }),
+                  );
+                },
+              },
+            ),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const custom = host.querySelector('[data-testid="custom"]');
+    expect(custom).not.toBeNull();
+    expect(captured.length).toBe(twoLayerLine.length);
+    // Default UI uses <button>; slot replaces it entirely.
+    expect(host.querySelectorAll('[data-legend] button').length).toBe(0);
+    wrapper.unmount();
+  });
+
+  it('slot item.toggle() flips visibility through the ChartInstance', async () => {
+    let itemsRef: Array<{ toggle: () => void; isolate: () => void }> = [];
+    const App = defineComponent({
+      components: { ChartContainer, LineSeries, Legend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: darkTheme }, () => [
+            h(LineSeries, { data: twoLayerLine }),
+            h(
+              Legend,
+              {},
+              {
+                default: ({ items }: { items: readonly unknown[] }) => {
+                  itemsRef = items as Array<{ toggle: () => void; isolate: () => void }>;
+                  return h('div', { 'data-testid': 'custom' });
+                },
+              },
+            ),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect(itemsRef.length).toBe(2);
+    itemsRef[0].toggle();
+    await settle();
+
+    // After toggle, the slot re-ran — re-read to see the updated disabled state.
+    const first = itemsRef[0] as unknown as { isDisabled: boolean };
+    expect(first.isDisabled).toBe(true);
     wrapper.unmount();
   });
 

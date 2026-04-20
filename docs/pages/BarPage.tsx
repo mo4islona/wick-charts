@@ -33,6 +33,7 @@ interface BarSettings {
   barWidth: BarWidth;
   infoBarVisible: boolean;
   tooltipVisible: boolean;
+  crosshairVisible: boolean;
 }
 
 const singleData = generateBarData(80, DEMO_INTERVAL);
@@ -65,7 +66,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
         }}
       />
       {props.tooltipVisible && <Tooltip />}
-      <Crosshair />
+      {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
     </ChartContainer>
@@ -102,7 +103,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
         }}
       />
       {props.tooltipVisible && <Tooltip />}
-      <Crosshair />
+      {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       <Legend />
@@ -166,6 +167,12 @@ const DISPLAY_EXTRA: SectionSpec = {
       hint: 'Series values above the chart',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
+    {
+      key: 'crosshairVisible',
+      label: 'Crosshair',
+      hint: 'Vertical + horizontal cursor lines',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
   ] as RowSpec[],
 };
 
@@ -174,7 +181,13 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
     <Playground<BarSettings>
       id="bar"
       theme={theme}
-      extraDefaults={{ stacking: 'normal', barWidth: 'normal', infoBarVisible: true, tooltipVisible: true }}
+      extraDefaults={{
+        stacking: 'normal',
+        barWidth: 'normal',
+        infoBarVisible: true,
+        tooltipVisible: true,
+        crosshairVisible: true,
+      }}
       animationKinds={['bar']}
       sections={[DISPLAY_EXTRA, SERIES_SECTION]}
       charts={(props) => {
@@ -199,7 +212,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             props: { data: 'layers', options: { barWidthRatio: BAR_WIDTH_MAP[s.barWidth], stacking: s.stacking } },
           },
           ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-          { component: 'Crosshair' },
+          ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
           { component: 'YAxis' },
           { component: 'XAxis' },
         ],
