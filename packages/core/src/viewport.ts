@@ -239,6 +239,34 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     return span + this.dataInterval * 5;
   }
 
+  /**
+   * Imperatively set the visible time range (public API — called by
+   * `ChartInstance.setVisibleRange`).
+   *
+   * Cancels any in-flight animation and applies the range immediately.
+   * Auto-scroll policy mirrors pan: if the incoming range still contains
+   * the last data point, streaming ticks keep tracking the tail; otherwise
+   * the user is opting out of auto-scroll until they call `fitContent` or
+   * scroll back to the tail.
+   *
+   * Silently no-ops on invalid input (non-finite bounds, to <= from, or
+   * fewer than 2 bars visible) — mirrors `applyRange`'s validation contract
+   * so callers can lob in a range before the data interval stabilises.
+   * Validation runs up-front so a rejected call never mutates auto-scroll
+   * or cancels in-flight animations.
+   */
+  setRange(range: VisibleRange): void {
+    const { from, to } = range;
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
+    if (to <= from) return;
+    if ((to - from) / this.dataInterval < 2) return;
+
+    this.cancelAnimation();
+    const lastVisible = this._dataEnd !== null && this._dataEnd >= from && this._dataEnd <= to;
+    this._autoScroll = lastVisible;
+    this.applyRange(from, to);
+  }
+
   /** Validate and apply a new visible range. Rejects invalid widths only. Soft-bound
    * enforcement happens at the caller (pan/zoomAt) via rubber-band resistance. */
   private applyRange(from: number, to: number): void {

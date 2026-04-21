@@ -36,6 +36,7 @@ import type {
   PieSeriesOptions,
   TimePoint,
   TimePointInput,
+  VisibleRange,
 } from './types';
 import { detectInterval } from './utils/time';
 import { type HorizontalPadding, Viewport } from './viewport';
@@ -756,6 +757,40 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   getVisibleRange() {
     return this.#viewport.visibleRange;
+  }
+
+  /**
+   * Imperatively set the visible time range.
+   *
+   * Two forms:
+   * - `{ from, to }` — explicit millisecond range. Cancels any in-flight
+   *   animation and applies immediately. Auto-scroll stays on only if the
+   *   tail is inside the new range (mirrors pan semantics).
+   * - `number N` — shorthand for "show the last N bars from the tail".
+   *   Resolved against the current data bounds and data interval; keeps
+   *   auto-scroll on so streaming ticks continue to track the tail.
+   *   No-op if data hasn't loaded yet.
+   *
+   * Typical use: on mount, zoom to the last N bars while keeping the full
+   * buffer available for pan-back history inspection.
+   */
+  setVisibleRange(range: VisibleRange | number): void {
+    if (typeof range === 'number') {
+      // Integer check rejects NaN, Infinity, and non-integers in one call;
+      // the floor of 2 matches Viewport's applyRange minimum-span contract.
+      if (!Number.isInteger(range) || range < 2) return;
+
+      const { first, last } = this.getDataBounds();
+      if (first === undefined || last === undefined) return;
+
+      const trimmedFirst = Math.max(first, last - (range - 1) * this.#dataInterval);
+      const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+      this.#viewport.fitToData(trimmedFirst, last, chartWidth, false);
+
+      return;
+    }
+
+    this.#viewport.setRange(range);
   }
 
   getYRange() {
