@@ -32,10 +32,14 @@ data={[layer1, layer2, layer3]}
 interface LineSeriesOptions {
   label?: string;                          // tooltip display name
   colors: string[];                        // one color per layer — default: ['#2962FF']
-  strokeWidth: number;                   // stroke width in px — default: 1
+  strokeWidth: number;                     // stroke width in px — default: 1
   area: { visible: boolean };              // gradient area under line — default: { visible: true }
   pulse: boolean;                          // animated dot at last point — default: true
-  stacking: 'off' | 'normal' | 'percent'; // layer stacking — default: 'off'
+  pulseMs?: number | false;                // pulse period; false disables — default: 600
+  stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
+  entryAnimation?: 'none' | 'grow' | 'fade'; // entrance style for new points — default: 'grow'
+  entryMs?: number | false;                // entrance duration; false disables — default: 400
+  smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 70
 }
 ```
 

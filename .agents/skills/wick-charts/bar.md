@@ -28,7 +28,10 @@ interface BarSeriesOptions {
   label?: string;                          // tooltip display name
   colors: string[];                        // color palette — default: ['#26a69a', '#ef5350']
   barWidthRatio: number;                   // 0–1, bar width relative to interval — default: 0.6
-  stacking: 'off' | 'normal' | 'percent'; // layer stacking — default: 'off'
+  stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
+  entryAnimation?: 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'; // default: 'fade-grow'
+  entryMs?: number | false;                // entrance duration; false disables — default: 400
+  smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 70
 }
 ```
 

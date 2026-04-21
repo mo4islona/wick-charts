@@ -31,6 +31,9 @@ interface CandlestickSeriesOptions {
   wickDownColor: string;     // bearish wick — default: '#ef5350'
   bodyWidthRatio: number;    // 0–1, candle body width — default: 0.6
   bodyGradient?: boolean;    // vertical gradient on bodies — default: true
+  entryAnimation?: 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold'; // default: 'fade-unfold'
+  entryMs?: number | false;  // entrance duration; false disables — default: 400
+  smoothMs?: number | false; // live-tracking smoothing for updateLastPoint — default: 70
 }
 ```
 

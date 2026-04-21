@@ -28,9 +28,21 @@ data={[
 interface PieSeriesOptions {
   colors?: string[];         // palette — default: theme.seriesColors
   innerRadiusRatio: number;  // 0 = pie, 0.6 = donut — default: 0
-  padAngle: number;          // gap between slices in radians — default: 0.02
+  padAngle: number;          // gap between slices in degrees — default: 1.15°
   stroke: { color: string; width: number }; // slice border — default: { color: 'transparent', width: 0 }
   label?: string;            // tooltip label
+  sliceLabels?: PieLabelsOptions; // per-slice on-pie labels — see below
+}
+
+interface PieLabelsOptions {
+  mode?: 'inside' | 'outside' | 'none'; // default: 'outside'
+  content?: 'percent' | 'label' | 'both'; // default: 'both'
+  fontSize?: number;        // CSS px — default: 11
+  minSliceAngle?: number;   // degrees; slices narrower than this skip label — default: 2.5°
+  elbowLen?: number;        // leader-line radial segment length in CSS px — default: 12
+  legPad?: number;          // gap between leader line and text in CSS px — default: 6
+  labelGap?: number;        // vertical gap between outside labels as fontSize multiplier — default: 1.4
+  balanceSides?: boolean;   // redistribute near-pole labels to the less-crowded side — default: true
 }
 ```
 
@@ -55,7 +67,7 @@ Palette for slice coloring. Falls back to `theme.seriesColors` if not provided. 
 
 ### `padAngle`
 
-Gap between adjacent slices in radians. Default `0.02` gives a subtle separation. Set `0` for flush slices.
+Gap between adjacent slices in degrees. Default `1.15°` (≈ 0.02 rad) gives a subtle separation. Set `0` for flush slices.
 
 ### `stroke`
 
@@ -65,11 +77,32 @@ Border around each slice. Useful for visual separation on light backgrounds. Obj
 options={{ stroke: { color: '#ffffff', width: 2 } }}
 ```
 
+### `sliceLabels`
+
+Controls the per-slice labels drawn on the pie. Omit for the default outside layout, or pass `{ mode: 'none' }` to turn off labels entirely and rely on `PieLegend` / `PieTooltip` alone.
+
+```ts
+// Outside labels (default) — leader line out to text block
+options={{ sliceLabels: { mode: 'outside', content: 'both' } }}
+
+// Inside labels — text on the slice; auto-skipped when the label doesn't fit
+options={{ sliceLabels: { mode: 'inside', content: 'percent', fontSize: 12 } }}
+
+// No on-pie labels; use PieLegend instead
+options={{ sliceLabels: { mode: 'none' } }}
+```
+
+Tuning outside-label crowding:
+- `minSliceAngle` (default `2.5°`) — raise to drop tiny slices from the layout pass
+- `labelGap` (default `1.4`) — vertical min-gap between same-side labels as a multiplier of `fontSize`
+- `elbowLen` / `legPad` — leader-line geometry
+- `balanceSides` (default `true`) — redistributes labels near 12/6 o'clock to the less-crowded side
+
 ## Visual features
 
 - **Hover animation:** slices explode outward with shadow blur (smooth exponential easing)
 - **Radial gradient:** each slice has a subtle radial gradient for depth
-- **Auto labels:** label text on slices, hidden when slice angle < 0.3 radians
+- **On-pie labels:** configurable via `sliceLabels` (outside / inside / none)
 - **Smart text color:** light/dark text auto-detected from slice background
 
 ## React
