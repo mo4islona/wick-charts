@@ -7,7 +7,7 @@ import type { ChartCodeConfig } from '../CodePreview';
 import { CodeTabs } from './CodeTabs';
 import { ICONS } from './icons';
 import { Panel } from './Panel';
-import { BoundInput, Select, Slider, Toggle } from './primitives';
+import { BoundInput, Select, Slider, Toggle, ToggleGroup } from './primitives';
 import {
   type AnimationKind,
   type BarEntryAnim,
@@ -33,6 +33,7 @@ export interface PlaygroundChartProps {
   theme: ChartTheme;
   axis: AxisConfig;
   streaming: boolean;
+  perfHudVisible: boolean;
   gradient: boolean;
   grid: { visible: boolean };
   candleEntryAnimation: CandleEntryAnim;
@@ -67,6 +68,9 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
   gridTemplate?: string;
   gridColumns?: string;
   hideCartesian?: boolean;
+  /** Whether the built-in Demo section shows a Perf HUD toggle. Off for charts
+   * that don't render through `ChartContainer` (e.g. Sparkline). Default true. */
+  showPerfHud?: boolean;
   animationKinds?: AnimationKind[];
 }
 
@@ -107,6 +111,7 @@ function stateToChartProps<TExtra extends object>(
     theme: chartTheme,
     axis,
     streaming: state.streaming,
+    perfHudVisible: state.perfHudVisible,
     gradient: state.bgGradient,
     grid: { visible: state.gridVisible },
     candleEntryAnimation: state.candleEntryAnimation,
@@ -122,9 +127,11 @@ function stateToChartProps<TExtra extends object>(
 
 function buildBuiltinSections({
   hideCartesian,
+  showPerfHud,
   animationKinds,
 }: {
   hideCartesian: boolean;
+  showPerfHud: boolean;
   animationKinds: AnimationKind[];
 }): SectionSpec[] {
   const showCandle = animationKinds.includes('candle');
@@ -133,10 +140,45 @@ function buildBuiltinSections({
 
   const sections: SectionSpec[] = [];
 
+  // "Demo" groups controls that are about *what the live preview shows or exposes*
+  // rather than chart configuration — the live/static data toggle and the Perf HUD
+  // debug overlay. Kept separate from chart settings so the copied code snippet
+  // doesn't mix playground-only concerns with real library props. Pages extend
+  // this via `extend: 'demo'`; the Perf HUD row is appended after page extensions
+  // in `mergeSections` so it always sits at the bottom of the section.
+  const demoRows: RowSpec[] = [];
+  if (!hideCartesian) {
+    demoRows.push({
+      key: 'streaming',
+      label: 'Mode',
+      hint: 'Stream mock data vs. static snapshot',
+      render: (v, onChange) => (
+        <ToggleGroup<'live' | 'static'>
+          value={(v as boolean) ? 'live' : 'static'}
+          options={[
+            { value: 'live', label: 'Live' },
+            { value: 'static', label: 'Static' },
+          ]}
+          onChange={(next) => (onChange as (b: boolean) => void)(next === 'live')}
+        />
+      ),
+    } as RowSpec);
+  }
+  if (demoRows.length > 0 || showPerfHud) {
+    sections.push({
+      id: 'demo',
+      title: 'Demo',
+      icon: ICONS.data,
+      defaultOpen: true,
+      rows: demoRows,
+    });
+  }
+
   sections.push({
     id: 'display',
     title: 'Display',
     icon: ICONS.display,
+    defaultOpen: true,
     rows: [],
   });
 
@@ -282,14 +324,7 @@ function buildBuiltinSections({
   });
 
   if (!hideCartesian) {
-    const animRows: RowSpec[] = [
-      {
-        key: 'streaming',
-        label: 'Live',
-        hint: 'Stream mock data',
-        render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
-      } as RowSpec,
-    ];
+    const animRows: RowSpec[] = [];
     if (showCandle) {
       animRows.push({
         key: 'candleEntryAnimation',
@@ -370,7 +405,7 @@ function buildBuiltinSections({
 
     sections.push({
       id: 'animations',
-      title: 'Data & animations',
+      title: 'Animations',
       icon: ICONS.animations,
       defaultOpen: false,
       rows: animRows,
@@ -381,7 +416,11 @@ function buildBuiltinSections({
 }
 
 /** Merge page-contributed sections: `extend:` appends rows to a built-in, otherwise the section is added as new. */
-function mergeSections(builtin: SectionSpec[], extra: SectionSpec[] = []): SectionSpec[] {
+function mergeSections(
+  builtin: SectionSpec[],
+  extra: SectionSpec[] = [],
+  opts: { showPerfHud: boolean } = { showPerfHud: false },
+): SectionSpec[] {
   const out: SectionSpec[] = builtin.map((s) => ({ ...s, rows: [...s.rows] }));
   const addAfterIndex: { [id: string]: number } = {};
   out.forEach((s, i) => {
@@ -410,17 +449,31 @@ function mergeSections(builtin: SectionSpec[], extra: SectionSpec[] = []): Secti
     out.push(...newSections);
   }
 
-  // Only the first non-empty section is open by default — the rest start
-  // collapsed so the panel stays compact on first load.
-  let foundFirst = false;
+  // Perf HUD row is appended *after* page extensions so it always anchors the
+  // bottom of the Demo section, regardless of what rows pages contribute.
+  if (opts.showPerfHud) {
+    const demo = out.find((s) => s.id === 'demo');
+    if (demo) {
+      demo.rows.push({
+        key: 'perfHudVisible',
+        label: 'Perf HUD',
+        hint: 'FPS, frame time, draw calls, per-series ms, heap',
+        render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+      } as RowSpec);
+    }
+  }
+
+  // Respect explicit `defaultOpen` on every section. If nothing is explicitly
+  // opened, the first non-empty section opens by default so the panel isn't
+  // entirely collapsed on first load.
   for (const sec of out) {
     if (sec.rows.length === 0) continue;
-    if (!foundFirst) {
-      foundFirst = true;
-      sec.defaultOpen = sec.defaultOpen ?? true;
-      continue;
-    }
-    sec.defaultOpen = false;
+    sec.defaultOpen = sec.defaultOpen ?? false;
+  }
+  const anyOpen = out.some((s) => s.rows.length > 0 && s.defaultOpen);
+  if (!anyOpen) {
+    const firstNonEmpty = out.find((s) => s.rows.length > 0);
+    if (firstNonEmpty) firstNonEmpty.defaultOpen = true;
   }
 
   return out.filter((s) => s.rows.length > 0);
@@ -438,6 +491,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
   gridTemplate = '1fr 1fr',
   gridColumns = '1fr',
   hideCartesian = false,
+  showPerfHud = true,
   animationKinds = ['candle', 'bar', 'line'],
 }: PlaygroundProps<TExtra>) {
   const fullDefaults = useMemo(
@@ -451,8 +505,11 @@ export function Playground<TExtra extends object = Record<string, never>>({
   });
 
   const allSections = useMemo(
-    () => mergeSections(buildBuiltinSections({ hideCartesian, animationKinds }), extraSections),
-    [hideCartesian, animationKinds, extraSections],
+    () =>
+      mergeSections(buildBuiltinSections({ hideCartesian, showPerfHud, animationKinds }), extraSections, {
+        showPerfHud,
+      }),
+    [hideCartesian, showPerfHud, animationKinds, extraSections],
   );
 
   const chartProps = useMemo(() => stateToChartProps(state, theme), [state, theme]);

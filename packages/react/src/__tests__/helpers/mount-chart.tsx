@@ -6,7 +6,7 @@ import { ChartContainer, useChartInstance } from '@wick-charts/react';
 
 import type { CanvasRecorder } from '../../../../core/src/__tests__/helpers/recording-context';
 import type { ChartContainerProps } from '../../ChartContainer';
-import { drainZeroTimeouts, flushAllRaf, installRaf, uninstallRaf } from './raf';
+import { flushAllRaf, installRaf, uninstallRaf } from './raf';
 
 type ResizeCb = (entries: ResizeObserverEntry[], observer: ResizeObserver) => void;
 
@@ -245,13 +245,10 @@ export function mountChart(children: ReactNode, opts: MountChartOptions = {}): M
         rtl.unmount();
         flushAllRaf();
       });
-      // <ChartContainer> defers `ChartInstance.destroy()` via setTimeout(0)
-      // to tolerate strict-mode remount cycles; run those deferred callbacks
-      // now so cleanup assertions see the fully-destroyed chart.
-      act(() => {
-        drainZeroTimeouts();
-        flushAllRaf();
-      });
+      // Historical note: `<ChartContainer>` used to defer destroy via
+      // setTimeout(0) which required a `drainZeroTimeouts()` pass here. That
+      // indirection leaked the first instance under StrictMode, so destroy
+      // is now synchronous — nothing left to drain.
       rollback();
     },
     flushScheduler() {

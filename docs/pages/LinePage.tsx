@@ -15,6 +15,8 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import type { PropValue } from '../components/CodePreview';
+import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
@@ -84,7 +86,13 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
   const sid = 'line';
 
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
+    <ChartContainer
+      theme={props.theme}
+      axis={props.axis}
+      gradient={props.gradient}
+      headerLayout={props.headerLayout}
+      perf={props.perfHudVisible}
+    >
       <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
@@ -140,7 +148,13 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
   const display = props.streaming ? datasets : props.allData;
 
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
+    <ChartContainer
+      theme={props.theme}
+      axis={props.axis}
+      gradient={props.gradient}
+      headerLayout={props.headerLayout}
+      perf={props.perfHudVisible}
+    >
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
@@ -198,14 +212,15 @@ const DISPLAY_EXTRA: SectionSpec = {
   ] as RowSpec[],
 };
 
-const SERIES_SECTION: SectionSpec = {
-  id: 'series',
-  title: 'Series',
-  icon: ICONS.series,
+const DEMO_EXTRA: SectionSpec = {
+  id: 'demo-line',
+  title: 'Demo',
+  extend: 'demo',
   rows: [
     {
       key: 'dataMode',
       label: 'Data',
+      hint: 'Mock generator used by the live preview',
       render: (v, onChange) => (
         <Select<DataMode>
           value={v as DataMode}
@@ -217,6 +232,14 @@ const SERIES_SECTION: SectionSpec = {
         />
       ),
     },
+  ] as RowSpec[],
+};
+
+const SERIES_SECTION: SectionSpec = {
+  id: 'series',
+  title: 'Series',
+  icon: ICONS.series,
+  rows: [
     {
       key: 'stacking',
       label: 'Stack',
@@ -357,7 +380,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         tooltipVisible: true,
         crosshairVisible: true,
       }}
-      sections={[DISPLAY_EXTRA, SERIES_SECTION, TOOLTIP_SECTION, LEGEND_SECTION]}
+      sections={[DEMO_EXTRA, DISPLAY_EXTRA, SERIES_SECTION, TOOLTIP_SECTION, LEGEND_SECTION]}
       charts={(props) => {
         const single = [makeData(props.dataMode, 300, 0)];
         const multi = Array.from({ length: MULTI_COUNT }, (_, i) => makeData(props.dataMode, 300, i));
@@ -366,11 +389,15 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         return (
           <>
             <Cell theme={props.theme}>
-              <SingleChart key={`${props.dataMode}-${props.streaming}-s`} {...props} allData={single} />
+              <SingleChart
+                key={`${props.dataMode}-${props.streaming}-${props.perfHudVisible}-s`}
+                {...props}
+                allData={single}
+              />
             </Cell>
             <Cell theme={props.theme}>
               <MultiChart
-                key={`${props.dataMode}-${props.streaming}-${props.stacking}-m`}
+                key={`${props.dataMode}-${props.streaming}-${props.stacking}-${props.perfHudVisible}-m`}
                 {...props}
                 allData={multi}
                 title={label}
@@ -379,34 +406,45 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
           </>
         );
       }}
-      codeConfig={(s) => ({
-        theme: 'darkTheme',
-        components: [
-          {
-            component: 'LineSeries',
-            props: {
-              data: 'data',
-              options: {
-                ...(s.areaVisible ? { area: { visible: true } } : {}),
-                ...(s.strokeWidthPx !== 1 ? { strokeWidthPx: s.strokeWidthPx } : {}),
-                ...(s.streaming ? { pulse: true } : {}),
-                ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
+      codeConfig={(s) => {
+        const containerProps = buildCartesianContainerProps(s) ?? {};
+        if (s.perfHudVisible) containerProps.perf = true;
+
+        const options: Record<string, PropValue> = {
+          ...buildCommonSeriesOptions(s, 'line'),
+          ...(s.areaVisible ? { area: { visible: true } } : {}),
+          ...(s.strokeWidthPx !== 1 ? { strokeWidthPx: s.strokeWidthPx } : {}),
+          ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
+        };
+
+        const yVisible = s.axis?.y?.visible !== false;
+        const xVisible = s.axis?.x?.visible !== false;
+
+        return {
+          theme: 'darkTheme',
+          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+          components: [
+            {
+              component: 'LineSeries',
+              props: {
+                data: 'data',
+                ...(Object.keys(options).length > 0 ? { options } : {}),
               },
             },
-          },
-          ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-          ...(s.tooltipVisible
-            ? [
-                s.tooltipCustom
-                  ? { component: 'Tooltip', childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS }
-                  : { component: 'Tooltip' },
-              ]
-            : []),
-          ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
-          { component: 'YAxis' },
-          { component: 'XAxis' },
-        ],
-      })}
+            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
+            ...(s.tooltipVisible
+              ? [
+                  s.tooltipCustom
+                    ? { component: 'Tooltip', childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS }
+                    : { component: 'Tooltip' },
+                ]
+              : []),
+            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+            ...(yVisible ? [{ component: 'YAxis' }] : []),
+            ...(xVisible ? [{ component: 'XAxis' }] : []),
+          ],
+        };
+      }}
     />
   );
 }

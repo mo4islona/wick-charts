@@ -20,6 +20,7 @@ export default defineConfig({
     environmentMatchGlobs: [
       // Tests that instantiate ChartInstance need a DOM.
       ['packages/core/src/__tests__/chart-*.test.ts', 'happy-dom'],
+      ['packages/core/src/perf/__tests__/chart-*.test.ts', 'happy-dom'],
       ['packages/react/**', 'happy-dom'],
       ['packages/vue/**', 'happy-dom'],
       // Svelte 4 onMount render callbacks don't fire in happy-dom (see

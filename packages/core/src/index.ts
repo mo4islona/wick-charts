@@ -4,6 +4,9 @@ export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart
 export { ChartInstance } from './chart';
 // Overlay primitives — helpers, types, and positioning used by framework overlays
 export type { LegendItem } from './legend';
+// Performance instrumentation
+export type { FrameKind, PercentileSample, PerfMonitorOptions, PerfStats } from './perf';
+export { PerfMonitor } from './perf';
 export type { HoverInfo, SliceInfo } from './series/types';
 export type {
   BuildHoverSnapshotsArgs,

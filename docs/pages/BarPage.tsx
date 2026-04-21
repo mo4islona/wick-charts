@@ -16,6 +16,8 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import type { PropValue } from '../components/CodePreview';
+import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Toggle, ToggleGroup } from '../components/playground/primitives';
@@ -51,7 +53,13 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   const display = props.streaming ? datasets[0] : singleData;
 
   return (
-    <ChartContainer theme={props.theme} axis={props.axis} gradient={props.gradient} headerLayout={props.headerLayout}>
+    <ChartContainer
+      theme={props.theme}
+      axis={props.axis}
+      gradient={props.gradient}
+      headerLayout={props.headerLayout}
+      perf={props.perfHudVisible}
+    >
       <Title sub="Up/Down">Single</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
@@ -88,7 +96,13 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   }, [props.axis, props.stacking]);
 
   return (
-    <ChartContainer theme={props.theme} axis={chartAxis} gradient={props.gradient} headerLayout={props.headerLayout}>
+    <ChartContainer
+      theme={props.theme}
+      axis={chartAxis}
+      gradient={props.gradient}
+      headerLayout={props.headerLayout}
+      perf={props.perfHudVisible}
+    >
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
@@ -196,27 +210,47 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
         return (
           <>
             <Cell theme={props.theme}>
-              <SingleBarChart key={`s-${props.streaming}`} {...props} />
+              <SingleBarChart key={`s-${props.streaming}-${props.perfHudVisible}`} {...props} />
             </Cell>
             <Cell theme={props.theme}>
-              <MultiBarChart key={`m-${props.streaming}-${props.stacking}`} {...props} title={label} />
+              <MultiBarChart
+                key={`m-${props.streaming}-${props.stacking}-${props.perfHudVisible}`}
+                {...props}
+                title={label}
+              />
             </Cell>
           </>
         );
       }}
-      codeConfig={(s) => ({
-        theme: 'darkTheme',
-        components: [
-          {
-            component: 'BarSeries',
-            props: { data: 'layers', options: { barWidthRatio: BAR_WIDTH_MAP[s.barWidth], stacking: s.stacking } },
-          },
-          ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-          ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
-          { component: 'YAxis' },
-          { component: 'XAxis' },
-        ],
-      })}
+      codeConfig={(s) => {
+        const containerProps = buildCartesianContainerProps(s) ?? {};
+        if (s.perfHudVisible) containerProps.perf = true;
+
+        const options: Record<string, PropValue> = {
+          ...buildCommonSeriesOptions(s, 'bar'),
+          barWidthRatio: BAR_WIDTH_MAP[s.barWidth],
+          stacking: s.stacking,
+        };
+
+        const yVisible = s.axis?.y?.visible !== false;
+        const xVisible = s.axis?.x?.visible !== false;
+
+        return {
+          theme: 'darkTheme',
+          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+          components: [
+            {
+              component: 'BarSeries',
+              props: { data: 'layers', options },
+            },
+            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
+            ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
+            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+            ...(yVisible ? [{ component: 'YAxis' }] : []),
+            ...(xVisible ? [{ component: 'XAxis' }] : []),
+          ],
+        };
+      }}
     />
   );
 }

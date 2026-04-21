@@ -13,6 +13,8 @@ import {
 
 import { type AxisConfig, ChartInstance, type ChartOptions, type ChartTheme } from '@wick-charts/core';
 
+type PerfOption = NonNullable<ChartOptions['perf']>;
+
 import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
 import { InfoBar } from './ui/InfoBar';
@@ -53,6 +55,16 @@ export interface ChartContainerProps {
    *   the title. The chart background still spans the full container.
    */
   headerLayout?: 'overlay' | 'inline';
+  /**
+   * Enable runtime performance instrumentation. Off by default.
+   *
+   * - `true` — attach a {@link PerfMonitor} and render a visible HUD overlay on this chart.
+   * - `{ hud: true, windowMs, maxSamples, ... }` — same, with monitor options.
+   * - `{ hud: false, monitor }` — attach to an existing monitor without rendering the HUD.
+   *
+   * Only read at mount; changing this prop after the chart is created is ignored.
+   */
+  perf?: PerfOption;
   style?: CSSProperties;
   className?: string;
 }
@@ -130,9 +142,13 @@ export function ChartContainer({
   interactive,
   grid,
   headerLayout = 'overlay',
+  perf,
   style,
   className,
 }: ChartContainerProps) {
+  // Mount-only: capture the initial perf option in a ref so later renders with
+  // a new object identity don't recreate the chart or remount the HUD.
+  const perfRef = useRef(perf);
   const contextTheme = useThemeOptional();
   const resolvedTheme = theme ?? contextTheme ?? undefined;
 
@@ -151,6 +167,7 @@ export function ChartContainer({
     if (padding) options.padding = padding;
     if (interactive !== undefined) options.interactive = interactive;
     if (grid !== undefined) options.grid = grid;
+    if (perfRef.current !== undefined) options.perf = perfRef.current;
     chartRef.current = new ChartInstance(containerRef.current, options);
 
     // Note: the init path above already propagated `grid` into the chart. The
@@ -159,13 +176,16 @@ export function ChartContainer({
     setRevision((r) => r + 1);
 
     return () => {
-      const instance = chartRef.current;
+      // Destroy synchronously. A previous revision deferred this through
+      // `setTimeout(..., 0)` to "tolerate StrictMode" but the guard was
+      // broken: in the StrictMode remount sequence (cleanup → second mount →
+      // timeout), the check `if (!chartRef.current) instance.destroy()`
+      // always saw the second instance and skipped the destroy — leaking
+      // the first ChartInstance's canvases (hence 4 canvases per chart in
+      // dev). StrictMode exists precisely to exercise cleanup; a correct
+      // `destroy` is cheap enough to run on every cycle.
+      chartRef.current?.destroy();
       chartRef.current = null;
-      setTimeout(() => {
-        if (!chartRef.current) {
-          instance?.destroy();
-        }
-      }, 0);
     };
   }, []);
 
