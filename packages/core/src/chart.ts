@@ -591,15 +591,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       ...options,
       ...this.#seriesAnimationForceOff(),
     });
-    const id = this.#resolveId(options?.id);
-    renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id, renderer, store, visible: true });
-    this.#seriesIdCache = null;
-    this.updateViewportPadding();
-    this.emit('seriesChange');
-    this.#bumpOverlayVersion();
 
-    return id;
+    return this.#registerSeries(renderer, renderer.store, options ?? {});
   }
 
   /** Add a line series and return its unique ID. */
@@ -615,15 +608,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       ...rest,
       ...this.#seriesAnimationForceOff(),
     });
-    const id = this.#resolveId(rest.id);
-    renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id, label: rest.label, renderer, store: renderer.store, visible: true });
-    this.#seriesIdCache = null;
-    this.updateViewportPadding();
-    this.emit('seriesChange');
-    this.#bumpOverlayVersion();
 
-    return id;
+    return this.#registerSeries(renderer, renderer.store, rest);
   }
 
   /** Add a bar series and return its unique ID. */
@@ -638,9 +624,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       ...rest,
       ...this.#seriesAnimationForceOff(),
     });
-    const id = this.#resolveId(rest.id);
+
+    return this.#registerSeries(renderer, renderer.store, rest);
+  }
+
+  /**
+   * Shared registration boilerplate for every renderer: assign an id, hook
+   * data notifications, push into `#series`, invalidate caches, and emit
+   * the usual churn events. Pie passes `null` for `store`; time-series
+   * renderers pass their owned `TimeSeriesStore`.
+   */
+  #registerSeries(
+    renderer: SeriesRenderer,
+    store: SeriesEntry['store'],
+    opts: { id?: string; label?: string },
+  ): string {
+    const id = this.#resolveId(opts.id);
     renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id, label: rest.label, renderer, store: renderer.store, visible: true });
+    this.#series.push({ id, label: opts.label, renderer, store, visible: true });
     this.#seriesIdCache = null;
     this.updateViewportPadding();
     this.emit('seriesChange');
@@ -651,18 +652,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Add a pie/donut series. Set `innerRadiusRatio > 0` for donut. */
   addPieSeries(options?: Partial<PieSeriesOptions & { id?: string }>): string {
-    const renderer = new PieRenderer(options);
-    const id = this.#resolveId(options?.id);
     // Pie has no TimeSeriesStore, but routing through onDataChanged() keeps
     // batch() semantics consistent with time-series renderers.
-    renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id, label: options?.label, renderer, store: null, visible: true });
-    this.#seriesIdCache = null;
-    this.updateViewportPadding();
-    this.emit('seriesChange');
-    this.#bumpOverlayVersion();
+    const renderer = new PieRenderer(options);
 
-    return id;
+    return this.#registerSeries(renderer, null, options ?? {});
   }
 
   /** Remove a series by ID and clean up its resources. */

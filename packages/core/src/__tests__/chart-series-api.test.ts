@@ -297,3 +297,36 @@ describe('ChartInstance.getLayerLastSnapshots', () => {
     expect(snaps?.[0].layerIndex).toBe(1);
   });
 });
+
+describe('ChartInstance.getSeriesLabel', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  it('returns the label set on addLineSeries / addBarSeries / addCandlestickSeries / addPieSeries', () => {
+    // Candlestick label used to be silently dropped by addCandlestickSeries;
+    // fixed when that path was routed through the shared #registerSeries helper.
+    const line = chart.addLineSeries({ label: 'Price' });
+    const bar = chart.addBarSeries({ label: 'Volume' });
+    const candle = chart.addCandlestickSeries({ label: 'BTC' });
+    const pie = chart.addPieSeries({ label: 'Share' });
+
+    expect(chart.getSeriesLabel(line)).toBe('Price');
+    expect(chart.getSeriesLabel(bar)).toBe('Volume');
+    expect(chart.getSeriesLabel(candle)).toBe('BTC');
+    expect(chart.getSeriesLabel(pie)).toBe('Share');
+  });
+
+  it('returns undefined when no label was provided', () => {
+    const id = chart.addCandlestickSeries();
+    expect(chart.getSeriesLabel(id)).toBeUndefined();
+  });
+});

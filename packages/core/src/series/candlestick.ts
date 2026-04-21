@@ -6,6 +6,7 @@ import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { darken, hexToRgba, lighten } from '../utils/color';
 import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
+import { resolveMs, valueDiffers } from './shared-animation';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
@@ -36,23 +37,6 @@ function normalizeCandlestickOptions(input?: Partial<CandlestickSeriesOptions>):
   }
 
   return out;
-}
-
-/**
- * Resolve an `enterMs` / `smoothMs` option value to a concrete number. `false`
- * collapses to 0 (disabled); `undefined` falls back to the built-in default.
- */
-function resolveMs(value: number | false | undefined, fallback: number): number {
-  if (value === false) return 0;
-  if (value === undefined) return fallback;
-
-  return value;
-}
-
-/** Returns true if the smoothed value is still meaningfully off-target. */
-function ohlcDiffers(displayed: number, target: number): boolean {
-  const eps = Math.max(1e-4, Math.abs(target) * 1e-5);
-  return Math.abs(displayed - target) > eps;
 }
 
 export class CandlestickRenderer implements SeriesRenderer {
@@ -165,10 +149,10 @@ export class CandlestickRenderer implements SeriesRenderer {
     if (!actualLast) return false;
     if (actualLast.time !== this.displayedLast.time) return false;
     if (
-      ohlcDiffers(this.displayedLast.open, actualLast.open) ||
-      ohlcDiffers(this.displayedLast.high, actualLast.high) ||
-      ohlcDiffers(this.displayedLast.low, actualLast.low) ||
-      ohlcDiffers(this.displayedLast.close, actualLast.close)
+      valueDiffers(this.displayedLast.open, actualLast.open) ||
+      valueDiffers(this.displayedLast.high, actualLast.high) ||
+      valueDiffers(this.displayedLast.low, actualLast.low) ||
+      valueDiffers(this.displayedLast.close, actualLast.close)
     ) {
       return true;
     }
@@ -179,7 +163,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     const actualVolume = actualLast.volume;
     if (displayedVolume === undefined || actualVolume === undefined) return false;
 
-    return ohlcDiffers(displayedVolume, actualVolume);
+    return valueDiffers(displayedVolume, actualVolume);
   }
 
   /**

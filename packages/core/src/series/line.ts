@@ -1,13 +1,13 @@
-import { DEFAULT_ENTER_MS, DEFAULT_PULSE_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
+import { DEFAULT_ENTER_MS, DEFAULT_PULSE_MS } from '../animation-constants';
 import { decimateLineData } from '../data/decimation';
-import { TimeSeriesStore } from '../data/store';
+import type { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
-import type { LineSeriesOptions, TimePoint, TimePointInput } from '../types';
+import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
-import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
-import { normalizeTime, normalizeTimePointArray } from '../utils/time';
-import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { OverlayRenderContext, SeriesRenderContext, SeriesRenderer } from './types';
+import { lerp } from '../utils/math';
+import { BaseMultiLayerSeries, type CommonSeriesOptions } from './base-multi-layer';
+import { resolveMs } from './shared-animation';
+import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
   colors: ['#2962FF'],
@@ -43,335 +43,69 @@ function normalizeLineOptions(input?: Partial<LineSeriesOptions>): Partial<LineS
   return out;
 }
 
-/** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
-function resolveMs(value: number | false | undefined, fallback: number): number {
-  if (value === false) return 0;
-  if (value === undefined) return fallback;
-
-  return value;
-}
-
-/** True if the smoothed value is still meaningfully off-target. */
-function valueDiffers(displayed: number, target: number): boolean {
-  const eps = Math.max(1e-4, Math.abs(target) * 1e-5);
-  return Math.abs(displayed - target) > eps;
-}
-
 interface LineEntry {
   startTime: number;
   /** Time of the penultimate point at append — used for the grow-in reveal. */
   fromTime: number;
 }
 
-export class LineRenderer implements SeriesRenderer {
-  readonly #stores: TimeSeriesStore<TimePoint>[];
+export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
   private options: LineSeriesOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
-  /** Per-layer smoothed last value. */
-  private displayedLastValues: Array<number | null>;
-  /** Per-layer `time` of the point currently seeded into {@link displayedLastValues}. */
-  private lastSeededTimes: number[];
-  /** Per-layer entrance animations keyed by the appended point's `time`. */
-  private entries: Array<Map<number, LineEntry>>;
-  private lastRenderTime = 0;
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
-    this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TimePoint>());
+    super(layerCount);
     this.options = { ...DEFAULT_OPTIONS, ...normalizeLineOptions(options) };
-    this.displayedLastValues = new Array(layerCount).fill(null);
-    this.lastSeededTimes = new Array(layerCount).fill(Number.NaN);
-    this.entries = Array.from({ length: layerCount }, () => new Map());
   }
 
   /** Back-compat: first store. */
   get store(): TimeSeriesStore<TimePoint> {
-    return this.#stores[0];
+    return this.stores[0];
   }
 
   updateOptions(options: Partial<LineSeriesOptions>): void {
     this.options = { ...this.options, ...normalizeLineOptions(options) };
   }
 
-  getColor(): string {
-    return this.options.colors[0];
-  }
-
-  getColors(): string[] {
-    return this.options.colors;
-  }
-
   getStacking(): string {
     return this.options.stacking;
   }
 
-  // --- SeriesRenderer interface implementation ------------------------------
-
-  setData(data: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    store.setData(normalizeTimePointArray((data ?? []) as TimePointInput[]));
-    this.entries[layerIndex]?.clear();
+  protected getCommonOptions(): CommonSeriesOptions {
+    return this.options;
   }
 
-  appendPoint(point: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    const p = point as TimePointInput;
-    const penultimate = store.last();
-    const time = normalizeTime(p.time);
-    store.append({ ...p, time });
+  protected createEntry(layerIndex: number, time: number, now: number): LineEntry | null {
     const style = this.options.entryAnimation ?? 'grow';
     const enterMs = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
-    if (style !== 'none' && enterMs > 0) {
-      this.entries[layerIndex]?.set(time, {
-        startTime: performance.now(),
-        fromTime: penultimate ? penultimate.time : time,
-      });
-    }
-  }
+    if (style === 'none' || enterMs <= 0) return null;
 
-  updateLastPoint(point: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    const p = point as TimePointInput;
-    store.updateLast({ ...p, time: normalizeTime(p.time) });
-  }
+    // `createEntry` runs BEFORE the new point is appended, so `store.last()`
+    // here IS the penultimate we want to lerp from during a 'grow' entrance.
+    const penultimate = this.stores[layerIndex]?.last();
 
-  getLayerCount(): number {
-    return this.#stores.length;
-  }
-
-  setLayerVisible(index: number, visible: boolean): void {
-    this.#stores[index]?.setVisible(visible);
-  }
-
-  isLayerVisible(index: number): boolean {
-    return this.#stores[index]?.isVisible() ?? true;
-  }
-
-  getLayerColors(): string[] {
-    return this.getColors();
+    return {
+      startTime: now,
+      fromTime: penultimate ? penultimate.time : time,
+    };
   }
 
   applyTheme(theme: ChartTheme, prev: ChartTheme): void {
-    if (this.#stores.length === 1) {
+    if (this.stores.length === 1) {
       // Single-layer: update color only if it matches the previous theme default
       if (this.getColor() === prev.line.color) {
         this.updateOptions({ colors: [theme.line.color] });
       }
     } else {
       this.updateOptions({
-        colors: theme.seriesColors.slice(0, this.#stores.length),
+        colors: theme.seriesColors.slice(0, this.stores.length),
       });
     }
-  }
-
-  onDataChanged(listener: () => void): () => void {
-    for (const s of this.#stores) s.on('update', listener);
-    return () => {
-      for (const s of this.#stores) s.off('update', listener);
-    };
-  }
-
-  dispose(): void {
-    for (const s of this.#stores) s.removeAllListeners();
-    for (const m of this.entries) m.clear();
-    this.displayedLastValues = this.displayedLastValues.map(() => null);
-    this.lastSeededTimes = this.lastSeededTimes.map(() => Number.NaN);
-    this.lastRenderTime = 0;
-  }
-
-  /**
-   * Advance smoothed last-value per layer and prune completed entrance entries.
-   * Must run at the top of every render pass (and drawOverlay) so snapshots see
-   * fresh state regardless of which pass is rendering first.
-   */
-  private advanceLiveTracking(now: number): void {
-    if (now === this.lastRenderTime) return;
-    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
-    this.lastRenderTime = now;
-
-    const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
-    const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
-    for (let li = 0; li < this.#stores.length; li++) {
-      const actualLast = this.#stores[li].last();
-      if (!actualLast) {
-        this.displayedLastValues[li] = null;
-        this.lastSeededTimes[li] = Number.NaN;
-        continue;
-      }
-      const displayed = this.displayedLastValues[li];
-      const isNewPoint = this.lastSeededTimes[li] !== actualLast.time;
-      if (displayed === null || isNewPoint || rate <= 0) {
-        this.displayedLastValues[li] = actualLast.value;
-        this.lastSeededTimes[li] = actualLast.time;
-        continue;
-      }
-      this.displayedLastValues[li] = smoothToward(displayed, actualLast.value, rate, dt);
-    }
-  }
-
-  /** Drop all in-flight per-point entrance animations across every layer.
-   * Displayed-last smoothing is intentionally preserved. */
-  cancelEntranceAnimations(): void {
-    for (const m of this.entries) m.clear();
-  }
-
-  get needsAnimation(): boolean {
-    for (const m of this.entries) if (m.size > 0) return true;
-    for (let li = 0; li < this.#stores.length; li++) {
-      const displayed = this.displayedLastValues[li];
-      const actualLast = this.#stores[li].last();
-      if (displayed == null || !actualLast) continue;
-      if (this.lastSeededTimes[li] !== actualLast.time) continue;
-      if (valueDiffers(displayed, actualLast.value)) return true;
-    }
-    return false;
-  }
-
-  private entranceProgress(layerIndex: number, time: number, now: number): number {
-    const m = this.entries[layerIndex];
-    const entry = m?.get(time);
-    if (!entry) return 1;
-    const duration = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
-    if (duration <= 0) {
-      m.delete(time);
-      return 1;
-    }
-    const t = clamp((now - entry.startTime) / duration, 0, 1);
-    const progress = easeOutCubic(t);
-    if (t >= 1) m.delete(time);
-    return progress;
   }
 
   private peekEntry(layerIndex: number, time: number): LineEntry | undefined {
     return this.entries[layerIndex]?.get(time);
   }
-
-  getLastValue(): number | null {
-    for (let i = this.#stores.length - 1; i >= 0; i--) {
-      const last = this.#stores[i].last();
-      if (last) return last.value;
-    }
-    return null;
-  }
-
-  getDataAtTime(time: number, interval: number): TimePoint | null {
-    return this.#stores[0]?.findNearest(time, interval) ?? null;
-  }
-
-  getLayerSnapshots(
-    time: number,
-    interval: number,
-  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
-    if (this.#stores.length <= 1) return null;
-
-    const colors = this.options.colors;
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
-      const data = this.#stores[li].getVisibleData(time - interval, time + interval);
-      if (data.length === 0) continue;
-
-      let closest = data[0];
-      let minDist = Math.abs(data[0].time - time);
-      // Midpoint tie → later point wins. Matches `TimeSeriesStore.findNearest`
-      // so single-layer (getDataAtTime) and multi-layer snapshots agree on
-      // the same sample at exactly-between cursor times.
-      for (let i = 1; i < data.length; i++) {
-        const dist = Math.abs(data[i].time - time);
-        if (dist <= minDist) {
-          minDist = dist;
-          closest = data[i];
-        }
-      }
-
-      results.push({
-        layerIndex: li,
-        time: closest.time,
-        value: closest.value,
-        color: colors[li % colors.length],
-      });
-    }
-
-    return results.length > 0 ? results : null;
-  }
-
-  getStackedLastValue(): { value: number; isLive: boolean } | null {
-    if (this.#stores.length <= 1) {
-      const last = this.#stores[0]?.last();
-
-      return last ? { value: last.value, isLive: true } : null;
-    }
-
-    // Stacked renderers draw the top edge as the cumulative sum of visible
-    // layers at the *last shared time*. Mirrors renderStacked's cumulative
-    // construction but evaluated at a single time point.
-    let lastTime = -Infinity;
-    for (const s of this.#stores) {
-      if (!s.isVisible()) continue;
-      const l = s.last();
-      if (l && l.time > lastTime) lastTime = l.time;
-    }
-    if (lastTime === -Infinity) return null;
-
-    if (this.options.stacking === 'off') {
-      // Non-stacked multi-layer line: there's no single "top" — report the
-      // last value of the last visible layer. Callers that want per-layer
-      // values should use getLayerLastSnapshots.
-      for (let i = this.#stores.length - 1; i >= 0; i--) {
-        if (!this.#stores[i].isVisible()) continue;
-        const last = this.#stores[i].last();
-        if (last) return { value: last.value, isLive: true };
-      }
-
-      return null;
-    }
-
-    const values: number[] = [];
-    for (const s of this.#stores) {
-      if (!s.isVisible()) continue;
-      const l = s.last();
-      values.push(l && l.time === lastTime ? l.value : 0);
-    }
-
-    const totals = sumStack(values);
-    const value = this.options.stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
-
-    return { value, isLive: true };
-  }
-
-  getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {
-    if (this.#stores.length <= 1) return null;
-
-    const colors = this.options.colors;
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
-      const last = this.#stores[li].last();
-      if (!last) continue;
-
-      results.push({
-        layerIndex: li,
-        time: last.time,
-        value: last.value,
-        color: colors[li % colors.length],
-      });
-    }
-
-    return results.length > 0 ? results : null;
-  }
-
-  getTotalLength(): number {
-    let total = 0;
-    for (const s of this.#stores) total += s.length;
-    return total;
-  }
-
-  // --- Internal accessors used by Chart for per-layer work -----------------
-  // Note: `#stores` is private; exposing limited per-layer queries through the
-  // interface above. No `getStores()` accessor is exported — every external
-  // need goes through setData/setLayerVisible/getLayerSnapshots/onDataChanged.
 
   /** Resolved pulse period in ms. 0 disables the pulse entirely. */
   private resolvedPulseMs(): number {
@@ -379,7 +113,7 @@ export class LineRenderer implements SeriesRenderer {
   }
 
   get hasPulse(): boolean {
-    return this.options.pulse && this.resolvedPulseMs() > 0 && this.#stores.some((s) => s.isVisible() && s.length > 0);
+    return this.options.pulse && this.resolvedPulseMs() > 0 && this.stores.some((s) => s.isVisible() && s.length > 0);
   }
 
   get overlayNeedsAnimation(): boolean {
@@ -394,58 +128,14 @@ export class LineRenderer implements SeriesRenderer {
     // vanish for a frame and flicker back once auto-scroll caught up. The
     // pulse is canvas-clipped (chart.ts restricts the overlay layer to the
     // chart rect), so drawing at an off-canvas X is harmless.
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
-      const last = this.#stores[li].last();
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+
+      const last = this.stores[li].last();
       if (last && last.time >= from) return true;
     }
 
     return false;
-  }
-
-  getValueRange(from: number, to: number): { min: number; max: number } | null {
-    if (this.options.stacking === 'percent') {
-      return { min: 0, max: 100 };
-    }
-    if (this.#stores.length <= 1) {
-      return null; // single store — chart handles it via entry.store
-    }
-    const layers = this.#stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
-
-    if (this.options.stacking === 'off') {
-      // Union of all layers' individual ranges
-      let min = Infinity;
-      let max = -Infinity;
-      for (const data of layers) {
-        for (const d of data) {
-          if (d.value < min) min = d.value;
-          if (d.value > max) max = d.value;
-        }
-      }
-      return min < Infinity ? { min, max } : null;
-    }
-
-    // Normal stacking: compute stacked totals
-    const timeMap = new Map<number, number[]>();
-    for (let li = 0; li < layers.length; li++) {
-      for (const d of layers[li]) {
-        if (!timeMap.has(d.time)) timeMap.set(d.time, new Array(layers.length).fill(0));
-        timeMap.get(d.time)![li] = d.value;
-      }
-    }
-    let min = 0;
-    let max = 0;
-    for (const values of timeMap.values()) {
-      let posSum = 0;
-      let negSum = 0;
-      for (const v of values) {
-        if (v > 0) posSum += v;
-        else negSum += v;
-      }
-      if (posSum > max) max = posSum;
-      if (negSum < min) min = negSum;
-    }
-    return max > min ? { min, max } : null;
   }
 
   render(ctx: SeriesRenderContext): void {
@@ -455,13 +145,6 @@ export class LineRenderer implements SeriesRenderer {
     } else {
       this.renderStacked(ctx, this.options.stacking === 'percent');
     }
-  }
-
-  /** The effective Y-value to render for (layer, time) — substitutes smoothed value for the live last point. */
-  private effectiveValue(layerIndex: number, time: number, rawValue: number): number {
-    const displayed = this.displayedLastValues[layerIndex];
-    if (displayed == null || this.lastSeededTimes[layerIndex] !== time) return rawValue;
-    return displayed;
   }
 
   /**
@@ -481,7 +164,7 @@ export class LineRenderer implements SeriesRenderer {
     yScale: import('../scales/y-scale').YScale,
     now: number,
   ): { x: number; y: number } | null {
-    const store = this.#stores[layerIndex];
+    const store = this.stores[layerIndex];
     const last = store.last();
     if (!last) return null;
 
@@ -501,6 +184,7 @@ export class LineRenderer implements SeriesRenderer {
 
     const all = store.getAll();
     if (all.length < 2) return { x: lastRawX, y: lastRawY };
+
     const penultimate = all[all.length - 2];
     const penulX = timeScale.timeToBitmapX(penultimate.time);
     const penulY = yScale.valueToBitmapY(penultimate.value);
@@ -522,10 +206,10 @@ export class LineRenderer implements SeriesRenderer {
     const now = performance.now();
     const style = this.options.entryAnimation ?? 'grow';
 
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
 
-      let data = this.#stores[li].getVisibleData(range.from, range.to);
+      let data = this.stores[li].getVisibleData(range.from, range.to);
       const pixelWidth = scope.mediaSize.width;
       if (data.length > pixelWidth * 2) {
         data = decimateLineData(data, Math.round(pixelWidth * 1.5));
@@ -605,7 +289,7 @@ export class LineRenderer implements SeriesRenderer {
 
     // Collect per-layer data
     const pixelWidth = scope.mediaSize.width;
-    const layers = this.#stores.map((s) => {
+    const layers = this.stores.map((s) => {
       let data = s.getVisibleData(range.from, range.to);
       if (data.length > pixelWidth * 2) {
         data = decimateLineData(data, Math.round(pixelWidth * 1.5));
@@ -630,18 +314,18 @@ export class LineRenderer implements SeriesRenderer {
     });
 
     // Compute stacked Y values per time: cumulative[li][ti]
-    const cumulative: number[][] = Array.from({ length: this.#stores.length }, () => new Array(times.length).fill(0));
+    const cumulative: number[][] = Array.from({ length: this.stores.length }, () => new Array(times.length).fill(0));
     for (let ti = 0; ti < times.length; ti++) {
       const t = times[ti];
       let total = 0;
       if (percent) {
-        for (let li = 0; li < this.#stores.length; li++) {
-          if (this.#stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
+        for (let li = 0; li < this.stores.length; li++) {
+          if (this.stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
         }
       }
       let running = 0;
-      for (let li = 0; li < this.#stores.length; li++) {
-        const raw = this.#stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
+      for (let li = 0; li < this.stores.length; li++) {
+        const raw = this.stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }
@@ -661,11 +345,11 @@ export class LineRenderer implements SeriesRenderer {
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
     const lastVisibleIdx = times.length - 1;
-    const layerProgress: number[] = new Array(this.#stores.length).fill(1);
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
+    const layerProgress: number[] = new Array(this.stores.length).fill(1);
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
 
-      const last = this.#stores[li].last();
+      const last = this.stores[li].last();
       if (!last) continue;
 
       const entry = this.peekEntry(li, last.time);
@@ -686,6 +370,7 @@ export class LineRenderer implements SeriesRenderer {
     // penultimate.
     const applyGrowLerp = (xy: [number, number][], progress: number): void => {
       if (progress >= 1 || xy.length < 2) return;
+
       const lastIdx = xy.length - 1;
       const prev = xy[lastIdx - 1];
       const last = xy[lastIdx];
@@ -693,14 +378,15 @@ export class LineRenderer implements SeriesRenderer {
     };
 
     // Draw from top layer to bottom so lower layers fill correctly
-    for (let li = this.#stores.length - 1; li >= 0; li--) {
-      if (!this.#stores[li].isVisible()) continue;
+    for (let li = this.stores.length - 1; li >= 0; li--) {
+      if (!this.stores[li].isVisible()) continue;
+
       const color = this.options.colors[li % this.options.colors.length];
       const upperProg = layerProgress[li];
       // Lower edge mirrors the below layer's progress only when that layer is
       // visible — hidden layers contribute 0 to cumulative, so their entrance
       // must not shift this layer's drawn boundary.
-      const lowerProg = li > 0 && this.#stores[li - 1].isVisible() ? layerProgress[li - 1] : 1;
+      const lowerProg = li > 0 && this.stores[li - 1].isVisible() ? layerProgress[li - 1] : 1;
 
       // Upper edge = this layer's cumulative
       const upperXY: [number, number][] = [];
@@ -773,8 +459,8 @@ export class LineRenderer implements SeriesRenderer {
 
       const layerValues: number[] = [];
       const layerTimes: (number | null)[] = [];
-      for (let li = 0; li < this.#stores.length; li++) {
-        const closest = this.#stores[li].findNearest(crosshair.time, dataInterval);
+      for (let li = 0; li < this.stores.length; li++) {
+        const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
         if (!closest) {
           layerValues.push(0);
           layerTimes.push(null);
@@ -792,21 +478,22 @@ export class LineRenderer implements SeriesRenderer {
         let total = 0;
         if (stacking === 'percent') {
           for (let li = 0; li < layerValues.length; li++) {
-            if (this.#stores[li].isVisible()) total += layerValues[li];
+            if (this.stores[li].isVisible()) total += layerValues[li];
           }
         }
         let running = 0;
         for (let li = 0; li < layerValues.length; li++) {
-          const v = this.#stores[li].isVisible() ? layerValues[li] : 0;
+          const v = this.stores[li].isVisible() ? layerValues[li] : 0;
           running += stacking === 'percent' && total > 0 ? (v / total) * 100 : v;
           displayValues.push(running);
         }
       }
 
-      for (let li = 0; li < this.#stores.length; li++) {
+      for (let li = 0; li < this.stores.length; li++) {
         const t = layerTimes[li];
         if (t === null) continue;
-        if (!this.#stores[li].isVisible()) continue;
+        if (!this.stores[li].isVisible()) continue;
+
         const color = colors[li % colors.length];
         const px = timeScale.timeToBitmapX(t);
         const py = yScale.valueToBitmapY(displayValues[li]);
@@ -838,8 +525,9 @@ export class LineRenderer implements SeriesRenderer {
       const now = performance.now();
       this.advanceLiveTracking(now);
       const stacking = this.options.stacking;
-      for (let li = 0; li < this.#stores.length; li++) {
-        if (!this.#stores[li].isVisible()) continue;
+      for (let li = 0; li < this.stores.length; li++) {
+        if (!this.stores[li].isVisible()) continue;
+
         const color = this.options.colors[li % this.options.colors.length];
 
         if (stacking === 'off') {
@@ -848,6 +536,7 @@ export class LineRenderer implements SeriesRenderer {
           // lockstep with the line's trailing segment.
           const endpoint = this.trailingEndpoint(li, timeScale, yScale, now);
           if (!endpoint) continue;
+
           this.drawPulse({
             ctx: scope.context,
             x: endpoint.x,
@@ -862,7 +551,7 @@ export class LineRenderer implements SeriesRenderer {
         // Stacked: pulse Y must match renderStacked's cumulative at this layer's
         // last time. During a 'grow' entrance the pulse also lerps in lockstep
         // with the rendered trailing segment.
-        const last = this.#stores[li].last();
+        const last = this.stores[li].last();
         if (!last) continue;
 
         const t = last.time;
@@ -873,20 +562,23 @@ export class LineRenderer implements SeriesRenderer {
         // reflects in this layer's cumulative offset.
         const cumulativeAt = (queryT: number): number => {
           const valueAt = (lj: number): number => {
-            const point = lj === li && queryT === t ? last : this.#stores[lj].findNearest(queryT, 0);
+            const point = lj === li && queryT === t ? last : this.stores[lj].findNearest(queryT, 0);
             if (!point || point.time !== queryT) return 0;
+
             return this.effectiveValue(lj, queryT, point.value);
           };
           let total = 0;
           if (percent) {
-            for (let lj = 0; lj < this.#stores.length; lj++) {
-              if (!this.#stores[lj].isVisible()) continue;
+            for (let lj = 0; lj < this.stores.length; lj++) {
+              if (!this.stores[lj].isVisible()) continue;
+
               total += valueAt(lj);
             }
           }
           let running = 0;
           for (let lj = 0; lj <= li; lj++) {
-            if (!this.#stores[lj].isVisible()) continue;
+            if (!this.stores[lj].isVisible()) continue;
+
             const v = valueAt(lj);
             running += percent && total > 0 ? (v / total) * 100 : v;
           }
