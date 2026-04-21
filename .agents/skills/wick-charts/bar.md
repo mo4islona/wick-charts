@@ -233,6 +233,27 @@ options?: Partial<BarSeriesOptions>
 id?: string
 ```
 
+## Custom tooltip
+
+`Tooltip` accepts a slot / render-prop that hands you the computed snapshots — replace the default layout with your own:
+
+```tsx
+<Tooltip>
+  {({ snapshots, time }) => (
+    <div>
+      <small>{new Date(time).toLocaleTimeString()}</small>
+      {snapshots.map((s) => (
+        <div key={s.id} style={{ color: s.color }}>
+          {s.label ?? s.seriesId}: {('value' in s.data ? s.data.value : 0).toFixed(2)}
+        </div>
+      ))}
+    </div>
+  )}
+</Tooltip>
+```
+
+Multi-layer stacked bars produce one snapshot per visible layer (each carrying `layerIndex`). Group by `seriesId` if you want stack totals in the tooltip.
+
 ## Common patterns
 
 ### Volume histogram (standalone)

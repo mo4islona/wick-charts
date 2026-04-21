@@ -229,7 +229,37 @@ Candlestick charts commonly use this overlay combination:
 | `Crosshair` | Horizontal + vertical guide lines with labels |
 | `YAxis` | Animated price axis on the right |
 | `TimeAxis` | Time axis at the bottom |
-| `YLabel` | Floating price badge at current cursor Y — requires `seriesId` |
+| `YLabel` | Floating price badge at current cursor Y — `seriesId` optional (auto-picks the first visible time series) |
+
+## Custom tooltip (slot / render-prop)
+
+Replace the default OHLCV layout — e.g. highlight the open→close delta directly:
+
+```tsx
+import { Tooltip } from '@wick-charts/react';
+
+<Tooltip>
+  {({ snapshots, time }) => {
+    const candle = snapshots[0]?.data; // OHLCData for a candlestick row
+    if (!candle || !('open' in candle)) return null;
+    const delta = candle.close - candle.open;
+    const pct = (delta / candle.open) * 100;
+    const up = delta >= 0;
+
+    return (
+      <div style={{ display: 'grid', gap: 4 }}>
+        <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleString()}</small>
+        <strong>{candle.close.toFixed(2)}</strong>
+        <span style={{ color: up ? '#26a69a' : '#ef5350' }}>
+          {up ? '▲' : '▼'} {delta.toFixed(2)} ({pct.toFixed(2)}%)
+        </span>
+      </div>
+    );
+  }}
+</Tooltip>
+```
+
+Same shape in Vue (`v-slot="{ snapshots, time }"`) and Svelte (`let:snapshots let:time`). The built-in floating container (flip + clamp) stays in place — only the contents change. See [SKILL.md → Custom render](SKILL.md) for the full slot catalog.
 
 ## Overlay with indicators
 

@@ -33,6 +33,7 @@ interface LineSettings {
   strokeWidthPx: number;
   stacking: BarStacking;
   tooltipSort: TooltipSort;
+  tooltipCustom: boolean;
   legendPos: LegendPos;
   legendMode: LegendMode;
   infoBarVisible: boolean;
@@ -98,12 +99,34 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
+      {props.tooltipVisible && renderTooltip(props)}
       {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
     </ChartContainer>
+  );
+}
+
+function renderTooltip({ tooltipCustom, tooltipSort }: LineSettings) {
+  if (!tooltipCustom) return <Tooltip sort={tooltipSort} />;
+
+  return (
+    <Tooltip sort={tooltipSort}>
+      {({ snapshots, time }) => (
+        <div style={{ display: 'grid', gap: 4, minWidth: 140 }}>
+          <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleTimeString()}</small>
+          {snapshots.slice(0, 3).map((s) => (
+            <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              <span style={{ color: s.color, fontWeight: 500 }}>{s.label ?? s.seriesId}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {('value' in s.data ? s.data.value : 0).toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Tooltip>
   );
 }
 
@@ -133,7 +156,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
           smoothMs: props.liveTracking ? undefined : 0,
         }}
       />
-      {props.tooltipVisible && <Tooltip sort={props.tooltipSort} />}
+      {props.tooltipVisible && renderTooltip(props)}
       {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
@@ -239,7 +262,42 @@ const TOOLTIP_SECTION: SectionSpec = {
         />
       ),
     },
+    {
+      key: 'tooltipCustom',
+      label: 'Custom render',
+      hint: 'Top 3 rows via slot / render-prop',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
   ] as RowSpec[],
+};
+
+const CUSTOM_TOOLTIP_SNIPPETS = {
+  react: `{({ snapshots, time }) => (
+  <div style={{ display: 'grid', gap: 4 }}>
+    <small>{new Date(time).toLocaleTimeString()}</small>
+    {snapshots.slice(0, 3).map((s) => (
+      <div key={s.id} style={{ color: s.color }}>
+        {s.label ?? s.seriesId}: {('value' in s.data ? s.data.value : 0).toFixed(2)}
+      </div>
+    ))}
+  </div>
+)}`,
+  vue: `<template #default="{ snapshots, time }">
+  <div>
+    <small>{{ new Date(time).toLocaleTimeString() }}</small>
+    <div v-for="s in snapshots.slice(0, 3)" :key="s.id" :style="{ color: s.color }">
+      {{ s.label ?? s.seriesId }}: {{ ('value' in s.data ? s.data.value : 0).toFixed(2) }}
+    </div>
+  </div>
+</template>`,
+  svelte: `<svelte:fragment let:snapshots let:time>
+  <small>{new Date(time).toLocaleTimeString()}</small>
+  {#each snapshots.slice(0, 3) as s (s.id)}
+    <div style="color: {s.color}">
+      {s.label ?? s.seriesId}: {('value' in s.data ? s.data.value : 0).toFixed(2)}
+    </div>
+  {/each}
+</svelte:fragment>`,
 };
 
 const LEGEND_SECTION: SectionSpec = {
@@ -292,6 +350,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         strokeWidthPx: 1,
         stacking: 'off',
         tooltipSort: 'desc',
+        tooltipCustom: false,
         legendPos: 'bottom',
         legendMode: 'toggle',
         infoBarVisible: true,
@@ -336,7 +395,13 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             },
           },
           ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-          ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
+          ...(s.tooltipVisible
+            ? [
+                s.tooltipCustom
+                  ? { component: 'Tooltip', childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS }
+                  : { component: 'Tooltip' },
+              ]
+            : []),
           ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
           { component: 'YAxis' },
           { component: 'XAxis' },

@@ -258,6 +258,34 @@ id?: string
 | Multi-layer | Add `Legend` with `position="bottom" mode="toggle"` |
 | Dashboard sparkline-style | No overlays, `interactive={false}`, `grid={{ visible: false }}` |
 
+## Custom tooltip: filter a subset of series
+
+Wrap `Tooltip` with a render-prop to show only the series you care about — handy when the chart has five lines but the tooltip should read two:
+
+```tsx
+import { Tooltip } from '@wick-charts/react';
+
+const FOCUS = new Set(['btc', 'eth']);
+
+<Tooltip>
+  {({ snapshots, time }) => (
+    <div style={{ display: 'grid', gap: 4 }}>
+      <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleTimeString()}</small>
+      {snapshots
+        .filter((s) => FOCUS.has(s.seriesId))
+        .map((s) => (
+          <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+            <span style={{ color: s.color }}>{s.label ?? s.seriesId}</span>
+            <span>{('value' in s.data ? s.data.value : 0).toFixed(2)}</span>
+          </div>
+        ))}
+    </div>
+  )}
+</Tooltip>
+```
+
+Same pattern in Vue (`<Tooltip v-slot="{ snapshots, time }">`) and Svelte (`<Tooltip let:snapshots let:time>`). For a multi-layer series, filter by `seriesId` (shared identity) and use `id` as the row key.
+
 ## Common patterns
 
 ### Line without area (pure line chart)
