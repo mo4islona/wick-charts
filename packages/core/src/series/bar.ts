@@ -1,11 +1,10 @@
-import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
-import { TimeSeriesStore } from '../data/store';
+import { DEFAULT_ENTER_MS } from '../animation-constants';
+import type { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
-import type { BarSeriesOptions, LineData, TimePointInput } from '../types';
-import { clamp, easeOutCubic, smoothToward } from '../utils/math';
-import { normalizeTime, normalizeTimePointArray } from '../utils/time';
-import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import type { BarSeriesOptions, LineData } from '../types';
+import { BaseMultiLayerSeries, type CommonSeriesOptions } from './base-multi-layer';
+import { resolveMs } from './shared-animation';
+import type { SeriesRenderContext } from './types';
 
 const DEFAULT_OPTIONS: BarSeriesOptions = {
   colors: ['#26a69a', '#ef5350'],
@@ -32,189 +31,43 @@ function normalizeBarOptions(input?: Partial<BarSeriesOptions>): Partial<BarSeri
   return out;
 }
 
-/** Resolve an `enterMs` / `smoothMs` option value. `false` collapses to 0 (disabled). */
-function resolveMs(value: number | false | undefined, fallback: number): number {
-  if (value === false) return 0;
-  if (value === undefined) return fallback;
-
-  return value;
-}
-
-/** Returns true if the smoothed value is still meaningfully off-target. */
-function valueDiffers(displayed: number, target: number): boolean {
-  const eps = Math.max(1e-4, Math.abs(target) * 1e-5);
-  return Math.abs(displayed - target) > eps;
-}
-
 interface BarEntry {
   startTime: number;
 }
 
-export class BarRenderer implements SeriesRenderer {
-  readonly #stores: TimeSeriesStore<LineData>[];
+export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
   private options: BarSeriesOptions;
-  /** Per-layer smoothed last value (tracks store.last().value under live updates). */
-  private displayedLastValues: Array<number | null>;
-  /** Per-layer `time` of the bar seeded into {@link displayedLastValues}. */
-  private lastSeededTimes: number[];
-  /** Per-layer entrance animations keyed by bar `time`. */
-  private entries: Array<Map<number, BarEntry>>;
-  /** Last render timestamp for frame-rate-independent smoothing. */
-  private lastRenderTime = 0;
 
   constructor(layerCount: number, options?: Partial<BarSeriesOptions>) {
-    this.#stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<LineData>());
+    super(layerCount);
     this.options = { ...DEFAULT_OPTIONS, ...normalizeBarOptions(options) };
-    this.displayedLastValues = new Array(layerCount).fill(null);
-    this.lastSeededTimes = new Array(layerCount).fill(Number.NaN);
-    this.entries = Array.from({ length: layerCount }, () => new Map());
   }
 
   /** For chart compatibility — returns first store */
   get store(): TimeSeriesStore<LineData> {
-    return this.#stores[0];
+    return this.stores[0];
   }
 
   updateOptions(options: Partial<BarSeriesOptions>): void {
     this.options = { ...this.options, ...normalizeBarOptions(options) };
   }
 
-  getColor(): string {
-    return this.options.colors[0];
+  protected getCommonOptions(): CommonSeriesOptions {
+    return this.options;
   }
 
-  getColors(): string[] {
-    return this.options.colors;
-  }
-
-  // --- SeriesRenderer interface implementation ------------------------------
-
-  setData(data: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    store.setData(normalizeTimePointArray((data ?? []) as TimePointInput[]));
-    // Bulk loads don't animate — clear any in-flight entries for this layer.
-    this.entries[layerIndex]?.clear();
-  }
-
-  appendPoint(point: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    const p = point as TimePointInput;
-    const time = normalizeTime(p.time);
-    store.append({ ...p, time });
+  protected createEntry(_layerIndex: number, _time: number, now: number): BarEntry | null {
     const style = this.options.entryAnimation ?? 'fade-grow';
     const enterMs = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
-    if (style !== 'none' && enterMs > 0) {
-      this.entries[layerIndex]?.set(time, { startTime: performance.now() });
-    }
-  }
+    if (style === 'none' || enterMs <= 0) return null;
 
-  updateLastPoint(point: unknown, layerIndex = 0): void {
-    const store = this.#stores[layerIndex];
-    if (!store) return;
-    const p = point as TimePointInput;
-    store.updateLast({ ...p, time: normalizeTime(p.time) });
-  }
-
-  getLayerCount(): number {
-    return this.#stores.length;
-  }
-
-  setLayerVisible(index: number, visible: boolean): void {
-    this.#stores[index]?.setVisible(visible);
-  }
-
-  isLayerVisible(index: number): boolean {
-    return this.#stores[index]?.isVisible() ?? true;
-  }
-
-  getLayerColors(): string[] {
-    return this.getColors();
+    return { startTime: now };
   }
 
   applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
     this.updateOptions({
-      colors: theme.seriesColors.slice(0, this.#stores.length),
+      colors: theme.seriesColors.slice(0, this.stores.length),
     });
-  }
-
-  onDataChanged(listener: () => void): () => void {
-    for (const s of this.#stores) s.on('update', listener);
-    return () => {
-      for (const s of this.#stores) s.off('update', listener);
-    };
-  }
-
-  dispose(): void {
-    for (const s of this.#stores) s.removeAllListeners();
-    for (const m of this.entries) m.clear();
-    this.displayedLastValues = this.displayedLastValues.map(() => null);
-    this.lastSeededTimes = this.lastSeededTimes.map(() => Number.NaN);
-    this.lastRenderTime = 0;
-  }
-
-  /** Drop all in-flight per-bar entrance animations across every layer.
-   * Displayed-last smoothing is intentionally preserved. */
-  cancelEntranceAnimations(): void {
-    for (const m of this.entries) m.clear();
-  }
-
-  /** True while any entrance is active OR any layer's displayed-last hasn't converged. */
-  get needsAnimation(): boolean {
-    for (const m of this.entries) if (m.size > 0) return true;
-    for (let li = 0; li < this.#stores.length; li++) {
-      const displayed = this.displayedLastValues[li];
-      const actualLast = this.#stores[li].last();
-      if (displayed == null || !actualLast) continue;
-      if (this.lastSeededTimes[li] !== actualLast.time) continue;
-      if (valueDiffers(displayed, actualLast.value)) return true;
-    }
-    return false;
-  }
-
-  /**
-   * Advance smoothed last-value per layer. Seeds directly on first render or
-   * when the last point's time changes (new bar); otherwise exponentially
-   * chases the target value.
-   */
-  private advanceLiveTracking(now: number): void {
-    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
-    this.lastRenderTime = now;
-
-    const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
-    const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
-    for (let li = 0; li < this.#stores.length; li++) {
-      const actualLast = this.#stores[li].last();
-      if (!actualLast) {
-        this.displayedLastValues[li] = null;
-        this.lastSeededTimes[li] = Number.NaN;
-        continue;
-      }
-      const displayed = this.displayedLastValues[li];
-      const isNewBar = this.lastSeededTimes[li] !== actualLast.time;
-      if (displayed === null || isNewBar || rate <= 0) {
-        this.displayedLastValues[li] = actualLast.value;
-        this.lastSeededTimes[li] = actualLast.time;
-        continue;
-      }
-      this.displayedLastValues[li] = smoothToward(displayed, actualLast.value, rate, dt);
-    }
-  }
-
-  private entranceProgress(layerIndex: number, time: number, now: number): number {
-    const m = this.entries[layerIndex];
-    const entry = m?.get(time);
-    if (!entry) return 1;
-    const duration = resolveMs(this.options.entryMs, DEFAULT_ENTER_MS);
-    if (duration <= 0) {
-      m.delete(time);
-      return 1;
-    }
-    const t = clamp((now - entry.startTime) / duration, 0, 1);
-    const progress = easeOutCubic(t);
-    if (t >= 1) m.delete(time);
-    return progress;
   }
 
   /**
@@ -262,163 +115,6 @@ export class BarRenderer implements SeriesRenderer {
     return { topY: tY, barHeight: h, x: xx, barWidth, alpha };
   }
 
-  getLastValue(): number | null {
-    for (let i = this.#stores.length - 1; i >= 0; i--) {
-      const last = this.#stores[i].last();
-      if (last) return last.value;
-    }
-    return null;
-  }
-
-  getDataAtTime(time: number, interval: number): LineData | null {
-    return this.#stores[0]?.findNearest(time, interval) ?? null;
-  }
-
-  getLayerSnapshots(
-    time: number,
-    interval: number,
-  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
-    if (this.#stores.length <= 1) return null;
-
-    const colors = this.options.colors;
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
-      const data = this.#stores[li].getVisibleData(time - interval, time + interval);
-      if (data.length === 0) continue;
-
-      let closest = data[0];
-      let minDist = Math.abs(data[0].time - time);
-      // Midpoint tie → later point wins, matching `TimeSeriesStore.findNearest`.
-      for (let i = 1; i < data.length; i++) {
-        const dist = Math.abs(data[i].time - time);
-        if (dist <= minDist) {
-          minDist = dist;
-          closest = data[i];
-        }
-      }
-
-      results.push({
-        layerIndex: li,
-        time: closest.time,
-        value: closest.value,
-        color: colors[li % colors.length],
-      });
-    }
-
-    return results.length > 0 ? results : null;
-  }
-
-  getStackedLastValue(): { value: number; isLive: boolean } | null {
-    if (this.#stores.length <= 1) {
-      const last = this.#stores[0]?.last();
-
-      return last ? { value: last.value, isLive: true } : null;
-    }
-
-    let lastTime = -Infinity;
-    for (const s of this.#stores) {
-      if (!s.isVisible()) continue;
-      const l = s.last();
-      if (l && l.time > lastTime) lastTime = l.time;
-    }
-    if (lastTime === -Infinity) return null;
-
-    if (this.options.stacking === 'off') {
-      for (let i = this.#stores.length - 1; i >= 0; i--) {
-        if (!this.#stores[i].isVisible()) continue;
-        const last = this.#stores[i].last();
-        if (last) return { value: last.value, isLive: true };
-      }
-
-      return null;
-    }
-
-    const values: number[] = [];
-    for (const s of this.#stores) {
-      if (!s.isVisible()) continue;
-      const l = s.last();
-      values.push(l && l.time === lastTime ? l.value : 0);
-    }
-
-    const totals = sumStack(values);
-    const value = this.options.stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
-
-    return { value, isLive: true };
-  }
-
-  getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {
-    if (this.#stores.length <= 1) return null;
-
-    const colors = this.options.colors;
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
-    for (let li = 0; li < this.#stores.length; li++) {
-      if (!this.#stores[li].isVisible()) continue;
-      const last = this.#stores[li].last();
-      if (!last) continue;
-
-      results.push({
-        layerIndex: li,
-        time: last.time,
-        value: last.value,
-        color: colors[li % colors.length],
-      });
-    }
-
-    return results.length > 0 ? results : null;
-  }
-
-  getTotalLength(): number {
-    let total = 0;
-    for (const s of this.#stores) total += s.length;
-    return total;
-  }
-
-  getValueRange(from: number, to: number): { min: number; max: number } | null {
-    if (this.options.stacking === 'percent') {
-      return { min: 0, max: 100 };
-    }
-    if (this.#stores.length <= 1) {
-      return null; // single store — chart handles it via entry.store
-    }
-    const layers = this.#stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
-
-    if (this.options.stacking === 'off') {
-      // Union of all layers' individual ranges
-      let min = Infinity;
-      let max = -Infinity;
-      for (const data of layers) {
-        for (const d of data) {
-          if (d.value < min) min = d.value;
-          if (d.value > max) max = d.value;
-        }
-      }
-      return min < Infinity ? { min, max } : null;
-    }
-
-    // For normal stacking, compute stacked totals
-    const timeMap = new Map<number, number[]>();
-    for (let li = 0; li < layers.length; li++) {
-      for (const d of layers[li]) {
-        if (!timeMap.has(d.time)) timeMap.set(d.time, new Array(layers.length).fill(0));
-        timeMap.get(d.time)![li] = d.value;
-      }
-    }
-    let min = 0;
-    let max = 0;
-    for (const values of timeMap.values()) {
-      let posSum = 0;
-      let negSum = 0;
-      for (const v of values) {
-        if (v > 0) posSum += v;
-        else negSum += v;
-      }
-      if (posSum > max) max = posSum;
-      if (negSum < min) min = negSum;
-    }
-    return max > min ? { min, max } : null;
-  }
-
   render(ctx: SeriesRenderContext): void {
     this.advanceLiveTracking(performance.now());
     switch (this.options.stacking) {
@@ -432,14 +128,6 @@ export class BarRenderer implements SeriesRenderer {
         this.renderOff(ctx);
         break;
     }
-  }
-
-  /** Value to actually render for a given layer/time. For the live last bar we use the smoothed value. */
-  private effectiveValue(layerIndex: number, time: number, rawValue: number): number {
-    const seededTime = this.lastSeededTimes[layerIndex];
-    const displayed = this.displayedLastValues[layerIndex];
-    if (displayed == null || seededTime !== time) return rawValue;
-    return displayed;
   }
 
   /** Stacking off — each layer drawn independently from zero, overlapping */
@@ -457,15 +145,15 @@ export class BarRenderer implements SeriesRenderer {
     const hasNegative = yRange.min < 0;
     const zeroY = hasNegative ? yScale.valueToBitmapY(0) : scope.bitmapSize.height;
 
-    const isSingleLayer = this.#stores.length === 1;
+    const isSingleLayer = this.stores.length === 1;
 
     if (isSingleLayer) {
-      if (!this.#stores[0].isVisible()) return;
+      if (!this.stores[0].isVisible()) return;
 
       // Single-layer: colors[0] = positive, colors[1] = negative
       const posColor = this.options.colors[0];
       const negColor = this.options.colors.length > 1 ? this.options.colors[1] : posColor;
-      const visibleData = this.#stores[0].getVisibleData(range.from, range.to);
+      const visibleData = this.stores[0].getVisibleData(range.from, range.to);
 
       for (const d of visibleData) {
         const value = this.effectiveValue(0, d.time, d.value);
@@ -492,7 +180,7 @@ export class BarRenderer implements SeriesRenderer {
       }
     } else {
       // Multi-layer: collect per-time, draw tallest first so shorter bars appear in front
-      const layers = this.#stores.map((store) => (store.isVisible() ? store.getVisibleData(range.from, range.to) : []));
+      const layers = this.stores.map((store) => (store.isVisible() ? store.getVisibleData(range.from, range.to) : []));
       const timeMap = new Map<number, { layer: number; value: number }[]>();
       for (let li = 0; li < layers.length; li++) {
         for (const d of layers[li]) {
@@ -550,7 +238,7 @@ export class BarRenderer implements SeriesRenderer {
     const halfBody = Math.floor(bodyWidth / 2);
 
     // Collect all visible data per layer (hidden layers contribute empty data)
-    const layers = this.#stores.map((store) => (store.isVisible() ? store.getVisibleData(range.from, range.to) : []));
+    const layers = this.stores.map((store) => (store.isVisible() ? store.getVisibleData(range.from, range.to) : []));
     if (layers.every((l) => l.length === 0)) return;
 
     // Build values per time — hidden layers contribute 0. Use effectiveValue so
@@ -560,8 +248,12 @@ export class BarRenderer implements SeriesRenderer {
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
       for (const d of layers[li]) {
-        if (!timeMap.has(d.time)) timeMap.set(d.time, new Array(layers.length).fill(0));
-        timeMap.get(d.time)![li] = this.#stores[li].isVisible() ? this.effectiveValue(li, d.time, d.value) : 0;
+        let arr = timeMap.get(d.time);
+        if (!arr) {
+          arr = new Array(layers.length).fill(0);
+          timeMap.set(d.time, arr);
+        }
+        arr[li] = this.stores[li].isVisible() ? this.effectiveValue(li, d.time, d.value) : 0;
       }
     }
 
@@ -652,6 +344,7 @@ export class BarRenderer implements SeriesRenderer {
       this.fillBar(context, x, topY, barWidth, barHeight, color);
       return;
     }
+
     const t = this.applyBarTransform(progress, baselineY, topY, barHeight, x, barWidth);
     context.save();
     context.globalAlpha = t.alpha;
