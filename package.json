@@ -18,7 +18,8 @@
     "format": "biome format --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "size": "node scripts/bundle-size.mjs"
+    "size": "node scripts/bundle-size.mjs",
+    "readme": "node scripts/generate-readmes.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",

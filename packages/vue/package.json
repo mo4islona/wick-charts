@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build": "vite build",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm -w readme && pnpm build"
   },
   "publishConfig": {
     "access": "public"
