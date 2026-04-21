@@ -78,11 +78,12 @@ describe('<PieSeries> options — label updates reach the renderer', () => {
     expect(pctAfter).toBeGreaterThan(0);
   });
 
-  it('updating stroke.widthPx propagates to the paint', () => {
-    mounted = mountChart(
-      <PieSeries id="pie" data={slices} options={{ stroke: { color: '#fff', widthPx: 1 } }} />,
-      { width: 400, height: 400, padding: { top: 0, bottom: 0 } },
-    );
+  it('updating stroke.width propagates to the paint', () => {
+    mounted = mountChart(<PieSeries id="pie" data={slices} options={{ stroke: { color: '#fff', width: 1 } }} />, {
+      width: 400,
+      height: 400,
+      padding: { top: 0, bottom: 0 },
+    });
     mounted.flushScheduler();
 
     // Capture stroke() calls on the initial paint. The `lineWidth` state is
@@ -92,9 +93,7 @@ describe('<PieSeries> options — label updates reach the renderer', () => {
     const strokesBefore = mounted.mainSpy.countOf('stroke');
     expect(strokesBefore).toBeGreaterThan(0);
 
-    mounted.rerender(
-      <PieSeries id="pie" data={slices} options={{ stroke: { color: '#fff', widthPx: 6 } }} />,
-    );
+    mounted.rerender(<PieSeries id="pie" data={slices} options={{ stroke: { color: '#fff', width: 6 } }} />);
     // The repaint should stroke the same number of times per slice, so
     // simply assert the rerender produced additional stroke calls (i.e.
     // the update actually re-ran the renderer).

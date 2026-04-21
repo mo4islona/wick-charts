@@ -25,7 +25,7 @@ interface PieSettings {
   legendVisible: boolean;
   innerRatioPct: number;
   padAngle: number;
-  strokeWidthPx: number;
+  strokeWidth: number;
   labelMode: PieLabelMode;
   labelContent: PieLabelContent;
   labelFontSize: number;
@@ -81,7 +81,7 @@ function PieChart({
   legendVisible,
   innerRatioPct,
   padAngle,
-  strokeWidthPx,
+  strokeWidth,
   labelMode,
   labelContent,
   labelFontSize,
@@ -96,7 +96,7 @@ function PieChart({
   return (
     <ChartContainer
       theme={theme}
-      axis={{ y: { visible: false, widthPx: 0 }, x: { visible: false, heightPx: 0 } }}
+      axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}
       gradient={gradient}
       grid={{ visible: false }}
       perf={perfHudVisible}
@@ -108,7 +108,7 @@ function PieChart({
         options={{
           innerRadiusRatio: donut ? innerRatioPct / 100 : 0,
           padAngle,
-          stroke: { color: theme.background, widthPx: strokeWidthPx },
+          stroke: { color: theme.background, width: strokeWidth },
           sliceLabels: { mode: labelMode, content: labelContent, fontSize: labelFontSize, labelGap },
         }}
       />
@@ -188,7 +188,7 @@ const GEOMETRY_SECTION: SectionSpec = {
       ),
     },
     {
-      key: 'strokeWidthPx',
+      key: 'strokeWidth',
       label: 'Stroke',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={4} step={1} suffix="px" onChange={onChange as (v: number) => void} />
@@ -307,7 +307,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         legendVisible: true,
         innerRatioPct: 55,
         padAngle: 1.7,
-        strokeWidthPx: 2,
+        strokeWidth: 2,
         labelMode: 'outside',
         labelContent: 'both',
         labelFontSize: 11,
@@ -352,7 +352,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
               options: {
                 innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
                 padAngle: s.padAngle,
-                stroke: { widthPx: s.strokeWidthPx },
+                stroke: { width: s.strokeWidth },
                 sliceLabels: {
                   mode: s.labelMode,
                   content: s.labelContent,

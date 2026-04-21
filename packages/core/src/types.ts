@@ -175,9 +175,7 @@ export interface LineSeriesOptions {
   /** One color per layer. */
   colors: string[];
   /** Stroke width in CSS pixels. Default: 1. `0` hides the line stroke. */
-  strokeWidthPx: number;
-  /** @deprecated Use {@link strokeWidthPx} instead. */
-  lineWidth?: number;
+  strokeWidth: number;
   /** Area-fill configuration. Default: `{ visible: true }`. */
   area: { visible: boolean };
   /**
@@ -361,10 +359,10 @@ export interface PieSeriesOptions {
   /** Gap between slices in degrees. Default: 1.15° (≈ 0.02 rad). */
   padAngle: number;
   /**
-   * Slice border. Omit or use `{ color: 'transparent', widthPx: 0 }` for no
+   * Slice border. Omit or use `{ color: 'transparent', width: 0 }` for no
    * stroke (default).
    */
-  stroke: { color: string; widthPx: number };
+  stroke: { color: string; width: number };
   /** Display the label shown in the tooltip. */
   label?: string;
   /** Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}. */
@@ -374,24 +372,20 @@ export interface PieSeriesOptions {
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
   /** Width in CSS pixels. Default: 55. */
-  widthPx?: number;
-  /** @deprecated Use {@link widthPx} instead. */
   width?: number;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
   /** Maximum bound. Default: 'auto'. */
   max?: AxisBound;
-  /** Whether the axis is visible. Default: true. When false, widthPx is treated as 0. */
+  /** Whether the axis is visible. Default: true. When false, width is treated as 0. */
   visible?: boolean;
 }
 
 /** Configuration for the X (time) axis. */
 export interface XAxisConfig {
   /** Height in CSS pixels. Default: 30. */
-  heightPx?: number;
-  /** @deprecated Use {@link heightPx} instead. */
   height?: number;
-  /** Whether the axis is visible. Default: true. When false, heightPx is treated as 0. */
+  /** Whether the axis is visible. Default: true. When false, height is treated as 0. */
   visible?: boolean;
 }
 

@@ -386,12 +386,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   get yAxisWidth(): number {
     const y = this.#axis.y;
-    return y?.visible === false ? 0 : (y?.widthPx ?? y?.width ?? 55);
+    return y?.visible === false ? 0 : (y?.width ?? 55);
   }
 
   get xAxisHeight(): number {
     const x = this.#axis.x;
-    return x?.visible === false ? 0 : (x?.heightPx ?? x?.height ?? 30);
+    return x?.visible === false ? 0 : (x?.height ?? 30);
   }
 
   /** Resolved animation config derived from `options.animations` at construction. */
@@ -602,7 +602,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     const renderer = new LineRenderer(layerCount, {
       colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
-      strokeWidthPx: this.#theme.line.width,
+      strokeWidth: this.#theme.line.width,
       area: { visible: true },
       ...this.#seriesAnimationDefaults('line'),
       ...rest,

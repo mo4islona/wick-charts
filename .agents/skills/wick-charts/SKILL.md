@@ -45,7 +45,7 @@ Root component. Requires a defined width + height.
 </ChartContainer>
 ```
 
-React props: `theme`, `axis`, `padding`, `gradient`, `grid`, `interactive`, `headerLayout`, `style`, `className` (all optional, safe defaults). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible: boolean }` — pass `grid={{ visible: false }}` to hide. `axis.y` / `axis.x` accept `widthPx` / `heightPx` respectively for axis gutter sizing. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead.
+React props: `theme`, `axis`, `padding`, `gradient`, `grid`, `interactive`, `headerLayout`, `style`, `className` (all optional, safe defaults). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible: boolean }` — pass `grid={{ visible: false }}` to hide. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead.
 
 Vue / Svelte props (current subset): `theme`, `axis` (+ `style` in Svelte). `padding`/`gradient`/`grid`/`interactive` are React-only at the moment — use the sensible defaults on Vue and Svelte, or size via the wrapping element.
 
@@ -123,7 +123,7 @@ const candleId = 'btc-ohlc';
   <Title sub="BTC · 1h">BTC/USD</Title>
   <InfoBar />
   <CandlestickSeries id={candleId} data={ohlc} />
-  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], strokeWidthPx: 1, label: 'SMA 20' }} />
+  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], strokeWidth: 1, label: 'SMA 20' }} />
   <Tooltip />
   <Crosshair />
   <YAxis />

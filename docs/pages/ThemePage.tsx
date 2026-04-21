@@ -129,7 +129,7 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
         options={{
           colors: theme.seriesColors.slice(0, allData.length),
           area: { visible: true },
-          strokeWidthPx: 1,
+          strokeWidth: 1,
           pulse: true,
         }}
       />

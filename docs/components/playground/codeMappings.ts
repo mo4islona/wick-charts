@@ -25,15 +25,15 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
   if (s.headerLayout !== 'overlay') out.headerLayout = s.headerLayout;
 
   const y: Record<string, PropValue> = {};
-  if (s.axis?.y?.widthPx !== undefined && s.axis.y.widthPx !== AXIS_Y_WIDTH_DEFAULT) {
-    y.widthPx = s.axis.y.widthPx;
+  if (s.axis?.y?.width !== undefined && s.axis.y.width !== AXIS_Y_WIDTH_DEFAULT) {
+    y.width = s.axis.y.width;
   }
   if (s.axis?.y?.min !== undefined) y.min = s.axis.y.min as PropValue;
   if (s.axis?.y?.max !== undefined) y.max = s.axis.y.max as PropValue;
 
   const x: Record<string, PropValue> = {};
-  if (s.axis?.x?.heightPx !== undefined && s.axis.x.heightPx !== AXIS_X_HEIGHT_DEFAULT) {
-    x.heightPx = s.axis.x.heightPx;
+  if (s.axis?.x?.height !== undefined && s.axis.x.height !== AXIS_X_HEIGHT_DEFAULT) {
+    x.height = s.axis.x.height;
   }
 
   const axis: Record<string, PropValue> = {};

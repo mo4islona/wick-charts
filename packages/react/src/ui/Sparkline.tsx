@@ -35,9 +35,7 @@ export interface SparklineProps {
   /** Overall height (default: 48) */
   height?: number;
   /** Stroke width in CSS pixels (default: 1.5) */
-  strokeWidthPx?: number;
-  /** @deprecated Use {@link strokeWidthPx} instead. */
-  lineWidth?: number;
+  strokeWidth?: number;
   /** Show chart background gradient (default: true) */
   gradient?: boolean;
   /** Container style override */
@@ -76,15 +74,13 @@ export function Sparkline({
   areaFill,
   width = 140,
   height = 48,
-  strokeWidthPx,
-  lineWidth,
+  strokeWidth = 1.5,
   gradient = true,
   style,
 }: SparklineProps) {
   // Default area-visible = true. `area` wins if caller passes it; otherwise
   // fall back to the deprecated flat `areaFill` flag for backward compatibility.
   const areaVisible = area?.visible ?? areaFill ?? true;
-  const resolvedStrokeWidthPx = strokeWidthPx ?? lineWidth ?? 1.5;
   const lastValue = data.length > 0 ? data[data.length - 1].value : 0;
   const change = useMemo(() => computeChange(data), [data]);
 
@@ -163,8 +159,8 @@ export function Sparkline({
       <ChartContainer
         theme={theme}
         axis={{
-          y: { visible: false, widthPx: 0 },
-          x: { visible: false, heightPx: 0 },
+          y: { visible: false, width: 0 },
+          x: { visible: false, height: 0 },
         }}
         padding={{ top: 5, right: 0, bottom: 0, left: 0 }}
         gradient={gradient}
@@ -176,7 +172,7 @@ export function Sparkline({
             data={[data]}
             options={{
               colors: [resolvedColor],
-              strokeWidthPx: resolvedStrokeWidthPx,
+              strokeWidth,
               area: { visible: areaVisible },
               pulse: false,
               stacking: 'off',

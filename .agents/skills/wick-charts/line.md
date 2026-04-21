@@ -32,7 +32,7 @@ data={[layer1, layer2, layer3]}
 interface LineSeriesOptions {
   label?: string;                          // tooltip display name
   colors: string[];                        // one color per layer — default: ['#2962FF']
-  strokeWidthPx: number;                   // stroke width in px — default: 1
+  strokeWidth: number;                   // stroke width in px — default: 1
   area: { visible: boolean };              // gradient area under line — default: { visible: true }
   pulse: boolean;                          // animated dot at last point — default: true
   stacking: 'off' | 'normal' | 'percent'; // layer stacking — default: 'off'
@@ -55,12 +55,12 @@ options={{ colors: ['#00d4aa'] }}
 options={{ colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'] }}
 ```
 
-### `strokeWidthPx`
+### `strokeWidth`
 
 Stroke width in CSS pixels (scaled by device pixel ratio internally, min 1). Defaults to `1`. Same value applied to every layer.
 
 ```ts
-options={{ strokeWidthPx: 2 }}
+options={{ strokeWidth: 2 }}
 ```
 
 ### `area`
@@ -100,7 +100,7 @@ function LineChart({ data }: { data: TimePoint[] }) {
     <ChartContainer theme={dracula} style={{ width: '100%', height: 400 }}>
       <LineSeries
         data={[data]}
-        options={{ colors: ['#00d4aa'], strokeWidthPx: 1, area: { visible: true }, pulse: true }}
+        options={{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }}
       />
       <Tooltip />
       <Crosshair />
@@ -121,7 +121,7 @@ import { ChartContainer, LineSeries, Tooltip, Legend } from '@wick-charts/react'
     data={[revenue, costs, profit]}
     options={{
       colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      strokeWidthPx: 1,
+      strokeWidth: 1,
       area: { visible: true },
       stacking: 'normal',
       label: 'Revenue',
@@ -159,7 +159,7 @@ const props = defineProps<{ data: TimePoint[] }>();
   <ChartContainer :theme="dracula" style="width: 100%; height: 400px">
     <LineSeries
       :data="[props.data]"
-      :options="{ colors: ['#00d4aa'], strokeWidthPx: 1, area: { visible: true }, pulse: true }"
+      :options="{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }"
     />
     <Tooltip />
     <Crosshair />
@@ -178,7 +178,7 @@ const props = defineProps<{ data: TimePoint[] }>();
       :data="[revenue, costs, profit]"
       :options="{
         colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-        strokeWidthPx: 1,
+        strokeWidth: 1,
         area: { visible: true },
         stacking: 'normal',
         label: 'Revenue',
@@ -213,7 +213,7 @@ id?: string
 <ChartContainer theme={dracula} style="width:100%;height:400px">
   <LineSeries
     data={[data]}
-    options={{ colors: ['#00d4aa'], strokeWidthPx: 1, area: { visible: true }, pulse: true }}
+    options={{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }}
   />
   <Tooltip />
   <Crosshair />
@@ -230,7 +230,7 @@ id?: string
     data={[revenue, costs, profit]}
     options={{
       colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      strokeWidthPx: 1,
+      strokeWidth: 1,
       area: { visible: true },
       stacking: 'normal',
       label: 'Revenue',
@@ -309,6 +309,6 @@ options={{
 ```ts
 <LineSeries
   data={[smaData]}
-  options={{ colors: ['#ffd700'], strokeWidthPx: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
+  options={{ colors: ['#ffd700'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
 />
 ```

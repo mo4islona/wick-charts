@@ -98,12 +98,12 @@ function stateToChartProps<TExtra extends object>(
 
   const axis: AxisConfig = {
     y: {
-      widthPx: state.yAxisWidthPx,
+      width: state.yAxisWidth,
       min: parseBound(state.minBound),
       max: parseBound(state.maxBound),
       visible: state.yAxisVisible,
     },
-    x: { heightPx: state.xAxisHeightPx, visible: state.xAxisVisible },
+    x: { height: state.xAxisHeight, visible: state.xAxisVisible },
   };
 
   return {
@@ -227,7 +227,7 @@ function buildBuiltinSections({
           render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
         } as RowSpec,
         {
-          key: 'xAxisHeightPx',
+          key: 'xAxisHeight',
           label: 'Height',
           hint: 'Reserved pixels for labels',
           visible: (s) => s.xAxisVisible === true,
@@ -257,7 +257,7 @@ function buildBuiltinSections({
           render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
         } as RowSpec,
         {
-          key: 'yAxisWidthPx',
+          key: 'yAxisWidth',
           label: 'Width',
           hint: 'Reserved pixels for labels',
           visible: (s) => s.yAxisVisible === true,

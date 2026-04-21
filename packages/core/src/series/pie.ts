@@ -20,7 +20,7 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
   // 1.15° ≈ 0.02 rad — same visual default as before the radians→degrees switch.
   padAngle: 1.15,
-  stroke: { color: 'transparent', widthPx: 0 },
+  stroke: { color: 'transparent', width: 0 },
   sliceLabels: { ...DEFAULT_LABELS },
 };
 
@@ -775,7 +775,7 @@ export class PieRenderer implements SeriesRenderer {
     const outerR = maxR;
     const innerR = outerR * this.#options.innerRadiusRatio;
     const pad = this.#options.padAngle * DEG_TO_RAD;
-    const { color: strokeColor, widthPx: strokeWidth } = this.#options.stroke;
+    const { color: strokeColor, width: strokeWidth } = this.#options.stroke;
     const explodeDistance = 8 * horizontalPixelRatio;
 
     let angle = -Math.PI / 2;

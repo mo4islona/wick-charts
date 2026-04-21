@@ -213,16 +213,7 @@ export function ChartContainer({
     if (chartRef.current && axis) {
       chartRef.current.setAxis(axis);
     }
-  }, [
-    axis?.y?.widthPx,
-    axis?.y?.width,
-    axis?.y?.min,
-    axis?.y?.max,
-    axis?.y?.visible,
-    axis?.x?.heightPx,
-    axis?.x?.height,
-    axis?.x?.visible,
-  ]);
+  }, [axis?.y?.width, axis?.y?.min, axis?.y?.max, axis?.y?.visible, axis?.x?.height, axis?.x?.visible]);
 
   // Top-overlay height (title + info bar) — measured below. Declared here so
   // the padding effect can fold it into `padding.top`.

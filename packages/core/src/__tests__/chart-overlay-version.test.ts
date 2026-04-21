@@ -145,9 +145,9 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
     const afterColors = chart.getOverlayVersion();
     expect(afterColors).toBeGreaterThan(afterLabel);
 
-    // A non-overlay-relevant option (e.g. strokeWidthPx) by itself is not
+    // A non-overlay-relevant option (e.g. strokeWidth) by itself is not
     // required to bump — guard against false positives.
-    chart.updateSeriesOptions(id, { strokeWidthPx: 3 });
+    chart.updateSeriesOptions(id, { strokeWidth: 3 });
     expect(chart.getOverlayVersion()).toBe(afterColors);
   });
 

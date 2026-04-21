@@ -4,7 +4,7 @@ import { type ChartCodeConfig, generateCode } from '../components/CodePreview';
 
 // Representative config exercising every renamed symbol from Phase A:
 // grid.visible, area.visible, entryAnimation, InfoBar (not TooltipLegend),
-// strokeWidthPx, and stroke{widthPx} for pie.
+// strokeWidth, and stroke{width} for pie.
 const CONFIG: ChartCodeConfig = {
   theme: 'darkTheme',
   containerProps: {
@@ -17,7 +17,7 @@ const CONFIG: ChartCodeConfig = {
         data: 'data',
         options: {
           area: { visible: true },
-          strokeWidthPx: 1.5,
+          strokeWidth: 1.5,
           entryAnimation: 'grow',
         },
       },
@@ -26,7 +26,7 @@ const CONFIG: ChartCodeConfig = {
       component: 'PieSeries',
       props: {
         data: 'data',
-        options: { stroke: { color: '#000', widthPx: 2 } },
+        options: { stroke: { color: '#000', width: 2 } },
       },
     },
     { component: 'InfoBar' },
@@ -55,11 +55,11 @@ describe('generateCode', () => {
     expect(code).toContain('grid={{ visible: true }}');
     expect(code).toContain('<LineSeries');
     expect(code).toContain('area: { visible: true }');
-    expect(code).toContain('strokeWidthPx: 1.5');
+    expect(code).toContain('strokeWidth: 1.5');
     expect(code).toContain("entryAnimation: 'grow'");
     expect(code).toContain('<InfoBar');
     expect(code).toContain('<PieSeries');
-    expect(code).toContain("stroke: { color: '#000', widthPx: 2 }");
+    expect(code).toContain("stroke: { color: '#000', width: 2 }");
   });
 
   it('renders the Vue tab with :-prefixed props and renamed symbols', () => {
@@ -71,9 +71,9 @@ describe('generateCode', () => {
     expect(code).toContain(':theme="darkTheme"');
     expect(code).toContain(':grid=');
     expect(code).toContain('<InfoBar');
-    expect(code).toContain('strokeWidthPx');
+    expect(code).toContain('strokeWidth');
     expect(code).toContain('entryAnimation');
-    expect(code).toContain('widthPx');
+    expect(code).toContain('width');
   });
 
   it('renders the Svelte tab with script block and renamed symbols', () => {
@@ -83,7 +83,7 @@ describe('generateCode', () => {
     expect(code).toContain("from '@wick-charts/svelte'");
     expect(code).toContain('<ChartContainer');
     expect(code).toContain('<InfoBar');
-    expect(code).toContain('strokeWidthPx');
+    expect(code).toContain('strokeWidth');
     expect(code).toContain('entryAnimation');
   });
 

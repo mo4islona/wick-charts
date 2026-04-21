@@ -41,7 +41,7 @@ interface SparklineProps {
   area?: { visible: boolean };            // default: { visible: true } (line variant only)
   width?: number;                         // chart width, default: 140
   height?: number;                        // container height, default: 48
-  strokeWidthPx?: number;                 // default: 1.5
+  strokeWidth?: number;                 // default: 1.5
   gradient?: boolean;                     // background gradient, default: true
   style?: CSSProperties;                  // container style override
 }

@@ -32,7 +32,7 @@ type LegendMode = 'toggle' | 'isolate';
 interface LineSettings {
   dataMode: DataMode;
   areaVisible: boolean;
-  strokeWidthPx: number;
+  strokeWidth: number;
   stacking: BarStacking;
   tooltipSort: TooltipSort;
   tooltipCustom: boolean;
@@ -100,7 +100,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
         data={data}
         options={{
           area: { visible: props.areaVisible },
-          strokeWidthPx: props.strokeWidthPx,
+          strokeWidth: props.strokeWidth,
           pulse: props.streaming,
           entryAnimation: props.lineEntryAnimation,
           entryMs: props.entryMs,
@@ -162,7 +162,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
         options={{
           colors: props.theme.seriesColors.slice(0, display.length),
           area: { visible: props.areaVisible },
-          strokeWidthPx: props.strokeWidthPx,
+          strokeWidth: props.strokeWidth,
           pulse: props.streaming,
           stacking: props.stacking,
           entryAnimation: props.lineEntryAnimation,
@@ -256,7 +256,7 @@ const SERIES_SECTION: SectionSpec = {
       ),
     },
     {
-      key: 'strokeWidthPx',
+      key: 'strokeWidth',
       label: 'Stroke width',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={5} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
@@ -370,7 +370,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       extraDefaults={{
         dataMode: 'wave',
         areaVisible: false,
-        strokeWidthPx: 1,
+        strokeWidth: 1,
         stacking: 'off',
         tooltipSort: 'desc',
         tooltipCustom: false,
@@ -413,7 +413,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'line'),
           ...(s.areaVisible ? { area: { visible: true } } : {}),
-          ...(s.strokeWidthPx !== 1 ? { strokeWidthPx: s.strokeWidthPx } : {}),
+          ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
           ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
         };
 

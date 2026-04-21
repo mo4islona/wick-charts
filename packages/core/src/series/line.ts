@@ -11,7 +11,7 @@ import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
 const DEFAULT_OPTIONS: LineSeriesOptions = {
   colors: ['#2962FF'],
-  strokeWidthPx: 1,
+  strokeWidth: 1,
   area: { visible: true },
   pulse: true,
   stacking: 'off',
@@ -19,17 +19,14 @@ const DEFAULT_OPTIONS: LineSeriesOptions = {
 
 /**
  * Normalize caller-supplied line options onto the new shape. Deprecated
- * aliases (`lineWidth`, `areaFill`, `enterAnimation`, `enterMs`) are folded
- * into their renamed counterparts so the rest of the renderer only reads the
- * canonical fields.
+ * aliases (`areaFill`, `enterAnimation`, `enterMs`) are folded into their
+ * renamed counterparts so the rest of the renderer only reads the canonical
+ * fields.
  */
 function normalizeLineOptions(input?: Partial<LineSeriesOptions>): Partial<LineSeriesOptions> {
   if (!input) return {};
 
   const out: Partial<LineSeriesOptions> = { ...input };
-  if (input.lineWidth !== undefined && input.strokeWidthPx === undefined) {
-    out.strokeWidthPx = input.lineWidth;
-  }
   if ((input as { areaFill?: boolean }).areaFill !== undefined && input.area === undefined) {
     out.area = { visible: !!(input as { areaFill?: boolean }).areaFill };
   }
@@ -201,8 +198,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
-    const hasStroke = this.options.strokeWidthPx > 0;
-    const lineWidth = Math.max(1, Math.round(this.options.strokeWidthPx * verticalPixelRatio));
+    const hasStroke = this.options.strokeWidth > 0;
+    const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
     const now = performance.now();
     const style = this.options.entryAnimation ?? 'grow';
 
@@ -284,8 +281,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
-    const hasStroke = this.options.strokeWidthPx > 0;
-    const lineWidth = Math.max(1, Math.round(this.options.strokeWidthPx * verticalPixelRatio));
+    const hasStroke = this.options.strokeWidth > 0;
+    const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
 
     // Collect per-layer data
     const pixelWidth = scope.mediaSize.width;

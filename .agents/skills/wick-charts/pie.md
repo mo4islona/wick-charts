@@ -29,7 +29,7 @@ interface PieSeriesOptions {
   colors?: string[];         // palette — default: theme.seriesColors
   innerRadiusRatio: number;  // 0 = pie, 0.6 = donut — default: 0
   padAngle: number;          // gap between slices in radians — default: 0.02
-  stroke: { color: string; widthPx: number }; // slice border — default: { color: 'transparent', widthPx: 0 }
+  stroke: { color: string; width: number }; // slice border — default: { color: 'transparent', width: 0 }
   label?: string;            // tooltip label
 }
 ```
@@ -59,10 +59,10 @@ Gap between adjacent slices in radians. Default `0.02` gives a subtle separation
 
 ### `stroke`
 
-Border around each slice. Useful for visual separation on light backgrounds. Object with `color` and `widthPx` fields.
+Border around each slice. Useful for visual separation on light backgrounds. Object with `color` and `width` fields.
 
 ```ts
-options={{ stroke: { color: '#ffffff', widthPx: 2 } }}
+options={{ stroke: { color: '#ffffff', width: 2 } }}
 ```
 
 ## Visual features
@@ -110,7 +110,7 @@ function PieChart({ data }: { data: PieSliceData[] }) {
   options={{
     innerRadiusRatio: 0.6,
     padAngle: 0.03,
-    stroke: { color: '#1a1a2e', widthPx: 2 },
+    stroke: { color: '#1a1a2e', width: 2 },
     colors: ['#e94560', '#0f3460', '#16213e', '#533483'],
   }}
 />

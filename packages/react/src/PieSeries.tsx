@@ -34,7 +34,7 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     options?.innerRadiusRatio,
     options?.padAngle,
     options?.stroke?.color,
-    options?.stroke?.widthPx,
+    options?.stroke?.width,
     options?.colors,
     options?.sliceLabels?.mode,
     options?.sliceLabels?.content,

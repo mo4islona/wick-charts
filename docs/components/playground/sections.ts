@@ -29,8 +29,8 @@ export interface CommonState {
   // Axes
   yAxisVisible: boolean;
   xAxisVisible: boolean;
-  yAxisWidthPx: number;
-  xAxisHeightPx: number;
+  yAxisWidth: number;
+  xAxisHeight: number;
   minBound: string;
   maxBound: string;
   // Animations
@@ -50,8 +50,8 @@ export const COMMON_DEFAULTS: CommonState = {
   headerLayout: 'overlay',
   yAxisVisible: true,
   xAxisVisible: true,
-  yAxisWidthPx: 55,
-  xAxisHeightPx: 30,
+  yAxisWidth: 55,
+  xAxisHeight: 30,
   minBound: 'auto',
   maxBound: 'auto',
   candleEntryAnimation: 'unfold',

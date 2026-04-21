@@ -270,11 +270,11 @@ const id = 'btc-ohlc';
   <CandlestickSeries id={id} data={ohlcData} />
   <LineSeries
     data={[sma20]}
-    options={{ colors: ['#ffd700'], strokeWidthPx: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
+    options={{ colors: ['#ffd700'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
   />
   <LineSeries
     data={[ema50]}
-    options={{ colors: ['#ff6b6b'], strokeWidthPx: 1, area: { visible: false }, pulse: false, label: 'EMA 50' }}
+    options={{ colors: ['#ff6b6b'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'EMA 50' }}
   />
   <Tooltip />
   <Crosshair />

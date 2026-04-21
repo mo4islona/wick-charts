@@ -44,8 +44,8 @@ describe('ChartContainer props', () => {
     expect(mounted.chart.xAxisHeight).toBe(0);
   });
 
-  it('custom axis.y.widthPx overrides the default', () => {
-    mounted = mountChart(<CandlestickSeries data={ohlc} />, { axis: { y: { widthPx: 80 } } });
+  it('custom axis.y.width overrides the default', () => {
+    mounted = mountChart(<CandlestickSeries data={ohlc} />, { axis: { y: { width: 80 } } });
     expect(mounted.chart.yAxisWidth).toBe(80);
   });
 

@@ -106,14 +106,14 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
     <ChartContainer theme={theme}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       <InfoBar />
-      <LineSeries data={[datasets[0]]} options={{ area: { visible: true }, strokeWidthPx: 1 }} />
+      <LineSeries data={[datasets[0]]} options={{ area: { visible: true }, strokeWidth: 1 }} />
       <LineSeries
         data={[datasets[1]]}
-        options={{ colors: [theme.bands.upper], area: { visible: true }, strokeWidthPx: 1 }}
+        options={{ colors: [theme.bands.upper], area: { visible: true }, strokeWidth: 1 }}
       />
       <LineSeries
         data={[datasets[2]]}
-        options={{ colors: [theme.bands.lower], area: { visible: true }, strokeWidthPx: 1 }}
+        options={{ colors: [theme.bands.lower], area: { visible: true }, strokeWidth: 1 }}
       />
       <Tooltip />
       <Crosshair />
@@ -130,7 +130,7 @@ function MultiLineChart({ theme, speed }: StreamProps) {
       <Title sub="10 assets · Live">Portfolio</Title>
       <LineSeries
         data={datasets}
-        options={{ colors: theme.seriesColors.slice(0, datasets.length), area: { visible: false }, strokeWidthPx: 1 }}
+        options={{ colors: theme.seriesColors.slice(0, datasets.length), area: { visible: false }, strokeWidth: 1 }}
       />
       <Crosshair />
       <YAxis />
