@@ -20,60 +20,10 @@ High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canva
 ## Install
 
 ```bash
-npm install @wick-charts/react   # React
-npm install @wick-charts/vue     # Vue
-npm install @wick-charts/svelte  # Svelte
+npm install @wick-charts/svelte
 ```
 
 ## Quick Start
-
-```tsx
-import {
-  ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis
-} from '@wick-charts/react';
-
-function Chart({ data }) {
-  return (
-    <ChartContainer>
-      <CandlestickSeries data={data} />
-      <Tooltip />
-      <Crosshair />
-      <YAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<script setup>
-import {
-  ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis
-} from '@wick-charts/vue';
-
-const props = defineProps(['data']);
-</script>
-
-<template>
-  <ChartContainer>
-    <CandlestickSeries :data="props.data" />
-    <Tooltip />
-    <Crosshair />
-    <YAxis />
-    <TimeAxis />
-  </ChartContainer>
-</template>
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
 
 ```svelte
 <script>
@@ -93,8 +43,6 @@ const props = defineProps(['data']);
   <TimeAxis />
 </ChartContainer>
 ```
-
-</details>
 
 ## Series Types
 
@@ -126,42 +74,6 @@ Every DOM overlay ships a default UI **and** a scoped slot / render-prop so you 
 
 ## Custom render (slots / render-props)
 
-```tsx
-// React — filter two of five series with your own layout
-<Tooltip>
-  {({ snapshots, time }) =>
-    snapshots
-      .filter((s) => s.seriesId === 'btc' || s.seriesId === 'eth')
-      .map((s) => (
-        <div key={s.id} style={{ color: s.color }}>
-          {s.label}: {s.data.close ?? s.data.value}
-        </div>
-      ))
-  }
-</Tooltip>
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<!-- Vue — same context, different syntax -->
-<Tooltip v-slot="{ snapshots, time }">
-  <div
-    v-for="s in snapshots.filter((x) => x.seriesId === 'btc' || x.seriesId === 'eth')"
-    :key="s.id"
-    :style="{ color: s.color }"
-  >
-    {{ s.label }}: {{ s.data.close ?? s.data.value }}
-  </div>
-</Tooltip>
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
-
 ```svelte
 <!-- Svelte — let:-bindings expose slot props -->
 <Tooltip let:snapshots let:time>
@@ -170,8 +82,6 @@ Every DOM overlay ships a default UI **and** a scoped slot / render-prop so you 
   {/each}
 </Tooltip>
 ```
-
-</details>
 
 Each overlay has its own slot context (see the Slot ctx column above); the shape is consistent across frameworks for the same overlay.
 
@@ -188,35 +98,6 @@ Every numeric overlay accepts a `format` prop so you can override the default la
 - `formatCompact(v)` — K/M/B/T suffixes with adaptive precision. Default for `YAxis` (at ranges ≥ 1e6), `PieLegend`, `PieTooltip`, `Sparkline`.
 - `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `TooltipLegend` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
 
-```tsx
-import { Tooltip, YAxis, formatCompact } from '@wick-charts/react';
-
-<YAxis format={(v) => `$${formatCompact(v)}`} />
-<Tooltip format={(v, field) => field === 'volume' ? formatCompact(v) : v.toFixed(4)} />
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<script setup>
-import { Tooltip, YAxis, formatCompact } from '@wick-charts/vue';
-
-const yFormat = (v) => `$${formatCompact(v)}`;
-const tipFormat = (v, field) => (field === 'volume' ? formatCompact(v) : v.toFixed(4));
-</script>
-
-<template>
-  <YAxis :format="yFormat" />
-  <Tooltip :format="tipFormat" />
-</template>
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
-
 ```svelte
 <script>
   import { Tooltip, YAxis, formatCompact } from '@wick-charts/svelte';
@@ -229,46 +110,11 @@ const tipFormat = (v, field) => (field === 'volume' ? formatCompact(v) : v.toFix
 <Tooltip format={tipFormat} />
 ```
 
-</details>
-
 Tooltip / TooltipLegend pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
 
 ## Themes
 
 22 built-in themes. Import only the ones you need (tree-shakable) and pass them to `ChartContainer` or `ThemeProvider` for global theming.
-
-```tsx
-import { catppuccin } from '@wick-charts/react';
-
-// Dark: andromeda, ayuMirage, catppuccin, dracula, gruvbox, highContrast,
-//       materialPalenight, monokaiPro, nightOwl, oneDarkPro, panda
-// Light: githubLight, handwritten, lavenderMist, lightPink, minimalLight, mintBreeze,
-//        peachCream, quietLight, rosePineDawn, sandDune, solarizedLight
-
-<ChartContainer theme={catppuccin.theme}>
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<script setup>
-import { catppuccin } from '@wick-charts/vue';
-// Dark: andromeda, ayuMirage, catppuccin, dracula, gruvbox, highContrast,
-//       materialPalenight, monokaiPro, nightOwl, oneDarkPro, panda
-// Light: githubLight, handwritten, lavenderMist, lightPink, minimalLight, mintBreeze,
-//        peachCream, quietLight, rosePineDawn, sandDune, solarizedLight
-</script>
-
-<template>
-  <ChartContainer :theme="catppuccin.theme" />
-</template>
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
 
 ```svelte
 <script>
@@ -282,39 +128,7 @@ import { catppuccin } from '@wick-charts/vue';
 <ChartContainer theme={catppuccin.theme} />
 ```
 
-</details>
-
 Create custom themes with `createTheme()`:
-
-```tsx
-import { createTheme } from '@wick-charts/react';
-
-const myTheme = createTheme({
-  background: '#1a1b2e',
-  upColor: '#00d4aa',
-  downColor: '#ff5577',
-  textColor: '#8888aa',
-});
-```
-
-<details>
-<summary>Vue</summary>
-
-```ts
-import { createTheme } from '@wick-charts/vue';
-
-const myTheme = createTheme({
-  background: '#1a1b2e',
-  upColor: '#00d4aa',
-  downColor: '#ff5577',
-  textColor: '#8888aa',
-});
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
 
 ```ts
 import { createTheme } from '@wick-charts/svelte';
@@ -327,41 +141,7 @@ const myTheme = createTheme({
 });
 ```
 
-</details>
-
 ## Real-Time Data
-
-```tsx
-// Full replace (initial load)
-<CandlestickSeries data={allCandles} />
-
-// The component auto-detects changes:
-// - data.length grew by 1-5 → append
-// - data.length same → update last point
-// - data.length shrunk or grew by >5 → full replace
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<template>
-  <!-- Full replace (initial load) -->
-  <CandlestickSeries :data="allCandles" />
-</template>
-
-<!--
-  The component auto-detects changes:
-  - data.length grew by 1-5 → append
-  - data.length same → update last point
-  - data.length shrunk or grew by >5 → full replace
--->
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
 
 ```svelte
 <!-- Full replace (initial load) -->
@@ -375,57 +155,7 @@ const myTheme = createTheme({
 -->
 ```
 
-</details>
-
-## Batch Updates
-
-```tsx
-const chart = useChartInstance();
-
-chart.batch(() => {
-  chart.setSeriesData(id, layer0, 0);
-  chart.setSeriesData(id, layer1, 1);
-  // Y-range and render happen once after batch
-});
-```
-
 ## Configuration
-
-```tsx
-<ChartContainer
-  theme={theme}
-  axis={{
-    y: { visible: true, width: 55, min: 0, max: 'auto' },
-    x: { visible: true, height: 30 },
-  }}
-  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
-  gradient={true}
-  interactive={true}
-  grid={true}
->
-```
-
-<details>
-<summary>Vue</summary>
-
-```vue
-<template>
-  <ChartContainer
-    :theme="theme"
-    :axis="{
-      y: { visible: true, width: 55, min: 0, max: 'auto' },
-      x: { visible: true, height: 30 },
-    }"
-  />
-</template>
-
-<!-- Vue ChartContainer currently accepts theme + axis; padding/gradient/grid/interactive are React-only. -->
-```
-
-</details>
-
-<details>
-<summary>Svelte</summary>
 
 ```svelte
 <ChartContainer
@@ -439,40 +169,17 @@ chart.batch(() => {
 <!-- Svelte ChartContainer currently accepts theme + axis (+ style); padding/gradient/grid/interactive are React-only. -->
 ```
 
-</details>
-
-## Hooks
-
-| Hook | Description |
-|---|---|
-| `useChartInstance()` | Access the `ChartInstance` from context |
-| `useVisibleRange(chart)` | Current visible time range |
-| `useYRange(chart)` | Current Y-axis min/max |
-| `useLastYValue(chart, id)` | Last value + live status for a series |
-| `usePreviousClose(chart, id)` | Previous close price |
-| `useCrosshairPosition(chart)` | Crosshair coordinates and snapped time |
-
 ## Bundle Size
 
 Full `dist/index.js` (minified + gzipped):
 
 | Package | Raw | Gzip |
 |---|---|---|
-| `@wick-charts/react`  | 181 KB | 45.6 KB |
-| `@wick-charts/vue`    | 176 KB | 44.2 KB |
 | `@wick-charts/svelte` | 230 KB | 54.2 KB |
-
-Tree-shaking on the consumer side cuts this down further — `pnpm size` builds representative React scenarios through esbuild with production settings:
-
-| Scenario | Raw | Gzip |
-|---|---|---|
-| Candlestick only | 98 KB | 28.5 KB |
-| Line only | 98 KB | 28.6 KB |
-| Full React (all overlays) | 115 KB | 32.8 KB |
 
 ## Migration
 
-Upgrading across versions? See [MIGRATION.md](./MIGRATION.md) for per-version breaking-change notes and code snippets.
+Upgrading across versions? See [MIGRATION.md](https://github.com/mo4islona/wick-charts/blob/main/MIGRATION.md) for per-version breaking-change notes and code snippets.
 
 ## License
 
