@@ -8,6 +8,12 @@ export type PropValue = string | number | boolean | undefined | PropValue[] | Pr
 export interface ChartCodeChild {
   component: string;
   props?: Record<string, PropValue>;
+  /**
+   * Optional framework-indexed body content rendered between the component's
+   * open and close tags — used for scoped-slot / render-prop demos in the
+   * playground code panel. Falsy values render as self-closing.
+   */
+  childrenSnippet?: Partial<Record<Framework, string>>;
 }
 
 export interface ChartCodeConfig {
@@ -75,6 +81,26 @@ function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent
 function renderChild(child: ChartCodeChild, fw: Framework, indent: number): string {
   const pad = '  '.repeat(indent);
   const pairs = child.props ? renderPropPairs(child.props, fw, indent) : [];
+  const body = child.childrenSnippet?.[fw];
+
+  if (body) {
+    const innerPad = '  '.repeat(indent + 1);
+    const bodyText = body
+      .split('\n')
+      .map((line) => (line.length > 0 ? `${innerPad}${line}` : line))
+      .join('\n');
+
+    if (pairs.length === 0) return `${pad}<${child.component}>\n${bodyText}\n${pad}</${child.component}>`;
+
+    const oneLine = `${pad}<${child.component} ${pairs.join(' ')}>`;
+    if (oneLine.length <= WRAP_AT + pad.length) {
+      return `${oneLine}\n${bodyText}\n${pad}</${child.component}>`;
+    }
+    const wrapped = pairs.map((p) => `${innerPad}${p}`).join('\n');
+
+    return `${pad}<${child.component}\n${wrapped}\n${pad}>\n${bodyText}\n${pad}</${child.component}>`;
+  }
+
   if (pairs.length === 0) return `${pad}<${child.component} />`;
 
   const oneLine = `${pad}<${child.component} ${pairs.join(' ')} />`;
@@ -82,6 +108,7 @@ function renderChild(child: ChartCodeChild, fw: Framework, indent: number): stri
 
   const innerPad = '  '.repeat(indent + 1);
   const wrapped = pairs.map((p) => `${innerPad}${p}`).join('\n');
+
   return `${pad}<${child.component}\n${wrapped}\n${pad}/>`;
 }
 

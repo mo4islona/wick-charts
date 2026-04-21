@@ -55,19 +55,21 @@ Vue / Svelte props (current subset): `theme`, `axis` (+ `style` in Svelte). `pad
 
 Placed as children of `ChartContainer`.
 
-| Component | Props | Notes |
-|---|---|---|
-| `Title` | `children`, `sub?` | Title bar, hoisted above canvas |
-| `InfoBar` | `seriesId?`, `sort?`, `format?` | OHLC / values info bar, hoisted above canvas |
-| `Tooltip` | `seriesId?`, `sort?`, `format?` | Floating glass tooltip near cursor (hover only) |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | Series legend, hoisted below / beside canvas |
-| `Crosshair` | — | Axis labels at cursor |
-| `YAxis` | `format?` | Vertical tick axis |
-| `TimeAxis` (alias `XAxis`) | — | Horizontal time axis |
-| `YLabel` | `seriesId`, `color?`, `format?` | Floating price badge + dashed line |
-| `PieTooltip` | `seriesId`, `format?` | Pie hover tooltip |
-| `PieLegend` | `seriesId`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | Pie slice list (function formatter only) |
-| `NumberFlow` | `value`, `format?`, `spinDuration?` | Standalone animated number |
+| Component | Props | Slot ctx | Notes |
+|---|---|---|---|
+| `Title` | `children`, `sub?` | — | Title bar, hoisted above canvas |
+| `InfoBar` | `sort?`, `format?` | `{ snapshots, time, isHover }` | OHLC / values info bar, hoisted above canvas |
+| `Tooltip` | `sort?`, `format?` | `{ snapshots, time }` | Floating glass tooltip near cursor (hover only) |
+| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | `{ items: LegendItem[] }` | Series legend, hoisted below / beside canvas |
+| `Crosshair` | — | — | Axis labels at cursor |
+| `YAxis` | `format?` | — | Vertical tick axis |
+| `TimeAxis` (alias `XAxis`) | — | — | Horizontal time axis |
+| `YLabel` | `seriesId?`, `color?`, `format?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
+| `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
+| `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
+| `NumberFlow` | `value`, `format?`, `spinDuration?` | — | Standalone animated number |
+
+`seriesId` is optional on `YLabel` / `PieTooltip` / `PieLegend` — omit it on single-series charts and the first compatible visible series is picked automatically (time-series for `YLabel`, pie for `PieTooltip` / `PieLegend`). `InfoBar` and `Tooltip` are **always multi-series**; there is no `seriesId` prop. Filter inside the slot if you need a subset.
 
 **Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `InfoBar` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
 
@@ -112,14 +114,14 @@ React/Vue return plain values / refs; Svelte returns `Readable<T>` — read with
 
 ## Multi-series overlay
 
-Pass a stable `id` prop to the series and reuse it across overlays that target it (`InfoBar`, `Tooltip`, `YLabel`, `PieTooltip`, `PieLegend`).
+Pass a stable `id` prop to the series. Reuse it on overlays that target a *specific* series (`YLabel`, `PieTooltip`, `PieLegend`) when you have multiple. `InfoBar` and `Tooltip` render every visible series automatically — no prop.
 
 ```tsx
 const candleId = 'btc-ohlc';
 
 <ChartContainer theme={darkTheme}>
   <Title sub="BTC · 1h">BTC/USD</Title>
-  <InfoBar seriesId={candleId} />
+  <InfoBar />
   <CandlestickSeries id={candleId} data={ohlc} />
   <LineSeries data={[sma]} options={{ colors: ['#ffd700'], strokeWidthPx: 1, label: 'SMA 20' }} />
   <Tooltip />
@@ -129,6 +131,87 @@ const candleId = 'btc-ohlc';
   <YLabel seriesId={candleId} />
 </ChartContainer>
 ```
+
+## Custom render (slots / render-props)
+
+Every overlay accepts a slot that replaces its *contents* with your own DOM. Positioning, crosshair wiring, and data computation stay in the library — you get the already-computed snapshots / items / info.
+
+React uses a function-child render-prop; Vue uses a default scoped slot; Svelte uses a slot with `let:` destructuring. The context object is identical across frameworks (see the "Slot ctx" column in the overlay table above).
+
+```tsx
+// React — filter two of five series and pick your own layout
+<Tooltip>
+  {({ snapshots, time }) => (
+    <div>
+      <small>{new Date(time).toLocaleTimeString()}</small>
+      {snapshots
+        .filter((s) => s.seriesId === 'btc' || s.seriesId === 'eth')
+        .map((s) => (
+          <div key={s.id} style={{ color: s.color }}>
+            {s.label}: {s.data.close ?? s.data.value}
+          </div>
+        ))}
+    </div>
+  )}
+</Tooltip>
+```
+
+```vue
+<!-- Vue — same context, different syntax -->
+<Tooltip v-slot="{ snapshots, time }">
+  <div>
+    <small>{{ new Date(time).toLocaleTimeString() }}</small>
+    <div v-for="s in snapshots.filter((x) => x.seriesId === 'btc' || x.seriesId === 'eth')" :key="s.id" :style="{ color: s.color }">
+      {{ s.label }}: {{ s.data.close ?? s.data.value }}
+    </div>
+  </div>
+</Tooltip>
+```
+
+```svelte
+<!-- Svelte — let:-bindings expose slot props -->
+<Tooltip let:snapshots let:time>
+  <small>{new Date(time).toLocaleTimeString()}</small>
+  {#each snapshots.filter((s) => s.seriesId === 'btc' || s.seriesId === 'eth') as s (s.id)}
+    <div style="color: {s.color}">{s.label}: {s.data.close ?? s.data.value}</div>
+  {/each}
+</Tooltip>
+```
+
+### Snapshot shape (`InfoBar` / `Tooltip` slot)
+
+```ts
+interface SeriesSnapshot {
+  readonly id: string;          // unique row key (safe for React key / v-for / #each key)
+  readonly seriesId: string;    // owning series id (NOT unique when layered)
+  readonly layerIndex?: number; // only set on multi-layer rows
+  readonly label?: string;
+  readonly color: string;
+  readonly data: OHLCData | TimePoint; // deep-frozen clone — safe to read, mutation throws
+}
+```
+
+`InfoBar` additionally exposes `isHover` — `true` while the cursor is on the chart, `false` in last-mode. `Tooltip` is hover-only and renders `null` when no crosshair is active.
+
+### `Legend` slot items
+
+`{ items: LegendItem[] }` — each item carries `{ id, seriesId, layerIndex?, label, color, isDisabled, toggle(), isolate() }`. The `toggle` / `isolate` closures are bound to that specific item, so you can sort / filter / reorder the array in your renderer without breaking visibility wiring.
+
+### `YLabel` / `PieLegend` / `PieTooltip` slots
+
+- `YLabel` — `{ value, y, bgColor, isLive, direction: 'up' | 'down' | 'neutral', format }`. Position yourself using `y` (pixel Y of the badge anchor).
+- `PieLegend` — `{ slices: readonly SliceInfo[], mode: 'value' | 'percent', format }`.
+- `PieTooltip` — `{ info: HoverInfo, format }`. Positioning (flip / clamp) stays in the library.
+
+### Performance
+
+- `buildHoverSnapshots` / `buildLastSnapshots` return the **same reference** while `chart.getOverlayVersion()` is unchanged. `React.memo((a, b) => a.snapshots === b.snapshots)` / Vue `computed` / Svelte `$:` skip renders on crosshair moves that stay within one data point.
+- Slot context does **not** include `crosshair.mediaX/Y` (those change every mousemove). Call `useCrosshairPosition(chart)` / `createCrosshairPosition(chart)` yourself if you need pixel coordinates.
+- When you render your own floating container instead of using `Tooltip` / `PieTooltip`, use `computeTooltipPosition({ x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX?, offsetY? })` from `@wick-charts/react | vue | svelte` for flip + clamp behavior.
+
+## Migration
+
+Per-version breaking-change notes and code snippets live in the root [MIGRATION.md](../../../MIGRATION.md). Headline for 0.1 → 0.2: `seriesId` removed from `InfoBar` / `Tooltip` (filter in the slot instead); optional on `YLabel` / `PieTooltip` / `PieLegend` (auto-picks first visible compatible series).
 
 ## Realtime updates
 

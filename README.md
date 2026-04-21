@@ -105,17 +105,47 @@ const props = defineProps(['data']);
 
 ## UI Overlays
 
-| Component | Description |
-|---|---|
-| `Tooltip` | Floating glass tooltip near cursor on hover |
-| `TooltipLegend` | Compact OHLC / values info bar hoisted above the canvas |
-| `Title` | Chart title / subtitle bar hoisted above the canvas |
-| `Crosshair` | Axis labels at cursor position |
-| `YAxis` | Vertical price/value axis with animated ticks |
-| `TimeAxis` | Horizontal time axis with animated ticks |
-| `YLabel` | Floating price badge with dashed line |
-| `Legend` | Clickable legend with toggle/solo modes |
-| `PieTooltip` | Tooltip for pie/donut hover |
+Every DOM overlay ships a default UI **and** a scoped slot / render-prop so you can replace the contents with your own layout. Positioning, crosshair wiring, and data computation stay in the library — the slot just hands you the already-computed data.
+
+| Component | Description | Slot ctx |
+|---|---|---|
+| `Tooltip` | Floating glass tooltip near cursor on hover | `{ snapshots, time }` |
+| `InfoBar` | Compact OHLC / values info bar hoisted above the canvas | `{ snapshots, time, isHover }` |
+| `Title` | Chart title / subtitle bar hoisted above the canvas | — |
+| `Crosshair` | Axis labels at cursor position | — |
+| `YAxis` | Vertical price/value axis with animated ticks | — |
+| `TimeAxis` | Horizontal time axis with animated ticks | — |
+| `YLabel` | Floating price badge with dashed line | `{ value, y, bgColor, isLive, direction, format }` |
+| `Legend` | Clickable legend with toggle/isolate modes | `{ items: LegendItem[] }` |
+| `PieTooltip` | Tooltip for pie/donut hover | `{ info, format }` |
+| `PieLegend` | Slice labels with values or percentages | `{ slices, mode, format }` |
+
+> `TooltipLegend` is the former name of `InfoBar` and is still exported as a deprecated alias.
+
+## Custom render (slots / render-props)
+
+```tsx
+// React — filter two of five series with your own layout
+<Tooltip>
+  {({ snapshots, time }) =>
+    snapshots
+      .filter((s) => s.seriesId === 'btc' || s.seriesId === 'eth')
+      .map((s) => (
+        <div key={s.id} style={{ color: s.color }}>
+          {s.label}: {s.data.close ?? s.data.value}
+        </div>
+      ))
+  }
+</Tooltip>
+```
+
+Vue uses `v-slot="{ snapshots, time }"`; Svelte uses `let:snapshots let:time`. Each overlay has its own slot context (see the Slot ctx column above); the shape is consistent across frameworks for the same overlay.
+
+### Public helpers (re-exported from each framework package)
+
+- `buildHoverSnapshots(chart, { time, sort?, cacheKey })` / `buildLastSnapshots(chart, { sort?, cacheKey })` — structural-equality-cached snapshot arrays for building your own floating widgets. Calls with the same args return the **same reference** while the chart's overlay version is unchanged, so `React.memo` / Vue `computed` / Svelte `$:` skip renders on no-op mousemoves.
+- `computeTooltipPosition({ x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX?, offsetY? })` — flip + clamp positioning for a tooltip container you own.
+- Types: `SeriesSnapshot`, `LegendItem`, `SliceInfo`, `HoverInfo`.
 
 ## Custom number formatting
 
@@ -229,6 +259,10 @@ Tree-shaking on the consumer side cuts this down further — `pnpm size` builds 
 | Candlestick only | 98 KB | 28.5 KB |
 | Line only | 98 KB | 28.6 KB |
 | Full React (all overlays) | 115 KB | 32.8 KB |
+
+## Migration
+
+Upgrading across versions? See [MIGRATION.md](./MIGRATION.md) for per-version breaking-change notes and code snippets.
 
 ## License
 

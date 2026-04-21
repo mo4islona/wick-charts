@@ -80,24 +80,23 @@ options={{ stroke: { color: '#ffffff', widthPx: 2 } }}
 import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/react';
 import type { PieSliceData } from '@wick-charts/react';
 
-const seriesId = 'pie';
-
 function PieChart({ data }: { data: PieSliceData[] }) {
   return (
     <ChartContainer style={{ width: 400, height: 400 }}>
-      <PieSeries id={seriesId} data={data} />
-      <PieTooltip seriesId={seriesId} />
-      <PieLegend seriesId={seriesId} mode="percent" />
+      <PieSeries data={data} />
+      <PieTooltip />
+      <PieLegend mode="percent" />
     </ChartContainer>
   );
 }
 ```
 
+`seriesId` is optional on `PieTooltip` / `PieLegend` — with a single `PieSeries`, the overlays auto-pick it. Pass `seriesId` only when multiple pie series coexist.
+
 ### Donut chart
 
 ```tsx
 <PieSeries
-  id={seriesId}
   data={data}
   options={{ innerRadiusRatio: 0.6 }}
 />
@@ -107,7 +106,6 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 
 ```tsx
 <PieSeries
-  id={seriesId}
   data={data}
   options={{
     innerRadiusRatio: 0.6,
@@ -138,7 +136,6 @@ interface PieSeriesProps {
 import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/vue';
 import type { PieSliceData } from '@wick-charts/vue';
 
-const seriesId = 'pie';
 const data: PieSliceData[] = [
   { label: 'Sales', value: 4000 },
   { label: 'Marketing', value: 3000 },
@@ -149,12 +146,11 @@ const data: PieSliceData[] = [
 <template>
   <ChartContainer style="width: 400px; height: 400px">
     <PieSeries
-      :id="seriesId"
       :data="data"
       :options="{ innerRadiusRatio: 0.6 }"
     />
-    <PieTooltip :series-id="seriesId" />
-    <PieLegend :series-id="seriesId" mode="value" />
+    <PieTooltip />
+    <PieLegend mode="value" />
   </ChartContainer>
 </template>
 ```
@@ -176,7 +172,6 @@ id?: string
 <script>
   import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/svelte';
 
-  const seriesId = 'pie';
   const data = [
     { label: 'Sales', value: 4000 },
     { label: 'Marketing', value: 3000 },
@@ -186,12 +181,11 @@ id?: string
 
 <ChartContainer style="width:400px;height:400px">
   <PieSeries
-    id={seriesId}
     {data}
     options={{ innerRadiusRatio: 0.6 }}
   />
-  <PieTooltip {seriesId} />
-  <PieLegend {seriesId} mode="value" />
+  <PieTooltip />
+  <PieLegend mode="value" />
 </ChartContainer>
 ```
 
@@ -206,12 +200,43 @@ id?: string
 
 ## Pie-specific overlays
 
-| Component | Props | Description |
-|-----------|-------|-------------|
-| `PieTooltip` | `seriesId` | Shows slice label, value, and percentage on hover |
-| `PieLegend` | `seriesId`, `mode?: 'value' \| 'percent'`, `format?: (v) => string` | Slice labels with values or percentages (custom formatter optional) |
+| Component | Props | Slot ctx | Description |
+|-----------|-------|----------|-------------|
+| `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Shows slice label, value, and percentage on hover |
+| `PieLegend` | `seriesId?`, `mode?: 'value' \| 'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Slice labels with values or percentages |
+
+`seriesId` is optional on both — omit on a single-pie chart and the first visible pie series is picked automatically.
 
 **Do not use** `Tooltip`, `Crosshair`, `YAxis`, `TimeAxis`, or `YLabel` with pie charts — they are for time-based series only.
+
+### Custom PieTooltip / PieLegend
+
+```tsx
+import { PieTooltip, PieLegend } from '@wick-charts/react';
+
+<PieTooltip>
+  {({ info, format }) => (
+    <div style={{ display: 'grid', gap: 2 }}>
+      <strong>{info.label}</strong>
+      <span>{format(info.value)} · {(info.percent * 100).toFixed(1)}%</span>
+    </div>
+  )}
+</PieTooltip>
+
+<PieLegend>
+  {({ slices, mode, format }) => (
+    <ul style={{ listStyle: 'none', padding: 0 }}>
+      {slices.map((s, i) => (
+        <li key={s.label} style={{ color: s.color }}>
+          {s.label}: {mode === 'percent' ? `${(s.percent * 100).toFixed(1)}%` : format(s.value)}
+        </li>
+      ))}
+    </ul>
+  )}
+</PieLegend>
+```
+
+Same shapes in Vue (`v-slot="{ info, format }"` / `v-slot="{ slices, mode, format }"`) and Svelte (`let:info let:format` / `let:slices let:mode let:format`). `PieTooltip`'s floating container (flip + clamp) stays — only its contents change.
 
 ## Common patterns
 
@@ -245,8 +270,8 @@ The chart renders on canvas, so center content must be positioned via CSS:
 ```tsx
 <div style={{ position: 'relative', width: 400, height: 400 }}>
   <ChartContainer style={{ width: '100%', height: '100%' }}>
-    <PieSeries id={seriesId} data={data} options={{ innerRadiusRatio: 0.65 }} />
-    <PieTooltip seriesId={seriesId} />
+    <PieSeries data={data} options={{ innerRadiusRatio: 0.65 }} />
+    <PieTooltip />
   </ChartContainer>
   <div style={{
     position: 'absolute', top: '50%', left: '50%',

@@ -95,4 +95,67 @@ describe('generateCode', () => {
       }
     }
   });
+
+  describe('childrenSnippet (slot / render-prop body)', () => {
+    const SNIPPET_CONFIG: ChartCodeConfig = {
+      components: [
+        {
+          component: 'Tooltip',
+          childrenSnippet: {
+            react: `{({ snapshots }) => (
+  <pre>{JSON.stringify(snapshots)}</pre>
+)}`,
+            vue: `<template #default="{ snapshots }">
+  <pre>{{ snapshots }}</pre>
+</template>`,
+            svelte: `<svelte:fragment let:snapshots>
+  <pre>{JSON.stringify(snapshots)}</pre>
+</svelte:fragment>`,
+          },
+        },
+      ],
+    };
+
+    it('emits open+close tags with indented body in React', () => {
+      const code = generateCode(SNIPPET_CONFIG, 'react');
+
+      expect(code).toContain('<Tooltip>');
+      expect(code).toContain('</Tooltip>');
+      expect(code).not.toMatch(/<Tooltip[^>]*\/>/);
+      expect(code).toContain('    {({ snapshots }) => (');
+      expect(code).toContain('      <pre>{JSON.stringify(snapshots)}</pre>');
+    });
+
+    it('emits open+close tags with indented body in Vue', () => {
+      const code = generateCode(SNIPPET_CONFIG, 'vue');
+
+      expect(code).toContain('<Tooltip>');
+      expect(code).toContain('</Tooltip>');
+      expect(code).toContain('<template #default="{ snapshots }">');
+    });
+
+    it('emits open+close tags with indented body in Svelte', () => {
+      const code = generateCode(SNIPPET_CONFIG, 'svelte');
+
+      expect(code).toContain('<Tooltip>');
+      expect(code).toContain('</Tooltip>');
+      expect(code).toContain('<svelte:fragment let:snapshots>');
+      expect(code).toContain('</svelte:fragment>');
+    });
+
+    it('falls back to self-closing when the snippet is missing for a framework', () => {
+      const partial: ChartCodeConfig = {
+        components: [
+          {
+            component: 'Tooltip',
+            childrenSnippet: { react: `{({ snapshots }) => null}` },
+          },
+        ],
+      };
+
+      expect(generateCode(partial, 'react')).toMatch(/<Tooltip>[\s\S]*<\/Tooltip>/);
+      expect(generateCode(partial, 'vue')).toContain('<Tooltip />');
+      expect(generateCode(partial, 'svelte')).toContain('<Tooltip />');
+    });
+  });
 });
