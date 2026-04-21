@@ -19,7 +19,7 @@ describe('PieLegend', () => {
 
   const id = 'pie';
 
-  function PieWithLegend(props: { mode?: 'value' | 'percent' }) {
+  function PieWithLegend(props: { mode?: 'value' | 'percent' | 'both' }) {
     return (
       <>
         <PieSeries id={id} data={slices} />
@@ -37,19 +37,27 @@ describe('PieLegend', () => {
     expect(swatches.length).toBe(slices.length);
   });
 
-  it('shows percentages that sum to ~100%', () => {
+  it('default mode="both" shows value AND percent', () => {
     mounted = mountChart(<PieWithLegend />);
     const text = mounted.container.textContent ?? '';
     expect(text).toContain('25.0%');
     expect(text).toContain('50.0%');
+    const spanTexts = Array.from(mounted.container.querySelectorAll('span')).map(
+      (span) => span.textContent?.trim() ?? '',
+    );
+    // Standalone value cells present alongside the percent cells.
+    // formatCompact renders small integers with two decimals ("25.00").
+    expect(spanTexts).toContain('25.00');
+    expect(spanTexts).toContain('50.00');
   });
 
-  it('mode="value" shows absolute values alongside percentages', () => {
+  it('mode="value" shows ONLY absolute values, no percent', () => {
     mounted = mountChart(<PieWithLegend mode="value" />);
     const text = mounted.container.textContent ?? '';
-    // Absolute values formatted by formatCompact — 25 stays as "25".
-    expect(text).toContain('25');
-    expect(text).toContain('50');
+    expect(text).toContain('25.00');
+    expect(text).toContain('50.00');
+    // No percent cells anywhere.
+    expect(text).not.toContain('%');
   });
 
   it('mode="percent" omits absolute values', () => {

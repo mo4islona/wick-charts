@@ -942,6 +942,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /**
+   * True if any visible series is non-pie (line / bar / candlestick). Used
+   * to gate crosshair rendering — a pie-only chart has no meaningful x/y
+   * coordinate system, so the dashed hairlines would just be visual noise.
+   */
+  #hasNonPieSeries(): boolean {
+    for (const entry of this.#series) {
+      if (!entry.visible) continue;
+      if (!(entry.renderer instanceof PieRenderer)) return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Type of a registered series, or `null` for unknown ids. `'pie'` for
    * `PieRenderer`; everything else is a time-series (`'time'`).
    */
@@ -1627,8 +1641,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       scope.context.clip();
 
-      // Base crosshair lines on top of the clipped area
-      if (this.#crosshairPos) {
+      // Base crosshair lines on top of the clipped area. Skip when the only
+      // visible series is pie — crosshair hairlines read as time/price
+      // coordinates, which have no meaning on a pie and would just obscure
+      // the disk.
+      if (this.#crosshairPos && this.#hasNonPieSeries()) {
         const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
         const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
         renderCrosshair(scope, bx, by, this.#theme);

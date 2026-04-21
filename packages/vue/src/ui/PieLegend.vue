@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { useChartInstance, useTheme } from '../context';
 
-type PieLegendMode = 'value' | 'percent';
+type PieLegendMode = 'value' | 'percent' | 'both';
 
 const props = withDefaults(
   defineProps<{
@@ -13,7 +13,7 @@ const props = withDefaults(
      * series is picked.
      */
     seriesId?: string;
-    /** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
+    /** 'value' shows only the value, 'percent' only the percent, 'both' shows both. Default: 'both'. */
     mode?: PieLegendMode;
     /** Custom formatter for the absolute slice value. */
     format?: ValueFormatter;
@@ -28,7 +28,7 @@ defineSlots<{
   default?(ctx: { slices: readonly SliceInfo[]; mode: PieLegendMode; format: ValueFormatter }): unknown;
 }>();
 
-const resolvedMode = computed<PieLegendMode>(() => props.mode ?? 'value');
+const resolvedMode = computed<PieLegendMode>(() => props.mode ?? 'both');
 const resolvedFormat = computed<ValueFormatter>(() => props.format ?? formatCompact);
 
 const chart = useChartInstance();
@@ -97,10 +97,19 @@ const slices = computed<readonly SliceInfo[]>(() => {
     >
       <span :style="{ width: '10px', height: '10px', borderRadius: '50%', background: slice.color, flexShrink: 0 }" />
       <span :style="{ flex: 1, opacity: 0.8 }">{{ slice.label }}</span>
-      <span v-if="resolvedMode === 'value'" :style="{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }">
+      <span
+        v-if="resolvedMode === 'value' || resolvedMode === 'both'"
+        :style="{
+          fontWeight: 600,
+          fontVariantNumeric: 'tabular-nums',
+          minWidth: resolvedMode === 'value' ? '40px' : undefined,
+          textAlign: 'right',
+        }"
+      >
         {{ resolvedFormat(slice.value) }}
       </span>
       <span
+        v-if="resolvedMode === 'percent' || resolvedMode === 'both'"
         :style="{
           opacity: resolvedMode === 'percent' ? 1 : 0.5,
           fontWeight: resolvedMode === 'percent' ? 600 : 400,

@@ -106,7 +106,7 @@ export type { LegendItemOverride, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
 export { NumberFlow } from './ui/NumberFlow';
-export type { PieLegendMode, PieLegendProps } from './ui/PieLegend';
+export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderContext } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
 export { PieTooltip } from './ui/PieTooltip';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';

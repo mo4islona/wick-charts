@@ -36,6 +36,14 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     options?.stroke?.color,
     options?.stroke?.widthPx,
     options?.colors,
+    options?.sliceLabels?.mode,
+    options?.sliceLabels?.content,
+    options?.sliceLabels?.fontSize,
+    options?.sliceLabels?.minSliceAngle,
+    options?.sliceLabels?.elbowLen,
+    options?.sliceLabels?.legPad,
+    options?.sliceLabels?.labelGap,
+    options?.sliceLabels?.balanceSides,
   ]);
 
   useLayoutEffect(() => {

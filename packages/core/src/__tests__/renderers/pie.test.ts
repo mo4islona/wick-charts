@@ -195,13 +195,17 @@ describe('PieRenderer — Title / padding offsets', () => {
   });
 
   it('padding shrinks the outer radius (radius constrained by usable height)', () => {
-    const noPad = new PieRenderer({ padAngle: 0 });
+    // Outside labels (the new default) reserve horizontal space and shrink
+    // the radius — irrelevant to this test, which is purely about vertical
+    // padding geometry. Disable them so the expected numbers are computable
+    // from min(width, height) alone.
+    const noPad = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
     noPad.setData(SLICES);
     const { ctx: ctx1, spy: spy1 } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     noPad.render(ctx1);
     const radiusUnpadded = spy1.callsOf('arc')[0].args[2] as number;
 
-    const padded = new PieRenderer({ padAngle: 0 });
+    const padded = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
     padded.setData(SLICES);
     const { ctx: ctx2, spy: spy2 } = buildRenderContext({
       mediaWidth: 400,
