@@ -14,6 +14,7 @@ import {
 
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
+import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Toggle } from '../components/playground/primitives';
@@ -48,6 +49,7 @@ function CandleChart({
   infoBarVisible,
   crosshairVisible,
   bodyGradient,
+  perfHudVisible,
   candleEntryAnimation,
   entryMs,
   liveTracking,
@@ -64,7 +66,7 @@ function CandleChart({
   const sid = 'candle';
 
   return (
-    <ChartContainer theme={theme} axis={axis} gradient={gradient} headerLayout={headerLayout}>
+    <ChartContainer theme={theme} axis={axis} gradient={gradient} headerLayout={headerLayout} perf={perfHudVisible}>
       <Title sub={sub}>{title}</Title>
       {infoBarVisible && <InfoBar />}
       <CandlestickSeries
@@ -143,7 +145,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         <>
           <Cell theme={props.theme}>
             <CandleChart
-              key={`s-${props.streaming}`}
+              key={`s-${props.streaming}-${props.perfHudVisible}`}
               {...props}
               data={steadyData}
               startDelay={300}
@@ -153,7 +155,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
           </Cell>
           <Cell theme={props.theme}>
             <CandleChart
-              key={`v-${props.streaming}`}
+              key={`v-${props.streaming}-${props.perfHudVisible}`}
               {...props}
               data={volatileData}
               startDelay={400}
@@ -163,7 +165,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
           </Cell>
           <Cell theme={props.theme}>
             <CandleChart
-              key={`t-${props.streaming}`}
+              key={`t-${props.streaming}-${props.perfHudVisible}`}
               {...props}
               data={trendingData}
               startDelay={500}
@@ -174,17 +176,13 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         </>
       )}
       codeConfig={(s) => {
-        const opts: Record<string, PropValue> = {};
-        if (!s.bodyGradient) opts.bodyGradient = false;
-        if (s.candleEntryAnimation !== 'unfold') opts.entryAnimation = s.candleEntryAnimation;
-        if (s.entryMs !== 400) opts.entryMs = s.entryMs;
+        const options: Record<string, PropValue> = {
+          ...buildCommonSeriesOptions(s, 'candle'),
+          ...(!s.bodyGradient ? { bodyGradient: false } : {}),
+        };
 
-        const containerProps: Record<string, PropValue> = {};
-        if (!s.grid.visible) containerProps.grid = { visible: false };
-        if (!s.gradient) containerProps.gradient = false;
-        if (s.headerLayout !== 'overlay') containerProps.headerLayout = s.headerLayout;
-        if (!s.liveTracking) containerProps.liveTracking = false;
-        if (!s.streaming) containerProps.streaming = false;
+        const containerProps = buildCartesianContainerProps(s) ?? {};
+        if (s.perfHudVisible) containerProps.perf = true;
 
         const yVisible = s.axis.y?.visible !== false;
         const xVisible = s.axis.x?.visible !== false;
@@ -198,7 +196,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               props: {
                 id: 'sid',
                 data: 'ohlcData',
-                ...(Object.keys(opts).length > 0 ? { options: opts } : {}),
+                ...(Object.keys(options).length > 0 ? { options } : {}),
               },
             },
             ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),

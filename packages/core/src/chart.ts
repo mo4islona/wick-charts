@@ -13,6 +13,8 @@ import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import { registerChartViewport } from './internal/test-handles';
+import { PerfHud } from './perf/perf-hud';
+import { PerfMonitor, type PerfMonitorOptions } from './perf/perf-monitor';
 import { RenderScheduler } from './render-scheduler';
 import { TimeScale } from './scales/time-scale';
 import { YScale } from './scales/y-scale';
@@ -204,6 +206,19 @@ export interface ChartOptions {
    * indicator at the corresponding edge.
    */
   onEdgeReached?: (info: EdgeReachedInfo) => void;
+  /**
+   * Runtime performance instrumentation. Opt-in — absent by default so the
+   * hot render path stays free of timing/counting overhead.
+   *
+   * - `false` / omitted — no instrumentation, no HUD, byte-identical to a perf-free build.
+   * - `true` — create an internal {@link PerfMonitor} and mount a visible HUD overlay.
+   * - `{ hud: true, ...options }` — same, with monitor options forwarded.
+   * - `{ hud: false, ...options }` — instrument but do not render a HUD (useful when
+   *   the host app consumes stats via `monitor.onFrame` and renders its own UI).
+   * - `PerfMonitor` instance — attach to a pre-constructed monitor. Useful when several
+   *   charts share one telemetry sink. HUD defaults to off in this mode.
+   */
+  perf?: boolean | PerfMonitor | (PerfMonitorOptions & { hud?: boolean; monitor?: PerfMonitor });
 }
 
 /**
@@ -259,6 +274,36 @@ export function resolveAnimationsConfig(input: ChartOptions['animations']): Reso
         };
 
   return { points, viewport };
+}
+
+interface ResolvedPerfOptions {
+  monitor: PerfMonitor | null;
+  /** True when the monitor was constructed by `resolvePerfOptions`; false for caller-supplied monitors we must not destroy. */
+  ownsMonitor: boolean;
+  showHud: boolean;
+}
+
+/**
+ * Collapse the polymorphic `perf` option into a concrete monitor + HUD
+ * decision. Returning `{ monitor: null }` preserves the zero-instrumentation
+ * path — no Proxy, no timing, no HUD.
+ */
+function resolvePerfOptions(input: ChartOptions['perf']): ResolvedPerfOptions {
+  if (!input) return { monitor: null, ownsMonitor: false, showHud: false };
+
+  if (input === true) return { monitor: new PerfMonitor(), ownsMonitor: true, showHud: true };
+
+  if (input instanceof PerfMonitor) return { monitor: input, ownsMonitor: false, showHud: false };
+
+  // Object form: may carry an external monitor or construction options, plus a HUD flag.
+  const { hud, monitor, ...monitorOptions } = input;
+  const external = monitor !== undefined;
+
+  return {
+    monitor: monitor ?? new PerfMonitor(monitorOptions),
+    ownsMonitor: !external,
+    showHud: hud ?? !external,
+  };
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -352,6 +397,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Resolved animation config derived from `options.animations` at construction. */
   readonly #animationsConfig: ResolvedAnimationsConfig;
 
+  /** Active performance monitor, or `null` when instrumentation is disabled (the default). */
+  #perfMonitor: PerfMonitor | null;
+  /** When true, `destroy()` tears down the monitor; false for caller-supplied monitors we must not destroy. */
+  #ownsPerfMonitor = false;
+  /** Visible HUD overlay; non-null only when the caller requested one. */
+  #perfHud: PerfHud | null = null;
+
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
     // Support both new `axis` API and legacy flat props
@@ -364,7 +416,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#animationsConfig = resolveAnimationsConfig(options?.animations);
     this.#onEdgeReached = options?.onEdgeReached;
 
-    this.#canvasManager = new CanvasManager(container);
+    const resolvedPerf = resolvePerfOptions(options?.perf);
+    this.#perfMonitor = resolvedPerf.monitor;
+    this.#ownsPerfMonitor = resolvedPerf.ownsMonitor;
+
+    this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
     this.#viewport = new Viewport({
       padding: options?.padding,
       reboundMs: this.#animationsConfig.viewport.reboundMs,
@@ -372,8 +428,28 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     registerChartViewport(this, this.#viewport);
     this.timeScale = new TimeScale();
     this.yScale = new YScale();
-    this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
-    this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
+
+    const monitor = this.#perfMonitor;
+    if (monitor) {
+      this.#mainScheduler = new RenderScheduler((t) => {
+        monitor.resetDrawCalls('main');
+        const t0 = performance.now();
+        this.renderMain(t);
+        monitor.recordFrame('main', performance.now() - t0, t);
+      });
+      this.#overlayScheduler = new RenderScheduler((t) => {
+        monitor.resetDrawCalls('overlay');
+        const t0 = performance.now();
+        this.renderOverlay(t);
+        monitor.recordFrame('overlay', performance.now() - t0, t);
+      });
+      if (resolvedPerf.showHud) {
+        this.#perfHud = new PerfHud(container, monitor);
+      }
+    } else {
+      this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
+      this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
+    }
 
     const interactive = options?.interactive !== false;
     this.#interactions = interactive
@@ -1196,12 +1272,25 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   destroy(): void {
     for (const entry of this.#series) entry.renderer.dispose();
     this.#series = [];
+    this.#seriesIdCache = null;
     this.#viewport.destroy();
     this.#mainScheduler.destroy();
     this.#overlayScheduler.destroy();
     this.#interactions?.destroy();
     this.#canvasManager.destroy();
+    this.#perfHud?.destroy();
+    this.#perfHud = null;
+    // Only tear down the monitor if we created it. Caller-supplied monitors
+    // may be shared across multiple charts or consumed by host telemetry.
+    if (this.#ownsPerfMonitor) this.#perfMonitor?.destroy();
+    this.#perfMonitor = null;
+    this.#ownsPerfMonitor = false;
     this.removeAllListeners();
+  }
+
+  /** The attached performance monitor, or `null` when instrumentation is disabled. */
+  getPerfMonitor(): PerfMonitor | null {
+    return this.#perfMonitor;
   }
 
   /** Compute the earliest and latest timestamps across all series. */
@@ -1472,16 +1561,29 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
       const vpad = this.#viewport.getPadding();
       const padding = { top: vpad.top, bottom: vpad.bottom };
+      const perfMon = this.#perfMonitor;
       for (const entry of this.#series) {
         if (!entry.visible) continue;
-        entry.renderer.render({
+
+        const renderArgs = {
           scope,
           timeScale: this.timeScale,
           yScale: this.yScale,
           theme: this.#theme,
           dataInterval: this.#dataInterval,
           padding,
-        });
+        };
+
+        if (perfMon) {
+          const s0 = performance.now();
+          entry.renderer.render(renderArgs);
+          // Stamp per-series samples with the current frame timestamp so the
+          // monitor's time-window trim picks them up in step with the main
+          // frame sample recorded at the bottom of this callback.
+          perfMon.recordSeries(entry.id, performance.now() - s0, now);
+        } else {
+          entry.renderer.render(renderArgs);
+        }
       }
 
       context.restore();

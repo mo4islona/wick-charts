@@ -210,6 +210,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
       id="sparkline"
       theme={theme}
       hideCartesian
+      showPerfHud={false}
       extraDefaults={{
         variant: 'line',
         valuePos: 'right',

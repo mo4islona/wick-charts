@@ -19,6 +19,7 @@ export type AnimationKind = 'candle' | 'bar' | 'line';
  */
 export interface CommonState {
   streaming: boolean;
+  perfHudVisible: boolean;
   // Grid
   gridVisible: boolean;
   gridStyle: GridStyle;
@@ -42,6 +43,7 @@ export interface CommonState {
 
 export const COMMON_DEFAULTS: CommonState = {
   streaming: true,
+  perfHudVisible: false,
   gridVisible: true,
   gridStyle: 'dashed',
   bgGradient: true,

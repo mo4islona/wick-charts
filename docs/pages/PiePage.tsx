@@ -60,6 +60,7 @@ function PieChart({
   donut,
   tooltipVisible,
   legendVisible,
+  perfHudVisible,
   title,
 }: PlaygroundChartProps & PieSettings & { data: PieSliceData[]; title: string }) {
   const sid = 'pie';
@@ -69,6 +70,7 @@ function PieChart({
       theme={theme}
       axis={{ y: { visible: false, widthPx: 0 }, x: { visible: false, heightPx: 0 } }}
       gradient={gradient}
+      perf={perfHudVisible}
     >
       <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
       <PieSeries
@@ -123,16 +125,16 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
-            <PieChart {...props} data={PORTFOLIO} title="Portfolio" />
+            <PieChart key={`portfolio-${props.perfHudVisible}`} {...props} data={PORTFOLIO} title="Portfolio" />
           </Cell>
           <Cell theme={props.theme}>
-            <PieChart {...props} data={REVENUE} title="Revenue" />
+            <PieChart key={`revenue-${props.perfHudVisible}`} {...props} data={REVENUE} title="Revenue" />
           </Cell>
           <Cell theme={props.theme}>
-            <PieChart {...props} data={CHAINS} title="Chains" />
+            <PieChart key={`chains-${props.perfHudVisible}`} {...props} data={CHAINS} title="Chains" />
           </Cell>
           <Cell theme={props.theme}>
-            <PieChart {...props} data={ALLOCATION} title="Allocation" />
+            <PieChart key={`allocation-${props.perfHudVisible}`} {...props} data={ALLOCATION} title="Allocation" />
           </Cell>
         </>
       )}
