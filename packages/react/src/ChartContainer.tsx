@@ -18,7 +18,8 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
 import { InfoBar } from './ui/InfoBar';
-import { Legend } from './ui/Legend';
+import { Legend, type LegendProps } from './ui/Legend';
+import { PieLegend, type PieLegendProps } from './ui/PieLegend';
 import { Title } from './ui/Title';
 
 /** Props for the {@link ChartContainer} component. */
@@ -84,12 +85,14 @@ export interface ChartContainerProps {
  */
 export function siftContainerChildren(children: ReactNode): {
   titleEl: ReactElement | null;
-  legendEl: ReactElement | null;
+  legendEl: ReactElement<LegendProps> | null;
+  pieLegendEl: ReactElement<PieLegendProps> | null;
   tooltipLegendEl: ReactElement | null;
   overlay: ReactNode[];
 } {
   let titleEl: ReactElement | null = null;
-  let legendEl: ReactElement | null = null;
+  let legendEl: ReactElement<LegendProps> | null = null;
+  let pieLegendEl: ReactElement<PieLegendProps> | null = null;
   let tooltipLegendEl: ReactElement | null = null;
   const overlay: ReactNode[] = [];
 
@@ -106,7 +109,18 @@ export function siftContainerChildren(children: ReactNode): {
         return;
       }
       if (child.type === Legend) {
-        legendEl = child;
+        legendEl = child as ReactElement<LegendProps>;
+        return;
+      }
+      if (child.type === PieLegend) {
+        // `position='overlay'` opts back into the old absolute-positioned
+        // layout, so we leave it in the overlay array for that path only.
+        const typed = child as ReactElement<PieLegendProps>;
+        if (typed.props.position === 'overlay') {
+          overlay.push(child);
+        } else {
+          pieLegendEl = typed;
+        }
         return;
       }
       if (child.type === InfoBar) {
@@ -118,7 +132,7 @@ export function siftContainerChildren(children: ReactNode): {
   };
 
   Children.forEach(children, visit);
-  return { titleEl, legendEl, tooltipLegendEl, overlay };
+  return { titleEl, legendEl, pieLegendEl, tooltipLegendEl, overlay };
 }
 
 /**
@@ -249,9 +263,13 @@ export function ChartContainer({
 
   const chart = chartRef.current;
 
-  const { titleEl, legendEl, tooltipLegendEl, overlay } = siftContainerChildren(children);
-  const legendPosition = (legendEl as any)?.props?.position ?? 'bottom';
-  const isLegendRight = legendPosition === 'right';
+  const { titleEl, legendEl, pieLegendEl, tooltipLegendEl, overlay } = siftContainerChildren(children);
+  const legendPosition = legendEl?.props.position ?? 'bottom';
+  const pieLegendPosition = pieLegendEl?.props.position ?? 'bottom';
+  // Either legend type can pull the layout into row-mode. `Legend` and
+  // `PieLegend` are mutually exclusive in practice (line vs pie chart), so we
+  // just OR the two position checks.
+  const isLegendRight = legendPosition === 'right' || pieLegendPosition === 'right';
 
   const effectiveTheme = resolvedTheme ?? chart?.getTheme();
   const [gtop, gbot] = effectiveTheme?.chartGradient ?? ['transparent', 'transparent'];
@@ -375,6 +393,12 @@ export function ChartContainer({
     </ChartContext.Provider>
   );
 
+  const hoistedPieLegend = chart && pieLegendEl && (
+    <ChartContext.Provider value={chart}>
+      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{pieLegendEl}</ThemeProvider>
+    </ChartContext.Provider>
+  );
+
   return (
     <div
       className={className}
@@ -388,17 +412,25 @@ export function ChartContainer({
         ...style,
       }}
     >
-      {isLegendRight ? (
-        <div style={{ display: 'flex', flexDirection: 'row', flex: 1, minHeight: 0 }}>
-          {canvasBlock}
-          {hoistedLegend}
-        </div>
-      ) : (
-        <>
-          {canvasBlock}
-          {hoistedLegend}
-        </>
-      )}
+      {/* One stable wrapper for both legend positions. Keeping the tree
+          structure identical means React reconciles canvasBlock in place
+          when `isLegendRight` flips, preserving the canvas element and
+          letting its ResizeObserver re-layout the chart in response to
+          the new flex bounds. A branching <> ↔ <div> swap would remount
+          the canvas and throw away chart state. */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isLegendRight ? 'row' : 'column',
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+        }}
+      >
+        {canvasBlock}
+        {hoistedLegend}
+        {hoistedPieLegend}
+      </div>
     </div>
   );
 }

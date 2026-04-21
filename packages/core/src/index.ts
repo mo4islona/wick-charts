@@ -63,6 +63,7 @@ export type {
   LineSeriesOptions,
   OHLCData,
   OHLCInput,
+  PieLabelsOptions,
   PieSeriesOptions,
   PieSliceData,
   SeriesType,

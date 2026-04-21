@@ -311,11 +311,52 @@ export interface PieSliceData {
   color?: string;
 }
 
+/**
+ * How per-slice labels are drawn on a pie/donut.
+ *
+ * - `'outside'` (default) — a short leader line runs from the slice edge to a
+ *   text block outside the pie. Reserves horizontal space so the pie shrinks
+ *   to fit. Matches the canonical infographic look.
+ * - `'inside'` — text sits on the slice. Auto-skipped when the measured text
+ *   won't fit the slice chord at the label radius.
+ * - `'none'` — the renderer draws no labels (PieLegend / PieTooltip still work).
+ */
+export interface PieLabelsOptions {
+  /** Default: `'outside'`. */
+  mode?: 'inside' | 'outside' | 'none';
+  /** What to display per label. Default: `'both'` (e.g. `"BTC  42%"`). */
+  content?: 'percent' | 'label' | 'both';
+  /** Font size in CSS pixels. Default: 11. */
+  fontSize?: number;
+  /**
+   * Slices with angle (radians) smaller than this get no on-pie label.
+   * Default: 0.05 (≈ 2.9°, ~0.8% of the pie). Raise when many tiny slices
+   * would crowd the de-cluster pass into unreadable overlaps.
+   */
+  minSliceAngle?: number;
+  /** Leader-line radial segment length in CSS pixels. Default: 12. */
+  elbowLen?: number;
+  /** Gap between leader line and text in CSS pixels. Default: 6. */
+  legPad?: number;
+  /**
+   * Minimum vertical gap between adjacent outside labels on the same side,
+   * expressed as a multiplier of {@link fontSize}. Default: 1.4.
+   */
+  labelGap?: number;
+  /**
+   * Reassign labels whose slice midangle is within ~30° of the pole
+   * (|cos(midAngle)| < 0.3) to whichever side currently has fewer
+   * unambiguous labels — reduces leader-line crossings near 12/6 o'clock.
+   * Default: true.
+   */
+  balanceSides?: boolean;
+}
+
 /** Visual options for a pie/donut series. `innerRadiusRatio > 0` makes it a donut. */
 export interface PieSeriesOptions {
   /** Palette fallback (defaults to theme.seriesColors). */
   colors?: string[];
-  /** 0 = pie, 0.6 = donut. Fraction of outer radius used as inner hole. */
+  /** 0 = pie, 0.6 = donut. Fraction of the outer radius used as an inner hole. */
   innerRadiusRatio: number;
   /** Gap between slices in radians (default 0.02). */
   padAngle: number;
@@ -324,8 +365,10 @@ export interface PieSeriesOptions {
    * stroke (default).
    */
   stroke: { color: string; widthPx: number };
-  /** Display label shown in tooltip. */
+  /** Display the label shown in the tooltip. */
   label?: string;
+  /** Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}. */
+  sliceLabels?: PieLabelsOptions;
 }
 
 /** Configuration for the Y axis. */

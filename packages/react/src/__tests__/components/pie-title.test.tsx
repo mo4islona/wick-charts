@@ -30,6 +30,12 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
     { label: 'Beta', value: 60 },
   ];
 
+  // Outside labels (the new default) also paint small anchor-dot `arc` calls
+  // near the pie edge. Disable them in these fixtures so the only recorded
+  // arcs are the slice outer arcs — anchor dots would otherwise shift
+  // `arcs[arcs.length - 1]` off the slice center we're asserting on.
+  const pieOpts = { sliceLabels: { mode: 'none' as const } };
+
   // Recording-context's `callsOf` shape — kept narrow on purpose so the test
   // doesn't reach into private spy internals. We use the *last* recorded arc:
   // the spy accumulates across paint passes, so a `rerender` adds new arcs on
@@ -42,7 +48,7 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
   }
 
   it('pie center sits at the canvas midline with no top padding (regression baseline)', () => {
-    mounted = mountChart(<PieSeries id="pie" data={slices} />, {
+    mounted = mountChart(<PieSeries id="pie" data={slices} options={pieOpts} />, {
       width: 400,
       height: 400,
       padding: { top: 0, bottom: 0 },
@@ -51,7 +57,7 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
   });
 
   it('top padding pushes the pie center downward by half the reservation', () => {
-    mounted = mountChart(<PieSeries id="pie" data={slices} />, {
+    mounted = mountChart(<PieSeries id="pie" data={slices} options={pieOpts} />, {
       width: 400,
       height: 400,
       padding: { top: 80, bottom: 0 },
@@ -61,7 +67,7 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
   });
 
   it('reactively re-centers when padding.top changes after mount', () => {
-    mounted = mountChart(<PieSeries id="pie" data={slices} />, {
+    mounted = mountChart(<PieSeries id="pie" data={slices} options={pieOpts} />, {
       width: 400,
       height: 400,
       padding: { top: 0, bottom: 0 },
@@ -69,7 +75,7 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
     expect(arcCenterY(mounted.mainSpy)).toBeCloseTo(200, 0);
 
     // Simulate Title appearing later (its ResizeObserver bumps padding.top).
-    mounted.rerender(<PieSeries id="pie" data={slices} />, { padding: { top: 120, bottom: 0 } });
+    mounted.rerender(<PieSeries id="pie" data={slices} options={pieOpts} />, { padding: { top: 120, bottom: 0 } });
     // Usable height = 280, cy = 120 + 140 = 260.
     expect(arcCenterY(mounted.mainSpy)).toBeCloseTo(260, 0);
   });
@@ -77,7 +83,7 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
   it('hover hit-test follows the shifted center — tooltip resolves at the painted cy', () => {
     mounted = mountChart(
       <>
-        <PieSeries id="pie" data={slices} />
+        <PieSeries id="pie" data={slices} options={pieOpts} />
         <PieTooltip seriesId="pie" />
       </>,
       { width: 400, height: 400, padding: { top: 100, bottom: 0 } },

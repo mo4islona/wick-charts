@@ -4,19 +4,19 @@ import { onDestroy } from 'svelte';
 
 import { getChartContext, getThemeContext } from '../context';
 
-type PieLegendMode = 'value' | 'percent';
+type PieLegendMode = 'value' | 'percent' | 'both';
 
 /**
  * Owning series id. **Optional** — when omitted, the first visible pie
  * series is picked.
  */
 export let seriesId: string | undefined = undefined;
-/** Display mode: 'value' shows absolute + percent, 'percent' shows only percent. */
+/** 'value' shows only the value, 'percent' only the percent, 'both' shows both. Default: 'both'. */
 export let mode: PieLegendMode | undefined = undefined;
 /** Custom formatter for the absolute slice value. */
 export let format: ValueFormatter | undefined = undefined;
 
-$: resolvedMode = (mode ?? 'value') as PieLegendMode;
+$: resolvedMode = (mode ?? 'both') as PieLegendMode;
 $: resolvedFormat = (format ?? formatCompact) as ValueFormatter;
 
 const chartStore = getChartContext();
@@ -66,20 +66,28 @@ $: slices = ((chart && resolvedId !== null ? chart.getSliceInfo(resolvedId) : nu
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="width:10px;height:10px;border-radius:50%;background:{slice.color};flex-shrink:0;" />
           <span style="flex:1;opacity:0.8;">{slice.label}</span>
-          {#if resolvedMode === 'value'}
-            <span style="font-weight:600;font-variant-numeric:tabular-nums;">{resolvedFormat(slice.value)}</span>
+          {#if resolvedMode === 'value' || resolvedMode === 'both'}
+            <span
+              style="font-weight:600;font-variant-numeric:tabular-nums;{resolvedMode === 'value'
+                ? 'min-width:40px;text-align:right;'
+                : ''}"
+            >
+              {resolvedFormat(slice.value)}
+            </span>
           {/if}
-          <span
-            style="opacity:{resolvedMode === 'percent'
-              ? 1
-              : 0.5};font-weight:{resolvedMode === 'percent'
-              ? 600
-              : 400};font-size:{resolvedMode === 'percent'
-              ? theme.typography.fontSize
-              : theme.typography.axisFontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
-          >
-            {slice.percent.toFixed(1)}%
-          </span>
+          {#if resolvedMode === 'percent' || resolvedMode === 'both'}
+            <span
+              style="opacity:{resolvedMode === 'percent'
+                ? 1
+                : 0.5};font-weight:{resolvedMode === 'percent'
+                ? 600
+                : 400};font-size:{resolvedMode === 'percent'
+                ? theme.typography.fontSize
+                : theme.typography.axisFontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
+            >
+              {slice.percent.toFixed(1)}%
+            </span>
+          {/if}
         </div>
       {/each}
     </div>

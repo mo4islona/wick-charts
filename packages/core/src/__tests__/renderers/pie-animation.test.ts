@@ -35,10 +35,7 @@ describe('PieRenderer — slice explode animation', () => {
   }
 
   function offsetOf(r: PieRenderer, index: number): number {
-    // `sliceOffsets` is private, so this helper reaches through a casted
-    // instance to inspect that internal state for test assertions only.
-    const offsets = (r as unknown as { sliceOffsets: number[] }).sliceOffsets;
-    return offsets[index];
+    return r._inspectSliceOffsets()[index];
   }
 
   it('animates over many frames instead of snapping in one', () => {

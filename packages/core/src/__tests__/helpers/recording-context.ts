@@ -16,6 +16,8 @@ export interface RecordedCall {
   readonly lineWidth: number;
   readonly font: string;
   readonly globalAlpha: number;
+  readonly textAlign: CanvasTextAlign;
+  readonly textBaseline: CanvasTextBaseline;
 }
 
 export interface CanvasRecorder {
@@ -128,12 +130,16 @@ export function createRecordingContext(): RecordingContext {
     lineWidth: number;
     font: string;
     globalAlpha: number;
+    textAlign: CanvasTextAlign;
+    textBaseline: CanvasTextBaseline;
   } => ({
     fillStyle: serializeStyle(state.fillStyle),
     strokeStyle: serializeStyle(state.strokeStyle),
     lineWidth: state.lineWidth,
     font: state.font,
     globalAlpha: state.globalAlpha,
+    textAlign: state.textAlign,
+    textBaseline: state.textBaseline,
   });
 
   const record = (method: string, args: readonly unknown[]): void => {

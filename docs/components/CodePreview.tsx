@@ -51,8 +51,24 @@ function formatValue(v: PropValue, indent: number): string {
   return String(v);
 }
 
+// Allowlist of strings that should render as unquoted variable references in
+// the generated snippet — e.g. `data={data}` rather than `data="data"`. Every
+// other identifier-shaped string (e.g. enum values like 'bottom', 'both',
+// 'grow', 'percent') stays quoted as a literal. Add new names here when a
+// codeConfig introduces a genuine variable binding the caller would have in
+// their host code.
+const VAR_REF_NAMES = new Set([
+  'data',
+  'ohlcData',
+  'layers',
+  'sid',
+  'series',
+  'darkTheme',
+  'lightTheme',
+]);
+
 function isVarRef(v: PropValue): boolean {
-  return typeof v === 'string' && /^[a-zA-Z_$][\w$.]*$/.test(v) && !v.includes(' ');
+  return typeof v === 'string' && VAR_REF_NAMES.has(v);
 }
 
 /** Wrap threshold: if the one-liner component + props exceeds this, break
@@ -69,6 +85,13 @@ function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent
       if (fw === 'vue') parts.push(`:${key}="${val}"`);
       else if (fw === 'svelte' && key === val) parts.push(`{${key}}`);
       else parts.push(`${key}={${val}}`);
+    } else if (typeof val === 'string') {
+      // JSX / Svelte string-attribute shorthand: render `position="bottom"`
+      // rather than `position={'bottom'}`. Vue already uses literal attribute
+      // form by default, so the `:`-prefix is skipped here.
+      const escaped = val.replace(/"/g, '&quot;');
+      if (fw === 'vue') parts.push(`${key}="${escaped}"`);
+      else parts.push(`${key}="${escaped}"`);
     } else {
       const formatted = formatValue(val, indent);
       if (fw === 'vue') parts.push(`:${key}="${formatted.replace(/'/g, "\\'")}"`);

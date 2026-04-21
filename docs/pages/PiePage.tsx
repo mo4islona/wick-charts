@@ -2,6 +2,7 @@ import {
   ChartContainer,
   type ChartTheme,
   PieLegend,
+  type PieLegendPosition,
   PieSeries,
   type PieSliceData,
   PieTooltip,
@@ -11,13 +12,27 @@ import {
 import { Cell } from '../components/Cell';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Toggle } from '../components/playground/primitives';
+import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
+
+type PieLabelMode = 'outside' | 'inside' | 'none';
+type PieLabelContent = 'percent' | 'label' | 'both';
+type PieLegendMode = 'value' | 'percent' | 'both';
 
 interface PieSettings {
   donut: boolean;
   tooltipVisible: boolean;
   legendVisible: boolean;
+  innerRatioPct: number;
+  padAngleDeg: number;
+  strokeWidthPx: number;
+  labelMode: PieLabelMode;
+  labelContent: PieLabelContent;
+  labelFontSize: number;
+  labelGap: number;
+  cardinality: number;
+  legendPosition: PieLegendPosition;
+  legendMode: PieLegendMode;
 }
 
 const PORTFOLIO: PieSliceData[] = [
@@ -45,13 +60,17 @@ const CHAINS: PieSliceData[] = [
   { label: 'Other', value: 2 },
 ];
 
-const ALLOCATION: PieSliceData[] = [
-  { label: 'DeFi', value: 35 },
-  { label: 'NFTs', value: 20 },
-  { label: 'L1/L2', value: 25 },
-  { label: 'Stablecoins', value: 15 },
-  { label: 'Gaming', value: 5 },
-];
+// Synthetic "Stress" dataset driven by the cardinality slider. Values decay
+// exponentially so the top slice dominates and the tail produces many small
+// slices — the pattern that most visibly stresses outside-label layout.
+function synthStress(n: number): PieSliceData[] {
+  const data: PieSliceData[] = [];
+  for (let i = 0; i < n; i++) {
+    data.push({ label: `S${i + 1}`, value: 100 * 0.8 ** i });
+  }
+
+  return data;
+}
 
 function PieChart({
   theme,
@@ -60,6 +79,15 @@ function PieChart({
   donut,
   tooltipVisible,
   legendVisible,
+  innerRatioPct,
+  padAngleDeg,
+  strokeWidthPx,
+  labelMode,
+  labelContent,
+  labelFontSize,
+  labelGap,
+  legendPosition,
+  legendMode,
   perfHudVisible,
   title,
 }: PlaygroundChartProps & PieSettings & { data: PieSliceData[]; title: string }) {
@@ -70,6 +98,7 @@ function PieChart({
       theme={theme}
       axis={{ y: { visible: false, widthPx: 0 }, x: { visible: false, heightPx: 0 } }}
       gradient={gradient}
+      grid={{ visible: false }}
       perf={perfHudVisible}
     >
       <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
@@ -77,13 +106,14 @@ function PieChart({
         id={sid}
         data={data}
         options={{
-          innerRadiusRatio: donut ? 0.55 : 0,
-          padAngle: 0.03,
-          stroke: { color: theme.background, widthPx: 2 },
+          innerRadiusRatio: donut ? innerRatioPct / 100 : 0,
+          padAngle: (padAngleDeg * Math.PI) / 180,
+          stroke: { color: theme.background, widthPx: strokeWidthPx },
+          sliceLabels: { mode: labelMode, content: labelContent, fontSize: labelFontSize, labelGap },
         }}
       />
       {tooltipVisible && <PieTooltip seriesId={sid} />}
-      {legendVisible && <PieLegend seriesId={sid} />}
+      {legendVisible && <PieLegend seriesId={sid} position={legendPosition} mode={legendMode} />}
     </ChartContainer>
   );
 }
@@ -112,16 +142,184 @@ const DISPLAY_EXTRA: SectionSpec = {
   ] as RowSpec[],
 };
 
+const LABEL_MODE_OPTIONS = [
+  { value: 'outside' as const, label: 'Outside' },
+  { value: 'inside' as const, label: 'Inside' },
+  { value: 'none' as const, label: 'None' },
+];
+
+const LABEL_CONTENT_OPTIONS = [
+  { value: 'both' as const, label: 'Both' },
+  { value: 'percent' as const, label: '%' },
+  { value: 'label' as const, label: 'Name' },
+];
+
+const LEGEND_POSITION_OPTIONS = [
+  { value: 'bottom' as const, label: 'Bottom' },
+  { value: 'right' as const, label: 'Right' },
+];
+
+const LEGEND_MODE_OPTIONS = [
+  { value: 'both' as const, label: 'Both' },
+  { value: 'value' as const, label: 'Value' },
+  { value: 'percent' as const, label: '%' },
+];
+
+const GEOMETRY_SECTION: SectionSpec = {
+  id: 'geometry-pie',
+  title: 'Geometry',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'innerRatioPct',
+      label: 'Donut hole',
+      // Only relevant when donut mode is on — hide otherwise so the slider
+      // doesn't suggest it has an effect on a solid pie.
+      visible: (s) => s.donut === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={85} step={5} suffix="%" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'padAngleDeg',
+      label: 'Slice gap',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={8} step={0.5} suffix="°" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'strokeWidthPx',
+      label: 'Stroke',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={4} step={1} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const LABELS_SECTION: SectionSpec = {
+  id: 'labels-pie',
+  title: 'Labels',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'labelMode',
+      label: 'Mode',
+      render: (v, onChange) => (
+        <ToggleGroup<PieLabelMode>
+          value={v as PieLabelMode}
+          options={LABEL_MODE_OPTIONS}
+          onChange={onChange as (v: PieLabelMode) => void}
+        />
+      ),
+    },
+    {
+      key: 'labelContent',
+      label: 'Content',
+      render: (v, onChange) => (
+        <Select<PieLabelContent>
+          value={v as PieLabelContent}
+          options={LABEL_CONTENT_OPTIONS}
+          onChange={onChange as (v: PieLabelContent) => void}
+        />
+      ),
+    },
+    {
+      key: 'labelFontSize',
+      label: 'Font size',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={8} max={18} step={1} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'labelGap',
+      label: 'Label gap',
+      // Multiplier on fontSize for vertical min-gap between same-side labels.
+      // 1.0 packs labels tight, 3.0 forces generous spacing that can spill
+      // past canvas bounds (PAV collapses into a centered block when it does).
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0.8} max={3} step={0.1} onChange={onChange as (v: number) => void} />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const STRESS_SECTION: SectionSpec = {
+  id: 'stress-pie',
+  title: 'Stress',
+  // Merge into the built-in Demo section — the cardinality slider changes
+  // what the live preview shows (one cell swaps to a synthetic dataset), so
+  // it belongs with the other preview-control rows rather than alongside
+  // real chart options that'd appear in the copied code snippet.
+  extend: 'demo',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'cardinality',
+      label: 'Slices',
+      // Drives the number of slices in the synthetic "Stress" cell only;
+      // the other three cells keep fixed presets for baseline comparison.
+      render: (v, onChange) => (
+        <Slider value={v as number} min={3} max={30} step={1} onChange={onChange as (v: number) => void} />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+const LEGEND_SECTION: SectionSpec = {
+  id: 'legend-pie',
+  title: 'Legend',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'legendPosition',
+      label: 'Position',
+      render: (v, onChange) => (
+        <ToggleGroup<PieLegendPosition>
+          value={v as PieLegendPosition}
+          options={LEGEND_POSITION_OPTIONS}
+          onChange={onChange as (v: PieLegendPosition) => void}
+        />
+      ),
+    },
+    {
+      key: 'legendMode',
+      label: 'Content',
+      render: (v, onChange) => (
+        <ToggleGroup<PieLegendMode>
+          value={v as PieLegendMode}
+          options={LEGEND_MODE_OPTIONS}
+          onChange={onChange as (v: PieLegendMode) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
 export function PiePage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<PieSettings>
       id="pie"
       theme={theme}
-      extraDefaults={{ donut: false, tooltipVisible: true, legendVisible: true }}
+      extraDefaults={{
+        donut: true,
+        tooltipVisible: false,
+        legendVisible: true,
+        innerRatioPct: 55,
+        padAngleDeg: 1.7,
+        strokeWidthPx: 2,
+        labelMode: 'outside',
+        labelContent: 'both',
+        labelFontSize: 11,
+        labelGap: 1.4,
+        cardinality: 5,
+        legendPosition: 'bottom',
+        legendMode: 'both',
+      }}
       gridTemplate="1fr 1fr"
       gridColumns="1fr 1fr"
       hideCartesian
-      sections={[DISPLAY_EXTRA]}
+      sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, LABELS_SECTION, STRESS_SECTION, LEGEND_SECTION]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -134,7 +332,12 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
             <PieChart key={`chains-${props.perfHudVisible}`} {...props} data={CHAINS} title="Chains" />
           </Cell>
           <Cell theme={props.theme}>
-            <PieChart key={`allocation-${props.perfHudVisible}`} {...props} data={ALLOCATION} title="Allocation" />
+            <PieChart
+              key={`stress-${props.perfHudVisible}`}
+              {...props}
+              data={synthStress(props.cardinality)}
+              title="Stress"
+            />
           </Cell>
         </>
       )}
@@ -143,10 +346,36 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         components: [
           {
             component: 'PieSeries',
-            props: { id: 'sid', data: 'data', options: { innerRadiusRatio: s.donut ? 0.55 : 0, padAngle: 0.03 } },
+            props: {
+              id: 'sid',
+              data: 'data',
+              options: {
+                innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
+                // Round rad-converted slider value so the snippet shows
+                // `0.0297` rather than `0.029670597283903602`.
+                padAngle: Math.round(((s.padAngleDeg * Math.PI) / 180) * 10000) / 10000,
+                stroke: { widthPx: s.strokeWidthPx },
+                sliceLabels: {
+                  mode: s.labelMode,
+                  content: s.labelContent,
+                  fontSize: s.labelFontSize,
+                  labelGap: s.labelGap,
+                },
+              },
+            },
           },
-          ...(s.tooltipVisible ? [{ component: 'PieTooltip', props: { seriesId: 'sid' } }] : []),
-          ...(s.legendVisible ? [{ component: 'PieLegend', props: { seriesId: 'sid' } }] : []),
+          // PieTooltip / PieLegend auto-pick the first visible pie series
+          // when seriesId is omitted — there's only one in the playground,
+          // so emitting it would just be noise in the copied snippet.
+          ...(s.tooltipVisible ? [{ component: 'PieTooltip', props: {} }] : []),
+          ...(s.legendVisible
+            ? [
+                {
+                  component: 'PieLegend',
+                  props: { position: s.legendPosition, mode: s.legendMode },
+                },
+              ]
+            : []),
         ],
       })}
     />
