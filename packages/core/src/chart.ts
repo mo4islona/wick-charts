@@ -1180,7 +1180,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
    * — vertical padding only affects the Y-range computation, so touching it
    * shouldn't reset the user's zoom / auto-scroll state. This matters when
    * a wrapper re-applies padding reactively (e.g. in response to a Title /
-   * TooltipLegend ResizeObserver).
+   * InfoBar ResizeObserver).
    */
   setPadding(padding: ChartOptions['padding']): void {
     const prev = this.#viewport.getPadding();

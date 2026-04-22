@@ -98,10 +98,8 @@ export {
 } from './store-bridge';
 export { ThemeProvider, useTheme } from './ThemeContext';
 export { Crosshair } from './ui/Crosshair';
-/** @deprecated Use {@link InfoBarProps} instead. */
-export type { InfoBarProps, InfoBarRenderContext, TooltipLegendProps } from './ui/InfoBar';
-/** @deprecated Use {@link InfoBar} instead. */
-export { InfoBar, TooltipLegend } from './ui/InfoBar';
+export type { InfoBarProps, InfoBarRenderContext } from './ui/InfoBar';
+export { InfoBar } from './ui/InfoBar';
 export type { LegendItemOverride, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';

@@ -3,10 +3,10 @@ import {
   BarSeries,
   CandlestickSeries,
   ChartContainer,
+  InfoBar,
   LineSeries,
   Title,
   Tooltip,
-  TooltipLegend,
   darkTheme,
 } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ import { defineComponent, h, nextTick } from 'vue';
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
 /**
- * Parity regression tests for the Vue `Tooltip` / `TooltipLegend` —
+ * Parity regression tests for the Vue `Tooltip` / `InfoBar` —
  * mirrors the behaviors React enforces. Both must:
  *   1. Not get stuck empty when mounted *before* sibling series — i.e.
  *      subscribe to `seriesChange` and catch up on mount.
@@ -76,7 +76,7 @@ function sizeDescendants(host: HTMLElement, width = 800, height = 400): () => vo
   };
 }
 
-describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
+describe('Vue <Tooltip> / <InfoBar> parity', () => {
   let host: HTMLElement;
   let restore: () => void;
 
@@ -93,19 +93,16 @@ describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
     uninstallRaf();
   });
 
-  it('<TooltipLegend> renders series data even when mounted before the series (seriesChange catch-up)', async () => {
-    // Order matters: TooltipLegend declared *before* CandlestickSeries in the
-    // slot. Pre-fix, TooltipLegend ran its "all series" query on its initial
+  it('<InfoBar> renders series data even when mounted before the series (seriesChange catch-up)', async () => {
+    // Order matters: InfoBar declared *before* CandlestickSeries in the
+    // slot. Pre-fix, InfoBar ran its "all series" query on its initial
     // commit when `chart.getSeriesIds()` was still empty, then never
     // recomputed — the info bar stayed blank forever.
     const App = defineComponent({
-      components: { ChartContainer, CandlestickSeries, TooltipLegend },
+      components: { ChartContainer, CandlestickSeries, InfoBar },
       setup() {
         return () =>
-          h(ChartContainer, { theme: darkTheme }, () => [
-            h(TooltipLegend),
-            h(CandlestickSeries, { data: candlestickData }),
-          ]);
+          h(ChartContainer, { theme: darkTheme }, () => [h(InfoBar), h(CandlestickSeries, { data: candlestickData })]);
       },
     });
 
@@ -113,21 +110,20 @@ describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
     await settle();
 
     const bar = host.querySelector('[data-tooltip-legend]') as HTMLElement | null;
-    expect(bar, 'TooltipLegend should render its info row').not.toBeNull();
+    expect(bar, 'InfoBar should render its info row').not.toBeNull();
     // It picked up the series — the row has the OHLC letters from the last candle.
     expect(bar?.textContent ?? '').toMatch(/O.*H.*L.*C/);
 
     wrapper.unmount();
   });
 
-  it('<TooltipLegend> expands multi-layer BarSeries into per-layer rows', async () => {
+  it('<InfoBar> expands multi-layer BarSeries into per-layer rows', async () => {
     // Multi-layer (stacked) BarSeries expose `getLayerSnapshots(id, time)`; the
     // info bar should render one value per layer, matching React's behavior.
     const App = defineComponent({
-      components: { ChartContainer, BarSeries, TooltipLegend },
+      components: { ChartContainer, BarSeries, InfoBar },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: darkTheme }, () => [h(TooltipLegend), h(BarSeries, { data: twoLayerBars })]);
+        return () => h(ChartContainer, { theme: darkTheme }, () => [h(InfoBar), h(BarSeries, { data: twoLayerBars })]);
       },
     });
 
@@ -157,14 +153,14 @@ describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
     expect(() => mount(Bad, { attachTo: host })).toThrow(/<Title> must be used within <ChartContainer>/);
   });
 
-  it('<TooltipLegend> renders sub-cent OHLC values with enough precision (regression for `.toFixed(2)`)', async () => {
+  it('<InfoBar> renders sub-cent OHLC values with enough precision (regression for `.toFixed(2)`)', async () => {
     const satoshi = 0.00001234;
     const App = defineComponent({
-      components: { ChartContainer, CandlestickSeries, TooltipLegend },
+      components: { ChartContainer, CandlestickSeries, InfoBar },
       setup() {
         return () =>
           h(ChartContainer, { theme: darkTheme }, () => [
-            h(TooltipLegend),
+            h(InfoBar),
             h(CandlestickSeries, {
               data: [
                 { time: 1, open: satoshi, high: satoshi * 1.5, low: satoshi * 0.8, close: satoshi * 1.2 },
@@ -187,13 +183,13 @@ describe('Vue <Tooltip> / <TooltipLegend> parity', () => {
     wrapper.unmount();
   });
 
-  it('<TooltipLegend> custom `format` prop overrides rendered values', async () => {
+  it('<InfoBar> custom `format` prop overrides rendered values', async () => {
     const App = defineComponent({
-      components: { ChartContainer, LineSeries, TooltipLegend },
+      components: { ChartContainer, LineSeries, InfoBar },
       setup() {
         return () =>
           h(ChartContainer, { theme: darkTheme }, () => [
-            h(TooltipLegend, {
+            h(InfoBar, {
               format: (v: number, field: string) => `<${field}:${v}>`,
             }),
             h(LineSeries, {

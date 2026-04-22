@@ -20,7 +20,7 @@ const containerRef = ref<HTMLDivElement>();
 const chart = shallowRef<ChartInstance | null>(null);
 const themeRef = shallowRef<ChartTheme>(props.theme);
 
-// Anchors for hoisted overlays. Title / TooltipLegend teleport into a top
+// Anchors for hoisted overlays. Title / InfoBar teleport into a top
 // overlay anchor that is positioned *absolute* at the top of the canvas
 // block, so the canvas (and its grid) spans the full container height. The
 // combined anchor height is measured and fed into `chart.setPadding({ top })`

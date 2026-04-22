@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { type ChartCodeConfig, generateCode } from '../components/CodePreview';
 
 // Representative config exercising every renamed symbol from Phase A:
-// grid.visible, area.visible, entryAnimation, InfoBar (not TooltipLegend),
+// grid.visible, area.visible, entryAnimation, InfoBar,
 // strokeWidth, and stroke{width} for pie.
 const CONFIG: ChartCodeConfig = {
   theme: 'darkTheme',
@@ -36,7 +36,6 @@ const CONFIG: ChartCodeConfig = {
 };
 
 const PRE_RENAME_SYMBOLS = [
-  'TooltipLegend',
   'areaFill',
   'lineWidth',
   'enterAnimation',

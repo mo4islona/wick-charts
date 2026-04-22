@@ -106,7 +106,5 @@ export { default as TimeAxis } from './ui/TimeAxis.svelte';
 export { default as Title } from './ui/Title.svelte';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.svelte';
-/** @deprecated Use {@link InfoBar} instead. */
-export { default as TooltipLegend } from './ui/TooltipLegend.svelte';
 export { default as YAxis } from './ui/YAxis.svelte';
 export { default as YLabel } from './ui/YLabel.svelte';

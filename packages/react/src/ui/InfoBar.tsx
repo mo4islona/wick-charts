@@ -45,9 +45,6 @@ export interface InfoBarProps {
   children?: (ctx: InfoBarRenderContext) => ReactNode;
 }
 
-/** @deprecated Use {@link InfoBarProps} instead. */
-export type TooltipLegendProps = InfoBarProps;
-
 /** Default InfoBar formatter — adaptive for ohlc/value, compact for volume. */
 const defaultInfoBarFormat: TooltipFormatter = (v, field) =>
   field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
@@ -195,6 +192,3 @@ function LegendItem({ label, display, color, dim }: { label: string; display: st
     </>
   );
 }
-
-/** @deprecated Use {@link InfoBar} instead. */
-export const TooltipLegend = InfoBar;

@@ -8,7 +8,7 @@ import { Viewport } from '../viewport';
  * (left/right) actually changes. Vertical padding only affects the Y-scale
  * layout — touching it mustn't reset the user's zoom / pan / auto-scroll.
  * This regression suite pins that contract so wrappers can safely re-apply
- * padding from a Title / TooltipLegend ResizeObserver.
+ * padding from a Title / InfoBar ResizeObserver.
  */
 describe('ChartInstance.setPadding — refit discipline', () => {
   let chart: ChartInstance;

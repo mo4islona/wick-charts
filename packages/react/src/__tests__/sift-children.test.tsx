@@ -3,7 +3,7 @@ import { type ReactNode, isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { siftContainerChildren } from '../ChartContainer';
-import { InfoBar as TooltipLegend } from '../ui/InfoBar';
+import { InfoBar } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
 import { Title } from '../ui/Title';
 
@@ -18,9 +18,9 @@ function kids(...nodes: ReactNode[]): ReactNode[] {
 }
 
 describe('siftContainerChildren', () => {
-  it('hoists Title, Legend and TooltipLegend, leaves the rest in overlay', () => {
+  it('hoists Title, Legend and InfoBar, leaves the rest in overlay', () => {
     const overlayNode = <span id="overlay-marker" />;
-    const result = siftContainerChildren(kids(<Title>BTC</Title>, <Legend />, <TooltipLegend />, overlayNode));
+    const result = siftContainerChildren(kids(<Title>BTC</Title>, <Legend />, <InfoBar />, overlayNode));
     expect(result.titleEl).not.toBeNull();
     expect(result.legendEl).not.toBeNull();
     expect(result.tooltipLegendEl).not.toBeNull();
@@ -42,14 +42,14 @@ describe('siftContainerChildren', () => {
 
   it('child order does not matter', () => {
     const result = siftContainerChildren(
-      kids(<span id="a" />, <TooltipLegend />, <span id="b" />, <Legend />, <span id="c" />),
+      kids(<span id="a" />, <InfoBar />, <span id="b" />, <Legend />, <span id="c" />),
     );
     expect(result.tooltipLegendEl).not.toBeNull();
     expect(result.legendEl).not.toBeNull();
     expect(result.overlay).toHaveLength(3);
   });
 
-  it('tolerates absent Title / Legend / TooltipLegend', () => {
+  it('tolerates absent Title / Legend / InfoBar', () => {
     const r1 = siftContainerChildren(<span />);
     expect(r1.titleEl).toBeNull();
     expect(r1.legendEl).toBeNull();
@@ -64,7 +64,7 @@ describe('siftContainerChildren', () => {
   });
 
   it('passes unknown nodes through to overlay (nulls/false/strings land in overlay, harmless when rendered)', () => {
-    const result = siftContainerChildren(kids(null, 'literal', <TooltipLegend />, false, <span id="x" />));
+    const result = siftContainerChildren(kids(null, 'literal', <InfoBar />, false, <span id="x" />));
     expect(result.tooltipLegendEl).not.toBeNull();
     // Non-element values (null, 'literal', false) all flow to overlay; React
     // renders null/false/strings inertly so this is safe and we don't filter.
@@ -78,14 +78,14 @@ describe('siftContainerChildren', () => {
     expect(pos).toBe('right');
   });
 
-  it('hoists Legend / TooltipLegend that are wrapped in a fragment', () => {
+  it('hoists Legend / InfoBar that are wrapped in a fragment', () => {
     // Common pattern: wrapping chart contents in a fragment when they come
     // from a helper component or conditional render. React passes the
     // fragment as one atomic child; siftContainerChildren must drill through
     // it so the hoisting still happens.
     const result = siftContainerChildren(
       <>
-        <TooltipLegend />
+        <InfoBar />
         <span id="series-marker" />
         <Legend />
       </>,
@@ -99,7 +99,7 @@ describe('siftContainerChildren', () => {
     const result = siftContainerChildren(
       <>
         <>
-          <TooltipLegend />
+          <InfoBar />
         </>
         <span id="x" />
       </>,

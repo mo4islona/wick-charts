@@ -1,5 +1,5 @@
 import { ChartInstance } from '@wick-charts/core';
-import { CandlestickSeries, Legend, Title, TooltipLegend } from '@wick-charts/react';
+import { CandlestickSeries, InfoBar, Legend, Title } from '@wick-charts/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -10,11 +10,11 @@ const bars = [
 ];
 
 describe('<Title> hoisting + grid layering', () => {
-  it('renders Title + TooltipLegend stacked inside the canvas block', () => {
+  it('renders Title + InfoBar stacked inside the canvas block', () => {
     const mounted = mountChart(
       <>
         <Title sub="Live Candlestick">BTC/USD</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240 },
@@ -25,7 +25,7 @@ describe('<Title> hoisting + grid layering', () => {
     expect(title).toBeTruthy();
     expect(bar).toBeTruthy();
 
-    // Title and TooltipLegend share the same top-overlay wrapper and it is
+    // Title and InfoBar share the same top-overlay wrapper and it is
     // positioned absolutely (an overlay on top of the canvas, not a flex row
     // above it). This lets the grid render full-height behind them.
     const wrapper = title.parentElement as HTMLElement;
@@ -53,11 +53,11 @@ describe('<Title> hoisting + grid layering', () => {
     mounted.unmount();
   });
 
-  it('canvas spans the full container so the grid renders behind Title/TooltipLegend', () => {
+  it('canvas spans the full container so the grid renders behind Title/InfoBar', () => {
     const mounted = mountChart(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240 },
@@ -68,7 +68,7 @@ describe('<Title> hoisting + grid layering', () => {
     const bar = mounted.container.querySelector('[data-tooltip-legend]') as HTMLElement;
     expect(canvas).toBeTruthy();
 
-    // Canvas and the Title/TooltipLegend overlay share the same canvas-block
+    // Canvas and the Title/InfoBar overlay share the same canvas-block
     // container — i.e. the overlays are *inside* the canvas's parent, so the
     // canvas visually extends under them rather than the other way around.
     const canvasBlock = canvas.parentElement as HTMLElement;
@@ -78,7 +78,7 @@ describe('<Title> hoisting + grid layering', () => {
     mounted.unmount();
   });
 
-  it('top overlay wrapper is removed entirely when Title and TooltipLegend are both absent', () => {
+  it('top overlay wrapper is removed entirely when Title and InfoBar are both absent', () => {
     // When neither overlay is declared the wrapper is not rendered at all;
     // combined with the effect's `setTopOverlayHeight(0)` reset, padding.top
     // drops back to the user's configured value instead of carrying stale
@@ -99,7 +99,7 @@ describe('<Title> hoisting + grid layering', () => {
     const overlayMount = mountChart(
       <>
         <Title sub="Live">BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240, headerLayout: 'overlay', padding: { top: 20 } },
@@ -115,7 +115,7 @@ describe('<Title> hoisting + grid layering', () => {
     const inlineMount = mountChart(
       <>
         <Title sub="Live">BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240, headerLayout: 'inline', padding: { top: 20 } },
@@ -132,14 +132,14 @@ describe('<Title> hoisting + grid layering', () => {
     spy.mockRestore();
   });
 
-  it('floating tooltip overlay has a higher z-index than Title/TooltipLegend', () => {
+  it('floating tooltip overlay has a higher z-index than Title/InfoBar', () => {
     // When the cursor hovers over the top of the chart, the floating <Tooltip>
-    // glass panel should appear *above* Title / TooltipLegend — otherwise the
+    // glass panel should appear *above* Title / InfoBar — otherwise the
     // header strip covers the tooltip content.
     const mounted = mountChart(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240 },
@@ -158,12 +158,12 @@ describe('<Title> hoisting + grid layering', () => {
   });
 });
 
-describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
-  it('renders Title/TooltipLegend as flex siblings above the canvas container (not absolute overlays)', () => {
+describe('<Title> + <InfoBar> with headerLayout="inline"', () => {
+  it('renders Title/InfoBar as flex siblings above the canvas container (not absolute overlays)', () => {
     const mounted = mountChart(
       <>
         <Title sub="Live">BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240, headerLayout: 'inline' },
@@ -192,7 +192,7 @@ describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
     const mounted = mountChart(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240, headerLayout: 'inline' },
@@ -235,7 +235,7 @@ describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
     const mounted = mountChart(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
         <Legend position="right" />
       </>,
@@ -259,7 +259,7 @@ describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
     const mounted = mountChart(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { width: 400, height: 240, headerLayout: 'overlay' },
@@ -272,7 +272,7 @@ describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
     mounted.rerender(
       <>
         <Title>BTC</Title>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={bars} />
       </>,
       { headerLayout: 'inline' },
@@ -286,7 +286,7 @@ describe('<Title> + <TooltipLegend> with headerLayout="inline"', () => {
     mounted.unmount();
   });
 
-  it('does not render a header wrapper when Title and TooltipLegend are both absent', () => {
+  it('does not render a header wrapper when Title and InfoBar are both absent', () => {
     // No header → no wrapper either mode; prevents empty flex rows adding
     // phantom whitespace above the canvas.
     const mounted = mountChart(<CandlestickSeries data={bars} />, {

@@ -15,7 +15,7 @@ import type { OHLCData, TimePoint } from '../types';
  *
  * Time-based renderers absorb this implicitly via the YScale's value range,
  * but spatial renderers (Pie) need the raw pixel reservation to keep their
- * layout out of the Title / TooltipLegend overlay regions.
+ * layout out of the Title / InfoBar overlay regions.
  */
 export interface RenderPadding {
   top: number;

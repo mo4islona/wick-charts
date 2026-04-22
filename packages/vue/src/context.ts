@@ -5,14 +5,12 @@ export const ChartKey: InjectionKey<ShallowRef<ChartInstance | null>> = Symbol('
 export const ThemeKey: InjectionKey<ShallowRef<ChartTheme>> = Symbol('wick-theme');
 
 /**
- * DOM anchor for a hoisted overlay component (Title, TooltipLegend, Legend).
+ * DOM anchor for a hoisted overlay component (Title, InfoBar, Legend).
  * The child component teleports its output into the anchor the container
  * provides, so the chart owns its own header / info-bar / footer layout.
  */
 export const TitleAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-title-anchor');
 export const InfoBarAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-info-bar-anchor');
-/** @deprecated Use {@link InfoBarAnchorKey} instead. */
-export const TooltipLegendAnchorKey = InfoBarAnchorKey;
 export const LegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-anchor');
 export const LegendRightAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-right-anchor');
 

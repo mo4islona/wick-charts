@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { CandlestickSeries } from '../CandlestickSeries';
 import { ChartContainer } from '../ChartContainer';
-import { InfoBar as TooltipLegend } from '../ui/InfoBar';
+import { InfoBar } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
 import { Tooltip } from '../ui/Tooltip';
 
@@ -13,25 +13,25 @@ const OHLC = [
   { time: 1_700_000_120_000, open: 108, high: 120, low: 104, close: 117, volume: 1500 },
 ];
 
-describe('<TooltipLegend> integration', () => {
+describe('<InfoBar> integration', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it('renders TooltipLegend as an absolute overlay at the top of the canvas block', () => {
-    // Post-grid-fix layout: Title / TooltipLegend stack as absolute overlays
+  it('renders InfoBar as an absolute overlay at the top of the canvas block', () => {
+    // Post-grid-fix layout: Title / InfoBar stack as absolute overlays
     // at the top of the canvas container (not flex siblings above it), so the
     // canvas — and the grid — fill the whole container.
     const { container } = render(
       <ChartContainer>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={OHLC} />
         <Tooltip />
       </ChartContainer>,
     );
 
     const bar = container.querySelector('[data-tooltip-legend]');
-    expect(bar, 'TooltipLegend should be in the DOM').not.toBeNull();
+    expect(bar, 'InfoBar should be in the DOM').not.toBeNull();
 
     // Its parent is the stacked overlay wrapper; that wrapper is positioned
     // absolute inside the canvas block.
@@ -39,7 +39,7 @@ describe('<TooltipLegend> integration', () => {
     expect(parent.style.position).toBe('absolute');
     expect(parent.style.top).toBe('0px');
 
-    // Canvas element exists in the same subtree as the TooltipLegend — i.e.
+    // Canvas element exists in the same subtree as the InfoBar — i.e.
     // the two share a container, letting the grid render behind the bar.
     const canvas = container.querySelector('canvas');
     expect(canvas).not.toBeNull();
@@ -64,7 +64,7 @@ describe('<TooltipLegend> integration', () => {
   it('coexists with right-side <Legend>: legend shares a row with the canvas block', () => {
     const { container } = render(
       <ChartContainer>
-        <TooltipLegend />
+        <InfoBar />
         <CandlestickSeries data={OHLC} />
         <Legend position="right" />
       </ChartContainer>,
@@ -77,7 +77,7 @@ describe('<TooltipLegend> integration', () => {
     expect(row.style.flexDirection).toBe('row');
     expect(row.children.length).toBe(2);
 
-    // TooltipLegend still exists inside the canvas block (as a top overlay),
+    // InfoBar still exists inside the canvas block (as a top overlay),
     // not as a sibling above it.
     const canvasBlock = row.children[0] as HTMLElement;
     const bar = canvasBlock.querySelector('[data-tooltip-legend]');

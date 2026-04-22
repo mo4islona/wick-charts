@@ -3,7 +3,7 @@ import type { ChartTheme } from '@wick-charts/react';
 /**
  * Thin bordered wrapper for a dashboard chart. The title/subtitle are now
  * the chart's responsibility — use `<Title>` inside the chart container so
- * the header row is laid out by ChartContainer alongside `<TooltipLegend>`
+ * the header row is laid out by ChartContainer alongside `<InfoBar>`
  * instead of floating as a separate element above the canvas.
  */
 export function Cell({

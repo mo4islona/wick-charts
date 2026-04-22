@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import TooltipParityHarness from './TooltipParityHarness.svelte';
 
 /**
- * Parity regression tests for the Svelte `Tooltip` / `TooltipLegend` —
+ * Parity regression tests for the Svelte `Tooltip` / `InfoBar` —
  * mirrors the behaviors React enforces:
  *   1. Not stuck empty when mounted *before* sibling series (seriesChange
  *      catch-up).
@@ -66,7 +66,7 @@ function installSizePatch(width = 800, height = 400): () => void {
   };
 }
 
-describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
+describe('Svelte <Tooltip> / <InfoBar> parity', () => {
   let restore: () => void;
 
   beforeEach(() => {
@@ -77,7 +77,7 @@ describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
     restore();
   });
 
-  it('<TooltipLegend> renders series data even when mounted before the series (seriesChange catch-up)', async () => {
+  it('<InfoBar> renders series data even when mounted before the series (seriesChange catch-up)', async () => {
     const { unmount } = render(TooltipParityHarness, {
       props: { variant: 'ordered-legend', candlestickData },
     });
@@ -87,13 +87,13 @@ describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
     // ChartContainer; testing-library's `container` may not surface the
     // post-teleport DOM reliably. Query document.body to be safe.
     const bar = document.body.querySelector('[data-tooltip-legend]') as HTMLElement | null;
-    expect(bar, 'TooltipLegend should render its info row').not.toBeNull();
+    expect(bar, 'InfoBar should render its info row').not.toBeNull();
     expect(bar?.textContent ?? '').toMatch(/O.*H.*L.*C/);
 
     unmount();
   });
 
-  it('<TooltipLegend> expands multi-layer BarSeries into per-layer rows', async () => {
+  it('<InfoBar> expands multi-layer BarSeries into per-layer rows', async () => {
     const { unmount } = render(TooltipParityHarness, {
       props: { variant: 'layered-legend', barData: twoLayerBars },
     });
@@ -107,7 +107,7 @@ describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
     unmount();
   });
 
-  it('<TooltipLegend> renders sub-cent OHLC values with enough precision', async () => {
+  it('<InfoBar> renders sub-cent OHLC values with enough precision', async () => {
     const satoshi = 0.00001234;
     const data = [
       { time: 1, open: satoshi, high: satoshi * 1.5, low: satoshi * 0.8, close: satoshi * 1.2 },
@@ -127,7 +127,7 @@ describe('Svelte <Tooltip> / <TooltipLegend> parity', () => {
     unmount();
   });
 
-  it('<TooltipLegend> custom `format` prop overrides rendered values', async () => {
+  it('<InfoBar> custom `format` prop overrides rendered values', async () => {
     const lineData = [
       [
         { time: 1, value: 42 },

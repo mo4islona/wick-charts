@@ -116,7 +116,7 @@ describe('PieRenderer.hitTest', () => {
 });
 
 /**
- * Title / TooltipLegend overlays reserve space via `viewport.padding.top` (and
+ * Title / InfoBar overlays reserve space via `viewport.padding.top` (and
  * symmetric bottom). For time-based renderers this is absorbed by the YScale,
  * but Pie is purely spatial — it must shift its center and shrink its radius
  * by the reserved bitmap-pixel band, otherwise the chart visibly overlaps the

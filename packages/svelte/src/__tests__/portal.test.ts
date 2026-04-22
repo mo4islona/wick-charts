@@ -4,7 +4,7 @@ import { portal } from '../ui/portal';
 
 /**
  * `portal` is a Svelte action used by the hoisted overlay components
- * (Title, TooltipLegend, Legend) to move their rendered output into the
+ * (Title, InfoBar, Legend) to move their rendered output into the
  * anchor slots on `ChartContainer`. It must:
  *   - append the node into the given target when set;
  *   - restore the node to its original DOM position when the target clears

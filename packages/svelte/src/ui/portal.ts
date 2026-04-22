@@ -2,7 +2,7 @@
  * Svelte action that moves the bound element into the given target as soon
  * as the target is available, and restores it to its original DOM position
  * when the target is cleared (or on destroy). Used by hoisted overlays
- * (Title, TooltipLegend, Legend) to render into the anchor slots provided
+ * (Title, InfoBar, Legend) to render into the anchor slots provided
  * by ChartContainer — similar in spirit to Vue's `<Teleport>`.
  */
 export function portal(node: HTMLElement, target: HTMLElement | null | undefined) {

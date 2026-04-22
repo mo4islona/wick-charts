@@ -100,7 +100,5 @@ export { default as TimeAxis } from './ui/TimeAxis.vue';
 export { default as Title } from './ui/Title.vue';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.vue';
-/** @deprecated Use {@link InfoBar} instead. */
-export { default as TooltipLegend } from './ui/TooltipLegend.vue';
 export { default as YAxis } from './ui/YAxis.vue';
 export { default as YLabel } from './ui/YLabel.vue';

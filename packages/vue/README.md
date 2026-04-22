@@ -1,8 +1,8 @@
-<!-- Generated from README.tmpl.md — edit the template, not this file. -->
-
 # Wick Charts
 
-High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, ~25KB gzipped.
+<!-- Generated from README.tmpl.md — edit the template, not this file. -->
+
+High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, ~36KB gzipped when tree-shaken.
 
 [Live Demo](https://mo4islona.github.io/wick-charts/)
 
@@ -72,8 +72,6 @@ Every DOM overlay ships a default UI **and** a scoped slot / render-prop so you 
 | `PieTooltip` | Tooltip for pie/donut hover | `{ info, format }` |
 | `PieLegend` | Slice labels with values or percentages | `{ slices, mode, format }` |
 
-> `TooltipLegend` is the former name of `InfoBar` and is still exported as a deprecated alias.
-
 ## Custom render (slots / render-props)
 
 ```vue
@@ -102,7 +100,7 @@ Each overlay has its own slot context (see the Slot ctx column above); the shape
 Every numeric overlay accepts a `format` prop so you can override the default label rendering. Two shared helpers ship in each framework package (`@wick-charts/react`, `@wick-charts/vue`, `@wick-charts/svelte`):
 
 - `formatCompact(v)` — K/M/B/T suffixes with adaptive precision. Default for `YAxis` (at ranges ≥ 1e6), `PieLegend`, `PieTooltip`, `Sparkline`.
-- `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `TooltipLegend` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
+- `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `InfoBar` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
 
 ```vue
 <script setup>
@@ -118,7 +116,7 @@ const tipFormat = (v, field) => (field === 'volume' ? formatCompact(v) : v.toFix
 </template>
 ```
 
-Tooltip / TooltipLegend pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
+Tooltip / InfoBar pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
 
 ## Themes
 
@@ -189,7 +187,7 @@ Full `dist/index.js` (minified + gzipped):
 
 | Package | Raw | Gzip |
 |---|---|---|
-| `@wick-charts/vue`    | 176 KB | 44.2 KB |
+| `@wick-charts/vue`    | 219 KB | 57.3 KB |
 
 ## Migration
 

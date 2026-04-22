@@ -30,7 +30,7 @@ export function getThemeContext(): Readable<ChartTheme> {
 }
 
 /**
- * DOM anchor stores for hoisted overlays (Title, TooltipLegend, Legend).
+ * DOM anchor stores for hoisted overlays (Title, InfoBar, Legend).
  * Each child teleports its rendered output into the anchor the container
  * provides, so the chart owns its own header/info-bar layout rather than
  * having overlays absolutely positioned inside the canvas.
@@ -46,9 +46,6 @@ export function initInfoBarAnchor(): Writable<HTMLElement | null> {
   setContext(INFO_BAR_ANCHOR_KEY, store);
   return store;
 }
-
-/** @deprecated Use {@link initInfoBarAnchor} instead. */
-export const initTooltipLegendAnchor = initInfoBarAnchor;
 
 export function initLegendAnchor(): Writable<HTMLElement | null> {
   const store = writable<HTMLElement | null>(null);
@@ -69,9 +66,6 @@ export function getTitleAnchor(): Readable<HTMLElement | null> {
 export function getInfoBarAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(INFO_BAR_ANCHOR_KEY);
 }
-
-/** @deprecated Use {@link getInfoBarAnchor} instead. */
-export const getTooltipLegendAnchor = getInfoBarAnchor;
 
 export function getLegendAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(LEGEND_ANCHOR_KEY);

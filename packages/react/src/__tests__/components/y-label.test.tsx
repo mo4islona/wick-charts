@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import { LineSeries, Title, TooltipLegend, YLabel } from '@wick-charts/react';
+import { InfoBar, LineSeries, Title, YLabel } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -17,7 +17,7 @@ const data: [Array<{ time: number; value: number }>] = [
 const tree: ReactNode = (
   <>
     <Title>BTC</Title>
-    <TooltipLegend />
+    <InfoBar />
     <LineSeries id={seriesId} data={data} />
     <YLabel seriesId={seriesId} />
   </>

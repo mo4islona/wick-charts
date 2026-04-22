@@ -1,10 +1,10 @@
-import { CandlestickSeries, LineSeries, Tooltip, TooltipLegend } from '@wick-charts/react';
+import { CandlestickSeries, InfoBar, LineSeries, Tooltip } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
 
 /**
- * Regression tests for the new format API on Tooltip / TooltipLegend.
+ * Regression tests for the new format API on Tooltip / InfoBar.
  *
  * Two classes of bug:
  *   1. OHLC fields used to hardcode `.toFixed(2)` — BTC-scale prices like
@@ -15,7 +15,7 @@ import { mountChart } from '../helpers/mount-chart';
  *      into `"5.40T"` for the Tooltip's volume cell and similar defaults.
  */
 
-describe('Tooltip / TooltipLegend precision defaults', () => {
+describe('Tooltip / InfoBar precision defaults', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
 
   afterEach(() => {
@@ -23,7 +23,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
     mounted = null;
   });
 
-  it('TooltipLegend renders sub-cent OHLC values with enough precision (not "0.00")', () => {
+  it('InfoBar renders sub-cent OHLC values with enough precision (not "0.00")', () => {
     const satoshi = 0.00001234;
     mounted = mountChart(
       <>
@@ -33,7 +33,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
             { time: 2, open: satoshi * 1.2, high: satoshi * 2, low: satoshi, close: satoshi * 1.8 },
           ]}
         />
-        <TooltipLegend />
+        <InfoBar />
       </>,
     );
 
@@ -45,7 +45,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
     expect(text).toMatch(/1234|0000123/);
   });
 
-  it('TooltipLegend compacts trillion-scale line values to K/M/B/T suffixes', () => {
+  it('InfoBar compacts trillion-scale line values to K/M/B/T suffixes', () => {
     mounted = mountChart(
       <>
         <LineSeries
@@ -56,7 +56,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
             ],
           ]}
         />
-        <TooltipLegend />
+        <InfoBar />
       </>,
     );
 
@@ -100,7 +100,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
     expect(Array.isArray(fieldsSeen)).toBe(true);
   });
 
-  it('TooltipLegend `format` prop overrides all rendered numbers', () => {
+  it('InfoBar `format` prop overrides all rendered numbers', () => {
     mounted = mountChart(
       <>
         <LineSeries
@@ -111,7 +111,7 @@ describe('Tooltip / TooltipLegend precision defaults', () => {
             ],
           ]}
         />
-        <TooltipLegend format={(v) => `<${v}>`} />
+        <InfoBar format={(v) => `<${v}>`} />
       </>,
     );
 

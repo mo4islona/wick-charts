@@ -17,7 +17,7 @@ export interface TitleProps {
 
 /**
  * Chart title / subtitle bar rendered as a flex row above the chart canvas
- * (above {@link TooltipLegend} when both are present). Hoisted out of the
+ * (above {@link InfoBar} when both are present). Hoisted out of the
  * overlay layer by {@link ChartContainer}, so browser flex layout reserves
  * its height and ResizeObserver drives a Y-range recompute.
  *
@@ -26,7 +26,7 @@ export interface TitleProps {
  * ```tsx
  * <ChartContainer>
  *   <Title sub="Live Candlestick">BTC/USD</Title>
- *   <TooltipLegend />
+ *   <InfoBar />
  *   <CandlestickSeries data={data} />
  *   ...
  * </ChartContainer>

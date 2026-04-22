@@ -1,8 +1,8 @@
-<!-- Generated from README.tmpl.md — edit the template, not this file. -->
-
 # Wick Charts
 
-High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, ~25KB gzipped.
+<!-- Generated from README.tmpl.md — edit the template, not this file. -->
+
+High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, ~36KB gzipped when tree-shaken.
 
 [Live Demo](https://mo4islona.github.io/wick-charts/)
 
@@ -70,8 +70,6 @@ Every DOM overlay ships a default UI **and** a scoped slot / render-prop so you 
 | `PieTooltip` | Tooltip for pie/donut hover | `{ info, format }` |
 | `PieLegend` | Slice labels with values or percentages | `{ slices, mode, format }` |
 
-> `TooltipLegend` is the former name of `InfoBar` and is still exported as a deprecated alias.
-
 ## Custom render (slots / render-props)
 
 ```tsx
@@ -102,7 +100,7 @@ Each overlay has its own slot context (see the Slot ctx column above); the shape
 Every numeric overlay accepts a `format` prop so you can override the default label rendering. Two shared helpers ship in each framework package (`@wick-charts/react`, `@wick-charts/vue`, `@wick-charts/svelte`):
 
 - `formatCompact(v)` — K/M/B/T suffixes with adaptive precision. Default for `YAxis` (at ranges ≥ 1e6), `PieLegend`, `PieTooltip`, `Sparkline`.
-- `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `TooltipLegend` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
+- `formatPriceAdaptive(v)` — full-precision display that scales decimals to the value's magnitude. Default for `Tooltip` / `InfoBar` OHLC and line-value cells. Handles sub-cent prices (`0.00001234` → `"0.00001234"`, not `"0.00"`).
 
 ```tsx
 import { Tooltip, YAxis, formatCompact } from '@wick-charts/react';
@@ -111,7 +109,7 @@ import { Tooltip, YAxis, formatCompact } from '@wick-charts/react';
 <Tooltip format={(v, field) => field === 'volume' ? formatCompact(v) : v.toFixed(4)} />
 ```
 
-Tooltip / TooltipLegend pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
+Tooltip / InfoBar pass a `field` arg (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`) so you can branch on which cell you're formatting. All other overlays receive a single `value: number`.
 
 ## Themes
 
@@ -198,15 +196,15 @@ Full `dist/index.js` (minified + gzipped):
 
 | Package | Raw | Gzip |
 |---|---|---|
-| `@wick-charts/react`  | 181 KB | 45.6 KB |
+| `@wick-charts/react`  | 224 KB | 59.3 KB |
 
 Tree-shaking on the consumer side cuts this down further — `pnpm size` builds representative React scenarios through esbuild with production settings:
 
 | Scenario | Raw | Gzip |
 |---|---|---|
-| Candlestick only | 98 KB | 28.5 KB |
-| Line only | 98 KB | 28.6 KB |
-| Full React (all overlays) | 115 KB | 32.8 KB |
+| Candlestick only | 122.1 KB | 36.3 KB |
+| Line only | 122.4 KB | 36.4 KB |
+| Full React (all overlays) | 140.6 KB | 41.3 KB |
 
 ## Migration
 

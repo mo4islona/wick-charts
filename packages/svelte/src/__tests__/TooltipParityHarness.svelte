@@ -4,23 +4,23 @@ import {
   BarSeries,
   CandlestickSeries,
   ChartContainer,
+  InfoBar,
   LineSeries,
   Tooltip,
-  TooltipLegend,
   darkTheme,
 } from '@wick-charts/svelte';
 
 /**
- * Variants exercise the tooltip / tooltip-legend parity fixes:
- *   - `ordered-legend` : TooltipLegend mounted *before* the series in the
+ * Variants exercise the tooltip / info-bar parity fixes:
+ *   - `ordered-legend` : InfoBar mounted *before* the series in the
  *     slot, to prove seriesChange catch-up works.
- *   - `layered-legend` : TooltipLegend over a multi-layer BarSeries to prove
+ *   - `layered-legend` : InfoBar over a multi-layer BarSeries to prove
  *     getLayerSnapshots expansion fires.
  *   - `ordered-tooltip`: Tooltip before series, sanity check it doesn't crash
  *     on initial empty series list.
- *   - `precision-legend`: TooltipLegend over sub-cent OHLC — regression guard
+ *   - `precision-legend`: InfoBar over sub-cent OHLC — regression guard
  *     for the old hardcoded `.toFixed(2)`.
- *   - `custom-format-legend`: TooltipLegend with a custom `format` prop.
+ *   - `custom-format-legend`: InfoBar with a custom `format` prop.
  */
 export let variant:
   | 'ordered-legend'
@@ -35,19 +35,19 @@ export let lineData: TimePoint[][] = [[]];
 
 <ChartContainer theme={darkTheme}>
   {#if variant === 'ordered-legend'}
-    <TooltipLegend />
+    <InfoBar />
     <CandlestickSeries data={candlestickData} />
   {:else if variant === 'layered-legend'}
-    <TooltipLegend />
+    <InfoBar />
     <BarSeries data={barData} />
   {:else if variant === 'ordered-tooltip'}
     <Tooltip />
     <CandlestickSeries data={candlestickData} />
   {:else if variant === 'precision-legend'}
-    <TooltipLegend />
+    <InfoBar />
     <CandlestickSeries data={candlestickData} />
   {:else if variant === 'custom-format-legend'}
-    <TooltipLegend format={(v, field) => `<${field}:${v}>`} />
+    <InfoBar format={(v, field) => `<${field}:${v}>`} />
     <LineSeries data={lineData} />
   {/if}
 </ChartContainer>

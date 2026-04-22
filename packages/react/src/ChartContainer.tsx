@@ -267,7 +267,7 @@ export function ChartContainer({
   const bg = effectiveTheme?.background ?? 'transparent';
   const backgroundStyle = gradient ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)` : bg;
 
-  // Measure the stacked overlay (Title + TooltipLegend) height and feed it
+  // Measure the stacked overlay (Title + InfoBar) height and feed it
   // into the padding effect above so data stays below them even though the
   // canvas itself fills the whole container. Only needed in 'overlay' mode —
   // 'inline' mode lets browser flex layout reserve header height directly,
@@ -279,7 +279,7 @@ export function ChartContainer({
     }
     const el = topOverlayRef.current;
     if (!el) {
-      // When neither Title nor TooltipLegend is present the overlay wrapper
+      // When neither Title nor InfoBar is present the overlay wrapper
       // isn't rendered — clear any stale measured height so `padding.top`
       // drops back to the user's configured value on the next effect run.
       setTopOverlayHeight(0);
@@ -309,7 +309,7 @@ export function ChartContainer({
               left: 0,
               right: 0,
               // Lower than the series-overlay layer below, so the floating
-              // <Tooltip> glass panel renders *above* Title/TooltipLegend
+              // <Tooltip> glass panel renders *above* Title/InfoBar
               // when the cursor hovers near them.
               zIndex: 2,
               pointerEvents: 'none',

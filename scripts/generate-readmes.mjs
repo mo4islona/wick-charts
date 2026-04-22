@@ -80,7 +80,12 @@ function generate(src, target) {
   out = rewriteMigration(out, target);
   out = collapseBlankLines(out);
 
-  return HEADER + out.trimStart();
+  const body = out.trimStart().trimEnd();
+  // Place the "generated" note right after the H1 so npm's package page scrapes the real
+  // tagline as the description, not the HTML comment.
+  const withHeader = body.replace(/^(# [^\n]+\n\n)/, `$1${HEADER}`);
+
+  return withHeader === body ? `${HEADER}${body}` : withHeader;
 }
 
 function main() {

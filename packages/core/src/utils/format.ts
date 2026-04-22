@@ -15,13 +15,13 @@
  *   - Number.MAX_SAFE_INTEGER falls back to scientific notation (>= 1e15)
  *
  * Consumers can import these directly, or swap them in per-component via the
- * `format` prop on Tooltip/TooltipLegend/YAxis/etc. (see framework wrappers).
+ * `format` prop on Tooltip/InfoBar/YAxis/etc. (see framework wrappers).
  */
 
 /** Signature for a value-to-string formatter (YAxis, YLabel, Pie, Sparkline, NumberFlow). */
 export type ValueFormatter = (value: number) => string;
 
-/** Fields surfaced to a `Tooltip` / `TooltipLegend` formatter. */
+/** Fields surfaced to a `Tooltip` / `InfoBar` formatter. */
 export type TooltipField = 'open' | 'high' | 'low' | 'close' | 'volume' | 'value';
 
 /** Signature for the tooltip formatter — single prop, field hint. */
