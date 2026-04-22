@@ -23,13 +23,23 @@ interface PieSettings {
   donut: boolean;
   tooltipVisible: boolean;
   legendVisible: boolean;
+  animate: boolean;
+  shadow: boolean;
+  shadowAlpha: number;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  innerShadow: boolean;
+  innerShadowAlpha: number;
+  innerShadowDepthPct: number;
   innerRatioPct: number;
   padAngle: number;
-  strokeWidth: number;
   labelMode: PieLabelMode;
   labelContent: PieLabelContent;
   labelFontSize: number;
   labelGap: number;
+  labelDistance: number;
+  labelRailWidth: number;
   cardinality: number;
   legendPosition: PieLegendPosition;
   legendMode: PieLegendMode;
@@ -79,13 +89,23 @@ function PieChart({
   donut,
   tooltipVisible,
   legendVisible,
+  animate,
+  shadow,
+  shadowAlpha,
+  shadowBlur,
+  shadowOffsetX,
+  shadowOffsetY,
+  innerShadow,
+  innerShadowAlpha,
+  innerShadowDepthPct,
   innerRatioPct,
   padAngle,
-  strokeWidth,
   labelMode,
   labelContent,
   labelFontSize,
   labelGap,
+  labelDistance,
+  labelRailWidth,
   legendPosition,
   legendMode,
   perfHudVisible,
@@ -108,8 +128,26 @@ function PieChart({
         options={{
           innerRadiusRatio: donut ? innerRatioPct / 100 : 0,
           padAngle,
-          stroke: { color: theme.background, width: strokeWidth },
-          sliceLabels: { mode: labelMode, content: labelContent, fontSize: labelFontSize, labelGap },
+          animate,
+          shadow: shadow
+            ? {
+                color: `rgba(0, 0, 0, ${shadowAlpha})`,
+                blur: shadowBlur,
+                offsetX: shadowOffsetX,
+                offsetY: shadowOffsetY,
+              }
+            : false,
+          innerShadow: innerShadow
+            ? { color: `rgba(0, 0, 0, ${innerShadowAlpha})`, depth: innerShadowDepthPct / 100 }
+            : false,
+          sliceLabels: {
+            mode: labelMode,
+            content: labelContent,
+            fontSize: labelFontSize,
+            labelGap,
+            distance: labelDistance,
+            railWidth: labelRailWidth,
+          },
         }}
       />
       {tooltipVisible && <PieTooltip seriesId={sid} />}
@@ -127,17 +165,114 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'donut',
       label: 'Donut',
+      hint: 'Cut a hole in the middle of the pie.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
+      hint: 'Show a tooltip for the hovered slice.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'legendVisible',
       label: 'Legend',
+      hint: 'Render the PieLegend alongside the chart.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'animate',
+      label: 'Animate',
+      hint: 'Entrance draw-in and hover-explode motion.',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+  ] as RowSpec[],
+};
+
+const SHADOW_SECTION: SectionSpec = {
+  id: 'shadow-pie',
+  title: 'Shadow',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'shadow',
+      label: 'Drop shadow',
+      hint: 'Soft outer shadow cast behind each slice.',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'shadowAlpha',
+      label: 'Drop opacity',
+      hint: 'Alpha of the drop-shadow color.',
+      visible: (s) => s.shadow === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0.05} max={0.6} step={0.05} onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'shadowBlur',
+      label: 'Drop blur',
+      hint: 'Shadow blur radius in pixels.',
+      visible: (s) => s.shadow === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={60} step={2} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'shadowOffsetX',
+      label: 'Drop offset X',
+      hint: 'Horizontal displacement of the shadow.',
+      visible: (s) => s.shadow === true,
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={-20}
+          max={20}
+          step={1}
+          suffix="px"
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'shadowOffsetY',
+      label: 'Drop offset Y',
+      hint: 'Vertical displacement of the shadow.',
+      visible: (s) => s.shadow === true,
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={-20}
+          max={40}
+          step={1}
+          suffix="px"
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'innerShadow',
+      label: 'Inner shadow',
+      hint: 'Rim darkening inside each slice edge.',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'innerShadowAlpha',
+      label: 'Inner opacity',
+      hint: 'Alpha of the inner rim color.',
+      visible: (s) => s.innerShadow === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0.05} max={0.7} step={0.05} onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'innerShadowDepthPct',
+      label: 'Inner depth',
+      hint: 'How far the rim darkening reaches inward.',
+      visible: (s) => s.innerShadow === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={5} max={60} step={5} suffix="%" onChange={onChange as (v: number) => void} />
+      ),
     },
   ] as RowSpec[],
 };
@@ -173,8 +308,7 @@ const GEOMETRY_SECTION: SectionSpec = {
     {
       key: 'innerRatioPct',
       label: 'Donut hole',
-      // Only relevant when donut mode is on — hide otherwise so the slider
-      // doesn't suggest it has an effect on a solid pie.
+      hint: 'Inner radius as a fraction of the outer one.',
       visible: (s) => s.donut === true,
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={85} step={5} suffix="%" onChange={onChange as (v: number) => void} />
@@ -183,15 +317,9 @@ const GEOMETRY_SECTION: SectionSpec = {
     {
       key: 'padAngle',
       label: 'Slice gap',
+      hint: 'Angular gap carved out between adjacent slices.',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={8} step={0.5} suffix="°" onChange={onChange as (v: number) => void} />
-      ),
-    },
-    {
-      key: 'strokeWidth',
-      label: 'Stroke',
-      render: (v, onChange) => (
-        <Slider value={v as number} min={0} max={4} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
   ] as RowSpec[],
@@ -205,6 +333,7 @@ const LABELS_SECTION: SectionSpec = {
     {
       key: 'labelMode',
       label: 'Mode',
+      hint: 'Where per-slice labels live.',
       render: (v, onChange) => (
         <ToggleGroup<PieLabelMode>
           value={v as PieLabelMode}
@@ -216,6 +345,7 @@ const LABELS_SECTION: SectionSpec = {
     {
       key: 'labelContent',
       label: 'Content',
+      hint: 'Label text: name, percent, or both.',
       render: (v, onChange) => (
         <Select<PieLabelContent>
           value={v as PieLabelContent}
@@ -227,6 +357,7 @@ const LABELS_SECTION: SectionSpec = {
     {
       key: 'labelFontSize',
       label: 'Font size',
+      hint: 'Label text size in pixels.',
       render: (v, onChange) => (
         <Slider value={v as number} min={8} max={18} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -234,11 +365,25 @@ const LABELS_SECTION: SectionSpec = {
     {
       key: 'labelGap',
       label: 'Label gap',
-      // Multiplier on fontSize for vertical min-gap between same-side labels.
-      // 1.0 packs labels tight, 3.0 forces generous spacing that can spill
-      // past canvas bounds (PAV collapses into a centered block when it does).
+      hint: 'Min vertical gap between same-side labels (× fontSize).',
       render: (v, onChange) => (
         <Slider value={v as number} min={0.8} max={3} step={0.1} onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'labelDistance',
+      label: 'Distance',
+      hint: 'Radial gap between pie edge and label anchor.',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={8} max={60} step={2} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'labelRailWidth',
+      label: 'Rail width',
+      hint: 'Length of the horizontal tail before the text.',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={60} step={2} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
   ] as RowSpec[],
@@ -305,13 +450,23 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         donut: true,
         tooltipVisible: false,
         legendVisible: true,
+        animate: false,
+        shadow: false,
+        shadowAlpha: 0.22,
+        shadowBlur: 24,
+        shadowOffsetX: 0,
+        shadowOffsetY: 10,
+        innerShadow: false,
+        innerShadowAlpha: 0.1,
+        innerShadowDepthPct: 30,
         innerRatioPct: 55,
         padAngle: 1.7,
-        strokeWidth: 2,
         labelMode: 'outside',
         labelContent: 'both',
         labelFontSize: 11,
-        labelGap: 1.4,
+        labelGap: 1.8,
+        labelDistance: 14,
+        labelRailWidth: 16,
         cardinality: 5,
         legendPosition: 'bottom',
         legendMode: 'both',
@@ -319,7 +474,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       gridTemplate="1fr 1fr"
       gridColumns="1fr 1fr"
       hideCartesian
-      sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, LABELS_SECTION, STRESS_SECTION, LEGEND_SECTION]}
+      sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, SHADOW_SECTION, LABELS_SECTION, STRESS_SECTION, LEGEND_SECTION]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -352,12 +507,25 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
               options: {
                 innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
                 padAngle: s.padAngle,
-                stroke: { width: s.strokeWidth },
+                animate: s.animate,
+                shadow: s.shadow
+                  ? {
+                      color: `rgba(0, 0, 0, ${s.shadowAlpha})`,
+                      blur: s.shadowBlur,
+                      offsetX: s.shadowOffsetX,
+                      offsetY: s.shadowOffsetY,
+                    }
+                  : false,
+                innerShadow: s.innerShadow
+                  ? { color: `rgba(0, 0, 0, ${s.innerShadowAlpha})`, depth: s.innerShadowDepthPct / 100 }
+                  : false,
                 sliceLabels: {
                   mode: s.labelMode,
                   content: s.labelContent,
                   fontSize: s.labelFontSize,
                   labelGap: s.labelGap,
+                  distance: s.labelDistance,
+                  railWidth: s.labelRailWidth,
                 },
               },
             },

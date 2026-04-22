@@ -39,7 +39,7 @@ describe('PieRenderer — slice explode animation', () => {
   }
 
   it('animates over many frames instead of snapping in one', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ animate: true });
     r.setData(SLICES);
     renderFrame(r); // prime lastRenderTime
     r.setHoverIndex(1);
@@ -55,7 +55,7 @@ describe('PieRenderer — slice explode animation', () => {
   });
 
   it('reaches the hovered target after enough frames', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ animate: true });
     r.setData(SLICES);
     renderFrame(r);
     r.setHoverIndex(2);
@@ -74,7 +74,7 @@ describe('PieRenderer — slice explode animation', () => {
   // exploded in one frame. Symptom in the docs app: "animation works a few
   // times then stops" — really, it teleports after any idle gap.
   it('does not snap when the next hover happens after a long idle gap', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ animate: true });
     r.setData(SLICES);
     renderFrame(r);
 
@@ -106,7 +106,7 @@ describe('PieRenderer — slice explode animation', () => {
   });
 
   it('animates retraction when hover clears', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ animate: true });
     r.setData(SLICES);
     renderFrame(r);
 
