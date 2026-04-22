@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "bench": "vitest bench --run",
     "size": "node scripts/bundle-size.mjs",
-    "readme": "node scripts/generate-readmes.mjs"
+    "readme": "node scripts/generate-readmes.mjs",
+    "publish:all": "pnpm -r build && pnpm -r --filter './packages/*' publish --access public"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.10",

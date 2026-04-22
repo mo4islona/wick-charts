@@ -7,7 +7,13 @@ import dts from 'vite-plugin-dts';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [dts({ rollupTypes: true, bundledPackages: ['@wick-charts/core'] })],
+  plugins: [
+    dts({
+      rollupTypes: true,
+      bundledPackages: ['@wick-charts/core'],
+      exclude: ['**/__tests__/**', '**/*.test.ts', '**/*.test.tsx', 'test-setup.ts'],
+    }),
+  ],
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
