@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { type ChartTheme, ThemeProvider } from '@wick-charts/react';
+import { type ChartTheme, type ThemeConfig, ThemeProvider, createTheme } from '@wick-charts/react';
 
 import { type Route, Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
+import { type JsonValue, themeToJson } from './components/theme-editor/themeJson';
 import { FrameworkProvider } from './context/framework';
 import { useFrameworkState } from './hooks/useFramework';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -16,14 +17,13 @@ import { SparklinePage } from './pages/SparklinePage';
 import { ThemePage } from './pages/ThemePage';
 import { themes } from './themes';
 
-const PAGES: Record<Route, React.FC<{ theme: ChartTheme }>> = {
+const PAGES: Record<Exclude<Route, 'theme'>, React.FC<{ theme: ChartTheme }>> = {
   dashboard: DashboardPage,
   candlestick: CandlestickPage,
   line: LinePage,
   bar: BarPage,
   pie: PiePage,
   sparkline: SparklinePage,
-  theme: ThemePage,
 };
 
 const TITLES: Record<Route, string> = {
@@ -37,7 +37,17 @@ const TITLES: Record<Route, string> = {
 };
 
 function isRoute(s: string): s is Route {
-  return s in PAGES;
+  return s === 'theme' || s in PAGES;
+}
+
+// BT.601 luma — matches createTheme's isDarkBg but works on runtime hex colors.
+function luminance(hex: string): number {
+  if (!hex.startsWith('#') || hex.length < 7) return 0;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
 function useHashRoute(): [Route, (r: Route) => void] {
@@ -88,9 +98,44 @@ export default function App() {
   }, [collapsed]);
 
   const preset = themes[themeName];
-  const theme = preset.theme;
+  const baseTheme = preset.theme;
 
-  // Load font + set root styles
+  // The editor's controlled JSON. `null` = no edits, show preset. Lives here
+  // so edits persist across navigation (Dashboard → Theme → back).
+  const [editorJson, setEditorJson] = useState<JsonValue | null>(null);
+  const baseJson = useMemo<JsonValue>(() => themeToJson(baseTheme), [baseTheme]);
+  const editorValue = editorJson ?? baseJson;
+
+  // Derive the whole-page override from the edited JSON via createTheme.
+  // Invalid JSON falls back to `null` so previews don't crash.
+  const override = useMemo<ChartTheme | null>(() => {
+    if (!editorJson) return null;
+    try {
+      const cfg = editorJson as unknown as ThemeConfig;
+      if (!cfg || typeof cfg !== 'object' || typeof cfg.background !== 'string') return null;
+
+      return createTheme(cfg).theme;
+    } catch {
+      return null;
+    }
+  }, [editorJson]);
+
+  const theme = override ?? baseTheme;
+  const isCustom = editorJson !== null;
+  const isDarkActive = useMemo(() => luminance(theme.background) < 0.5, [theme.background]);
+
+  const pickTheme = (name: string) => {
+    setThemeName(name);
+    setEditorJson(null);
+  };
+
+  const onEditorChange = (next: JsonValue) => {
+    // Clear the override when edits round-trip back to the preset baseline.
+    setEditorJson(JSON.stringify(next) === JSON.stringify(baseJson) ? null : next);
+  };
+
+  // Load font + set root styles — tracks the ACTIVE theme so custom edits
+  // propagate to document-level styling (body bg, root font, page glow).
   useEffect(() => {
     if (preset.fontUrl) {
       const id = `font-${themeName.replace(/\s/g, '-')}`;
@@ -105,16 +150,15 @@ export default function App() {
     document.documentElement.style.fontSize = `${theme.typography.fontSize}px`;
     document.documentElement.style.fontFamily = theme.typography.fontFamily;
     document.body.style.backgroundColor = theme.background;
-    const glow = preset.dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
+    const glow = isDarkActive ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
     document.body.style.setProperty('--page-glow', glow);
-  }, [themeName]);
+  }, [themeName, theme, preset.fontUrl, isDarkActive]);
 
-  const Page = PAGES[route];
   const pageTitle = TITLES[route];
 
   const bgImage = (() => {
-    const major = preset.dark ? 0.06 : 0.12;
-    const minor = preset.dark ? 0.03 : 0.06;
+    const major = isDarkActive ? 0.06 : 0.12;
+    const minor = isDarkActive ? 0.03 : 0.06;
     return [
       preset.backgroundImage,
       `repeating-linear-gradient(0deg, transparent, transparent 129px, rgba(150,150,150,${major}) 129px, rgba(150,150,150,${major}) 130px)`,
@@ -299,13 +343,21 @@ export default function App() {
                     </a>
                   </>
                 )}
-                <ThemeSelect value={themeName} onChange={setThemeName} theme={theme} mobile={mobile} />
+                <ThemeSelect value={themeName} onChange={pickTheme} theme={theme} mobile={mobile} custom={isCustom} />
               </div>
             </div>
 
             {/* Page content */}
             <div style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>
-              <Page theme={theme} />
+              {route === 'theme' ? (
+                <ThemePage theme={baseTheme} value={editorValue} onChange={onEditorChange} />
+              ) : (
+                (() => {
+                  const Page = PAGES[route];
+
+                  return <Page theme={theme} />;
+                })()
+              )}
             </div>
           </div>
         </div>

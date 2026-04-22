@@ -595,7 +595,9 @@
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  transition: border-color 120ms ease, background 120ms ease;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 .wick-playground .bound input::placeholder {
   color: var(--fg-4);
@@ -623,7 +625,10 @@
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   line-height: 1;
-  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease;
 }
 .wick-playground .bound-presets button:hover {
   color: var(--fg-1);
@@ -650,6 +655,15 @@
   min-width: 0;
   overflow: hidden;
   margin: 8px;
+}
+.wick-playground .pg-code-label {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--code-btn-fg);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
 }
 .wick-playground .pg-code-copy {
   position: absolute;
@@ -767,6 +781,363 @@
 }
 .wick-playground .tok-operator {
   color: var(--tok-punct);
+}
+
+/* ---------- Theme editor: color control ---------- */
+.wick-playground .color-ctrl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.wick-playground .color-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg-3), transparent 40%);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+.wick-playground .color-trigger:hover {
+  border-color: color-mix(in oklab, currentColor 28%, transparent);
+  background: color-mix(in oklab, var(--bg-3), transparent 30%);
+}
+.wick-playground .color-trigger.open {
+  border-color: var(--accent);
+}
+.wick-playground .color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in oklab, var(--fg-1) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, #000 18%, transparent);
+  flex-shrink: 0;
+  display: inline-block;
+}
+.wick-playground .color-trigger input {
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--fg-1);
+  font-family: var(--mono);
+  font-size: 12px;
+  width: 78px;
+  padding: 0;
+  text-transform: lowercase;
+  cursor: text;
+}
+/* Rendered via createPortal to document.body, so it lives outside `.wick-playground`.
+ * The inline style prop injects --bg-2/--line from themeSurfaceVars at the portal root. */
+.color-picker-pop {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, rgba(255, 255, 255, 0.15));
+  background: var(--bg-2, #1a1e2a);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Editable code textarea ---------- */
+.wick-playground .pg-code-edit {
+  display: block;
+  width: 100%;
+  background: transparent;
+  color: var(--code-fg);
+  border: 0;
+  outline: none;
+  resize: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.55;
+  tab-size: 2;
+  padding: 8px 14px;
+  box-sizing: border-box;
+  white-space: pre;
+  overflow: auto;
+  min-height: 0;
+}
+.wick-playground .pg-code-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--code-btn-fg);
+  padding-left: 4px;
+}
+
+/* ---------- Theme Editor v2 ---------- */
+.wick-playground .tev2-right {
+  display: grid;
+  min-height: 0;
+}
+.wick-playground .tev2-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 14px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg-1);
+}
+.wick-playground .tev2-mode {
+  margin: 0;
+}
+.wick-playground .tev2-mode button {
+  padding: 4px 12px;
+  font-size: 11.5px;
+  font-family: var(--mono);
+}
+.wick-playground .tev2-scroll {
+  overflow: auto;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-3) transparent;
+}
+.wick-playground .tev2-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.wick-playground .tev2-scroll::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 3px;
+}
+.wick-playground .tev2-raw {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+}
+
+/* JSON editor body */
+.wick-playground .json-edit {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--code-fg);
+  padding: 10px 14px 14px;
+}
+.wick-playground .json-line {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-height: 24px;
+  padding-right: 10px;
+  position: relative;
+  border-radius: 4px;
+  transition: background 100ms ease;
+}
+.wick-playground .json-line:hover {
+  background: color-mix(in oklab, currentColor 5%, transparent);
+}
+.wick-playground .json-key {
+  color: var(--tok-attr);
+}
+.wick-playground .json-punct {
+  color: var(--tok-punct);
+  white-space: pre;
+}
+
+/* Inline leaves */
+.wick-playground .leaf-str {
+  color: var(--tok-str);
+  cursor: text;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 100ms ease;
+}
+.wick-playground .leaf-str:hover {
+  background: color-mix(in oklab, currentColor 7%, transparent);
+}
+.wick-playground .leaf-str .q {
+  color: var(--tok-punct);
+}
+.wick-playground .leaf-str.editing {
+  background: var(--bg-1);
+  outline: 1px solid var(--accent);
+}
+.wick-playground .leaf-str input {
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--tok-str);
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0;
+  min-width: 4ch;
+}
+.wick-playground .leaf-num {
+  color: var(--tok-num);
+  cursor: text;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 100ms ease;
+  font-variant-numeric: tabular-nums;
+}
+.wick-playground .leaf-num:hover {
+  background: color-mix(in oklab, currentColor 7%, transparent);
+}
+.wick-playground .leaf-num.editing {
+  background: var(--bg-1);
+  outline: 1px solid var(--accent);
+  color: var(--tok-num);
+  font-family: inherit;
+  font-size: inherit;
+  border: 0;
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+.wick-playground .leaf-bool {
+  background: transparent;
+  border: 0;
+  color: var(--tok-kw);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.wick-playground .leaf-bool:hover {
+  background: color-mix(in oklab, currentColor 7%, transparent);
+}
+.wick-playground .leaf-null {
+  color: var(--tok-punct);
+  opacity: 0.7;
+  font-style: italic;
+}
+.wick-playground .leaf-select {
+  display: inline-flex;
+  align-items: center;
+}
+.wick-playground .leaf-select .q {
+  color: var(--tok-punct);
+}
+.wick-playground .leaf-select select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--tok-str);
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0 16px 0 2px;
+  cursor: pointer;
+  outline: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fg-4) 50%), linear-gradient(-45deg, transparent 50%, var(--fg-4) 50%);
+  background-position:
+    right 5px top 50%,
+    right 2px top 50%;
+  background-size:
+    3px 3px,
+    3px 3px;
+  background-repeat: no-repeat;
+}
+
+/* Array row affordances */
+.wick-playground .json-arr-remove {
+  opacity: 0;
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--fg-4);
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 3px;
+  transition:
+    opacity 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+.wick-playground .json-line:hover .json-arr-remove {
+  opacity: 0.7;
+}
+.wick-playground .json-line:hover .json-arr-remove:hover {
+  opacity: 1;
+  color: var(--bear);
+  background: color-mix(in oklab, var(--bear) 15%, transparent);
+}
+.wick-playground .json-arr-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  background: transparent;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+.wick-playground .json-arr-add:hover {
+  color: var(--fg-1);
+  border-color: var(--fg-4);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+/* Inline color control inside the JSON editor — sits flush with hex text */
+.wick-playground .json-edit .color-ctrl {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+.wick-playground .json-edit .color-trigger {
+  padding: 1px 6px 1px 3px;
+  height: 22px;
+}
+.wick-playground .json-edit .color-trigger input {
+  font-size: 12px;
+  color: var(--tok-str);
+}
+.wick-playground .json-edit .color-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+/* Preview strip — colors found in the current state */
+.wick-playground .tev2-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  background: color-mix(in oklab, var(--bg-3), transparent 55%);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+.wick-playground .tev2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px 3px 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--fg-3);
+}
+.wick-playground .tev2-chip-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--fg-1) 30%, transparent);
+  flex-shrink: 0;
+}
+.wick-playground .tev2-chip-path {
+  color: var(--fg-2);
 }
 
 /* ---------- Mobile ---------- */

@@ -4,6 +4,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import { themes } from '../themes';
 import { hexToRgba } from '../utils';
+import { ThemeDots, ThemeList } from './ThemeList';
 
 const allNames = Object.keys(themes);
 const darkThemes = allNames.filter((n) => themes[n].dark);
@@ -14,11 +15,14 @@ export function ThemeSelect({
   onChange,
   theme,
   mobile = false,
+  custom = false,
 }: {
   value: string;
   onChange: (v: string) => void;
   theme: ChartTheme;
   mobile?: boolean;
+  /** When true, the trigger shows "Custom" and dots from the live theme; pressing any preset in the list clears the custom state. */
+  custom?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -62,8 +66,8 @@ export function ThemeSelect({
           outline: 'none',
         }}
       >
-        <ThemeDots t={themes[value].theme} />
-        {!mobile && value}
+        <ThemeDots t={custom ? theme : themes[value].theme} />
+        {!mobile && (custom ? 'Custom' : value)}
         <span style={{ opacity: 0.4, fontSize: theme.typography.axisFontSize, marginLeft: mobile ? 0 : 2 }}>▾</span>
       </button>
 
@@ -94,20 +98,20 @@ export function ThemeSelect({
               ...(mobile ? { left: 0, right: 0, position: 'fixed' as const, top: 50, marginTop: 0 } : {}),
             }}
           >
-            <ThemeColumn
+            <ThemeList
               label="Light"
               names={lightThemes}
-              value={value}
+              value={custom ? null : value}
               onChange={(v) => {
                 onChange(v);
                 setOpen(false);
               }}
               theme={theme}
             />
-            <ThemeColumn
+            <ThemeList
               label="Dark"
               names={darkThemes}
-              value={value}
+              value={custom ? null : value}
               onChange={(v) => {
                 onChange(v);
                 setOpen(false);
@@ -163,95 +167,5 @@ export function ThemeSelect({
         </>
       )}
     </div>
-  );
-}
-
-function ThemeColumn({
-  label,
-  names,
-  value,
-  onChange,
-  theme,
-}: {
-  label: string;
-  names: string[];
-  value: string;
-  onChange: (v: string) => void;
-  theme: ChartTheme;
-}) {
-  return (
-    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <div
-        style={{
-          fontSize: theme.typography.axisFontSize,
-          color: theme.axis.textColor,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-          fontWeight: 600,
-          padding: '4px 8px 10px',
-          borderBottom: `1px solid ${theme.tooltip.borderColor}`,
-          marginBottom: 2,
-        }}
-      >
-        {label}
-      </div>
-      {names.map((name) => {
-        const preset = themes[name];
-        const t = preset.theme;
-        const active = name === value;
-        return (
-          <button
-            key={name}
-            onClick={() => onChange(name)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              width: '100%',
-              background: active ? hexToRgba(theme.crosshair.labelBackground, 0.8) : 'transparent',
-              color: active ? theme.tooltip.textColor : theme.crosshair.labelTextColor,
-              border: 'none',
-              padding: '7px 10px',
-              borderRadius: 5,
-              fontSize: theme.typography.fontSize,
-              fontFamily: 'inherit',
-              fontWeight: active ? 600 : 400,
-              cursor: 'pointer',
-              textAlign: 'left',
-              transition: 'background 0.1s',
-            }}
-            onMouseEnter={(e) => {
-              if (!active) e.currentTarget.style.background = hexToRgba(theme.crosshair.labelBackground, 0.4);
-            }}
-            onMouseLeave={(e) => {
-              if (!active) e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            <ThemeDots t={t} />
-            <span style={{ flex: 1 }}>{name}</span>
-            <span
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 5,
-                background: `linear-gradient(135deg, ${t.chartGradient[0]}, ${t.background})`,
-                border: '1px solid rgba(128,128,128,0.3)',
-                flexShrink: 0,
-              }}
-            />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ThemeDots({ t }: { t: ChartTheme }) {
-  return (
-    <span style={{ display: 'flex', gap: 3 }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.candlestick.upColor }} />
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.line.color }} />
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.candlestick.downColor }} />
-    </span>
   );
 }
