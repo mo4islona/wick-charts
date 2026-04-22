@@ -20,7 +20,8 @@ describe('PieRenderer.render', () => {
   });
 
   it('N slices → N arc() calls', () => {
-    const r = new PieRenderer();
+    // Disable labels to isolate slice-arc count from label anchor-dot arcs.
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -30,7 +31,7 @@ describe('PieRenderer.render', () => {
   });
 
   it('slice angle is proportional to value', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
     r.setData([
       { label: 'half', value: 50 },
       { label: 'quarter', value: 25 },
@@ -53,7 +54,7 @@ describe('PieRenderer.render', () => {
   });
 
   it('innerRadiusRatio > 0 → donut: each slice draws both an outer and an inner arc', () => {
-    const r = new PieRenderer({ innerRadiusRatio: 0.5 });
+    const r = new PieRenderer({ innerRadiusRatio: 0.5, sliceLabels: { mode: 'none' } });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -63,7 +64,7 @@ describe('PieRenderer.render', () => {
   });
 
   it('each slice fills with a radial gradient (depth effect)', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -73,15 +74,6 @@ describe('PieRenderer.render', () => {
     const fills = spy.callsOf('fill');
     expect(fills).toHaveLength(3);
     for (const f of fills) expect(f.fillStyle).toContain('gradient(radial');
-  });
-
-  it('stroke-draw suppressed when stroke.width=0 or stroke.color=transparent', () => {
-    const r = new PieRenderer({ stroke: { width: 0, color: 'transparent' } });
-    r.setData(SLICES);
-    const { ctx, spy } = buildRenderContext();
-    r.render(ctx);
-
-    expect(spy.countOf('stroke')).toBe(0);
   });
 });
 

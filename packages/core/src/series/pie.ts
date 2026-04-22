@@ -12,7 +12,15 @@ const DEFAULT_LABELS: Required<PieLabelsOptions> = {
   minSliceAngle: 2.5,
   elbowLen: 12,
   legPad: 6,
-  labelGap: 1.4,
+  // Radial distance from the pie edge to the label ring. The label then
+  // extends horizontally outward by `railWidth` so the text anchor sits
+  // past a consistent-length horizontal tail.
+  distance: 14,
+  railWidth: 16,
+  // Multiplier on fontSize for min vertical gap between same-side labels.
+  // 1.8 gives each label room to breathe without spreading so aggressively
+  // that PAV collapses into a centered block on dense datasets.
+  labelGap: 1.8,
   balanceSides: true,
 };
 
@@ -20,8 +28,9 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
   // 1.15° ≈ 0.02 rad — same visual default as before the radians→degrees switch.
   padAngle: 1.15,
-  stroke: { color: 'transparent', width: 0 },
   sliceLabels: { ...DEFAULT_LABELS },
+  // Motion off by default: label draw-in + hover explode both skipped.
+  animate: false,
 };
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -33,6 +42,38 @@ function mergeLabelOpts(existing: PieLabelsOptions | undefined, incoming: PieLab
 /** Resolve a `PieLabelsOptions` partial against {@link DEFAULT_LABELS}. */
 function resolveLabels(labels: PieLabelsOptions | undefined): Required<PieLabelsOptions> {
   return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+/**
+ * Resolve a `shadow?: boolean | {...}` option into concrete outer-drop-shadow
+ * style fields. Values stay in CSS px; the render path multiplies by the
+ * pixel ratio. Defaults aim for a soft, contemporary "lift" look.
+ */
+function resolveShadow(shadow: NonNullable<PieSeriesOptions['shadow']>): {
+  color: string;
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+} {
+  const base = { color: 'rgba(0, 0, 0, 0.22)', blur: 24, offsetX: 0, offsetY: 10 };
+  if (shadow === true || shadow === false) return base;
+
+  return { ...base, ...shadow };
+}
+
+/**
+ * Resolve an `innerShadow?: boolean | {...}` option. Returns the rim color
+ * and a `depth` fraction in [0, 1] controlling how far inward the dark band
+ * reaches from the outer edge.
+ */
+function resolveInnerShadow(inner: NonNullable<PieSeriesOptions['innerShadow']>): {
+  color: string;
+  depth: number;
+} {
+  const base = { color: 'rgba(0, 0, 0, 0.1)', depth: 0.3 };
+  if (inner === true || inner === false) return base;
+
+  return { ...base, ...inner };
 }
 
 const TWO_PI = Math.PI * 2;
@@ -114,6 +155,10 @@ interface OutsideLabelLayout {
   elbowX: number;
   elbowY: number;
   side: 1 | -1;
+  // Label anchor on the outer label ring. X is pinned to the slice midangle's
+  // natural radial position; Y is the PAV-adjusted value. Rails stay short
+  // because the label sits near its own slice, not at a canvas-wide column.
+  labelX: number;
   labelY: number;
   text: string;
   color: string;
@@ -127,6 +172,51 @@ function lightenColor(hex: string, amount: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
+/**
+ * Parse a CSS color (hex or `rgb[a](...)`) to its RGBA channels in [0..255]
+ * and [0..1] for alpha. Unsupported formats fall back to opaque black — good
+ * enough for the inner-shadow rim blend where a sensible default is better
+ * than a renderer crash.
+ */
+function parseCssColor(input: string): { r: number; g: number; b: number; a: number } {
+  if (input.startsWith('#')) {
+    return {
+      r: parseInt(input.slice(1, 3), 16) || 0,
+      g: parseInt(input.slice(3, 5), 16) || 0,
+      b: parseInt(input.slice(5, 7), 16) || 0,
+      a: 1,
+    };
+  }
+  const match = input.match(/^rgba?\s*\(([^)]+)\)$/i);
+  if (match) {
+    const parts = match[1].split(',').map((p) => p.trim());
+    return {
+      r: Number.parseFloat(parts[0]) || 0,
+      g: Number.parseFloat(parts[1]) || 0,
+      b: Number.parseFloat(parts[2]) || 0,
+      a: parts[3] === undefined ? 1 : Number.parseFloat(parts[3]),
+    };
+  }
+
+  return { r: 0, g: 0, b: 0, a: 1 };
+}
+
+/**
+ * Alpha-over composite: paint `overlay` on top of `base`, return the opaque
+ * resulting color as a hex string. Used to resolve the inner-shadow rim
+ * blend into a concrete gradient stop color.
+ */
+function blendOver(base: string, overlay: string): string {
+  const b = parseCssColor(base);
+  const o = parseCssColor(overlay);
+  const a = o.a;
+  const r = Math.round(o.r * a + b.r * (1 - a));
+  const g = Math.round(o.g * a + b.g * (1 - a));
+  const bb = Math.round(o.b * a + b.b * (1 - a));
+
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
+}
+
 export class PieRenderer implements SeriesRenderer {
   #data: PieSliceData[] = [];
   #options: PieSeriesOptions;
@@ -136,11 +226,12 @@ export class PieRenderer implements SeriesRenderer {
   #sliceOffsets: number[] = [];
   #lastRenderTime = 0;
   /**
-   * Outside-label reveal progress (0..1). Eased toward 1 on mount / data-swap,
-   * drives the leader-line draw-in and label fade-in stagger. Only tweened
-   * when `sliceLabels.mode === 'outside'`.
+   * Outside-label reveal progress (0..1). Eased toward 1 on mount / data-swap
+   * when `animate` is on; drives the leader-line draw-in and label fade-in
+   * stagger. When `animate` is off (the default) this stays pinned at 1 so
+   * labels paint fully-revealed on the first frame.
    */
-  #labelReveal = 0;
+  #labelReveal = 1;
   /**
    * Cached horizontal bitmap-pixel reserve for outside labels. Invalidated on
    * `setData` / `updateOptions`; computed lazily on first `render` call per
@@ -175,7 +266,9 @@ export class PieRenderer implements SeriesRenderer {
     const slices = (data ?? []) as PieSliceData[];
     this.#data = slices;
     this.#sliceOffsets = new Array(slices.length).fill(0);
-    this.#labelReveal = 0;
+    // Only reset reveal to 0 when the entrance animation is enabled;
+    // otherwise keep it pinned at 1 so the new data paints fully-revealed.
+    this.#labelReveal = this.#options.animate ? 0 : 1;
     this.#labelReserveCache = null;
     for (const listener of this.#dataListeners) {
       listener();
@@ -196,9 +289,10 @@ export class PieRenderer implements SeriesRenderer {
     const nextMode = this.#options.sliceLabels?.mode;
 
     // Reveal animation restarts when outside-mode is newly engaged so the
-    // leader lines draw in, rather than popping into place.
+    // leader lines draw in, rather than popping into place — but only when
+    // `animate` is on; otherwise the labels snap to their final position.
     if (nextMode === 'outside' && prevMode !== 'outside') {
-      this.#labelReveal = 0;
+      this.#labelReveal = this.#options.animate ? 0 : 1;
     }
 
     this.#labelReserveCache = null;
@@ -322,6 +416,8 @@ export class PieRenderer implements SeriesRenderer {
 
   /** Returns true if animation is still in progress. */
   get needsAnimation(): boolean {
+    if (!this.#options.animate) return false;
+
     for (let i = 0; i < this.#sliceOffsets.length; i++) {
       const target = i === this.#hoverIndex ? 1 : 0;
       if (Math.abs(this.#sliceOffsets[i] - target) > 0.01) return true;
@@ -390,13 +486,16 @@ export class PieRenderer implements SeriesRenderer {
       if (w > maxWidth) maxWidth = w;
     }
 
-    // A label's horizontal extent past the pie edge is:
-    //   elbow radial leg (elbowLen) + horizontal rail (elbowLen) + legPad + text
-    // Plus a small safety cushion so rounded line caps don't brush the edge.
-    // Divide by PIE_FIT_FACTOR because `computePieGeometry` shrinks the final
-    // radius by the same factor — without this compensation the reserve would
-    // undershoot on narrow canvases and labels would clip at the edge.
-    const extent = maxWidth + (2 * labels.elbowLen + labels.legPad + 4) * fontScale;
+    // A label's horizontal extent past the pie edge on its own side is:
+    //   distance (radial to the label anchor) + railWidth (horizontal tail)
+    //   + legPad (gap before text) + text width + a small safety cushion.
+    // `distance` is clamped against `elbowLen` here to mirror the layout
+    // formula so reserve and paint agree. Divided by PIE_FIT_FACTOR because
+    // `computePieGeometry` shrinks the final radius by the same factor —
+    // without this compensation the reserve would undershoot on narrow
+    // canvases and labels would clip at the edge.
+    const effectiveDistance = Math.max(labels.distance, labels.elbowLen);
+    const extent = maxWidth + (effectiveDistance + Math.max(0, labels.railWidth) + labels.legPad + 4) * fontScale;
     const reserve = extent / PIE_FIT_FACTOR;
 
     this.#labelReserveCache = { fontScale, font, reserve };
@@ -423,12 +522,11 @@ export class PieRenderer implements SeriesRenderer {
 
     if (progress <= 0) return;
 
-    const { anchorX, anchorY, elbowX, elbowY, side, text, color, labelY } = entry;
-    // Horizontal rail departs from the local elbow and ends one `elbowLen`
-    // further out, yielding a stable text column that sits just outside the
-    // pie on each side. Text then sits `legPad` past the rail end.
-    const railEndX = elbowX + side * labels.elbowLen * hpr;
-    const textX = railEndX + side * labels.legPad * hpr;
+    const { anchorX, anchorY, elbowX, elbowY, side, text, color, labelX, labelY } = entry;
+    // Label sits next to its own slice on the outer label ring — rails stay
+    // short. Text starts `legPad` past the label anchor in the textAlign
+    // direction.
+    const textX = labelX + side * labels.legPad * hpr;
 
     // Progress drives a three-segment draw-in: anchor dot → elbow → rail/text.
     // Weights 0.15 / 0.45 / 0.40 make the dot pop first, then the diagonal
@@ -460,10 +558,11 @@ export class PieRenderer implements SeriesRenderer {
       context.lineTo(segAX, segAY);
 
       if (railP > 0) {
-        // Segment 2: elbow → (railEndX, labelY). Single diagonal absorbs both
-        // the horizontal reach and any vertical de-cluster shift — avoids a
-        // visible vertical kink when `labelY` differs from `elbowY`.
-        const segBX = elbowX + (railEndX - elbowX) * railP;
+        // Segment 2: elbow → (labelX, labelY). After Stage 3 the elbow has
+        // already been shifted to `labelY`, so this leg is a pure horizontal
+        // rail; `labelY` may differ from its natural radial position when
+        // PAV spread adjacent-slice labels to resolve a vertical collision.
+        const segBX = elbowX + (labelX - elbowX) * railP;
         const segBY = elbowY + (labelY - elbowY) * railP;
         context.lineTo(segBX, segBY);
       }
@@ -487,29 +586,16 @@ export class PieRenderer implements SeriesRenderer {
    * Lay out one outside label per eligible slice. Returns entries in original
    * slice order so the caller can map by index to reveal progress / explode.
    *
-   * Three-stage pipeline:
+   * Radial per-slice layout: each label sits on its own slice's radial ray at
+   * radius `outerR + distance`. Rails stay short regardless of slice angle
+   * because the label is placed next to its slice, not at a canvas-wide
+   * column. PAV resolves vertical crowding by adjusting Y (labelX stays
+   * pinned to the slice's midangle ray).
    *
-   * 1. **Near-pole side rebalance** (when `labels.balanceSides`). Slices
-   *    whose midangle is within ~30° of the pole (|cos| < 0.3) have ambiguous
-   *    geometric sides. Reassign them to whichever side has fewer committed
-   *    (non-ambiguous) labels, then balance subsequent ambiguous ones against
-   *    the running count. Avoids the "two small pole slices tangling on the
-   *    already-crowded side" pattern.
-   *
-   * 2. **Pool-Adjacent-Violators (PAV) symmetric packing** per side. Sort
-   *    labels by ideal y (the elbow y at slice midangle), then form groups:
-   *    when a new label's top would overlap the previous group's bottom (at
-   *    `minGap` spacing), merge. Merged group centers at the weighted mean
-   *    of member ideals. Cascade-merge if the merged group now overlaps its
-   *    predecessor. Classic O(n log n) due to the sort; merging is O(n).
-   *    Minimises squared displacement from ideal — no top/bottom bias.
-   *
-   * 3. **Elbow re-anchor**. After PAV, set `elbowY := labelY` and recompute
-   *    `elbowX` so the elbow still sits on a circle of radius `elbowLen*hpr`
-   *    around the anchor. The rail segment is then pure horizontal, which
-   *    removes the kink caused by the earlier two-pass algorithm's diagonal
-   *    from `(elbowX, elbowY)` to `(railEndX, labelY)` when labels were
-   *    pushed far from their ideal y.
+   * Side assignment is purely geometric (sign of cos). `balanceSides` is a
+   * no-op here because each label's X is tied to its slice — forcing a slice
+   * to the opposite side would mean flipping text direction without moving
+   * the label, which would push text across the pie.
    */
   #layoutOutsideLabels(args: {
     cx: number;
@@ -524,8 +610,13 @@ export class PieRenderer implements SeriesRenderer {
     const { cx, cy, outerR, total, palette, labels, hpr, bitmapHeight } = args;
     const entries: Array<OutsideLabelLayout | null> = new Array(this.#data.length).fill(null);
     const elbowRadial = labels.elbowLen * hpr;
+    // Clamp `distance` against `elbowLen` so the label ring sits outside the
+    // elbow stub — otherwise the stub would point inward on a pure-radial
+    // slice.
+    const distance = Math.max(labels.distance, labels.elbowLen) * hpr;
+    const railWidth = Math.max(0, labels.railWidth) * hpr;
 
-    type Pending = { entry: OutsideLabelLayout; midCos: number };
+    type Pending = { entry: OutsideLabelLayout };
     const pending: Pending[] = [];
 
     let angle = -Math.PI / 2;
@@ -545,6 +636,14 @@ export class PieRenderer implements SeriesRenderer {
         const anchorY = cy + sin * (outerR + explodeOffset);
         const elbowX = cx + cos * (outerR + explodeOffset + elbowRadial);
         const elbowY = cy + sin * (outerR + explodeOffset + elbowRadial);
+        // Label anchor = radial point on the outer ring + a fixed horizontal
+        // extension (`railWidth`) in the text direction. This keeps the
+        // elbow → label horizontal leg a consistent length for every slice
+        // regardless of midangle, so the visible "rail" doesn't shrink to
+        // nothing for near-pole labels.
+        const ringX = cx + cos * (outerR + explodeOffset + distance);
+        const labelX = ringX + side * railWidth;
+        const labelY = cy + sin * (outerR + explodeOffset + distance);
 
         const entry: OutsideLabelLayout = {
           anchorX,
@@ -552,45 +651,23 @@ export class PieRenderer implements SeriesRenderer {
           elbowX,
           elbowY,
           side,
-          labelY: elbowY,
+          labelX,
+          labelY,
           text: this.#formatSliceLabel(slice, total, labels.content),
           color: slice.color ?? palette[i % palette.length],
         };
         entries[i] = entry;
-        pending.push({ entry, midCos: cos });
+        pending.push({ entry });
       }
 
       angle += sliceAngle;
     }
 
-    // Stage 1: near-pole rebalance. Keep anchor geometry intact — only the
-    // `side` field flips. The re-anchor pass at the end computes a fresh
-    // elbowX consistent with the new side.
-    if (labels.balanceSides) {
-      const POLE_COS = 0.3;
-      let left = 0;
-      let right = 0;
-      for (const p of pending) {
-        if (Math.abs(p.midCos) >= POLE_COS) {
-          if (p.entry.side === 1) right++;
-          else left++;
-        }
-      }
-
-      for (const p of pending) {
-        if (Math.abs(p.midCos) >= POLE_COS) continue;
-
-        // Iterative balance: treat each ambiguous label as committed once
-        // placed, so a run of pole slices distributes instead of all piling
-        // onto the initially-thinner side.
-        const preferred: 1 | -1 = left < right ? -1 : 1;
-        p.entry.side = preferred;
-        if (preferred === 1) right++;
-        else left++;
-      }
-    }
-
-    // Stage 2: PAV packing per side.
+    // PAV packing per side. Sort by labelY ascending (top first) and let the
+    // natural geometric order drive the stacking — no slice-index tie-break,
+    // because forcing an earlier (farther-from-pole) slice above a later
+    // (closer-to-pole) one flips the Y relation and drags labels far from
+    // their slices.
     const minGap = Math.max(1, labels.fontSize * labels.labelGap) * hpr;
     const topBound = labels.fontSize * hpr;
     const bottomBound = bitmapHeight - labels.fontSize * hpr;
@@ -602,7 +679,7 @@ export class PieRenderer implements SeriesRenderer {
       }
       if (onSide.length === 0) continue;
 
-      onSide.sort((a, b) => a.elbowY - b.elbowY);
+      onSide.sort((a, b) => a.labelY - b.labelY);
 
       // Each group covers onSide[startIdx..startIdx+count-1]. Center is the
       // weighted mean of member ideal y's (sumIdeal / count); members occupy
@@ -612,7 +689,7 @@ export class PieRenderer implements SeriesRenderer {
       const groups: Group[] = [];
 
       for (let i = 0; i < onSide.length; i++) {
-        groups.push({ count: 1, sumIdeal: onSide[i].elbowY, startIdx: i });
+        groups.push({ count: 1, sumIdeal: onSide[i].labelY, startIdx: i });
 
         // Cascade-merge while the last group's top overlaps the previous
         // group's bottom at minGap spacing.
@@ -693,30 +770,47 @@ export class PieRenderer implements SeriesRenderer {
         }
       }
 
-      // Emit final labelY per member.
+      // Emit final labelY per member at PAV-computed positions. Natural
+      // Y-sort order preserved — earliest-sorted (smallest ideal Y) lands
+      // on top.
       for (const g of groups) {
         const center = g.sumIdeal / g.count;
         for (let k = 0; k < g.count; k++) {
-          const e = onSide[g.startIdx + k];
-          e.labelY = center + (k - (g.count - 1) / 2) * minGap;
+          onSide[g.startIdx + k].labelY = center + (k - (g.count - 1) / 2) * minGap;
         }
       }
     }
 
-    // Stage 3: re-anchor elbow so the rail segment is horizontal. Places the
-    // elbow on a circle of radius elbowRadial around the anchor at the y
-    // matching labelY; falls back to a half-radial horizontal nub when the
-    // vertical offset exceeds the radial budget.
+    // Stage 3: re-anchor the elbow so the leader line ends with a HORIZONTAL
+    // segment into the text. The elbow sits at labelY (so the elbow → label
+    // leg is pure horizontal); its X is chosen so the horizontal leg runs
+    // OUTWARD — toward the text, never back into the pie.
+    //
+    // Two cases:
+    // - |dy| ≤ elbowLen: compute the circle-around-anchor X offset that
+    //   corresponds to a natural radial stub.
+    // - |dy| > elbowLen: degenerate (near-pole slices where labelY is far
+    //   from anchorY vertically). Put the elbow halfway between anchorX and
+    //   labelX so both legs move monotonically in the text direction.
+    //
+    // In either case the final elbowX is clamped to the interval spanned by
+    // anchorX and labelX so it never overshoots past the label — that's
+    // what was producing the reversed rails at small `distance`, where the
+    // natural circle offset could exceed the label's horizontal reach
+    // `|cos| * distance`.
     for (const p of pending) {
       const e = p.entry;
       const dy = e.labelY - e.anchorY;
-      let dx: number;
+      let proposedElbowX: number;
       if (Math.abs(dy) <= elbowRadial) {
-        dx = e.side * Math.sqrt(Math.max(0, elbowRadial * elbowRadial - dy * dy));
+        const dx = e.side * Math.sqrt(Math.max(0, elbowRadial * elbowRadial - dy * dy));
+        proposedElbowX = e.anchorX + dx;
       } else {
-        dx = e.side * elbowRadial * 0.5;
+        proposedElbowX = (e.anchorX + e.labelX) / 2;
       }
-      e.elbowX = e.anchorX + dx;
+      const lo = Math.min(e.anchorX, e.labelX);
+      const hi = Math.max(e.anchorX, e.labelX);
+      e.elbowX = Math.max(lo, Math.min(hi, proposedElbowX));
       e.elbowY = e.labelY;
     }
 
@@ -740,23 +834,28 @@ export class PieRenderer implements SeriesRenderer {
     const total = this.#data.reduce((sum, d) => sum + d.value, 0);
     if (total <= 0) return;
 
-    // Animate slice offsets toward 1 (hovered) or 0 (resting).
-    const hoverRate = 12; // exponential decay rate; higher = snappier
+    // Hovered-slice explode offset. When `animate` is off (the default) the
+    // effect is skipped entirely — the hovered slice stays in place, and
+    // hover feedback is left to the tooltip / legend / cursor change.
+    const hoverRate = 12;
     while (this.#sliceOffsets.length < this.#data.length) {
       this.#sliceOffsets.push(0);
     }
-    for (let i = 0; i < this.#data.length; i++) {
-      const target = i === this.#hoverIndex ? 1 : 0;
-      this.#sliceOffsets[i] = smoothToward(this.#sliceOffsets[i], target, hoverRate, dt);
+    if (this.#options.animate) {
+      for (let i = 0; i < this.#data.length; i++) {
+        const target = i === this.#hoverIndex ? 1 : 0;
+        this.#sliceOffsets[i] = smoothToward(this.#sliceOffsets[i], target, hoverRate, dt);
+      }
     }
 
     const labels = resolveLabels(this.#options.sliceLabels);
 
-    // Tween reveal whenever outside-mode is active, even at progress=1, so the
-    // branch stays inert (no-op) once converged. Font set before measuring so
-    // `measureText` reports paint-accurate widths.
+    // Tween reveal only when the entrance animation is opted in; otherwise
+    // the value stays pinned at 1 (set in `setData` / `updateOptions`) and
+    // labels paint fully revealed from the first frame. Font set before
+    // measuring so `measureText` reports paint-accurate widths.
     context.font = `${labels.fontSize * horizontalPixelRatio}px ${theme.typography.fontFamily}`;
-    if (labels.mode === 'outside') {
+    if (labels.mode === 'outside' && this.#options.animate) {
       this.#labelReveal = smoothToward(this.#labelReveal, 1, 6, dt);
     }
 
@@ -775,8 +874,11 @@ export class PieRenderer implements SeriesRenderer {
     const outerR = maxR;
     const innerR = outerR * this.#options.innerRadiusRatio;
     const pad = this.#options.padAngle * DEG_TO_RAD;
-    const { color: strokeColor, width: strokeWidth } = this.#options.stroke;
     const explodeDistance = 8 * horizontalPixelRatio;
+    const shadow = this.#options.shadow ?? false;
+    const shadowStyle = resolveShadow(shadow);
+    const innerShadow = this.#options.innerShadow ?? false;
+    const innerShadowStyle = resolveInnerShadow(innerShadow);
 
     let angle = -Math.PI / 2;
 
@@ -815,28 +917,38 @@ export class PieRenderer implements SeriesRenderer {
       }
       context.closePath();
 
-      // Radial gradient for depth
+      // Radial gradient for depth. When `innerShadow` is on, add a second
+      // stop near the outer edge that blends the slice color toward the rim
+      // color, producing an inset rim-darkening band without a second draw
+      // pass. `depth` ∈ (0, 1] places the inflection at `(1 - depth)` of the
+      // radial span.
       const grad = context.createRadialGradient(sliceCx, sliceCy, innerR || 0, sliceCx, sliceCy, outerR);
       grad.addColorStop(0, lightenColor(color, 0.15));
-      grad.addColorStop(1, color);
+      if (innerShadow) {
+        const inflection = Math.max(0, Math.min(0.999, 1 - innerShadowStyle.depth));
+        grad.addColorStop(inflection, color);
+        grad.addColorStop(1, blendOver(color, innerShadowStyle.color));
+      } else {
+        grad.addColorStop(1, color);
+      }
       context.fillStyle = grad;
-      if (this.#sliceOffsets[i] > 0.01) {
-        context.shadowColor = 'rgba(0,0,0,0.25)';
-        context.shadowBlur = 12 * horizontalPixelRatio * this.#sliceOffsets[i];
-        context.shadowOffsetX = ox * 0.3;
-        context.shadowOffsetY = oy * 0.3;
+
+      // Ambient shadow (opt-in) + hover-lift shadow (animate-gated). The
+      // two stack additively: the hover offset just deepens the ambient.
+      const hoverDepth = this.#sliceOffsets[i];
+      if (shadow || hoverDepth > 0.01) {
+        const ambientAlpha = shadow ? 1 : 0;
+        const hoverAlpha = hoverDepth;
+        context.shadowColor = shadow ? shadowStyle.color : 'rgba(0,0,0,0.25)';
+        context.shadowBlur = (shadowStyle.blur * ambientAlpha + 12 * hoverAlpha) * horizontalPixelRatio;
+        context.shadowOffsetX = shadowStyle.offsetX * ambientAlpha * horizontalPixelRatio + ox * 0.3 * hoverAlpha;
+        context.shadowOffsetY = shadowStyle.offsetY * ambientAlpha * verticalPixelRatio + oy * 0.3 * hoverAlpha;
       }
       context.fill();
       context.shadowColor = 'transparent';
       context.shadowBlur = 0;
       context.shadowOffsetX = 0;
       context.shadowOffsetY = 0;
-
-      if (strokeWidth > 0 && strokeColor !== 'transparent') {
-        context.strokeStyle = strokeColor;
-        context.lineWidth = strokeWidth;
-        context.stroke();
-      }
 
       angle += sliceAngle;
     }

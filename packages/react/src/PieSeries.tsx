@@ -33,8 +33,9 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     chart,
     options?.innerRadiusRatio,
     options?.padAngle,
-    options?.stroke?.color,
-    options?.stroke?.width,
+    options?.animate,
+    options?.shadow,
+    options?.innerShadow,
     options?.colors,
     options?.sliceLabels?.mode,
     options?.sliceLabels?.content,
@@ -43,6 +44,8 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     options?.sliceLabels?.elbowLen,
     options?.sliceLabels?.legPad,
     options?.sliceLabels?.labelGap,
+    options?.sliceLabels?.distance,
+    options?.sliceLabels?.railWidth,
     options?.sliceLabels?.balanceSides,
   ]);
 

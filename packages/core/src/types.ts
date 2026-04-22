@@ -337,15 +337,28 @@ export interface PieLabelsOptions {
   /** Gap between leader line and text in CSS pixels. Default: 6. */
   legPad?: number;
   /**
+   * Radial distance in CSS pixels from the pie's outer edge to the natural
+   * label anchor point. The label then extends horizontally outward by
+   * {@link railWidth} before the text starts. Clamped internally against
+   * {@link elbowLen}. Default: 14.
+   */
+  distance?: number;
+  /**
+   * Horizontal length of the final leader-line segment in CSS pixels — the
+   * straight tail that runs from the radial elbow out to the text anchor.
+   * Higher values give a longer visible "rail" before the label. Default: 16.
+   */
+  railWidth?: number;
+  /**
    * Minimum vertical gap between adjacent outside labels on the same side,
-   * expressed as a multiplier of {@link fontSize}. Default: 1.4.
+   * expressed as a multiplier of {@link fontSize}. Default: 1.8.
    */
   labelGap?: number;
   /**
-   * Reassign labels whose slice midangle is within ~30° of the pole
-   * (|cos(midAngle)| < 0.3) to whichever side currently has fewer
-   * unambiguous labels — reduces leader-line crossings near 12/6 o'clock.
-   * Default: true.
+   * @deprecated No effect in the radial per-slice layout. A label's X is
+   * pinned to its slice midangle, so forcing the "other" side would flip
+   * text direction without moving the label and push text across the pie.
+   * Kept in the option surface for backwards compatibility.
    */
   balanceSides?: boolean;
 }
@@ -358,15 +371,56 @@ export interface PieSeriesOptions {
   innerRadiusRatio: number;
   /** Gap between slices in degrees. Default: 1.15° (≈ 0.02 rad). */
   padAngle: number;
-  /**
-   * Slice border. Omit or use `{ color: 'transparent', width: 0 }` for no
-   * stroke (default).
-   */
-  stroke: { color: string; width: number };
   /** Display the label shown in the tooltip. */
   label?: string;
   /** Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}. */
   sliceLabels?: PieLabelsOptions;
+  /**
+   * When `true`, enables pie motion effects: the outside-label entrance
+   * draw-in on mount / data swap, and the hover-explode slice offset.
+   * Default: `false` — labels paint fully on the first frame and hovered
+   * slices stay in place (hover feedback is left to the tooltip / legend /
+   * cursor). Enable for presentations where the motion adds narrative
+   * value.
+   */
+  animate?: boolean;
+  /**
+   * Ambient *outer* drop-shadow behind each slice. Adds lift for flat
+   * dashboards. Omit / `false` to disable (default). `true` uses soft
+   * defaults; pass an object to tune individually.
+   */
+  shadow?:
+    | boolean
+    | {
+        /** Shadow color. Default: `rgba(0, 0, 0, 0.22)`. */
+        color?: string;
+        /** Blur radius in CSS pixels. Default: 24. */
+        blur?: number;
+        /** Horizontal offset in CSS pixels. Default: 0. */
+        offsetX?: number;
+        /** Vertical offset in CSS pixels. Default: 10. */
+        offsetY?: number;
+      };
+  /**
+   * Inner rim darkening — a dark band near each slice's outer edge that
+   * gives the pie an "inset" / pressed look. Implemented by extending the
+   * per-slice radial gradient with a dark edge stop, so it pairs naturally
+   * with the existing depth gradient. Omit / `false` to disable (default).
+   */
+  innerShadow?:
+    | boolean
+    | {
+        /**
+         * Rim color. Default: `rgba(0, 0, 0, 0.1)` (blended over the slice
+         * color). Accepts any CSS color.
+         */
+        color?: string;
+        /**
+         * Fraction of the slice's radial span covered by the darkened band
+         * (0..1). Default: 0.3 — darkening starts at 70% of the radius.
+         */
+        depth?: number;
+      };
 }
 
 /** Configuration for the Y axis. */

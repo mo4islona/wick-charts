@@ -29,9 +29,9 @@ interface PieSeriesOptions {
   colors?: string[];         // palette — default: theme.seriesColors
   innerRadiusRatio: number;  // 0 = pie, 0.6 = donut — default: 0
   padAngle: number;          // gap between slices in degrees — default: 1.15°
-  stroke: { color: string; width: number }; // slice border — default: { color: 'transparent', width: 0 }
   label?: string;            // tooltip label
   sliceLabels?: PieLabelsOptions; // per-slice on-pie labels — see below
+  animate?: boolean;         // label draw-in + hover explode — default: false
 }
 
 interface PieLabelsOptions {
@@ -41,8 +41,9 @@ interface PieLabelsOptions {
   minSliceAngle?: number;   // degrees; slices narrower than this skip label — default: 2.5°
   elbowLen?: number;        // leader-line radial segment length in CSS px — default: 12
   legPad?: number;          // gap between leader line and text in CSS px — default: 6
+  distance?: number;        // radial px from pie edge to label anchor — default: 24
   labelGap?: number;        // vertical gap between outside labels as fontSize multiplier — default: 1.4
-  balanceSides?: boolean;   // redistribute near-pole labels to the less-crowded side — default: true
+  balanceSides?: boolean;   // @deprecated — no effect in radial per-slice layout
 }
 ```
 
@@ -69,13 +70,9 @@ Palette for slice coloring. Falls back to `theme.seriesColors` if not provided. 
 
 Gap between adjacent slices in degrees. Default `1.15°` (≈ 0.02 rad) gives a subtle separation. Set `0` for flush slices.
 
-### `stroke`
+### `animate`
 
-Border around each slice. Useful for visual separation on light backgrounds. Object with `color` and `width` fields.
-
-```ts
-options={{ stroke: { color: '#ffffff', width: 2 } }}
-```
+Motion toggle. When `true`, labels draw in on mount / data swap and the hovered slice explodes outward. Default `false` — both effects are skipped and the chart paints in its final state on the first frame. Enable for presentations; keep off for dense dashboards.
 
 ### `sliceLabels`
 
