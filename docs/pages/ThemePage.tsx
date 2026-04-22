@@ -1,6 +1,4 @@
-import Prism from 'prismjs';
-import 'prismjs/components/prism-typescript';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CandlestickSeries,
@@ -13,101 +11,49 @@ import {
   Title,
   Tooltip,
   YAxis,
+  YLabel,
+  createTheme,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import { CHECK_ICON, COPY_ICON } from '../components/playground/icons';
+import { themeSurfaceVars } from '../components/playground/themeSurface';
+import { useCodeHeight, usePanelWidth } from '../components/playground/useSettings';
+import { JsonEditor } from '../components/theme-editor/JsonEditor';
+import { type JsonValue, normalizeThemeConfig } from '../components/theme-editor/themeJson';
 import { generateOHLCData, generateWaveData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile } from '../hooks';
-import { hexToRgba } from '../utils';
 
-// ── Data ──────────────────────────────────────────────────────
+// ── Mock data ─────────────────────────────────────────────────
 
 const ohlcData = generateOHLCData(200, 42000, DEMO_INTERVAL);
-const waveOpts = { interval: DEMO_INTERVAL };
-const lineData1 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 120, period: 50, phase: 0, onset: 0 });
-const lineData2 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 80, period: 65, phase: 0.5, onset: 0.1 });
-const lineData3 = generateWaveData(200, { ...waveOpts, base: 5, amplitude: 60, period: 40, phase: 1.0, onset: 0.2 });
 
-// ── Color picker row ──────────────────────────────────────────
+const SERIES_WAVE_OPTS = [
+  { base: 5, amplitude: 120, period: 50, phase: 0, onset: 0 },
+  { base: 5, amplitude: 80, period: 65, phase: 0.5, onset: 0.1 },
+  { base: 5, amplitude: 60, period: 40, phase: 1.0, onset: 0.2 },
+  { base: 5, amplitude: 95, period: 55, phase: 1.6, onset: 0.15 },
+  { base: 5, amplitude: 70, period: 45, phase: 2.2, onset: 0.25 },
+  { base: 5, amplitude: 110, period: 60, phase: 2.8, onset: 0.05 },
+];
+const LINE_POOL = SERIES_WAVE_OPTS.map((opts) => generateWaveData(200, { interval: DEMO_INTERVAL, ...opts }));
 
-function ColorRow({
-  label,
-  value,
-  onChange,
-  theme,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  theme: ChartTheme;
-}) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <label
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          cursor: 'pointer',
-        }}
-      >
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: 22,
-            height: 22,
-            padding: 0,
-            border: `1px solid ${theme.tooltip.borderColor}`,
-            borderRadius: 4,
-            background: 'transparent',
-            cursor: 'pointer',
-          }}
-        />
-        <span
-          style={{
-            fontSize: theme.typography.axisFontSize,
-            color: theme.axis.textColor,
-          }}
-        >
-          {label}
-        </span>
-      </label>
-    </div>
-  );
-}
+// ── Types ─────────────────────────────────────────────────────
 
-function SectionLabel({ children, theme }: { children: React.ReactNode; theme: ChartTheme }) {
-  return (
-    <div
-      style={{
-        fontSize: theme.typography.axisFontSize,
-        color: theme.tooltip.textColor,
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-        fontWeight: 600,
-        paddingTop: 4,
-        paddingBottom: 2,
-        borderBottom: `1px solid ${theme.tooltip.borderColor}`,
-        marginBottom: 2,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+type Mode = 'pretty' | 'raw';
 
-// ── Charts ────────────────────────────────────────────────────
+// ── Previews ──────────────────────────────────────────────────
 
 function CandlestickPreview({ theme }: { theme: ChartTheme }) {
-  const sid = 'candle-preview';
+  const sid = 'candle-v2';
+
   return (
     <ChartContainer theme={theme}>
       <Title sub="custom theme">Candlestick</Title>
       <InfoBar />
       <CandlestickSeries id={sid} data={ohlcData} />
+      <YLabel seriesId={sid} />
       <Tooltip />
       <Crosshair />
       <YAxis />
@@ -116,20 +62,20 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   );
 }
 
-function LinePreview({ theme }: { theme: ChartTheme }) {
-  const allData = [lineData1, lineData2, lineData3];
-  const sid = 'line-preview';
+function LinePreview({ theme, seriesCount }: { theme: ChartTheme; seriesCount: number }) {
+  const n = Math.max(1, seriesCount);
+  const data = useMemo(() => Array.from({ length: n }, (_, i) => LINE_POOL[i % LINE_POOL.length]), [n]);
+
   return (
     <ChartContainer theme={theme}>
-      <Title sub="3 series">Line</Title>
+      <Title sub={`${data.length} series`}>Line</Title>
       <InfoBar />
       <LineSeries
-        id={sid}
-        data={allData}
+        id="line-v2"
+        data={data}
         options={{
-          colors: theme.seriesColors.slice(0, allData.length),
+          colors: theme.seriesColors.slice(0, data.length),
           area: { visible: true },
-          strokeWidth: 1,
           pulse: true,
         }}
       />
@@ -143,251 +89,188 @@ function LinePreview({ theme }: { theme: ChartTheme }) {
 
 // ── Page ──────────────────────────────────────────────────────
 
-interface ThemeColors {
-  background: string;
-  lineColor: string;
-  upColor: string;
-  downColor: string;
-  gridColor: string;
-  textColor: string;
-  series1: string;
-  series2: string;
-  series3: string;
+function stringify(v: JsonValue): string {
+  return JSON.stringify(v, null, 2);
 }
 
-function buildCustomTheme(base: ChartTheme, c: ThemeColors): ChartTheme {
-  return {
-    ...base,
-    background: c.background,
-    chartGradient: [lighten(c.background, 0.04), darken(c.background, 0.06)],
-    grid: { ...base.grid, color: hexToRgba(c.gridColor, 0.5) },
-    candlestick: {
-      upColor: c.upColor,
-      downColor: c.downColor,
-      wickUpColor: c.upColor,
-      wickDownColor: c.downColor,
-    },
-    line: {
-      ...base.line,
-      color: c.lineColor,
-      areaTopColor: hexToRgba(c.lineColor, 0.08),
-      areaBottomColor: hexToRgba(c.lineColor, 0.01),
-    },
-    seriesColors: [c.series1, c.series2, c.series3, ...base.seriesColors.slice(3)],
-    crosshair: {
-      ...base.crosshair,
-      labelBackground: lighten(c.background, 0.12),
-    },
-    axis: { textColor: c.textColor },
-    yLabel: {
-      ...base.yLabel,
-      upBackground: c.upColor,
-      downBackground: c.downColor,
-      neutralBackground: lighten(c.background, 0.12),
-    },
-    tooltip: {
-      background: hexToRgba(c.background, 0.92),
-      textColor: c.textColor,
-      borderColor: hexToRgba(c.gridColor, 0.6),
-    },
-  };
-}
-
-function lighten(hex: string, amount: number): string {
-  if (!hex.startsWith('#')) return hex;
-  const r = Math.min(255, Math.round(parseInt(hex.slice(1, 3), 16) + 255 * amount));
-  const g = Math.min(255, Math.round(parseInt(hex.slice(3, 5), 16) + 255 * amount));
-  const b = Math.min(255, Math.round(parseInt(hex.slice(5, 7), 16) + 255 * amount));
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
-function darken(hex: string, amount: number): string {
-  if (!hex.startsWith('#')) return hex;
-  const r = Math.max(0, Math.round(parseInt(hex.slice(1, 3), 16) * (1 - amount)));
-  const g = Math.max(0, Math.round(parseInt(hex.slice(3, 5), 16) * (1 - amount)));
-  const b = Math.max(0, Math.round(parseInt(hex.slice(5, 7), 16) * (1 - amount)));
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
-function HighlightedCode({ code, theme }: { code: string; theme: ChartTheme }) {
-  const ref = useRef<HTMLPreElement>(null);
-  useEffect(() => {
-    if (ref.current) Prism.highlightElement(ref.current);
-  }, [code]);
-
-  return (
-    <pre
-      style={{
-        flex: 1,
-        margin: 0,
-        padding: 8,
-        borderRadius: 4,
-        background: hexToRgba(theme.crosshair.labelBackground, 0.3),
-        color: theme.tooltip.textColor,
-        fontSize: 10.5,
-        fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
-        lineHeight: 1.5,
-        overflow: 'auto',
-        whiteSpace: 'pre',
-        tabSize: 2,
-      }}
-    >
-      <code ref={ref} className="language-typescript">
-        {code}
-      </code>
-    </pre>
-  );
-}
-
-function generateThemeCode(c: ThemeColors): string {
-  return `import { createTheme } from '@wick-charts/react'
-
-const theme = createTheme({
-  background: '${c.background}',
-
-  candlestick: {
-    upColor: '${c.upColor}',
-    downColor: '${c.downColor}',
-  },
-
-  line: { color: '${c.series1}' },
-
-  seriesColors: [
-    '${c.series1}',
-    '${c.series2}',
-    '${c.series3}',
-  ],
-
-  bands: {
-    upper: '${c.series1}',
-    lower: '${c.downColor}',
-  },
-
-  grid: { color: '${c.gridColor}' },
-  axis: { textColor: '${c.textColor}' },
-
-  tooltip: {
-    textColor: '${c.textColor}',
-    background: '${c.background}',
-    borderColor: '${c.gridColor}',
-  },
-})`;
-}
-
-function colorsFromTheme(theme: ChartTheme): ThemeColors {
-  return {
-    background: theme.background,
-    lineColor: theme.line.color,
-    upColor: theme.candlestick.upColor,
-    downColor: theme.candlestick.downColor,
-    gridColor: theme.grid.color.startsWith('rgba') ? '#3b4048' : theme.grid.color,
-    textColor: theme.axis.textColor,
-    series1: theme.seriesColors[0],
-    series2: theme.seriesColors[1],
-    series3: theme.seriesColors[2],
-  };
-}
-
-export function ThemePage({ theme }: { theme: ChartTheme }) {
+export function ThemePage({
+  theme,
+  value,
+  onChange,
+}: {
+  /** Base preset theme — used for the chart-preview fallback when JSON fails
+   * to validate. App passes the active preset, not the override. */
+  theme: ChartTheme;
+  /** Controlled editor state. Parent holds the JSON so edits persist across
+   * navigation and drive the whole-page override. */
+  value: JsonValue;
+  onChange: (v: JsonValue) => void;
+}) {
   const mobile = useIsMobile();
-  const [colors, setColors] = useState<ThemeColors>(() => colorsFromTheme(theme));
-  const [prevThemeBg, setPrevThemeBg] = useState(theme.background);
 
-  if (theme.background !== prevThemeBg) {
-    setPrevThemeBg(theme.background);
-    setColors(colorsFromTheme(theme));
-  }
+  const [mode, setMode] = useState<Mode>('pretty');
+  const [copied, setCopied] = useState(false);
 
-  const set = (key: keyof ThemeColors) => (v: string) => setColors((prev) => ({ ...prev, [key]: v }));
+  const [rawText, setRawText] = useState(() => stringify(value));
+  const lastParsed = useRef<JsonValue>(value);
 
-  const customTheme = useMemo(() => buildCustomTheme(theme, colors), [theme, colors]);
+  // Sync textarea when parent drives a new value (preset swap, undo, etc.)
+  // and it didn't originate from the textarea itself.
+  useEffect(() => {
+    if (JSON.stringify(value) === JSON.stringify(lastParsed.current)) return;
+    setRawText(stringify(value));
+    lastParsed.current = value;
+  }, [value]);
 
-  const colorEditor = (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        padding: '10px 12px',
-        borderRadius: 6,
-        border: `1px solid ${theme.tooltip.borderColor}`,
-        background: theme.tooltip.background,
-      }}
-    >
-      <SectionLabel theme={theme}>General</SectionLabel>
-      <ColorRow label="Background" value={colors.background} onChange={set('background')} theme={theme} />
-      <ColorRow label="Grid" value={colors.gridColor} onChange={set('gridColor')} theme={theme} />
-      <ColorRow label="Text" value={colors.textColor} onChange={set('textColor')} theme={theme} />
+  const onRawChange = (next: string) => {
+    setRawText(next);
+    try {
+      const parsed = JSON.parse(next) as JsonValue;
+      if (JSON.stringify(parsed) !== JSON.stringify(value)) {
+        lastParsed.current = parsed;
+        onChange(parsed);
+      }
+    } catch {
+      // Invalid JSON — keep user's text, don't commit.
+    }
+  };
 
-      <SectionLabel theme={theme}>Candlestick</SectionLabel>
-      <ColorRow label="Up" value={colors.upColor} onChange={set('upColor')} theme={theme} />
-      <ColorRow label="Down" value={colors.downColor} onChange={set('downColor')} theme={theme} />
+  // Build the preview ChartTheme from the current JSON via createTheme.
+  // `normalizeThemeConfig` coerces `background` / `line.color` to hex so
+  // createTheme's internal `hexToRgba` / `isDarkBg` don't choke on non-hex
+  // editor input. Validation failure (missing or invalid `background`)
+  // falls back to the page theme so previews don't crash.
+  const customTheme = useMemo(() => {
+    const cfg = normalizeThemeConfig(value);
+    if (!cfg) return theme;
+    try {
+      return createTheme(cfg).theme;
+    } catch {
+      return theme;
+    }
+  }, [value, theme]);
 
-      <SectionLabel theme={theme}>Series</SectionLabel>
-      <ColorRow label="Line / Series 1" value={colors.series1} onChange={set('series1')} theme={theme} />
-      <ColorRow label="Series 2" value={colors.series2} onChange={set('series2')} theme={theme} />
-      <ColorRow label="Series 3" value={colors.series3} onChange={set('series3')} theme={theme} />
-    </div>
-  );
+  const seriesCount = useMemo(() => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const s = (value as Record<string, unknown>).seriesColors;
+      if (Array.isArray(s)) return Math.max(1, Math.min(8, s.length));
+    }
 
-  const codeSnippet = (
-    <div
-      style={{
-        flex: mobile ? undefined : 1,
-        minHeight: mobile ? 200 : 0,
-        borderRadius: 6,
-        border: `1px solid ${theme.tooltip.borderColor}`,
-        background: theme.tooltip.background,
-        padding: '8px 10px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
-      }}
-    >
-      <span
-        style={{
-          fontSize: theme.typography.axisFontSize,
-          color: theme.axis.textColor,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-        }}
-      >
-        Code
-      </span>
-      <HighlightedCode code={generateThemeCode(colors)} theme={theme} />
+    return 3;
+  }, [value]);
+
+  // Editor chrome tracks the page theme (stable while you edit colors);
+  // picker pop-overs use the same surface vars via the portal injection.
+  const surfaceVars = useMemo(() => themeSurfaceVars(theme), [theme]);
+  const pickerSurface = surfaceVars as CSSProperties;
+
+  const { pct: panelPct, containerRef, onMouseDown } = usePanelWidth();
+  const { rightRef } = useCodeHeight();
+
+  const copy = () => {
+    navigator.clipboard
+      .writeText(stringify(value))
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
+  };
+
+  const editorBody =
+    mode === 'pretty' ? (
+      <div className="tev2-scroll">
+        <JsonEditor value={value} onChange={(v) => onChange(v as JsonValue)} pickerSurface={pickerSurface} />
+      </div>
+    ) : (
+      <textarea
+        className="pg-code pg-code-edit tev2-raw"
+        value={rawText}
+        onChange={(e) => onRawChange(e.target.value)}
+        spellCheck={false}
+        wrap="off"
+      />
+    );
+
+  const panelHeader = (
+    <div className="pg-head tev2-head">
+      <div className="tev2-mode tgroup" role="tablist" aria-label="Editor mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'pretty'}
+          className={mode === 'pretty' ? 'on' : ''}
+          onClick={() => setMode('pretty')}
+        >
+          <span>Pretty</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'raw'}
+          className={mode === 'raw' ? 'on' : ''}
+          onClick={() => setMode('raw')}
+        >
+          <span>Raw</span>
+        </button>
+      </div>
+      <div className="pg-actions">
+        <button type="button" onClick={copy} title={copied ? 'Copied' : 'Copy'} aria-label="Copy JSON">
+          {copied ? CHECK_ICON : COPY_ICON}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      </div>
     </div>
   );
 
   if (mobile) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minHeight: '100%' }}>
-        <Cell theme={customTheme} style={{ height: 220 }}>
-          <CandlestickPreview theme={customTheme} />
-        </Cell>
-        <Cell theme={customTheme} style={{ height: 220 }}>
-          <LinePreview theme={customTheme} />
-        </Cell>
-        {colorEditor}
-        {codeSnippet}
+      <div className="wick-playground" data-mobile="true" style={surfaceVars}>
+        <div className="pg-shell">
+          <div className="pg-main" style={{ gridTemplateColumns: '1fr', gridAutoRows: 220 }}>
+            <Cell theme={customTheme}>
+              <CandlestickPreview theme={customTheme} />
+            </Cell>
+            <Cell theme={customTheme}>
+              <LinePreview theme={customTheme} seriesCount={seriesCount} />
+            </Cell>
+          </div>
+        </div>
+        <div className="pg-right tev2-right">
+          {panelHeader}
+          {editorBody}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', height: '100%', gap: 6 }}>
-      <div style={{ flex: 1, minWidth: 0, display: 'grid', gridTemplateRows: '1fr 1fr', gap: 6 }}>
-        <Cell theme={customTheme}>
-          <CandlestickPreview theme={customTheme} />
-        </Cell>
-        <Cell theme={customTheme}>
-          <LinePreview theme={customTheme} />
-        </Cell>
-      </div>
-      <div
-        style={{ width: '30vw', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6, overflowY: 'auto' }}
-      >
-        {colorEditor}
-        {codeSnippet}
+    <div className="wick-playground" ref={containerRef} style={surfaceVars}>
+      <div className="pg-shell">
+        <div className="pg-main" style={{ gridTemplateRows: '1fr 1fr', gridTemplateColumns: '1fr' }}>
+          <Cell theme={customTheme}>
+            <CandlestickPreview theme={customTheme} />
+          </Cell>
+          <Cell theme={customTheme}>
+            <LinePreview theme={customTheme} seriesCount={seriesCount} />
+          </Cell>
+        </div>
+
+        <button type="button" className="pg-drag" onMouseDown={onMouseDown} aria-label="Resize panel">
+          <div className="pg-drag-thumb" />
+        </button>
+
+        <div
+          className="pg-right tev2-right"
+          ref={rightRef}
+          style={{
+            width: `${panelPct}%`,
+            gridTemplateRows: 'auto 1fr',
+          }}
+        >
+          {panelHeader}
+          {editorBody}
+        </div>
       </div>
     </div>
   );

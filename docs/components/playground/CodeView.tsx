@@ -3,7 +3,7 @@ import Prism from 'prismjs';
 // controls.tsx — carry them here so the new module is self-contained.
 import 'prismjs/components/prism-markup';
 import 'prismjs/components/prism-jsx';
-import { type ReactNode, useMemo, useState } from 'react';
+import { type CSSProperties, type ReactNode, useMemo, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 
@@ -53,12 +53,19 @@ export function HighlightedCode({
   code,
   theme,
   prompt,
+  label,
+  style,
 }: {
   code: string;
   theme?: ChartTheme;
   /** Shell-style prefix (e.g. "$") rendered before the first line in muted color.
    * Not included in the copied text. */
   prompt?: string;
+  /** Optional filename/lang label rendered in a header row above the code. */
+  label?: string;
+  /** CSS vars / style overrides merged after themeSurfaceVars. Useful for
+   * overriding `--code-bg` etc. per call site. */
+  style?: CSSProperties;
 }) {
   const lines = useMemo(() => {
     const tokens = flattenTokens(Prism.tokenize(code, detectGrammar(code)));
@@ -101,8 +108,13 @@ export function HighlightedCode({
   if (!theme) return pre;
 
   return (
-    <div className="wick-playground" style={themeSurfaceVars(theme)}>
+    <div className="wick-playground" style={{ ...themeSurfaceVars(theme), ...style }}>
       <div className="pg-code-wrap pg-code-wrap--standalone">
+        {label && (
+          <div className="pg-code-label">
+            <span>{label}</span>
+          </div>
+        )}
         <CopyButton code={code} />
         {pre}
       </div>
