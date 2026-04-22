@@ -23,7 +23,7 @@ import { Slider } from '../components/playground/primitives';
 import '../components/playground/styles.css';
 
 import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
-import { type Framework, useFramework, useIsMobile, useLineStreams, useOHLCStream } from '../hooks';
+import { type Framework, useFramework, useIsMobile, useLatestVersion, useLineStreams, useOHLCStream } from '../hooks';
 import { hexToRgba } from '../utils';
 
 // Pre-bundled series arrays with stable identity so the streaming hooks
@@ -333,6 +333,8 @@ function FrameworkRotator() {
 }
 
 function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
+  const latestVersion = useLatestVersion('@wick-charts/react');
+
   return (
     <div
       style={{
@@ -408,6 +410,39 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
           maxWidth: 540,
         }}
       >
+        {latestVersion && (
+          <a
+            href="https://www.npmjs.com/package/@wick-charts/react"
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '3px 10px',
+              borderRadius: 100,
+              border: `1px solid ${theme.tooltip.borderColor}`,
+              background: hexToRgba(theme.crosshair.labelBackground, 0.4),
+              color: theme.tooltip.textColor,
+              opacity: 0.8,
+              fontSize: theme.typography.axisFontSize,
+              fontFamily: theme.typography.fontFamily,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: theme.candlestick.upColor,
+                boxShadow: `0 0 6px ${hexToRgba(theme.candlestick.upColor, 0.7)}`,
+              }}
+            />
+            v{latestVersion}
+          </a>
+        )}
         {FEATURES.map((f) => (
           <FeaturePill key={f} text={f} theme={theme} />
         ))}

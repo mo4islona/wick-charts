@@ -128,27 +128,35 @@ export function ThemeSelect({
                 textAlign: 'center',
               }}
             >
-              <span style={{ marginRight: 4 }}>&#9000;</span> Press{' '}
+              Press
               <kbd
                 style={{
-                  padding: '1px 5px',
-                  borderRadius: 3,
+                  display: 'inline-block',
+                  margin: '0 0 0 4px',
+                  padding: '2px 6px',
+                  borderRadius: 4,
                   border: `1px solid ${theme.tooltip.borderColor}`,
+                  borderBottomWidth: 2,
                   background: hexToRgba(theme.crosshair.labelBackground, 0.5),
+                  boxShadow: `inset 0 1px 0 ${hexToRgba(theme.crosshair.labelBackground, 0.9)}, 0 1px 0 ${theme.tooltip.borderColor}`,
                 }}
               >
                 [
-              </kbd>{' '}
+              </kbd>
               <kbd
                 style={{
-                  padding: '1px 5px',
-                  borderRadius: 3,
+                  display: 'inline-block',
+                  margin: '0 4px 0 3px',
+                  padding: '2px 6px',
+                  borderRadius: 4,
                   border: `1px solid ${theme.tooltip.borderColor}`,
+                  borderBottomWidth: 2,
                   background: hexToRgba(theme.crosshair.labelBackground, 0.5),
+                  boxShadow: `inset 0 1px 0 ${hexToRgba(theme.crosshair.labelBackground, 0.9)}, 0 1px 0 ${theme.tooltip.borderColor}`,
                 }}
               >
                 ]
-              </kbd>{' '}
+              </kbd>
               to switch themes
             </div>
           </div>

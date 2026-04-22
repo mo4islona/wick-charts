@@ -1,4 +1,4 @@
-import { JAKARTA, JAKARTA_URL, createTheme } from '../create';
+import { IBM, IBM_URL, createTheme } from '../create';
 
 export const quietLight = createTheme({
   name: 'Quiet Light',
@@ -23,6 +23,6 @@ export const quietLight = createTheme({
   crosshair: { color: 'rgba(170,170,170,0.3)', labelBackground: '#e8e8e8' },
   axis: { textColor: '#aaaaaa' },
   tooltip: { background: 'rgba(245,245,245,0.95)', textColor: '#333333', borderColor: 'rgba(200,200,200,0.5)' },
-  typography: { fontFamily: JAKARTA },
-  fontUrl: JAKARTA_URL,
+  typography: { fontFamily: IBM },
+  fontUrl: IBM_URL,
 });

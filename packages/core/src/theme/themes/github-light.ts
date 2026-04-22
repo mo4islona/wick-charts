@@ -1,4 +1,4 @@
-import { IBM, IBM_URL, createTheme } from '../create';
+import { JAKARTA, JAKARTA_URL, createTheme } from '../create';
 
 export const githubLight = createTheme({
   name: 'GitHub Light',
@@ -24,6 +24,6 @@ export const githubLight = createTheme({
   crosshair: { color: 'rgba(208,215,222,0.3)', labelBackground: '#f0f3f6' },
   axis: { textColor: '#8b949e' },
   tooltip: { background: 'rgba(250,251,252,0.95)', textColor: '#24292f', borderColor: 'rgba(216,222,228,0.5)' },
-  typography: { fontFamily: IBM },
-  fontUrl: IBM_URL,
+  typography: { fontFamily: JAKARTA },
+  fontUrl: JAKARTA_URL,
 });

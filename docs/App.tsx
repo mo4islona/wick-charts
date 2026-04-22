@@ -65,7 +65,12 @@ function useHashRoute(): [Route, (r: Route) => void] {
 export default function App() {
   const [themeName, setThemeName] = useState(() => {
     const saved = localStorage.getItem('chart-theme');
-    return saved && themes[saved] ? saved : 'Night Owl';
+    if (saved && themes[saved]) return saved;
+
+    const prefersDark =
+      typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches === true;
+
+    return prefersDark ? 'Catppuccin' : 'Quiet Light';
   });
 
   const [route, navigate] = useHashRoute();

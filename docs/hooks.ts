@@ -18,6 +18,7 @@ import {
 // Re-exports for convenience
 export { type Framework, useFramework } from './context/framework';
 export { useIsMobile } from './hooks/useIsMobile';
+export { useLatestVersion } from './hooks/useLatestVersion';
 
 // ── Streaming hooks ─────────────────────────────────────────
 
