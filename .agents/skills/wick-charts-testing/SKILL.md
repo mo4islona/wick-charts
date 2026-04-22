@@ -1,6 +1,8 @@
 ---
 name: wick-charts-testing
 description: Write tests for the Wick Charts repo (core renderers, React integration, Vue/Svelte wrappers). Use when adding *.test.ts(x) files, covering regressions, or extending the recording-context spy infrastructure. Detect by the user editing a test file in `packages/*/src/__tests__/**` or asking to "cover X with a test", "add a regression test", "test this bug".
+metadata:
+  internal: true
 ---
 
 # Wick Charts testing
