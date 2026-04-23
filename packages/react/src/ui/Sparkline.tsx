@@ -1,6 +1,6 @@
 import { type CSSProperties, useMemo } from 'react';
 
-import { type ChartTheme, type TimePoint, formatCompact } from '@wick-charts/core';
+import { type ChartTheme, type TimePoint, formatCompact, resolveCandlestickBodyColor } from '@wick-charts/core';
 
 import { BarSeries } from '../BarSeries';
 import { ChartContainer } from '../ChartContainer';
@@ -85,8 +85,10 @@ export function Sparkline({
   const change = useMemo(() => computeChange(data), [data]);
 
   const resolvedColor = color ?? theme.seriesColors[0];
-  const resolvedNegColor = negativeColor ?? theme.candlestick.downColor;
-  const changeColor = change.positive ? theme.candlestick.upColor : theme.candlestick.downColor;
+  const resolvedNegColor = negativeColor ?? resolveCandlestickBodyColor(theme.candlestick.down.body);
+  const changeColor = resolveCandlestickBodyColor(
+    change.positive ? theme.candlestick.up.body : theme.candlestick.down.body,
+  );
 
   const valueBlock = valuePosition !== 'none' && (
     <div
@@ -102,7 +104,7 @@ export function Sparkline({
       {label && (
         <div
           style={{
-            fontSize: theme.typography.axisFontSize,
+            fontSize: theme.axis.fontSize,
             color: theme.axis.textColor,
             lineHeight: 1.2,
             whiteSpace: 'nowrap',
@@ -128,7 +130,7 @@ export function Sparkline({
       {sublabel !== undefined ? (
         <div
           style={{
-            fontSize: theme.typography.axisFontSize - 1,
+            fontSize: theme.axis.fontSize - 1,
             color: theme.axis.textColor,
             lineHeight: 1.2,
             whiteSpace: 'nowrap',
@@ -139,7 +141,7 @@ export function Sparkline({
       ) : (
         <div
           style={{
-            fontSize: theme.typography.axisFontSize - 1,
+            fontSize: theme.axis.fontSize - 1,
             fontWeight: 500,
             color: changeColor,
             lineHeight: 1.2,

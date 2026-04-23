@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 
-import type { ValueFormatter } from '@wick-charts/core';
+import { resolveAxisFontSize, resolveAxisTextColor, type ValueFormatter } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useYRange } from '../store-bridge';
@@ -103,8 +103,8 @@ export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) 
               right: 8,
               top: y,
               transform: 'translateY(-50%)',
-              color: theme.axis.textColor,
-              fontSize: theme.typography.axisFontSize,
+              color: resolveAxisTextColor(theme, 'y'),
+              fontSize: resolveAxisFontSize(theme, 'y'),
               fontFamily: theme.typography.fontFamily,
               fontVariantNumeric: 'tabular-nums',
               userSelect: 'none',

@@ -1,3 +1,4 @@
+import { autoGradient } from './create';
 import type { ChartTheme } from './types';
 
 export const lightTheme: ChartTheme = {
@@ -7,9 +8,6 @@ export const lightTheme: ChartTheme = {
   typography: {
     fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
     fontSize: 12,
-    axisFontSize: 10,
-    yFontSize: 11,
-    tooltipFontSize: 12,
   },
 
   grid: {
@@ -18,10 +16,8 @@ export const lightTheme: ChartTheme = {
   },
 
   candlestick: {
-    upColor: '#089981',
-    downColor: '#f23645',
-    wickUpColor: '#089981',
-    wickDownColor: '#f23645',
+    up: { body: autoGradient('#089981'), wick: '#089981' },
+    down: { body: autoGradient('#f23645'), wick: '#f23645' },
   },
 
   line: {
@@ -52,9 +48,13 @@ export const lightTheme: ChartTheme = {
     labelTextColor: '#ffffff',
   },
 
-  axis: { textColor: '#787b86' },
+  axis: {
+    fontSize: 10,
+    textColor: '#787b86',
+  },
 
   yLabel: {
+    fontSize: 11,
     upBackground: '#089981',
     downBackground: '#f23645',
     neutralBackground: '#4c525e',
@@ -62,6 +62,7 @@ export const lightTheme: ChartTheme = {
   },
 
   tooltip: {
+    fontSize: 12,
     background: 'rgba(255, 255, 255, 0.95)',
     textColor: '#131722',
     borderColor: 'rgba(0, 0, 0, 0.1)',

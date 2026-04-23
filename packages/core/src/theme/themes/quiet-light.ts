@@ -1,11 +1,14 @@
-import { IBM, IBM_URL, createTheme } from '../create';
+import { IBM, IBM_URL, autoGradient, createTheme } from '../create';
 
 export const quietLight = createTheme({
   name: 'Quiet Light',
   description: 'Subdued and easy on the eyes',
   background: '#f5f5f5',
   grid: { color: 'rgba(200,200,200,0.5)' },
-  candlestick: { upColor: '#448c27', downColor: '#aa3731' },
+  candlestick: {
+    up: { body: autoGradient('#448c27'), wick: '#448c27' },
+    down: { body: autoGradient('#aa3731'), wick: '#aa3731' },
+  },
   line: { color: '#4b69c6' },
   seriesColors: [
     '#4b69c6',

@@ -34,7 +34,7 @@ $: anchor = $anchorStore;
         style="
           font-weight:400;
           color:{theme.axis.textColor};
-          font-size:{theme.typography.axisFontSize}px;
+          font-size:{theme.axis.fontSize}px;
         "
       >{sub}</span>
     {/if}

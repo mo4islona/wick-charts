@@ -40,7 +40,6 @@ const PRE_RENAME_SYMBOLS = [
   'lineWidth',
   'enterAnimation',
   'enterMs',
-  'candleGradient',
   // Legend mode 'solo' would appear only if Legend rendered with it, so skip.
 ];
 

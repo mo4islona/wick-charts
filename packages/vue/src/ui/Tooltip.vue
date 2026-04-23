@@ -11,6 +11,7 @@ import {
   formatDate,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
 
@@ -158,7 +159,7 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
       borderRadius: '8px',
       padding: '10px 14px',
       boxShadow: '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
-      fontSize: theme.typography.tooltipFontSize + 'px',
+      fontSize: theme.tooltip.fontSize + 'px',
       fontFamily: theme.typography.fontFamily,
       fontVariantNumeric: 'tabular-nums',
       color: theme.tooltip.textColor,
@@ -169,7 +170,7 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
   >
     <div
       :style="{
-        fontSize: theme.typography.axisFontSize + 'px',
+        fontSize: theme.axis.fontSize + 'px',
         color: theme.axis.textColor,
         marginBottom: '8px',
         paddingBottom: '6px',
@@ -195,10 +196,11 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
           <span
             :style="{
               fontWeight: 600,
-              color:
+              color: resolveCandlestickBodyColor(
                 (s.data as OHLCData).close >= (s.data as OHLCData).open
-                  ? theme.candlestick.upColor
-                  : theme.candlestick.downColor,
+                  ? theme.candlestick.up.body
+                  : theme.candlestick.down.body,
+              ),
               textAlign: 'right',
             }"
           >{{ effectiveFormat(row.val, row.field) }}</span>
@@ -245,7 +247,7 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
       padding: '10px 14px',
       boxShadow: '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
       fontFamily: theme.typography.fontFamily,
-      fontSize: theme.typography.tooltipFontSize + 'px',
+      fontSize: theme.tooltip.fontSize + 'px',
       fontVariantNumeric: 'tabular-nums',
       color: theme.tooltip.textColor,
       width: 'max-content',

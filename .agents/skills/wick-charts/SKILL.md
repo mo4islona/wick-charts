@@ -90,7 +90,10 @@ import { createTheme, dracula } from '@wick-charts/react';
 
 const custom = createTheme({
   background: '#0f172a', // only required field; rest auto-derived
-  candlestick: { upColor: '#10b981', downColor: '#ef4444' },
+  candlestick: {
+    up: { body: '#10b981' }, // or `body: autoGradient('#10b981')` for a subtle vertical lift
+    down: { body: '#ef4444' },
+  },
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
 const preset = dracula; // { name, theme, dark, fontUrl: string | null, backgroundImage?, backgroundSize? }

@@ -136,7 +136,7 @@ export function PieLegend({ seriesId, mode: modeProp, format, position, children
                 // absolute value → dim + smaller.
                 opacity: mode === 'percent' ? 1 : 0.5,
                 fontWeight: mode === 'percent' ? 600 : 400,
-                fontSize: mode === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize,
+                fontSize: mode === 'percent' ? theme.typography.fontSize : theme.axis.fontSize,
                 fontVariantNumeric: 'tabular-nums',
                 minWidth: 40,
                 textAlign: 'right',

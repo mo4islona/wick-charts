@@ -1,10 +1,8 @@
-/** Font family and size tokens used across the chart. */
+/** Font family and base font size used across the chart. */
 export interface Typography {
   fontFamily: string;
+  /** Base body font size — titles, infobar, pie tooltip/legend default to this. */
   fontSize: number;
-  axisFontSize: number;
-  yFontSize: number;
-  tooltipFontSize: number;
 }
 
 /**
@@ -24,12 +22,17 @@ export interface ChartTheme {
     style: 'solid' | 'dashed' | 'dotted';
   };
 
-  /** OHLC candlestick body and wick colors. */
+  /**
+   * OHLC candlestick colors. `wick` defaults to `body` in {@link createTheme}
+   * when omitted, so most presets only need to set the body colors.
+   *
+   * `body` shape encodes the fill: a single color renders flat; a
+   * `[top, bottom]` tuple renders a 2-stop vertical gradient. Presets that
+   * want the subtle lightened/darkened look pass `autoGradient(color)`.
+   */
   candlestick: {
-    upColor: string;
-    downColor: string;
-    wickUpColor: string;
-    wickDownColor: string;
+    up: { body: string | [string, string]; wick: string };
+    down: { body: string | [string, string]; wick: string };
   };
 
   /** Default line series appearance including area gradient fill. */
@@ -56,13 +59,22 @@ export interface ChartTheme {
     labelTextColor: string;
   };
 
-  /** Axis tick label styling. */
+  /**
+   * Axis tick styling. `fontSize` and `textColor` are the shared defaults used
+   * for both X and Y, as well as non-axis label surfaces (legend, crosshair
+   * labels, sparkline ticks). Set `x` / `y` only when a specific axis needs to
+   * diverge.
+   */
   axis: {
+    fontSize: number;
     textColor: string;
+    x?: { fontSize?: number; textColor?: string };
+    y?: { fontSize?: number; textColor?: string };
   };
 
   /** Floating label shown at the current value level on the Y axis. */
   yLabel: {
+    fontSize: number;
     upBackground: string;
     downBackground: string;
     neutralBackground: string;
@@ -71,6 +83,7 @@ export interface ChartTheme {
 
   /** Hover tooltip styling. */
   tooltip: {
+    fontSize: number;
     background: string;
     textColor: string;
     borderColor: string;

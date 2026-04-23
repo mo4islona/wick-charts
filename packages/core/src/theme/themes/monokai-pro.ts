@@ -1,11 +1,14 @@
-import { FIRA, FIRA_URL, createTheme } from '../create';
+import { FIRA, FIRA_URL, autoGradient, createTheme } from '../create';
 
 export const monokaiPro = createTheme({
   name: 'Monokai Pro',
   description: 'Bold syntax colors on dark gray',
   background: '#2d2a2e',
   grid: { color: 'rgba(64,60,62,0.8)' },
-  candlestick: { upColor: '#8ab862', downColor: '#d05470' },
+  candlestick: {
+    up: { body: autoGradient('#8ab862'), wick: '#8ab862' },
+    down: { body: autoGradient('#d05470'), wick: '#d05470' },
+  },
   line: { color: '#62b8c8' },
   seriesColors: [
     '#62b8c8',

@@ -75,7 +75,7 @@ export function ThemeSelect({
           ) : (
             value
           ))}
-        <span style={{ opacity: 0.4, fontSize: theme.typography.axisFontSize, marginLeft: mobile ? 0 : 2 }}>▾</span>
+        <span style={{ opacity: 0.4, fontSize: theme.axis.fontSize, marginLeft: mobile ? 0 : 2 }}>▾</span>
       </button>
 
       {open && (
@@ -133,7 +133,7 @@ export function ThemeSelect({
                 right: 0,
                 padding: '8px 16px',
                 borderTop: `1px solid ${theme.tooltip.borderColor}`,
-                fontSize: theme.typography.axisFontSize,
+                fontSize: theme.axis.fontSize,
                 color: theme.crosshair.labelTextColor,
                 opacity: 0.5,
                 textAlign: 'center',

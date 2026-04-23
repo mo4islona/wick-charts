@@ -1,11 +1,14 @@
-import { MONO, MONO_URL, createTheme } from '../create';
+import { MONO, MONO_URL, autoGradient, createTheme } from '../create';
 
 export const oneDarkPro = createTheme({
   name: 'One Dark Pro',
   description: "Atom editor's iconic dark palette",
   background: '#282c34',
   grid: { color: 'rgba(59,64,72,0.8)' },
-  candlestick: { upColor: '#98c379', downColor: '#e06c75' },
+  candlestick: {
+    up: { body: autoGradient('#98c379'), wick: '#98c379' },
+    down: { body: autoGradient('#e06c75'), wick: '#e06c75' },
+  },
   line: { color: '#61afef' },
   seriesColors: [
     '#61afef',

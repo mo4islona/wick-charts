@@ -1,11 +1,14 @@
-import { MONO, MONO_URL, createTheme } from '../create';
+import { MONO, MONO_URL, autoGradient, createTheme } from '../create';
 
 export const gruvbox = createTheme({
   name: 'Gruvbox',
   description: 'Retro warm with earthy tones',
   background: '#282828',
   grid: { color: 'rgba(60,56,54,0.8)' },
-  candlestick: { upColor: '#b8bb26', downColor: '#fb4934' },
+  candlestick: {
+    up: { body: autoGradient('#b8bb26'), wick: '#b8bb26' },
+    down: { body: autoGradient('#fb4934'), wick: '#fb4934' },
+  },
   line: { color: '#83a598' },
   seriesColors: [
     '#83a598',

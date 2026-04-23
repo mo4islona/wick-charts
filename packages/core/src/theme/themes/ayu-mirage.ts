@@ -1,11 +1,14 @@
-import { GEIST, GEIST_URL, createTheme } from '../create';
+import { GEIST, GEIST_URL, autoGradient, createTheme } from '../create';
 
 export const ayuMirage = createTheme({
   name: 'Ayu Mirage',
   description: 'Warm dark with amber accents',
   background: '#1f2430',
   grid: { color: 'rgba(42,48,60,0.8)' },
-  candlestick: { upColor: '#bae67e', downColor: '#f27983' },
+  candlestick: {
+    up: { body: autoGradient('#bae67e'), wick: '#bae67e' },
+    down: { body: autoGradient('#f27983'), wick: '#f27983' },
+  },
   line: { color: '#73d0ff' },
   seriesColors: [
     '#73d0ff',

@@ -113,7 +113,7 @@ const slices = computed<readonly SliceInfo[]>(() => {
         :style="{
           opacity: resolvedMode === 'percent' ? 1 : 0.5,
           fontWeight: resolvedMode === 'percent' ? 600 : 400,
-          fontSize: (resolvedMode === 'percent' ? theme.typography.fontSize : theme.typography.axisFontSize) + 'px',
+          fontSize: (resolvedMode === 'percent' ? theme.typography.fontSize : theme.axis.fontSize) + 'px',
           fontVariantNumeric: 'tabular-nums',
           minWidth: '40px',
           textAlign: 'right',

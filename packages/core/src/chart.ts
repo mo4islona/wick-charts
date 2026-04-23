@@ -582,10 +582,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   addCandlestickSeries(options?: Partial<CandlestickSeriesOptions & { id?: string }>): string {
     const store = new TimeSeriesStore<OHLCData>();
     const renderer = new CandlestickRenderer(store, {
-      upColor: this.#theme.candlestick.upColor,
-      downColor: this.#theme.candlestick.downColor,
-      wickUpColor: this.#theme.candlestick.wickUpColor,
-      wickDownColor: this.#theme.candlestick.wickDownColor,
+      up: { ...this.#theme.candlestick.up },
+      down: { ...this.#theme.candlestick.down },
       bodyWidthRatio: 0.6,
       ...this.#seriesAnimationDefaults('candle'),
       ...options,

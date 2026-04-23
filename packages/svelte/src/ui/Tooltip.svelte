@@ -14,6 +14,7 @@ import {
   formatDate,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
@@ -147,16 +148,16 @@ $: floatingPos = (() => {
     <div
       use:measureOnResize
       data-measured={measuredSize ? 'true' : 'false'}
-      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.typography.tooltipFontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? mediaSize.width - chart.yAxisWidth : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? mediaSize.width - chart.yAxisWidth : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
     >
       <slot {snapshots} time={displayTime} />
     </div>
   {:else}
     <div
-      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.typography.tooltipFontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};min-width:140px;z-index:10;transition:opacity 0.15s ease;"
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.tooltip.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};min-width:140px;z-index:10;transition:opacity 0.15s ease;"
     >
       <div
-        style="font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
+        style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
         {formatDate(displayTime)} {formatTime(displayTime, dataInterval)}
       </div>
@@ -165,7 +166,7 @@ $: floatingPos = (() => {
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
-          {@const valColor = isUp ? theme.candlestick.upColor : theme.candlestick.downColor}
+          {@const valColor = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">
             <span style="opacity:0.5;">Open</span>
             <span style="font-weight:600;color:{valColor};text-align:right;">{format(ohlc.open, 'open')}</span>

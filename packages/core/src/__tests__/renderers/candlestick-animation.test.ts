@@ -156,7 +156,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it("'fade-unfold' style: first frame after append uses globalAlpha < 1 for the new candle", () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { candleGradient: false, entryAnimation: 'fade-unfold' });
+      const r = new CandlestickRenderer(store, { entryAnimation: 'fade-unfold' });
       renderFrame(r); // prime
 
       r.appendPoint({ time: 30, ...BULL });
@@ -236,7 +236,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
   describe('entrance styles', () => {
     function firstBodyRectWhileEntering(style: 'fade' | 'unfold' | 'slide' | 'fade-unfold') {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { enterAnimation: style, candleGradient: false });
+      const r = new CandlestickRenderer(store, { enterAnimation: style });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -290,7 +290,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('rendered body fillRect for the last candle moves smoothly between frames', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store, { candleGradient: false });
+    const r = new CandlestickRenderer(store, {});
 
     // Prime.
     renderFrame(r);

@@ -114,6 +114,6 @@ import { Sparkline, darkTheme } from '@wick-charts/react';
 
 ## Notes
 
-- The component reads `theme.seriesColors[0]`, `theme.candlestick.upColor/downColor`, `theme.tooltip.*`, and `theme.axis.textColor` — all themes in `@wick-charts/core` provide these.
+- The component reads `theme.seriesColors[0]`, `theme.candlestick.up.body` / `theme.candlestick.down.body` (flattened via `resolveCandlestickBodyColor` when a gradient tuple), `theme.tooltip.*`, and `theme.axis.textColor` — all themes in `@wick-charts/core` provide these.
 - Pass `theme` explicitly — `Sparkline` does not read from `ThemeProvider` context.
 - For a fully-custom layout, render a `ChartContainer` with `interactive={false}`, `grid={{ visible: false }}`, and hidden axes directly instead.

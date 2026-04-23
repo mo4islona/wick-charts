@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ChartInstance, ValueFormatter } from '@wick-charts/core';
+import { resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
@@ -80,7 +81,7 @@ onDestroy(() => {
   >
     {#each allTicks as [price, entry] (price)}
       <span
-        style="position:absolute;right:8px;top:{chart.yScale.valueToY(price)}px;transform:translateY(-50%);color:{theme.axis.textColor};font-size:{theme.typography.axisFontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;user-select:none;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:opacity;"
+        style="position:absolute;right:8px;top:{chart.yScale.valueToY(price)}px;transform:translateY(-50%);color:{resolveAxisTextColor(theme, 'y')};font-size:{resolveAxisFontSize(theme, 'y')}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;user-select:none;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:opacity;"
       >
         {chart.yScale.formatY(price)}
       </span>

@@ -38,10 +38,8 @@ describe('SeriesRenderer interface', () => {
   it('CandlestickRenderer implements the required members; layer count = 1', () => {
     const store = new TimeSeriesStore<OHLCData>();
     const r = new CandlestickRenderer(store, {
-      upColor: '#0f0',
-      downColor: '#f00',
-      wickUpColor: '#0f0',
-      wickDownColor: '#f00',
+      up: { body: '#0f0', wick: '#0f0' },
+      down: { body: '#f00', wick: '#f00' },
       bodyWidthRatio: 0.6,
     });
     assertImplements(r);
@@ -99,7 +97,13 @@ describe('SeriesRenderer interface', () => {
   it('getTotalLength() reports summed store lengths on multi-layer renderers', () => {
     const line = new LineRenderer(2);
     expect(line.getTotalLength()).toBe(0);
-    line.setData([{ time: 1, value: 1 }, { time: 2, value: 2 }], 0);
+    line.setData(
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+      0,
+    );
     line.setData([{ time: 1, value: 3 }], 1);
     expect(line.getTotalLength()).toBe(3);
 
@@ -162,5 +166,48 @@ describe('SeriesRenderer interface', () => {
     r.applyTheme(darkTheme, darkTheme);
     const after = r.getSliceInfo!(darkTheme);
     expect(after).toEqual(before);
+  });
+
+  // Typed view into renderer internals for assertions without adding a public API.
+  type LineInternal = { options: { strokeWidth: number; colors: string[] } };
+
+  it('LineRenderer.applyTheme syncs strokeWidth when it still matches the previous theme default', () => {
+    const prev = { ...darkTheme, line: { ...darkTheme.line, width: 1 } };
+    const next = { ...darkTheme, line: { ...darkTheme.line, width: 4 } };
+
+    const r = new LineRenderer(1, { strokeWidth: 1 });
+    r.applyTheme(next, prev);
+
+    expect((r as unknown as LineInternal).options.strokeWidth).toBe(4);
+  });
+
+  it('LineRenderer.applyTheme preserves a user-pinned strokeWidth (does not match prev default)', () => {
+    const prev = { ...darkTheme, line: { ...darkTheme.line, width: 1 } };
+    const next = { ...darkTheme, line: { ...darkTheme.line, width: 4 } };
+
+    const r = new LineRenderer(1, { strokeWidth: 8 });
+    r.applyTheme(next, prev);
+
+    expect((r as unknown as LineInternal).options.strokeWidth).toBe(8);
+  });
+
+  it('LineRenderer.applyTheme syncs single-layer color when it still matches the previous theme default', () => {
+    const prev = { ...darkTheme, line: { ...darkTheme.line, color: '#111111' } };
+    const next = { ...darkTheme, line: { ...darkTheme.line, color: '#222222' } };
+
+    const r = new LineRenderer(1, { colors: ['#111111'] });
+    r.applyTheme(next, prev);
+
+    expect((r as unknown as LineInternal).options.colors[0]).toBe('#222222');
+  });
+
+  it('LineRenderer.applyTheme preserves a user-pinned color (does not match prev default)', () => {
+    const prev = { ...darkTheme, line: { ...darkTheme.line, color: '#111111' } };
+    const next = { ...darkTheme, line: { ...darkTheme.line, color: '#222222' } };
+
+    const r = new LineRenderer(1, { colors: ['#abcdef'] });
+    r.applyTheme(next, prev);
+
+    expect((r as unknown as LineInternal).options.colors[0]).toBe('#abcdef');
   });
 });

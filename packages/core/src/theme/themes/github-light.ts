@@ -1,4 +1,4 @@
-import { JAKARTA, JAKARTA_URL, createTheme } from '../create';
+import { JAKARTA, JAKARTA_URL, autoGradient, createTheme } from '../create';
 
 export const githubLight = createTheme({
   name: 'GitHub Light',
@@ -6,7 +6,10 @@ export const githubLight = createTheme({
   background: '#fafbfc',
   chartGradient: ['#ffffff', '#fafbfc'],
   grid: { color: 'rgba(208,215,222,0.4)' },
-  candlestick: { upColor: '#2da44e', downColor: '#cf222e' },
+  candlestick: {
+    up: { body: autoGradient('#2da44e'), wick: '#2da44e' },
+    down: { body: autoGradient('#cf222e'), wick: '#cf222e' },
+  },
   line: { color: '#0969da', areaTopColor: 'rgba(9,105,218,0.05)', areaBottomColor: 'rgba(9,105,218,0.005)' },
   seriesColors: [
     '#0969da',

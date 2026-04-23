@@ -98,6 +98,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
         colors: theme.seriesColors.slice(0, this.stores.length),
       });
     }
+
+    // Stroke width follows theme unless the user pinned it with an explicit
+    // option. Same "matches previous theme default" guard as the color path.
+    if (this.options.strokeWidth === prev.line.width) {
+      this.updateOptions({ strokeWidth: theme.line.width });
+    }
   }
 
   private peekEntry(layerIndex: number, time: number): LineEntry | undefined {

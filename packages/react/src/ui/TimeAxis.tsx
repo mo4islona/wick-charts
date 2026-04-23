@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 
-import { formatTime } from '@wick-charts/core';
+import { formatTime, resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useVisibleRange } from '../store-bridge';
@@ -93,8 +93,8 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
               position: 'absolute',
               left: x,
               transform: 'translateX(-50%)',
-              color: theme.axis.textColor,
-              fontSize: theme.typography.axisFontSize,
+              color: resolveAxisTextColor(theme, 'x'),
+              fontSize: resolveAxisFontSize(theme, 'x'),
               fontFamily: theme.typography.fontFamily,
               userSelect: 'none',
               whiteSpace: 'nowrap',

@@ -1,11 +1,14 @@
-import { MONO, MONO_URL, createTheme } from '../create';
+import { MONO, MONO_URL, autoGradient, createTheme } from '../create';
 
 export const nightOwl = createTheme({
   name: 'Night Owl',
   description: 'Crafted for late-night coding',
   background: '#011627',
   grid: { color: 'rgba(31,52,72,0.8)' },
-  candlestick: { upColor: '#7ec699', downColor: '#e06c75' },
+  candlestick: {
+    up: { body: autoGradient('#7ec699'), wick: '#7ec699' },
+    down: { body: autoGradient('#e06c75'), wick: '#e06c75' },
+  },
   line: { color: '#82aaff' },
   seriesColors: [
     '#82aaff',

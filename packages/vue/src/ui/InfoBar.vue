@@ -10,6 +10,7 @@ import {
   formatCompact,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
@@ -155,10 +156,11 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
               <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ cell.label }}</span>
               <span
                 :style="{
-                  color:
+                  color: resolveCandlestickBodyColor(
                     (s.data as OHLCData).close >= (s.data as OHLCData).open
-                      ? theme.candlestick.upColor
-                      : theme.candlestick.downColor,
+                      ? theme.candlestick.up.body
+                      : theme.candlestick.down.body,
+                  ),
                   fontWeight: 500,
                   marginLeft: '2px',
                 }"

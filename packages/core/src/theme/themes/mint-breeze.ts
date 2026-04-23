@@ -1,9 +1,12 @@
-import { SPACE_MONO, SPACE_MONO_URL, createTheme } from '../create';
+import { SPACE_MONO, SPACE_MONO_URL, autoGradient, createTheme } from '../create';
 
 export const mintBreeze = createTheme({
   name: 'Mint Breeze',
   background: '#f6f5ee',
-  candlestick: { upColor: '#2e9070', downColor: '#d04848' },
+  candlestick: {
+    up: { body: autoGradient('#2e9070'), wick: '#2e9070' },
+    down: { body: autoGradient('#d04848'), wick: '#d04848' },
+  },
   line: { color: '#2a8a80' },
   seriesColors: [
     '#2a8a80',

@@ -13,6 +13,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -65,7 +66,10 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       <BarSeries
         data={[display]}
         options={{
-          colors: [props.theme.candlestick.upColor, props.theme.candlestick.downColor],
+          colors: [
+            resolveCandlestickBodyColor(props.theme.candlestick.up.body),
+            resolveCandlestickBodyColor(props.theme.candlestick.down.body),
+          ],
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
           entryAnimation: props.barEntryAnimation,

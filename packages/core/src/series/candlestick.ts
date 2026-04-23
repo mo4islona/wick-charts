@@ -1,34 +1,29 @@
 import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
+import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
-import { darken, hexToRgba, lighten } from '../utils/color';
+import { hexToRgba } from '../utils/color';
 import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
 import { resolveMs, valueDiffers } from './shared-animation';
 import type { SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
-  upColor: '#26a69a',
-  downColor: '#ef5350',
-  wickUpColor: '#26a69a',
-  wickDownColor: '#ef5350',
+  up: { body: '#26a69a', wick: '#26a69a' },
+  down: { body: '#ef5350', wick: '#ef5350' },
   bodyWidthRatio: 0.6,
 };
 
 /**
  * Normalize caller-supplied candlestick options. Folds the deprecated
- * `candleGradient`, `enterAnimation`, and `enterMs` aliases into
- * `bodyGradient`, `entryAnimation`, and `entryMs` respectively.
+ * `enterAnimation` and `enterMs` aliases into `entryAnimation` and `entryMs`.
  */
 function normalizeCandlestickOptions(input?: Partial<CandlestickSeriesOptions>): Partial<CandlestickSeriesOptions> {
   if (!input) return {};
 
   const out: Partial<CandlestickSeriesOptions> = { ...input };
-  if (input.candleGradient !== undefined && input.bodyGradient === undefined) {
-    out.bodyGradient = input.candleGradient;
-  }
   if (input.enterAnimation !== undefined && input.entryAnimation === undefined) {
     out.entryAnimation = input.enterAnimation;
   }
@@ -61,7 +56,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   }
 
   getColor(): string {
-    return this.options.upColor;
+    return resolveCandlestickBodyColor(this.options.up.body);
   }
 
   // --- SeriesRenderer interface implementation ------------------------------
@@ -101,15 +96,13 @@ export class CandlestickRenderer implements SeriesRenderer {
   }
 
   getLayerColors(): string[] {
-    return [this.options.upColor];
+    return [resolveCandlestickBodyColor(this.options.up.body)];
   }
 
   applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
     this.updateOptions({
-      upColor: theme.candlestick.upColor,
-      downColor: theme.candlestick.downColor,
-      wickUpColor: theme.candlestick.wickUpColor,
-      wickDownColor: theme.candlestick.wickDownColor,
+      up: { ...theme.candlestick.up },
+      down: { ...theme.candlestick.down },
     });
   }
 
@@ -302,14 +295,14 @@ export class CandlestickRenderer implements SeriesRenderer {
     this.drawCandles({
       ...baseCandleArgs,
       candles: bullish,
-      bodyColor: this.options.upColor,
-      wickColor: this.options.wickUpColor,
+      body: this.options.up.body,
+      wickColor: this.options.up.wick,
     });
     this.drawCandles({
       ...baseCandleArgs,
       candles: bearish,
-      bodyColor: this.options.downColor,
-      wickColor: this.options.wickDownColor,
+      body: this.options.down.body,
+      wickColor: this.options.down.wick,
     });
   }
 
@@ -340,8 +333,8 @@ export class CandlestickRenderer implements SeriesRenderer {
     const volBarWidth = Math.max(1, barWidth - 2);
     const halfBar = Math.floor(volBarWidth / 2);
 
-    const upVolumeColor = hexToRgba(this.options.upColor, 0.2);
-    const downVolumeColor = hexToRgba(this.options.downColor, 0.2);
+    const upVolumeColor = hexToRgba(resolveCandlestickBodyColor(this.options.up.body), 0.2);
+    const downVolumeColor = hexToRgba(resolveCandlestickBodyColor(this.options.down.body), 0.2);
 
     const style = this.options.entryAnimation ?? 'unfold';
 
@@ -385,7 +378,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     halfBody,
     bodyWidth,
     wickWidth,
-    bodyColor,
+    body,
     wickColor,
     entranceByTime,
   }: {
@@ -396,7 +389,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     halfBody: number;
     bodyWidth: number;
     wickWidth: number;
-    bodyColor: string;
+    body: string | [string, string];
     wickColor: string;
     entranceByTime: Map<number, number> | null;
   }): void {
@@ -433,12 +426,10 @@ export class CandlestickRenderer implements SeriesRenderer {
       ctx.restore();
     }
 
-    // Bodies
-    const useGradient = this.options.bodyGradient !== false;
-    const topColor = useGradient ? lighten(bodyColor, 0.2) : bodyColor;
-    const bottomColor = useGradient ? darken(bodyColor, 0.15) : bodyColor;
-
-    if (!useGradient) ctx.fillStyle = bodyColor;
+    // Bodies. `body` is a `[top, bottom]` tuple (2-stop gradient) or a single
+    // color (flat fill). No auto-lift; presets that want the previous lightened
+    // look should pass `autoGradient(color)` in their config.
+    const drawsGradient = Array.isArray(body);
 
     for (const c of candles) {
       const progress = entranceByTime?.get(c.time) ?? 1;
@@ -471,12 +462,17 @@ export class CandlestickRenderer implements SeriesRenderer {
 
       if (needsTransform) ctx.save();
 
-      if (useGradient && drawHeight > 2) {
+      // Body fill. A ≤2px-tall candle can't show a gradient meaningfully, so
+      // collapse both the tuple and single-color paths to a flat top-stop fill
+      // — otherwise fillStyle would leak from the prior wick batch and the
+      // body would render in the wick color.
+      if (drawsGradient && drawHeight > 2) {
         const grad = ctx.createLinearGradient(0, drawTop, 0, drawTop + drawHeight);
-        grad.addColorStop(0, topColor);
-        grad.addColorStop(0.5, bodyColor);
-        grad.addColorStop(1, bottomColor);
+        grad.addColorStop(0, body[0]);
+        grad.addColorStop(1, body[1]);
         ctx.fillStyle = grad;
+      } else {
+        ctx.fillStyle = drawsGradient ? body[0] : body;
       }
 
       if (needsTransform) ctx.globalAlpha = alpha;

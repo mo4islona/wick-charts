@@ -18,7 +18,7 @@ export function Crosshair() {
     // badge from looking like an opaque block.
     background: `color-mix(in srgb, ${theme.crosshair.labelBackground} 80%, transparent)`,
     color: theme.crosshair.labelTextColor,
-    fontSize: theme.typography.axisFontSize,
+    fontSize: theme.axis.fontSize,
     fontFamily: theme.typography.fontFamily,
     fontVariantNumeric: 'tabular-nums' as const,
     padding: '2px 6px',

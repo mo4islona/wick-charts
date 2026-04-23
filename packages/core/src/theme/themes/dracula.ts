@@ -1,11 +1,14 @@
-import { FIRA, FIRA_URL, createTheme } from '../create';
+import { FIRA, FIRA_URL, autoGradient, createTheme } from '../create';
 
 export const dracula = createTheme({
   name: 'Dracula',
   description: 'Classic dark with vibrant highlights',
   background: '#282a36',
   grid: { color: 'rgba(68,71,90,0.8)' },
-  candlestick: { upColor: '#50fa7b', downColor: '#ff5555' },
+  candlestick: {
+    up: { body: autoGradient('#50fa7b'), wick: '#50fa7b' },
+    down: { body: autoGradient('#ff5555'), wick: '#ff5555' },
+  },
   line: { color: '#bd93f9' },
   seriesColors: [
     '#bd93f9',

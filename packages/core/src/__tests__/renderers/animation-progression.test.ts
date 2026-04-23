@@ -42,7 +42,6 @@ describe('entrance animation — frame-by-frame progression', () => {
     const r = new CandlestickRenderer(store, {
       enterAnimation: 'fade',
       enterMs: 250,
-      candleGradient: false,
     });
     const { ctx: priming } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
     r.render(priming);

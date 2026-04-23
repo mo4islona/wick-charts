@@ -72,6 +72,18 @@
   display: grid;
   gap: 6px;
 }
+.wick-playground .pg-main.tev2-previews {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-3) transparent;
+  padding-right: 2px;
+}
+.wick-playground .pg-main.tev2-previews::-webkit-scrollbar {
+  width: 6px;
+}
+.wick-playground .pg-main.tev2-previews::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 3px;
+}
 .wick-playground .pg-drag {
   width: 10px;
   cursor: col-resize;
@@ -909,6 +921,7 @@
   height: 100%;
   min-height: 0;
   resize: none;
+  background: color-mix(in oklab, var(--bg-0) 70%, #000);
 }
 
 /* JSON editor body */
@@ -928,9 +941,6 @@
   position: relative;
   border-radius: 4px;
   transition: background 100ms ease;
-}
-.wick-playground .json-line:hover {
-  background: color-mix(in oklab, currentColor 5%, transparent);
 }
 .wick-playground .json-key {
   color: var(--tok-attr);

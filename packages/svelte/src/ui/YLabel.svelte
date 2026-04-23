@@ -133,7 +133,7 @@ export type YLabelDirection = 'up' | 'down' | 'neutral';
       style="position:absolute;left:0;right:{chart.yAxisWidth}px;top:{y}px;height:0;border-top:1px dashed {bgColor};opacity:0.5;pointer-events:none;z-index:2;"
     />
     <div
-      style="position:absolute;right:4px;top:{y}px;transform:translateY(-50%);pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.typography.yFontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
+      style="position:absolute;right:4px;top:{y}px;transform:translateY(-50%);pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.yLabel.fontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
     >
       <NumberFlow value={last.value} format={effectiveFormat} spinDuration={350} />
     </div>

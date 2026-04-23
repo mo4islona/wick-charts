@@ -194,7 +194,7 @@ export interface LegendItemOverride {
         ? 'flex-start'
         : 'center'};justify-content:{position === 'right'
         ? 'flex-start'
-        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
     >
       <slot items={legendItems} />
     </div>
@@ -212,7 +212,7 @@ export interface LegendItemOverride {
         ? 'flex-start'
         : 'center'};justify-content:{position === 'right'
         ? 'flex-start'
-        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
     >
       {#each items as item, i (i)}
         <div style="display:flex;align-items:center;gap:4px;user-select:none;">
@@ -235,7 +235,7 @@ export interface LegendItemOverride {
         ? 'flex-start'
         : 'center'};justify-content:{position === 'right'
         ? 'flex-start'
-        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.axisFontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
+        : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
     >
       {#each legendItems as item (item.id)}
         <button

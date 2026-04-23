@@ -83,7 +83,7 @@ $: slices = ((chart && resolvedId !== null ? chart.getSliceInfo(resolvedId) : nu
                 ? 600
                 : 400};font-size:{resolvedMode === 'percent'
                 ? theme.typography.fontSize
-                : theme.typography.axisFontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
+                : theme.axis.fontSize}px;font-variant-numeric:tabular-nums;min-width:40px;text-align:right;"
             >
               {slice.percent.toFixed(1)}%
             </span>

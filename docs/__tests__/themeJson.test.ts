@@ -112,4 +112,37 @@ describe('normalizeThemeConfig', () => {
     });
     expect(out?.line).toEqual({ width: 2 });
   });
+
+  it('preserves a valid candlestick.up.body tuple', () => {
+    const out = normalizeThemeConfig({
+      background: '#112233',
+      candlestick: { up: { body: ['#aaff00', '#008800'], wick: '#00ff00' } },
+    });
+    expect(out?.candlestick?.up?.body).toEqual(['#aaff00', '#008800']);
+    expect(out?.candlestick?.up?.wick).toBe('#00ff00');
+  });
+
+  it('drops a malformed body array (wrong arity or non-string members)', () => {
+    const out = normalizeThemeConfig({
+      background: '#112233',
+      // Length 1, length 3, and numeric members all get scrubbed — createTheme
+      // falls back to defaults so the renderer never sees `undefined`/`NaN`.
+      candlestick: {
+        up: { body: ['#aaff00'], wick: '#00ff00' },
+        down: { body: [10, 20], wick: '#ff0000' },
+      },
+    } as unknown as JsonValue);
+    expect(out?.candlestick?.up?.body).toBeUndefined();
+    expect(out?.candlestick?.up?.wick).toBe('#00ff00');
+    expect(out?.candlestick?.down?.body).toBeUndefined();
+    expect(out?.candlestick?.down?.wick).toBe('#ff0000');
+  });
+
+  it('drops the candlestick block entirely when both directions are malformed', () => {
+    const out = normalizeThemeConfig({
+      background: '#112233',
+      candlestick: { up: {}, down: {} },
+    });
+    expect(out?.candlestick).toBeUndefined();
+  });
 });

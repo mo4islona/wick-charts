@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { ChartInstance } from '@wick-charts/core';
-import { formatTime } from '@wick-charts/core';
+import { formatTime, resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
@@ -73,7 +73,7 @@ $: theme = chart?.getTheme();
   >
     {#each allTicks as [time, entry] (time)}
       <span
-        style="position:absolute;left:{chart.timeScale.timeToX(time)}px;transform:translateX(-50%);color:{theme.axis.textColor};font-size:{theme.typography.axisFontSize}px;font-family:{theme.typography.fontFamily};user-select:none;white-space:nowrap;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:opacity;"
+        style="position:absolute;left:{chart.timeScale.timeToX(time)}px;transform:translateX(-50%);color:{resolveAxisTextColor(theme, 'x')};font-size:{resolveAxisFontSize(theme, 'x')}px;font-family:{theme.typography.fontFamily};user-select:none;white-space:nowrap;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:opacity;"
       >
         {formatTime(time, tickInterval)}
       </span>

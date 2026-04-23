@@ -33,7 +33,7 @@
   // its row. `color-mix(...80%, transparent)` blends the solid theme color
   // with 20% transparency so the axis grid shows through.
   $: labelStyle = theme
-    ? `background:color-mix(in srgb, ${theme.crosshair.labelBackground} 80%, transparent);color:${theme.crosshair.labelTextColor};font-size:${theme.typography.axisFontSize}px;font-family:${theme.typography.fontFamily};font-variant-numeric:tabular-nums;padding:2px 6px;border-radius:2px;white-space:nowrap;pointer-events:none;z-index:2;`
+    ? `background:color-mix(in srgb, ${theme.crosshair.labelBackground} 80%, transparent);color:${theme.crosshair.labelTextColor};font-size:${theme.axis.fontSize}px;font-family:${theme.typography.fontFamily};font-variant-numeric:tabular-nums;padding:2px 6px;border-radius:2px;white-space:nowrap;pointer-events:none;z-index:2;`
     : '';
 </script>
 

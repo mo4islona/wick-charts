@@ -17,7 +17,7 @@ const labelStyle = computed(() => ({
   // while still masking whatever tick sits underneath.
   background: `color-mix(in srgb, ${theme.value.crosshair.labelBackground} 80%, transparent)`,
   color: theme.value.crosshair.labelTextColor,
-  fontSize: theme.value.typography.axisFontSize + 'px',
+  fontSize: theme.value.axis.fontSize + 'px',
   fontFamily: theme.value.typography.fontFamily,
   fontVariantNumeric: 'tabular-nums' as const,
   padding: '2px 6px',

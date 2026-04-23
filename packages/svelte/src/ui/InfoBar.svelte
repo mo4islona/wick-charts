@@ -13,6 +13,7 @@ import {
   formatCompact,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
@@ -108,7 +109,7 @@ $: displayTime =
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
-          {@const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor}
+          {@const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <span style="display:inline-flex;align-items:center;gap:4px;">
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
             <span style="color:{c};font-weight:500;margin-left:2px;">{format(ohlc.open, 'open')}</span>

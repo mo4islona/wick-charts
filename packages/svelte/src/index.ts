@@ -1,4 +1,12 @@
-// Re-export core
+/**
+ * @wick-charts/svelte — Svelte bindings for Wick Charts.
+ *
+ * Everything importable from the library is re-exported here: components
+ * (`<ChartContainer>`, `<CandlestickSeries>`, …), option types, and themes.
+ * The underlying `@wick-charts/core` engine is bundled into this package —
+ * its source lives at
+ * https://github.com/mo4islona/wick-charts/tree/main/packages/core/src.
+ */
 
 export type {
   AxisBound,
@@ -46,6 +54,7 @@ export type {
 export {
   ChartInstance,
   andromeda,
+  autoGradient,
   ayuMirage,
   buildHoverSnapshots,
   buildLastSnapshots,
@@ -76,6 +85,9 @@ export {
   panda,
   peachCream,
   quietLight,
+  resolveAxisFontSize,
+  resolveAxisTextColor,
+  resolveCandlestickBodyColor,
   rosePineDawn,
   sandDune,
   solarizedLight,

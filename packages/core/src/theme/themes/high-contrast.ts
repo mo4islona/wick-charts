@@ -1,4 +1,4 @@
-import { createTheme } from '../create';
+import { autoGradient, createTheme } from '../create';
 
 const SILKSCREEN = "'Silkscreen', cursive";
 const SILKSCREEN_URL = 'https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap';
@@ -6,7 +6,10 @@ const SILKSCREEN_URL = 'https://fonts.googleapis.com/css2?family=Silkscreen:wght
 export const highContrast = createTheme({
   name: 'Matrix',
   background: '#000000',
-  candlestick: { upColor: '#00ff41', downColor: '#00802a' },
+  candlestick: {
+    up: { body: autoGradient('#00ff41'), wick: '#00ff41' },
+    down: { body: autoGradient('#00802a'), wick: '#00802a' },
+  },
   line: { color: '#00ff41' },
   seriesColors: [
     '#00ff41',

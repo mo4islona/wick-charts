@@ -210,7 +210,7 @@ export function Legend({ items, position = 'bottom', mode = 'toggle', children }
     alignItems: isRight ? 'flex-start' : 'center',
     justifyContent: isRight ? 'flex-start' : 'center',
     fontFamily: theme.typography.fontFamily,
-    fontSize: theme.typography.axisFontSize,
+    fontSize: theme.axis.fontSize,
     color: theme.axis.textColor,
     pointerEvents: 'auto',
     flexShrink: 0,

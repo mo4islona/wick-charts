@@ -1,5 +1,134 @@
 # Migration guide
 
+## 0.2 → 0.3
+
+Version 0.3 restructures `ChartTheme` so every key lives where it semantically belongs. Confusing flat keys like `typography.axisFontSize` (shared across axes, legend, tooltips) and `candlestick.upColor` / `wickUpColor` (direction and part mixed at one level) are gone. Font sizes move into their owning sections; candlestick nests by direction first. Series renderer options (`CandlestickSeriesOptions`) follow the same restructure so instance overrides stay consistent with the theme.
+
+### Breaking: `typography` only carries `fontFamily` + base `fontSize`
+
+Other size knobs move into the section they describe:
+
+```ts
+// 0.2
+theme.typography.axisFontSize      // used by axis ticks, legend, crosshair label, tooltip sub-text
+theme.typography.yFontSize         // the floating YLabel price badge (misleadingly named)
+theme.typography.tooltipFontSize
+
+// 0.3
+theme.axis.fontSize                // shared default for both axes + legend/crosshair/sparkline
+theme.yLabel.fontSize
+theme.tooltip.fontSize
+```
+
+`theme.typography` now contains only `{ fontFamily, fontSize }`. `fontSize` is the base body-text size (titles, infobar, pie tooltip).
+
+### New: per-axis overrides under `axis.x` / `axis.y`
+
+`axis.fontSize` and `axis.textColor` are the shared defaults. If an axis needs to diverge, set an override:
+
+```ts
+axis: {
+  fontSize: 10,
+  textColor: '#787b86',
+  y: { fontSize: 14, textColor: '#d1d4dc' },  // only Y diverges
+}
+```
+
+Two helpers resolve the effective value at read time:
+
+```ts
+import { resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/react';
+
+resolveAxisFontSize(theme, 'y');    // 14  (override)
+resolveAxisFontSize(theme, 'x');    // 10  (shared default)
+resolveAxisFontSize(theme);         // 10  (legend, crosshair, etc.)
+```
+
+### Breaking: `candlestick` nests by direction (`up` / `down`), not by part
+
+```ts
+// 0.2
+candlestick: {
+  upColor: '#089981',
+  downColor: '#f23645',
+  wickUpColor: '#089981',
+  wickDownColor: '#f23645',
+}
+
+// 0.3
+candlestick: {
+  up:   { body: '#089981', wick: '#089981' },
+  down: { body: '#f23645', wick: '#f23645' },
+}
+```
+
+Same restructure applies to `CandlestickSeriesOptions` on `<CandlestickSeries options={...}>` / `addCandlestickSeries({...})`:
+
+```ts
+// 0.2
+<CandlestickSeries options={{ upColor: '#0f0', wickUpColor: '#000' }} />
+
+// 0.3
+<CandlestickSeries options={{ up: { body: '#0f0', wick: '#000' } }} />
+```
+
+### New: `body` accepts a `[top, bottom]` gradient tuple. `bodyGradient` is gone.
+
+Body shape now says everything:
+
+```ts
+candlestick: {
+  up:   { body: ['#aaff00', '#008800'], wick: '#006600' },  // explicit 2-stop gradient
+  down: { body: '#f23645',              wick: '#a01020' },  // flat fill
+}
+```
+
+The old `bodyGradient: boolean` (and its deprecated alias `candleGradient`) flag on `CandlestickSeriesOptions` is removed. In 0.2, `bodyGradient: true` (default) applied an auto-derived 3-stop lighten/darken gradient to any single-color body. In 0.3, gradient vs. flat is encoded directly in the shape — a string is flat, a tuple is a gradient.
+
+For the old "subtle vertical lift" look, wrap colors in the new `autoGradient` helper (ships in every framework entrypoint):
+
+```ts
+import { autoGradient, createTheme } from '@wick-charts/react';
+
+createTheme({
+  background: '#0f1117',
+  candlestick: {
+    up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },  // [lighten, darken] tuple
+    down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
+  },
+});
+```
+
+All bundled presets (`githubLight`, `monokaiPro`, …) already use `autoGradient` so they look identical to 0.2.
+
+For reading a flat color out of either form (e.g. coloring a legend swatch, an InfoBar value, or a change arrow), use `resolveCandlestickBodyColor`:
+
+```ts
+import { resolveCandlestickBodyColor } from '@wick-charts/react';
+
+resolveCandlestickBodyColor(theme.candlestick.up.body);  // '#089981' or the top stop of a tuple
+```
+
+### Migration steps
+
+1. Search-and-replace across your codebase:
+
+   | Old                                     | New                                  |
+   | --------------------------------------- | ------------------------------------ |
+   | `typography.axisFontSize`               | `axis.fontSize`                      |
+   | `typography.yFontSize`                  | `yLabel.fontSize`                    |
+   | `typography.tooltipFontSize`            | `tooltip.fontSize`                   |
+   | `candlestick.upColor`                   | `candlestick.up.body`                |
+   | `candlestick.downColor`                 | `candlestick.down.body`              |
+   | `candlestick.wickUpColor`               | `candlestick.up.wick`                |
+   | `candlestick.wickDownColor`             | `candlestick.down.wick`              |
+
+2. Custom themes via `createTheme({...})`: rename `candlestick: { upColor, downColor, ... }` to `candlestick: { up: { body }, down: { body } }`. `wick` defaults to `body` when omitted.
+
+3. Direct `<CandlestickSeries options={...}>` overrides: same restructure as the theme. Drop any `bodyGradient` / `candleGradient` props — pass `body: autoGradient('#color')` to keep the subtle gradient, or a plain string for flat fill.
+
+4. Anywhere you read a candle body color to tint unrelated UI (tooltip value text, change arrow, swatch), import `resolveCandlestickBodyColor` from your framework package — it returns a flat string whether the body is single-color or a gradient tuple.
+
 ## 0.1 → 0.2
 
 Version 0.2 introduces scoped slot / render-prop support on every DOM overlay and cleans up the `seriesId` prop inconsistencies across them. The runtime surface (`ChartContainer`, series components, themes, hooks/composables/stores) is unchanged.

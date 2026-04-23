@@ -1,6 +1,6 @@
 # Candlestick Chart
 
-OHLCV financial chart with automatic volume bars, smart data diffing, and body gradient rendering.
+OHLCV financial chart with automatic volume bars, smart data diffing, and a `body` that supports either a flat color or a 2-stop gradient tuple.
 
 ## Data format
 
@@ -23,27 +23,49 @@ Pass as a flat array: `OHLCData[]` (or `OHLCInput[]` when using `Date`).
 ## Series options
 
 ```ts
+interface CandlestickDirectionColors {
+  body: string | [string, string]; // single color = flat fill; tuple = [top, bottom] gradient stops
+  wick: string;                    // always a single color
+}
+
 interface CandlestickSeriesOptions {
-  label?: string;            // tooltip display name
-  upColor: string;           // bullish candle body — default: '#26a69a'
-  downColor: string;         // bearish candle body — default: '#ef5350'
-  wickUpColor: string;       // bullish wick — default: '#26a69a'
-  wickDownColor: string;     // bearish wick — default: '#ef5350'
-  bodyWidthRatio: number;    // 0–1, candle body width — default: 0.6
-  bodyGradient?: boolean;    // vertical gradient on bodies — default: true
+  label?: string;                  // tooltip display name
+  up:   CandlestickDirectionColors;  // bullish (close >= open). Default: { body: '#26a69a', wick: '#26a69a' }
+  down: CandlestickDirectionColors;  // bearish (close < open).  Default: { body: '#ef5350', wick: '#ef5350' }
+  bodyWidthRatio: number;          // 0–1, candle body width — default: 0.6
   entryAnimation?: 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold'; // default: 'fade-unfold'
-  entryMs?: number | false;  // entrance duration; false disables — default: 400
-  smoothMs?: number | false; // live-tracking smoothing for updateLastPoint — default: 70
+  entryMs?: number | false;        // entrance duration; false disables — default: 400
+  smoothMs?: number | false;       // live-tracking smoothing for updateLastPoint — default: 70
 }
 ```
 
 All options are optional — pass `Partial<CandlestickSeriesOptions>`.
 
+### Flat vs gradient body
+
+Body shape encodes the fill mode:
+
+- `body: '#26a69a'` → flat fill
+- `body: ['#80e0c8', '#117d66']` → 2-stop vertical gradient (top → bottom)
+
+For the subtle lightened/darkened look the library used by default before 0.3, wrap a single color in the `autoGradient` helper:
+
+```ts
+import { autoGradient } from '@wick-charts/react';
+
+options={{
+  up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },
+  down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
+}}
+```
+
+All bundled presets (`githubLight`, `monokaiPro`, …) already use `autoGradient`.
+
 ## Volume rendering
 
 When data includes `volume`, semi-transparent bars are drawn in the bottom 20% of the chart:
-- Bullish volume: `upColor` at 20% opacity
-- Bearish volume: `downColor` at 20% opacity
+- Bullish volume: `up.body` top-stop at 20% opacity
+- Bearish volume: `down.body` top-stop at 20% opacity
 
 No extra config needed — just include the `volume` field.
 
@@ -61,7 +83,7 @@ This enables efficient real-time streaming without manual optimization.
 ```tsx
 import {
   ChartContainer, CandlestickSeries, Tooltip, Crosshair,
-  YAxis, TimeAxis, YLabel, darkTheme
+  YAxis, TimeAxis, YLabel, autoGradient, darkTheme
 } from '@wick-charts/react';
 import type { OHLCData } from '@wick-charts/react';
 
@@ -74,10 +96,9 @@ function CandlestickChart({ data }: { data: OHLCData[] }) {
         id={seriesId}
         data={data}
         options={{
-          upColor: '#26a69a',
-          downColor: '#ef5350',
+          up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },
+          down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
           bodyWidthRatio: 0.6,
-          bodyGradient: true,
         }}
       />
       <Tooltip />
@@ -123,21 +144,21 @@ function onNewCandle(candle: OHLCData) {
 <script setup lang="ts">
 import {
   ChartContainer, CandlestickSeries, Tooltip, Crosshair,
-  YAxis, TimeAxis, YLabel, darkTheme
+  YAxis, TimeAxis, YLabel, autoGradient, darkTheme
 } from '@wick-charts/vue';
 import type { OHLCData } from '@wick-charts/vue';
 
 const props = defineProps<{ data: OHLCData[] }>();
 const seriesId = 'btc-ohlc';
+const options = {
+  up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },
+  down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
+};
 </script>
 
 <template>
   <ChartContainer :theme="darkTheme" style="width: 100%; height: 400px">
-    <CandlestickSeries
-      :id="seriesId"
-      :data="props.data"
-      :options="{ upColor: '#26a69a', downColor: '#ef5350', bodyGradient: true }"
-    />
+    <CandlestickSeries :id="seriesId" :data="props.data" :options="options" />
     <Tooltip />
     <Crosshair />
     <YAxis />
@@ -177,19 +198,19 @@ function onNewCandle(candle: OHLCData) {
 <script>
   import {
     ChartContainer, CandlestickSeries, Tooltip, Crosshair,
-    YAxis, TimeAxis, YLabel, darkTheme
+    YAxis, TimeAxis, YLabel, autoGradient, darkTheme
   } from '@wick-charts/svelte';
 
   export let data = [];
   const seriesId = 'btc-ohlc';
+  const options = {
+    up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },
+    down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
+  };
 </script>
 
 <ChartContainer theme={darkTheme} style="width:100%;height:400px">
-  <CandlestickSeries
-    id={seriesId}
-    {data}
-    options={{ upColor: '#26a69a', downColor: '#ef5350', bodyGradient: true }}
-  />
+  <CandlestickSeries id={seriesId} {data} {options} />
   <Tooltip />
   <Crosshair />
   <YAxis />
@@ -239,21 +260,25 @@ Candlestick charts commonly use this overlay combination:
 Replace the default OHLCV layout — e.g. highlight the open→close delta directly:
 
 ```tsx
-import { Tooltip } from '@wick-charts/react';
+import { Tooltip, resolveCandlestickBodyColor } from '@wick-charts/react';
 
 <Tooltip>
-  {({ snapshots, time }) => {
+  {({ snapshots, time, theme }) => {
     const candle = snapshots[0]?.data; // OHLCData for a candlestick row
     if (!candle || !('open' in candle)) return null;
     const delta = candle.close - candle.open;
     const pct = (delta / candle.open) * 100;
     const up = delta >= 0;
+    // Pick a flat color even when the theme's body is a gradient tuple.
+    const color = resolveCandlestickBodyColor(
+      up ? theme.candlestick.up.body : theme.candlestick.down.body,
+    );
 
     return (
       <div style={{ display: 'grid', gap: 4 }}>
         <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleString()}</small>
         <strong>{candle.close.toFixed(2)}</strong>
-        <span style={{ color: up ? '#26a69a' : '#ef5350' }}>
+        <span style={{ color }}>
           {up ? '▲' : '▼'} {delta.toFixed(2)} ({pct.toFixed(2)}%)
         </span>
       </div>
