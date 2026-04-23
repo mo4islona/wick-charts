@@ -1,11 +1,14 @@
-import { SOURCE_CODE, SOURCE_CODE_URL, createTheme } from '../create';
+import { SOURCE_CODE, SOURCE_CODE_URL, autoGradient, createTheme } from '../create';
 
 export const rosePineDawn = createTheme({
   name: 'Rosé Pine Dawn',
   description: 'Dawn-inspired warm neutrals',
   background: '#faf4ed',
   grid: { color: 'rgba(152,147,165,0.2)' },
-  candlestick: { upColor: '#56949f', downColor: '#b4637a' },
+  candlestick: {
+    up: { body: autoGradient('#56949f'), wick: '#56949f' },
+    down: { body: autoGradient('#b4637a'), wick: '#b4637a' },
+  },
   line: { color: '#907aa9' },
   seriesColors: [
     '#907aa9',

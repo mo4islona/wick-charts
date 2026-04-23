@@ -1,11 +1,14 @@
-import { FIRA, FIRA_URL, createTheme } from '../create';
+import { FIRA, FIRA_URL, autoGradient, createTheme } from '../create';
 
 export const panda = createTheme({
   name: 'Panda',
   description: 'Playful neons on charcoal',
   background: '#292a2b',
   grid: { color: 'rgba(58,58,60,0.8)' },
-  candlestick: { upColor: '#19f9d8', downColor: '#ff75b5' },
+  candlestick: {
+    up: { body: autoGradient('#19f9d8'), wick: '#19f9d8' },
+    down: { body: autoGradient('#ff75b5'), wick: '#ff75b5' },
+  },
   line: { color: '#6fc1ff' },
   seriesColors: [
     '#6fc1ff',

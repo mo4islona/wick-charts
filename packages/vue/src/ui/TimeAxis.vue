@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatTime } from '@wick-charts/core';
+import { formatTime, resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 import { computed } from 'vue';
 
 import { useVisibleRange } from '../composables';
@@ -76,8 +76,8 @@ const tickData = computed(() => {
         position: 'absolute',
         left: chart.timeScale.timeToX(time) + 'px',
         transform: 'translateX(-50%)',
-        color: theme.axis.textColor,
-        fontSize: theme.typography.axisFontSize + 'px',
+        color: resolveAxisTextColor(theme, 'x'),
+        fontSize: resolveAxisFontSize(theme, 'x') + 'px',
         fontFamily: theme.typography.fontFamily,
         userSelect: 'none',
         whiteSpace: 'nowrap',

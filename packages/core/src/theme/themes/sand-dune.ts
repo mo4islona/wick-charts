@@ -1,9 +1,12 @@
-import { SOURCE_CODE, SOURCE_CODE_URL, createTheme } from '../create';
+import { SOURCE_CODE, SOURCE_CODE_URL, autoGradient, createTheme } from '../create';
 
 export const sandDune = createTheme({
   name: 'Sand Dune',
   background: '#f4f0e8',
-  candlestick: { upColor: '#5a8a50', downColor: '#b85040' },
+  candlestick: {
+    up: { body: autoGradient('#5a8a50'), wick: '#5a8a50' },
+    down: { body: autoGradient('#b85040'), wick: '#b85040' },
+  },
   line: { color: '#8a6a3a' },
   seriesColors: [
     '#8a6a3a',

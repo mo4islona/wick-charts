@@ -289,9 +289,11 @@ import { createTheme } from '@wick-charts/react';
 
 const myTheme = createTheme({
   background: '#1a1b2e',
-  upColor: '#00d4aa',
-  downColor: '#ff5577',
-  textColor: '#8888aa',
+  candlestick: {
+    up: { body: '#00d4aa' },
+    down: { body: '#ff5577' },
+  },
+  axis: { textColor: '#8888aa' },
 });
 ```
 
@@ -303,9 +305,11 @@ import { createTheme } from '@wick-charts/vue';
 
 const myTheme = createTheme({
   background: '#1a1b2e',
-  upColor: '#00d4aa',
-  downColor: '#ff5577',
-  textColor: '#8888aa',
+  candlestick: {
+    up: { body: '#00d4aa' },
+    down: { body: '#ff5577' },
+  },
+  axis: { textColor: '#8888aa' },
 });
 ```
 
@@ -319,9 +323,11 @@ import { createTheme } from '@wick-charts/svelte';
 
 const myTheme = createTheme({
   background: '#1a1b2e',
-  upColor: '#00d4aa',
-  downColor: '#ff5577',
-  textColor: '#8888aa',
+  candlestick: {
+    up: { body: '#00d4aa' },
+    down: { body: '#ff5577' },
+  },
+  axis: { textColor: '#8888aa' },
 });
 ```
 

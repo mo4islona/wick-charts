@@ -1,4 +1,4 @@
-import { GEIST, GEIST_URL, createTheme } from '../create';
+import { GEIST, GEIST_URL, autoGradient, createTheme } from '../create';
 
 export const lightPink = createTheme({
   name: 'Love',
@@ -6,7 +6,10 @@ export const lightPink = createTheme({
   background: '#fef7f8',
   chartGradient: ['#fffafb', '#fef7f8'],
   grid: { color: 'rgba(200,160,175,0.25)' },
-  candlestick: { upColor: '#6a9a6e', downColor: '#c45070' },
+  candlestick: {
+    up: { body: autoGradient('#6a9a6e'), wick: '#6a9a6e' },
+    down: { body: autoGradient('#c45070'), wick: '#c45070' },
+  },
   line: { color: '#a05080' },
   seriesColors: [
     '#a05080',

@@ -19,7 +19,8 @@ export { buildHoverSnapshots, buildLastSnapshots } from './snapshots';
 export { darkTheme } from './theme/dark';
 export { lightTheme } from './theme/light';
 export type { ThemeConfig, ThemePreset } from './theme/palettes';
-export { createTheme } from './theme/palettes';
+export { autoGradient, createTheme } from './theme/palettes';
+export { resolveAxisFontSize, resolveAxisTextColor, resolveCandlestickBodyColor } from './theme/resolve';
 export {
   andromeda,
   ayuMirage,

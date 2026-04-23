@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartInstance } from '../chart';
-import { CandlestickRenderer } from '../series/candlestick';
+import type { CandlestickRenderer } from '../series/candlestick';
 
 function renderMainSpy(chart: ChartInstance): ReturnType<typeof vi.fn> {
   // Patch the private render loop entry to count invocations. Safer than
@@ -33,18 +33,15 @@ describe('ChartInstance render loop continues while renderer.needsAnimation is t
       return queue.length;
     });
     vi.stubGlobal('cancelAnimationFrame', () => {});
-    vi.stubGlobal(
-      '__flushRaf',
-      (() => {
-        let guard = 0;
-        while (queue.length > 0 && guard < 100) {
-          const pending = queue.splice(0, queue.length);
-          now += 16;
-          for (const cb of pending) cb(now);
-          guard++;
-        }
-      }) as unknown as (...args: unknown[]) => unknown,
-    );
+    vi.stubGlobal('__flushRaf', (() => {
+      let guard = 0;
+      while (queue.length > 0 && guard < 100) {
+        const pending = queue.splice(0, queue.length);
+        now += 16;
+        for (const cb of pending) cb(now);
+        guard++;
+      }
+    }) as unknown as (...args: unknown[]) => unknown);
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {
@@ -59,7 +56,17 @@ describe('ChartInstance render loop continues while renderer.needsAnimation is t
     Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
     Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
     container.getBoundingClientRect = () =>
-      ({ x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 400, width: 800, height: 400, toJSON: () => ({}) }) as DOMRect;
+      ({
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 400,
+        width: 800,
+        height: 400,
+        toJSON: () => ({}),
+      }) as DOMRect;
 
     const chart = new ChartInstance(container);
     // Force the canvas manager to believe it has a size — otherwise renderMain

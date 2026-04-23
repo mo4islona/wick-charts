@@ -152,7 +152,7 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
           zIndex: 3,
           background: bgColor,
           color: theme.yLabel.textColor,
-          fontSize: theme.typography.yFontSize,
+          fontSize: theme.yLabel.fontSize,
           fontFamily: theme.typography.fontFamily,
           padding: '3px 8px',
           borderRadius: 3,

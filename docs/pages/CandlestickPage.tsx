@@ -28,7 +28,6 @@ interface CandleSettings {
   tooltipVisible: boolean;
   infoBarVisible: boolean;
   crosshairVisible: boolean;
-  bodyGradient: boolean;
 }
 
 // Different zoom across charts — close-up on the first, mid-range on the
@@ -48,7 +47,6 @@ function CandleChart({
   tooltipVisible,
   infoBarVisible,
   crosshairVisible,
-  bodyGradient,
   perfHudVisible,
   candleEntryAnimation,
   entryMs,
@@ -73,7 +71,6 @@ function CandleChart({
         id={sid}
         data={display}
         options={{
-          bodyGradient,
           entryAnimation: candleEntryAnimation,
           entryMs,
           smoothMs: liveTracking ? undefined : 0,
@@ -117,12 +114,6 @@ const DISPLAY_EXTRA: SectionSpec = {
       hint: 'Vertical + horizontal cursor lines',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
-    {
-      key: 'bodyGradient',
-      label: 'Candle shading',
-      hint: 'Vertical gradient on candle bodies for depth',
-      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
-    },
   ] as RowSpec[],
 };
 
@@ -136,7 +127,6 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         tooltipVisible: true,
         infoBarVisible: true,
         crosshairVisible: true,
-        bodyGradient: true,
       }}
       gridTemplate="1fr 1fr 1fr"
       animationKinds={['candle']}
@@ -178,7 +168,6 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       codeConfig={(s) => {
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'candle'),
-          ...(!s.bodyGradient ? { bodyGradient: false } : {}),
         };
 
         const containerProps = buildCartesianContainerProps(s) ?? {};

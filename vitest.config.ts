@@ -30,6 +30,8 @@ export default defineConfig({
       // Playground React tests + hooks that touch localStorage/DOM.
       ['docs/__tests__/useSettings.test.ts', 'happy-dom'],
       ['docs/__tests__/search.test.tsx', 'happy-dom'],
+      // themeJson uses HTMLCanvasElement for CSS-color → hex normalization.
+      ['docs/__tests__/themeJson.test.ts', 'happy-dom'],
     ],
     setupFiles: ['packages/react/test-setup.ts'],
     // Svelte 4's dev helper calls `set_current_component` with a stale component

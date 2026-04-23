@@ -89,13 +89,14 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     }
   }, [
     chart,
-    options?.upColor,
-    options?.downColor,
-    options?.wickUpColor,
-    options?.wickDownColor,
+    // Tuple bodies are new array refs on every render (preset `autoGradient()`
+    // output, inline literals, etc.) and would misfire `Object.is`. Collapse
+    // to a stable string the same way BarSeries/LineSeries handle `colors`.
+    Array.isArray(options?.up?.body) ? options.up.body.join(',') : options?.up?.body,
+    Array.isArray(options?.down?.body) ? options.down.body.join(',') : options?.down?.body,
+    options?.up?.wick,
+    options?.down?.wick,
     options?.bodyWidthRatio,
-    options?.bodyGradient,
-    options?.candleGradient,
     options?.entryAnimation,
     options?.enterAnimation,
     options?.entryMs,

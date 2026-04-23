@@ -60,6 +60,27 @@ export function toHexColor(v: string): string | null {
  * untouched — createTheme stores them verbatim, so `rgba(…)` and similar stay
  * usable.
  */
+/** `body` must be a string or a `[string, string]` tuple. Anything else is dropped. */
+function normalizeBody(body: unknown): string | [string, string] | undefined {
+  if (typeof body === 'string') return body;
+  if (Array.isArray(body) && body.length === 2 && typeof body[0] === 'string' && typeof body[1] === 'string') {
+    return [body[0], body[1]];
+  }
+
+  return undefined;
+}
+
+function normalizeDirection(dir: unknown): { body?: string | [string, string]; wick?: string } | undefined {
+  if (!dir || typeof dir !== 'object' || Array.isArray(dir)) return undefined;
+  const rec = dir as Record<string, unknown>;
+  const out: { body?: string | [string, string]; wick?: string } = {};
+  const body = normalizeBody(rec.body);
+  if (body !== undefined) out.body = body;
+  if (typeof rec.wick === 'string') out.wick = rec.wick;
+
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function normalizeThemeConfig(value: JsonValue): ThemeConfig | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
 
@@ -80,6 +101,18 @@ export function normalizeThemeConfig(value: JsonValue): ThemeConfig | null {
     }
   }
 
+  // Candlestick body tuples must be exactly [string, string]; any malformed
+  // shape is dropped so createTheme falls back to defaults instead of getting
+  // `undefined`/`NaN` into the renderer.
+  const candle = cfg.candlestick;
+  if (candle && typeof candle === 'object' && !Array.isArray(candle)) {
+    const rec = candle as Record<string, unknown>;
+    const up = normalizeDirection(rec.up);
+    const down = normalizeDirection(rec.down);
+    if (up || down) out.candlestick = { ...(up ? { up } : {}), ...(down ? { down } : {}) };
+    else delete out.candlestick;
+  }
+
   return out as unknown as ThemeConfig;
 }
 
@@ -88,23 +121,26 @@ export function normalizeThemeConfig(value: JsonValue): ThemeConfig | null {
  * shape. Round-trips through `createTheme` so edits drive previews and the
  * whole-page override.
  */
+function bodyToJson(body: string | [string, string]): JsonValue {
+  return Array.isArray(body) ? [body[0], body[1]] : body;
+}
+
 export function themeToJson(t: ChartTheme): JsonValue {
+  const axis: Record<string, JsonValue> = { fontSize: t.axis.fontSize, textColor: t.axis.textColor };
+  if (t.axis.x) axis.x = { ...t.axis.x } as JsonValue;
+  if (t.axis.y) axis.y = { ...t.axis.y } as JsonValue;
+
   return {
     background: t.background,
     chartGradient: [t.chartGradient[0], t.chartGradient[1]],
     typography: {
       fontFamily: t.typography.fontFamily,
       fontSize: t.typography.fontSize,
-      axisFontSize: t.typography.axisFontSize,
-      yFontSize: t.typography.yFontSize,
-      tooltipFontSize: t.typography.tooltipFontSize,
     },
     grid: { color: t.grid.color, style: t.grid.style },
     candlestick: {
-      upColor: t.candlestick.upColor,
-      downColor: t.candlestick.downColor,
-      wickUpColor: t.candlestick.wickUpColor,
-      wickDownColor: t.candlestick.wickDownColor,
+      up: { body: bodyToJson(t.candlestick.up.body), wick: t.candlestick.up.wick },
+      down: { body: bodyToJson(t.candlestick.down.body), wick: t.candlestick.down.wick },
     },
     line: { color: t.line.color, width: t.line.width },
     seriesColors: [...t.seriesColors],
@@ -114,14 +150,16 @@ export function themeToJson(t: ChartTheme): JsonValue {
       labelBackground: t.crosshair.labelBackground,
       labelTextColor: t.crosshair.labelTextColor,
     },
-    axis: { textColor: t.axis.textColor },
+    axis,
     yLabel: {
+      fontSize: t.yLabel.fontSize,
       upBackground: t.yLabel.upBackground,
       downBackground: t.yLabel.downBackground,
       neutralBackground: t.yLabel.neutralBackground,
       textColor: t.yLabel.textColor,
     },
     tooltip: {
+      fontSize: t.tooltip.fontSize,
       background: t.tooltip.background,
       textColor: t.tooltip.textColor,
       borderColor: t.tooltip.borderColor,

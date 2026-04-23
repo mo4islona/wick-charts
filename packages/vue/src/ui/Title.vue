@@ -47,7 +47,7 @@ if (!theme) {
         :style="{
           fontWeight: 400,
           color: theme.axis.textColor,
-          fontSize: theme.typography.axisFontSize + 'px',
+          fontSize: theme.axis.fontSize + 'px',
         }"
       >
         {{ sub }}

@@ -1,4 +1,4 @@
-import type { ChartTheme } from '@wick-charts/react';
+import { type ChartTheme, resolveCandlestickBodyColor } from '@wick-charts/react';
 
 import { themes } from '../themes';
 import { hexToRgba } from '../utils';
@@ -6,9 +6,9 @@ import { hexToRgba } from '../utils';
 export function ThemeDots({ t }: { t: ChartTheme }) {
   return (
     <span style={{ display: 'flex', gap: 3 }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.candlestick.upColor }} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: resolveCandlestickBodyColor(t.candlestick.up.body) }} />
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.line.color }} />
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.candlestick.downColor }} />
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: resolveCandlestickBodyColor(t.candlestick.down.body) }} />
     </span>
   );
 }
@@ -17,7 +17,7 @@ export function ThemeListHeader({ children, theme }: { children: React.ReactNode
   return (
     <div
       style={{
-        fontSize: theme.typography.axisFontSize,
+        fontSize: theme.axis.fontSize,
         color: theme.axis.textColor,
         textTransform: 'uppercase',
         letterSpacing: '0.06em',

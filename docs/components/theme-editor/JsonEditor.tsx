@@ -8,7 +8,7 @@ const ENUM_BY_KEY: Record<string, readonly string[]> = {
 };
 
 /** Arrays that are actually tuples — fixed length, no add/remove. */
-const FIXED_ARRAY_KEYS = new Set(['chartGradient']);
+const FIXED_ARRAY_KEYS = new Set(['chartGradient', 'body']);
 
 function Line({ depth, children }: { depth: number; children: ReactNode }) {
   return (

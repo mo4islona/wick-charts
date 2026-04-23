@@ -1,4 +1,4 @@
-import { CAVEAT, CAVEAT_URL, type ThemePreset } from '../create';
+import { CAVEAT, CAVEAT_URL, autoGradient, type ThemePreset } from '../create';
 
 export const handwritten: ThemePreset = {
   name: 'Handwritten',
@@ -11,19 +11,14 @@ export const handwritten: ThemePreset = {
     typography: {
       fontFamily: CAVEAT,
       fontSize: 18,
-      axisFontSize: 13,
-      yFontSize: 15,
-      tooltipFontSize: 14,
     },
     grid: {
       color: 'rgba(180,170,150,0.3)',
       style: 'dashed',
     },
     candlestick: {
-      upColor: '#7a9a5e',
-      downColor: '#b07060',
-      wickUpColor: '#7a9a5e',
-      wickDownColor: '#b07060',
+      up: { body: autoGradient('#7a9a5e'), wick: '#7a9a5e' },
+      down: { body: autoGradient('#b07060'), wick: '#b07060' },
     },
     line: {
       color: '#6a8fa0',
@@ -52,14 +47,19 @@ export const handwritten: ThemePreset = {
       labelBackground: '#f5edd8',
       labelTextColor: '#5c5040',
     },
-    axis: { textColor: '#a09880' },
+    axis: {
+      fontSize: 13,
+      textColor: '#a09880',
+    },
     yLabel: {
+      fontSize: 15,
       upBackground: '#7a9a5e',
       downBackground: '#b07060',
       neutralBackground: '#e8dcc8',
       textColor: '#fdf5e6',
     },
     tooltip: {
+      fontSize: 14,
       background: 'rgba(253,245,230,0.95)',
       textColor: '#5c5040',
       borderColor: 'rgba(180,170,150,0.4)',

@@ -1,15 +1,21 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  BarSeries,
   CandlestickSeries,
   ChartContainer,
   type ChartTheme,
   Crosshair,
   InfoBar,
   LineSeries,
+  PieLegend,
+  PieSeries,
+  type PieSliceData,
+  PieTooltip,
   TimeAxis,
   Title,
   Tooltip,
+  XAxis,
   YAxis,
   YLabel,
   createTheme,
@@ -21,13 +27,15 @@ import { themeSurfaceVars } from '../components/playground/themeSurface';
 import { useCodeHeight, usePanelWidth } from '../components/playground/useSettings';
 import { JsonEditor } from '../components/theme-editor/JsonEditor';
 import { type JsonValue, normalizeThemeConfig } from '../components/theme-editor/themeJson';
-import { generateOHLCData, generateWaveData } from '../data';
+import { generateBarData, generateOHLCData, generateWaveData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile } from '../hooks';
 
 // ── Mock data ─────────────────────────────────────────────────
 
-const ohlcData = generateOHLCData(200, 42000, DEMO_INTERVAL);
+// Small candle count so bodies and wicks are clearly visible in the preview —
+// this chart is used to eyeball `candlestick.up.body` / `wick` edits.
+const ohlcData = generateOHLCData(60, 42000, DEMO_INTERVAL);
 
 const SERIES_WAVE_OPTS = [
   { base: 5, amplitude: 120, period: 50, phase: 0, onset: 0 },
@@ -39,6 +47,17 @@ const SERIES_WAVE_OPTS = [
 ];
 const LINE_POOL = SERIES_WAVE_OPTS.map((opts) => generateWaveData(200, { interval: DEMO_INTERVAL, ...opts }));
 
+const barData = generateBarData(40, DEMO_INTERVAL);
+
+const pieData: PieSliceData[] = [
+  { label: 'BTC', value: 42 },
+  { label: 'ETH', value: 28 },
+  { label: 'SOL', value: 12 },
+  { label: 'AVAX', value: 8 },
+  { label: 'DOT', value: 6 },
+  { label: 'Other', value: 4 },
+];
+
 // ── Types ─────────────────────────────────────────────────────
 
 type Mode = 'pretty' | 'raw';
@@ -49,7 +68,7 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   const sid = 'candle-v2';
 
   return (
-    <ChartContainer theme={theme}>
+    <ChartContainer theme={theme} interactive={false}>
       <Title sub="custom theme">Candlestick</Title>
       <InfoBar />
       <CandlestickSeries id={sid} data={ohlcData} />
@@ -62,12 +81,37 @@ function CandlestickPreview({ theme }: { theme: ChartTheme }) {
   );
 }
 
+function BarPreview({ theme }: { theme: ChartTheme }) {
+  return (
+    <ChartContainer theme={theme} interactive={false}>
+      <Title sub="theme preview">Bar</Title>
+      <BarSeries data={[barData]} options={{ colors: theme.seriesColors.slice(0, 1) }} />
+      <Crosshair />
+      <YAxis />
+      <XAxis />
+    </ChartContainer>
+  );
+}
+
+function PiePreview({ theme }: { theme: ChartTheme }) {
+  const sid = 'pie-v2';
+
+  return (
+    <ChartContainer theme={theme} interactive={false}>
+      <Title sub="theme preview">Pie</Title>
+      <PieSeries id={sid} data={pieData} />
+      <PieLegend seriesId={sid} position="right" />
+      <PieTooltip seriesId={sid} />
+    </ChartContainer>
+  );
+}
+
 function LinePreview({ theme, seriesCount }: { theme: ChartTheme; seriesCount: number }) {
   const n = Math.max(1, seriesCount);
   const data = useMemo(() => Array.from({ length: n }, (_, i) => LINE_POOL[i % LINE_POOL.length]), [n]);
 
   return (
-    <ChartContainer theme={theme}>
+    <ChartContainer theme={theme} interactive={false}>
       <Title sub={`${data.length} series`}>Line</Title>
       <InfoBar />
       <LineSeries
@@ -234,6 +278,12 @@ export function ThemePage({
             <Cell theme={customTheme}>
               <LinePreview theme={customTheme} seriesCount={seriesCount} />
             </Cell>
+            <Cell theme={customTheme}>
+              <BarPreview theme={customTheme} />
+            </Cell>
+            <Cell theme={customTheme}>
+              <PiePreview theme={customTheme} />
+            </Cell>
           </div>
         </div>
         <div className="pg-right tev2-right">
@@ -247,12 +297,21 @@ export function ThemePage({
   return (
     <div className="wick-playground" ref={containerRef} style={surfaceVars}>
       <div className="pg-shell">
-        <div className="pg-main" style={{ gridTemplateRows: '1fr 1fr', gridTemplateColumns: '1fr' }}>
+        <div
+          className="pg-main tev2-previews"
+          style={{ gridTemplateColumns: '1fr', gridAutoRows: 280, overflow: 'auto' }}
+        >
           <Cell theme={customTheme}>
             <CandlestickPreview theme={customTheme} />
           </Cell>
           <Cell theme={customTheme}>
             <LinePreview theme={customTheme} seriesCount={seriesCount} />
+          </Cell>
+          <Cell theme={customTheme}>
+            <BarPreview theme={customTheme} />
+          </Cell>
+          <Cell theme={customTheme}>
+            <PiePreview theme={customTheme} />
           </Cell>
         </div>
 

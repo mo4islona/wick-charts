@@ -12,6 +12,7 @@ import {
   formatDate,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
 export { computeTooltipPosition } from '@wick-charts/core';
@@ -183,7 +184,7 @@ function CustomFloatingTooltip({
         padding: '10px 14px',
         boxShadow: '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
         fontFamily: theme.typography.fontFamily,
-        fontSize: theme.typography.tooltipFontSize,
+        fontSize: theme.tooltip.fontSize,
         fontVariantNumeric: 'tabular-nums',
         color: theme.tooltip.textColor,
         width: 'max-content',
@@ -245,7 +246,7 @@ function FloatingTooltip({
         borderRadius: 8,
         padding: '10px 14px',
         boxShadow: shadow,
-        fontSize: theme.typography.tooltipFontSize,
+        fontSize: theme.tooltip.fontSize,
         fontFamily: theme.typography.fontFamily,
         fontVariantNumeric: 'tabular-nums',
         color: theme.tooltip.textColor,
@@ -261,7 +262,7 @@ function FloatingTooltip({
       {/* Time header */}
       <div
         style={{
-          fontSize: theme.typography.axisFontSize,
+          fontSize: theme.axis.fontSize,
           color: theme.axis.textColor,
           marginBottom: 8,
           paddingBottom: 6,
@@ -277,9 +278,9 @@ function FloatingTooltip({
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
           const isUp = ohlc.close >= ohlc.open;
-          const upColor = theme.candlestick.upColor;
-          const downColor = theme.candlestick.downColor;
-          const valColor = isUp ? upColor : downColor;
+          const valColor = resolveCandlestickBodyColor(
+            isUp ? theme.candlestick.up.body : theme.candlestick.down.body,
+          );
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
               <TooltipRow label="Open" color={valColor} display={format(ohlc.open, 'open')} />

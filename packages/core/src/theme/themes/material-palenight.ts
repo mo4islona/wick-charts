@@ -1,11 +1,14 @@
-import { ROBOTO, ROBOTO_URL, createTheme } from '../create';
+import { ROBOTO, ROBOTO_URL, autoGradient, createTheme } from '../create';
 
 export const materialPalenight = createTheme({
   name: 'Material Palenight',
   description: 'Material Design in moonlit hues',
   background: '#292d3e',
   grid: { color: 'rgba(55,59,75,0.8)' },
-  candlestick: { upColor: '#c3e88d', downColor: '#f07178' },
+  candlestick: {
+    up: { body: autoGradient('#c3e88d'), wick: '#c3e88d' },
+    down: { body: autoGradient('#f07178'), wick: '#f07178' },
+  },
   line: { color: '#82aaff' },
   seriesColors: [
     '#82aaff',

@@ -13,6 +13,7 @@ import {
   Tooltip,
   YAxis,
   YLabel,
+  resolveCandlestickBodyColor,
   useChartInstance,
 } from '@wick-charts/react';
 
@@ -149,7 +150,15 @@ function BarChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Bar">P&L Delta</Title>
-      <BarSeries data={[datasets[0]]} options={{ colors: [theme.candlestick.upColor, theme.candlestick.downColor] }} />
+      <BarSeries
+        data={[datasets[0]]}
+        options={{
+          colors: [
+            resolveCandlestickBodyColor(theme.candlestick.up.body),
+            resolveCandlestickBodyColor(theme.candlestick.down.body),
+          ],
+        }}
+      />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -210,7 +219,7 @@ function FeaturePill({ text, theme }: { text: string; theme: ChartTheme }) {
         background: hexToRgba(theme.crosshair.labelBackground, 0.4),
         color: theme.tooltip.textColor,
         opacity: 0.7,
-        fontSize: theme.typography.axisFontSize,
+        fontSize: theme.axis.fontSize,
         fontFamily: theme.typography.fontFamily,
         whiteSpace: 'nowrap',
       }}
@@ -425,7 +434,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
               background: hexToRgba(theme.crosshair.labelBackground, 0.4),
               color: theme.tooltip.textColor,
               opacity: 0.8,
-              fontSize: theme.typography.axisFontSize,
+              fontSize: theme.axis.fontSize,
               fontFamily: theme.typography.fontFamily,
               textDecoration: 'none',
               whiteSpace: 'nowrap',
@@ -436,8 +445,8 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: theme.candlestick.upColor,
-                boxShadow: `0 0 6px ${hexToRgba(theme.candlestick.upColor, 0.7)}`,
+                background: resolveCandlestickBodyColor(theme.candlestick.up.body),
+                boxShadow: `0 0 6px ${hexToRgba(resolveCandlestickBodyColor(theme.candlestick.up.body), 0.7)}`,
               }}
             />
             v{latestVersion}

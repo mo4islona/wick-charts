@@ -10,6 +10,7 @@ import {
   formatCompact,
   formatPriceAdaptive,
   formatTime,
+  resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
@@ -145,7 +146,7 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
           const isUp = ohlc.close >= ohlc.open;
-          const c = isUp ? theme.candlestick.upColor : theme.candlestick.downColor;
+          const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <LegendItem label="O" display={format(ohlc.open, 'open')} color={c} dim={theme.axis.textColor} />

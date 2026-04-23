@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { detectInterval, niceTimeIntervals, normalizeOHLCArray, normalizeTime, normalizeTimePointArray } from '../utils/time';
+import {
+  detectInterval,
+  niceTimeIntervals,
+  normalizeOHLCArray,
+  normalizeTime,
+  normalizeTimePointArray,
+} from '../utils/time';
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;

@@ -108,20 +108,24 @@ export type CandlestickEntryAnimation = 'none' | 'fade' | 'unfold' | 'slide' | '
 /** @deprecated Use {@link CandlestickEntryAnimation} instead. */
 export type CandlestickEnterAnimation = CandlestickEntryAnimation;
 
+/**
+ * `body` shape encodes the fill mode: a single color renders flat; a
+ * `[top, bottom]` tuple renders a 2-stop vertical gradient. Use
+ * `autoGradient(color)` for the subtle lightened/darkened look.
+ */
+export interface CandlestickDirectionColors {
+  body: string | [string, string];
+  wick: string;
+}
+
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
   /** Display label shown in the tooltip. */
   label?: string;
-  upColor: string;
-  downColor: string;
-  wickUpColor: string;
-  wickDownColor: string;
+  up: CandlestickDirectionColors;
+  down: CandlestickDirectionColors;
   /** Width of candle body as a fraction of the available bar slot (0-1). */
   bodyWidthRatio: number;
-  /** Apply a subtle vertical gradient to candle bodies. Default: true. */
-  bodyGradient?: boolean;
-  /** @deprecated Use {@link bodyGradient} instead. */
-  candleGradient?: boolean;
   /**
    * Entrance animation style for newly appended candles. Style is specific to
    * the candlestick; there is no chart-level override for style — only for

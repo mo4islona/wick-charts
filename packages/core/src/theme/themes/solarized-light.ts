@@ -1,4 +1,4 @@
-import { MONO, MONO_URL, createTheme } from '../create';
+import { MONO, MONO_URL, autoGradient, createTheme } from '../create';
 
 export const solarizedLight = createTheme({
   name: 'Solarized Light',
@@ -6,7 +6,10 @@ export const solarizedLight = createTheme({
   background: '#fdf6e3',
   chartGradient: ['#fef8e8', '#fdf6e3'],
   grid: { color: 'rgba(238,232,213,0.8)' },
-  candlestick: { upColor: '#859900', downColor: '#dc322f' },
+  candlestick: {
+    up: { body: autoGradient('#859900'), wick: '#859900' },
+    down: { body: autoGradient('#dc322f'), wick: '#dc322f' },
+  },
   line: { color: '#268bd2' },
   seriesColors: [
     '#268bd2',

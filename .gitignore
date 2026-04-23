@@ -7,3 +7,4 @@ docs-dist
 .claude/settings.local.json
 .copilot-worktrees/
 test/
+packages/*/LICENSE

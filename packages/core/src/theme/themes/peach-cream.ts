@@ -1,9 +1,12 @@
-import { JAKARTA, JAKARTA_URL, createTheme } from '../create';
+import { JAKARTA, JAKARTA_URL, autoGradient, createTheme } from '../create';
 
 export const peachCream = createTheme({
   name: 'Peach Cream',
   background: '#fef6f0',
-  candlestick: { upColor: '#5a9a68', downColor: '#d06848' },
+  candlestick: {
+    up: { body: autoGradient('#5a9a68'), wick: '#5a9a68' },
+    down: { body: autoGradient('#d06848'), wick: '#d06848' },
+  },
   line: { color: '#d07040' },
   seriesColors: [
     '#d07040',

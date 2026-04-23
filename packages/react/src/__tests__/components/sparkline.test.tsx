@@ -62,7 +62,9 @@ describe('Sparkline', () => {
 
   afterEach(() => {
     const origRect = (host as HTMLElement & { __origRect?: () => DOMRect }).__origRect;
-    if (origRect) HTMLDivElement.prototype.getBoundingClientRect = origRect as typeof HTMLDivElement.prototype.getBoundingClientRect;
+    if (origRect)
+      HTMLDivElement.prototype.getBoundingClientRect =
+        origRect as typeof HTMLDivElement.prototype.getBoundingClientRect;
     host.remove();
     uninstallRaf();
   });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -95,6 +95,15 @@ function main() {
     const content = generate(src, target);
     writeFileSync(file, content);
     console.log(`✓ ${relative(ROOT, file)}`);
+  }
+
+  // Mirror the root LICENSE into each published package so npm includes it in
+  // the tarball (npm only auto-packs a LICENSE that sits next to package.json).
+  const rootLicense = join(ROOT, 'LICENSE');
+  for (const pkg of ['react', 'vue', 'svelte']) {
+    const dest = join(ROOT, 'packages', pkg, 'LICENSE');
+    copyFileSync(rootLicense, dest);
+    console.log(`✓ ${relative(ROOT, dest)}`);
   }
 }
 

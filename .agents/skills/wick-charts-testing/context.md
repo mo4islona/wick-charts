@@ -42,7 +42,8 @@ expect(strokes.some((c) => c.strokeStyle === theme.line.color)).toBe(true);
 expect(spy.matchesSequence(['clearRect', 'beginPath', 'moveTo', 'lineTo', 'stroke'])).toBe(true);
 
 // "bottom-left pixel is painted with the up candle color"
-expect(spy.fillStyleAt(10, 380)).toBe(theme.candlestick.upColor);
+// `body` can be a tuple for a gradient, so flatten to a single color first.
+expect(spy.fillStyleAt(10, 380)).toBe(resolveCandlestickBodyColor(theme.candlestick.up.body));
 ```
 
 **Reset between phases:** for "before/after" assertions inside a single test, call `spy.reset()` right before the action. Not between separate tests — `mountChart` rotates spies automatically.

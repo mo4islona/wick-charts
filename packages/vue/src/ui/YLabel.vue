@@ -179,7 +179,7 @@ const effectiveFormat = computed<ValueFormatter>(() => {
           zIndex: 3,
           background: bgColor,
           color: theme.yLabel.textColor,
-          fontSize: theme.typography.yFontSize + 'px',
+          fontSize: theme.yLabel.fontSize + 'px',
           fontFamily: theme.typography.fontFamily,
           padding: '3px 8px',
           borderRadius: '3px',

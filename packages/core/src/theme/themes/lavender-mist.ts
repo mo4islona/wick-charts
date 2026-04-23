@@ -1,9 +1,12 @@
-import { JAKARTA, JAKARTA_URL, createTheme } from '../create';
+import { JAKARTA, JAKARTA_URL, autoGradient, createTheme } from '../create';
 
 export const lavenderMist = createTheme({
   name: 'Lavender Mist',
   background: '#f5f0f4',
-  candlestick: { upColor: '#6b8e5e', downColor: '#b85468' },
+  candlestick: {
+    up: { body: autoGradient('#6b8e5e'), wick: '#6b8e5e' },
+    down: { body: autoGradient('#b85468'), wick: '#b85468' },
+  },
   line: { color: '#7c6bc4' },
   seriesColors: [
     '#7c6bc4',

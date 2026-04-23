@@ -28,8 +28,8 @@ describe('CandlestickRenderer.render', () => {
       { time: 30, ...BULL },
       { time: 50, ...BULL },
     ];
-    // Disable gradient so body uses a solid fillStyle we can distinguish.
-    const r = new CandlestickRenderer(mkStore(data), { candleGradient: false });
+    // Default body is a single string → flat fillStyle (distinguishable in the spy).
+    const r = new CandlestickRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -37,18 +37,15 @@ describe('CandlestickRenderer.render', () => {
     expect(spy.countOf('fillRect')).toBe(6);
   });
 
-  it('bull candle body uses upColor; bear candle body uses downColor', () => {
+  it('bull candle body uses up.body; bear candle body uses down.body', () => {
     const data: OHLCData[] = [
       { time: 10, ...BULL },
       { time: 50, ...BEAR },
     ];
     const r = new CandlestickRenderer(mkStore(data), {
-      upColor: '#00ff00',
-      downColor: '#ff0000',
-      wickUpColor: '#005500',
-      wickDownColor: '#550000',
+      up: { body: '#00ff00', wick: '#005500' },
+      down: { body: '#ff0000', wick: '#550000' },
       bodyWidthRatio: 0.6,
-      candleGradient: false,
     });
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
     r.render(ctx);
@@ -65,30 +62,31 @@ describe('CandlestickRenderer.render', () => {
     expect(bodyColors).toContain('#ff0000');
   });
 
-  it('wick uses wickColor (separate from body color), rendered as a thin fillRect', () => {
+  it('wick uses up.wick (separate from body), rendered as a thin fillRect', () => {
     const data: OHLCData[] = [{ time: 50, ...BULL }];
     const r = new CandlestickRenderer(mkStore(data), {
-      upColor: '#00ff00',
-      downColor: '#ff0000',
-      wickUpColor: '#112233',
-      wickDownColor: '#332211',
+      up: { body: '#00ff00', wick: '#112233' },
+      down: { body: '#ff0000', wick: '#332211' },
       bodyWidthRatio: 0.6,
-      candleGradient: false,
     });
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
     r.render(ctx);
 
     const fillRects = spy.callsOf('fillRect');
     expect(fillRects).toHaveLength(2);
-    // Wick is drawn first (before body) and carries wickUpColor.
+    // Wick is drawn first (before body) and carries the up-direction wick color.
     expect(fillRects[0].fillStyle).toBe('#112233');
     // Wick height is `lowY - highY` → low (9) is below high (12), so height > 0.
     expect(fillRects[0].args[3]).toBeGreaterThan(0);
   });
 
-  it('applies a gradient to candle bodies when candleGradient !== false', () => {
+  it('applies a gradient to candle bodies when body is a [top, bottom] tuple', () => {
     const data: OHLCData[] = [{ time: 50, ...BULL }];
-    const r = new CandlestickRenderer(mkStore(data), { upColor: '#00ff00' });
+    const r = new CandlestickRenderer(mkStore(data), {
+      up: { body: ['#aaff00', '#008800'], wick: '#00ff00' },
+      down: { body: '#ff0000', wick: '#ff0000' },
+      bodyWidthRatio: 0.6,
+    });
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
     r.render(ctx);
 
@@ -98,12 +96,47 @@ describe('CandlestickRenderer.render', () => {
     expect(bodyRect?.fillStyle).toContain('gradient(linear');
   });
 
+  it('draws a flat body when `body` is a single string', () => {
+    const data: OHLCData[] = [{ time: 50, ...BULL }];
+    const r = new CandlestickRenderer(mkStore(data), {
+      up: { body: '#00ff00', wick: '#00ff00' },
+      down: { body: '#ff0000', wick: '#ff0000' },
+      bodyWidthRatio: 0.6,
+    });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
+    r.render(ctx);
+
+    const bodyRect = spy.callsOf('fillRect').at(-1);
+    expect(bodyRect?.fillStyle).toBe('#00ff00');
+  });
+
+  it('collapses a tuple-body gradient to a flat top-stop when the candle is ≤ 2px tall', () => {
+    // A doji-style candle: open ≈ close → body height collapses to ≤ 2px after
+    // y-scaling, so the renderer can't draw a meaningful gradient. Regression
+    // guard: the body must paint in the top-stop color, not leak the prior
+    // wick's fillStyle.
+    const FLAT_BULL = { open: 10.0, high: 10.2, low: 9.8, close: 10.0001 };
+    const data: OHLCData[] = [{ time: 50, ...FLAT_BULL }];
+    const r = new CandlestickRenderer(mkStore(data), {
+      up: { body: ['#aaff00', '#008800'], wick: '#112233' },
+      down: { body: '#ff0000', wick: '#ff0000' },
+      bodyWidthRatio: 0.6,
+    });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
+    r.render(ctx);
+
+    const fillRects = spy.callsOf('fillRect');
+    const bodyRect = fillRects.at(-1);
+    // Not a gradient (≤ 2px) and not the wick color — top stop of the tuple.
+    expect(bodyRect?.fillStyle).toBe('#aaff00');
+  });
+
   it('draws volume overlay bars when volume is present', () => {
     const data: OHLCData[] = [
       { time: 10, ...BULL, volume: 100 },
       { time: 50, ...BULL, volume: 200 },
     ];
-    const r = new CandlestickRenderer(mkStore(data), { candleGradient: false });
+    const r = new CandlestickRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -116,7 +149,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 10, ...BULL, volume: 0 },
       { time: 50, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data), { candleGradient: false });
+    const r = new CandlestickRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -135,7 +168,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 500, ...BULL },
       { time: 600, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data), { candleGradient: false });
+    const r = new CandlestickRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 50, to: 100 } });
     r.render(ctx);
 
@@ -145,7 +178,7 @@ describe('CandlestickRenderer.render', () => {
   });
 
   it('setData with mixed Date/number times normalizes all entries (regression #4)', () => {
-    const r = new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), { candleGradient: false });
+    const r = new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {});
     // Date only in the middle — old buggy code kept it as Date, rendering at NaN.
     r.setData([
       { time: 10, ...BULL },

@@ -1,6 +1,27 @@
 {
   "name": "@wick-charts/vue",
-  "version": "0.2.2",
+  "version": "0.3.0",
+  "description": "High-performance canvas timeseries charts for Vue — candlestick, line, bar, pie. Tree-shakeable, zero runtime deps.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mo4islona/wick-charts.git",
+    "directory": "packages/vue"
+  },
+  "homepage": "https://mo4islona.github.io/wick-charts/",
+  "bugs": "https://github.com/mo4islona/wick-charts/issues",
+  "keywords": [
+    "charts",
+    "charting",
+    "canvas",
+    "candlestick",
+    "line-chart",
+    "bar-chart",
+    "pie-chart",
+    "timeseries",
+    "vue",
+    "visualization"
+  ],
   "type": "module",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,7 +32,11 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "LICENSE",
+    "!src/__tests__",
+    "!src/**/*.test.*"
   ],
   "scripts": {
     "build": "vite build",
