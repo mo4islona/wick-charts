@@ -649,4 +649,35 @@ describe('LineRenderer — animation', () => {
       expect(Math.abs(arcX - lastX)).toBeLessThan(1);
     });
   });
+
+  describe('trailingEndpoint — non-finite penultimate guard', () => {
+    it('does not lerp through a NaN penultimate during the grow animation', () => {
+      // Seed data whose penultimate point is NaN. Without the guard,
+      // `lerp(penulY, lastRawY, progress)` feeds NaN into the Y and the
+      // pulse-dot overlay renders at (NaN, NaN), which poisons canvas calls.
+      const r = new LineRenderer(1, { enterMs: 250 });
+      r.setData([
+        { time: 10, value: 5 },
+        { time: 20, value: Number.NaN as unknown as number },
+      ]);
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 8 });
+      // Advance mid-animation so `progress < 1` and the lerp would normally fire.
+      advance(120);
+
+      const { ctx, overlayCtx, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 20 },
+      });
+      // Must not throw, and no NaN coords may reach canvas.
+      expect(() => r.render(ctx)).not.toThrow();
+      expect(() => r.drawOverlay(overlayCtx())).not.toThrow();
+      for (const call of spy.calls) {
+        for (const arg of call.args) {
+          if (typeof arg === 'number') expect(Number.isFinite(arg)).toBe(true);
+        }
+      }
+    });
+  });
 });

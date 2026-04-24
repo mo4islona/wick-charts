@@ -131,6 +131,185 @@ describe('CandlestickRenderer.render', () => {
     expect(bodyRect?.fillStyle).toBe('#aaff00');
   });
 
+  it('caps the body and volume widths when a single-candle visible range would produce chart-wide bars', () => {
+    // Visible range barely larger than dataInterval → naive barWidthBitmap
+    // would claim ~50% of the chart. The cap inside the renderer keeps both
+    // the body fillRect and the volume fillRect at a sane fraction of the
+    // chart width.
+    const r = new CandlestickRenderer(mkStore([{ time: 5, ...BULL, volume: 100 }]));
+    const { ctx, spy } = buildRenderContext({
+      timeRange: { from: 0, to: 10 },
+      yRange: { min: 0, max: 20 },
+      dataInterval: 5,
+      mediaWidth: 800,
+      pixelRatio: 1,
+    });
+    r.render(ctx);
+
+    // All fillRects (volume + wick + body) must be capped — nothing chart-wide.
+    for (const c of spy.callsOf('fillRect')) {
+      const width = c.args[2] as number;
+      expect(width).toBeLessThanOrEqual(40); // cap is 30 CSS px × pixelRatio=1
+    }
+  });
+
+  it('does NOT cap bar width on legitimate zoom with ≥ 3 visible candles', () => {
+    // Regression: an earlier version of the cap fired on every render. A
+    // user zooming in on 3 candles across an 800-px chart (naturalBarWidth
+    // ≈ 267 CSS px) must keep the wide bars — the cap only applies to
+    // sparse data (≤ 2 visible points).
+    const data: OHLCData[] = [
+      { time: 10, ...BULL },
+      { time: 20, ...BEAR },
+      { time: 30, ...BULL },
+    ];
+    const r = new CandlestickRenderer(mkStore(data));
+    // 3 candles visible on a chart ≈ 800 px wide, dataInterval=10, range=30
+    // → naturalBarWidth ≈ 800 / 3 = 266. With the cap disabled on n=3, the
+    // rendered body/volume should be much wider than the 30-CSS cap.
+    const { ctx, spy } = buildRenderContext({
+      timeRange: { from: 0, to: 30 },
+      yRange: { min: 0, max: 20 },
+      dataInterval: 10,
+      mediaWidth: 800,
+      pixelRatio: 1,
+    });
+    r.render(ctx);
+
+    const bodyWidths = spy.callsOf('fillRect').map((c) => c.args[2] as number);
+    const widestBody = Math.max(...bodyWidths);
+    // Natural body should be ~ 0.6 × 267 ≈ 158 px. If the sparse cap fired
+    // we'd see ≤ 30 × 0.6 = 18 px. Require > 100 to reject the bug.
+    expect(widestBody).toBeGreaterThan(100);
+  });
+
+  it('parity fix handles the minimum-width case (bodyWidth=1 with even wick)', () => {
+    // Edge case: when the natural body is extremely narrow (≤ 1 bitmap-px)
+    // and DPR makes the wick 2 px, the old `bodyWidth > 1` guard silently
+    // skipped the parity alignment, leaving a 0.5-bitmap-px midpoint
+    // offset. Fix: bump bodyWidth up to 2 so both widths are even.
+    // Force the condition: pixelRatio=2 (wickWidth=2, even), barWidth so
+    // small that bodyWidth hits the `Math.max(1, ...)` floor.
+    const r = new CandlestickRenderer(mkStore([{ time: 50, ...BULL }]));
+    const { ctx, spy } = buildRenderContext({
+      // Engineered so that naturalBarWidth ≤ ~4 bitmap px → bodyWidth floors to 1.
+      timeRange: { from: 0, to: 10_000 },
+      yRange: { min: 0, max: 20 },
+      dataInterval: 1,
+      mediaWidth: 800,
+      pixelRatio: 2,
+    });
+    r.render(ctx);
+
+    const [wick, body] = spy.callsOf('fillRect');
+    const centerOf = (rect: typeof wick) => (rect.args[0] as number) + (rect.args[2] as number) / 2;
+    // Midpoints must coincide even at the minimum-width edge.
+    expect(centerOf(body)).toBe(centerOf(wick));
+  });
+
+  it('wick, body, and volume bar share a vertical axis of symmetry', () => {
+    // Prior bug: `bodyWidth = round(barWidth * ratio) − 2` could be odd or
+    // even depending on `barWidth`, while `wickWidth` was always
+    // `round(horizontalPixelRatio)`. A parity mismatch (one odd, one even)
+    // offset the wick by 0.5 bitmap-px from the body's center, giving a
+    // visibly non-centered candle. Fix: body width is rounded to match the
+    // wick's parity, so their pixel-accurate midpoints coincide.
+    //
+    // Sweep a handful of `dataInterval` values at DPR=1 (odd wick) and DPR=2
+    // (even wick) to exercise both parity paths.
+    const cases: { pixelRatio: number; dataInterval: number }[] = [
+      { pixelRatio: 1, dataInterval: 5 },
+      { pixelRatio: 1, dataInterval: 7 },
+      { pixelRatio: 1, dataInterval: 9 },
+      { pixelRatio: 2, dataInterval: 5 },
+      { pixelRatio: 2, dataInterval: 7 },
+      { pixelRatio: 2, dataInterval: 11 },
+    ];
+
+    for (const { pixelRatio, dataInterval } of cases) {
+      const r = new CandlestickRenderer(mkStore([{ time: 50, ...BULL, volume: 100 }]));
+      const { ctx, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 0, max: 20 },
+        dataInterval,
+        mediaWidth: 800,
+        pixelRatio,
+      });
+      r.render(ctx);
+
+      // Order: [volume, wick, body].
+      const fillRects = spy.callsOf('fillRect');
+      expect(fillRects).toHaveLength(3);
+      const [volume, wick, body] = fillRects;
+
+      const centerOf = (rect: typeof volume) => {
+        const x = rect.args[0] as number;
+        const width = rect.args[2] as number;
+        return x + width / 2;
+      };
+      const wickCenter = centerOf(wick);
+      const bodyCenter = centerOf(body);
+      const volumeCenter = centerOf(volume);
+
+      expect(bodyCenter).toBe(wickCenter);
+      expect(volumeCenter).toBe(wickCenter);
+    }
+  });
+
+  it('mixed bull + bear thin candles keep per-direction top-stop colors (stress-page scenario)', () => {
+    // Matches the `generateThinCandles` scenario on the stress page: dense
+    // rows of bull and bear candles where every body collapses to ≤ 2px.
+    // Both directions draw in their own top-stop; neither leaks into the
+    // other's color nor into the wick color. The draw order is
+    //   bull wicks → bull bodies → bear wicks → bear bodies
+    // so the bear-body pass happens after the bear-wick pass has set
+    // `ctx.fillStyle = DOWN_WICK`. If the ≤ 2px branch falls through
+    // without assigning `fillStyle`, bear bodies paint in `DOWN_WICK`.
+    const BULL = { open: 10.0, high: 10.5, low: 9.5, close: 10.01 };
+    const BEAR = { open: 10.0, high: 10.5, low: 9.5, close: 9.99 };
+    const UP_TOP = '#aaff00';
+    const UP_BOTTOM = '#008800';
+    const UP_WICK = '#123456';
+    const DOWN_TOP = '#ff6666';
+    const DOWN_BOTTOM = '#880000';
+    const DOWN_WICK = '#654321';
+
+    const data: OHLCData[] = [
+      { time: 10, ...BULL },
+      { time: 30, ...BEAR },
+      { time: 50, ...BULL },
+      { time: 70, ...BEAR },
+    ];
+    const r = new CandlestickRenderer(mkStore(data), {
+      up: { body: [UP_TOP, UP_BOTTOM], wick: UP_WICK },
+      down: { body: [DOWN_TOP, DOWN_BOTTOM], wick: DOWN_WICK },
+      bodyWidthRatio: 0.6,
+    });
+    // Wide y range so all 4 bodies collapse to ≤ 2 px after scaling.
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 500 } });
+    r.render(ctx);
+
+    // 4 wicks + 4 bodies = 8 fillRects.
+    const fillRects = spy.callsOf('fillRect');
+    expect(fillRects).toHaveLength(8);
+
+    // Layout: [bull wicks (2)] [bull bodies (2)] [bear wicks (2)] [bear bodies (2)].
+    const bullBodies = fillRects.slice(2, 4);
+    const bearBodies = fillRects.slice(6, 8);
+
+    for (const rect of bullBodies) {
+      expect(rect.fillStyle).toBe(UP_TOP);
+      expect(rect.fillStyle).not.toBe(UP_WICK);
+      expect(rect.fillStyle).not.toBe(DOWN_TOP);
+    }
+
+    for (const rect of bearBodies) {
+      expect(rect.fillStyle).toBe(DOWN_TOP);
+      expect(rect.fillStyle).not.toBe(DOWN_WICK);
+      expect(rect.fillStyle).not.toBe(UP_TOP);
+    }
+  });
+
   it('draws volume overlay bars when volume is present', () => {
     const data: OHLCData[] = [
       { time: 10, ...BULL, volume: 100 },
@@ -142,6 +321,33 @@ describe('CandlestickRenderer.render', () => {
 
     // 2 volume + 2 wicks + 2 bodies = 6 fillRects (volume only present when `volume` is defined and > 0).
     expect(spy.countOf('fillRect')).toBe(6);
+  });
+
+  it('volume overlay filters non-finite volumes (no Infinity maxVol, no NaN bar heights)', () => {
+    // Prior bug: `maxVol` loop accepted `Infinity` (collapsed every real
+    // bar to 1 px because `finite / Infinity → 0`) and `NaN` (silently
+    // skipped via `>` returning false, but then `NaN / maxVol = NaN`
+    // reached the draw loop). Now both loops filter via `Number.isFinite`.
+    const data: OHLCData[] = [
+      { time: 10, ...BULL, volume: 100 },
+      { time: 20, ...BULL, volume: Number.POSITIVE_INFINITY },
+      { time: 30, ...BEAR, volume: Number.NaN },
+      { time: 40, ...BULL, volume: null as unknown as number },
+      { time: 50, ...BULL, volume: 200 },
+    ];
+    const r = new CandlestickRenderer(mkStore(data), {});
+    const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 60 }, yRange: { min: 0, max: 20 } });
+    expect(() => r.render(ctx)).not.toThrow();
+
+    // 5 candles × 2 (wick + body) = 10 candle-geometry fillRects.
+    // Volume: only the 2 finite > 0 volumes (100, 200) produce bars.
+    expect(spy.countOf('fillRect')).toBe(10 + 2);
+    // No non-finite coordinates reached canvas.
+    for (const call of spy.calls) {
+      for (const arg of call.args) {
+        if (typeof arg === 'number') expect(Number.isFinite(arg)).toBe(true);
+      }
+    }
   });
 
   it('omits volume overlay when every volume is 0 or undefined', () => {

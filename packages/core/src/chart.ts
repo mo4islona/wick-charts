@@ -1424,14 +1424,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       for (const point of visible) {
         if ('high' in point) {
           const ohlc = point as OHLCData;
-          if (ohlc.high > max) max = ohlc.high;
-          if (ohlc.low < min) min = ohlc.low;
-          allValues?.push(ohlc.high, ohlc.low);
+          // Skip non-finite values (null / undefined / NaN / ±Infinity). Without
+          // the guard, `Infinity` poisons max, `-Infinity` poisons min, and
+          // `null` coerces to 0, collapsing the range to a single flat line.
+          if (Number.isFinite(ohlc.high)) {
+            if (ohlc.high > max) max = ohlc.high;
+            allValues?.push(ohlc.high);
+          }
+          if (Number.isFinite(ohlc.low)) {
+            if (ohlc.low < min) min = ohlc.low;
+            allValues?.push(ohlc.low);
+          }
         } else {
           const line = point as TimePoint;
-          if (line.value > max) max = line.value;
-          if (line.value < min) min = line.value;
-          allValues?.push(line.value);
+          if (Number.isFinite(line.value)) {
+            if (line.value > max) max = line.value;
+            if (line.value < min) min = line.value;
+            allValues?.push(line.value);
+          }
         }
       }
     }

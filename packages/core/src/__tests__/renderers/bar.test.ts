@@ -115,4 +115,72 @@ describe('BarRenderer.render', () => {
     r.setData([{ time: 1, value: 3 }], 1);
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 100 });
   });
+
+  it('skips non-finite values in the draw loop (single-layer)', () => {
+    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    r.setData([
+      { time: 10, value: 3 },
+      { time: 20, value: Number.NaN },
+      { time: 30, value: null as unknown as number },
+      { time: 40, value: 5 },
+      { time: 50, value: Number.POSITIVE_INFINITY },
+      { time: 60, value: undefined as unknown as number },
+      { time: 70, value: 2 },
+    ]);
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 10 } });
+    expect(() => r.render(ctx)).not.toThrow();
+
+    // Exactly 3 finite values → 3 fillRects. Poisoned values produce none.
+    expect(spy.countOf('fillRect')).toBe(3);
+    for (const c of spy.callsOf('fillRect')) {
+      for (const arg of c.args) {
+        if (typeof arg === 'number') expect(Number.isFinite(arg)).toBe(true);
+      }
+    }
+  });
+
+  it('caps bar width when a sparse visible range would produce chart-wide bars', () => {
+    // Same pathology as the single-candle case on CandlestickRenderer: very
+    // few points in the visible range → raw `barWidthBitmap` claims a huge
+    // fraction of the chart. The renderer caps it.
+    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    r.setData([{ time: 5, value: 3 }]);
+    const { ctx, spy } = buildRenderContext({
+      timeRange: { from: 0, to: 10 },
+      yRange: { min: 0, max: 10 },
+      dataInterval: 5,
+      mediaWidth: 800,
+      pixelRatio: 1,
+    });
+    r.render(ctx);
+
+    const fill = spy.callsOf('fillRect')[0];
+    expect(fill).toBeDefined();
+    const width = fill?.args[2] as number;
+    // Cap is 30 CSS px × pixelRatio=1 = 30 bitmap px for the slot,
+    // bodyWidthRatio=0.6 (default) → body ≤ ~18. Use a loose upper bound.
+    expect(width).toBeLessThanOrEqual(30);
+  });
+
+  it('getValueRange filters non-finite values (no Infinity leak into min/max)', () => {
+    const r = new BarRenderer(2, { colors: ['#a', '#b'], stacking: 'off' });
+    r.setData(
+      [
+        { time: 10, value: 3 },
+        { time: 20, value: Number.POSITIVE_INFINITY },
+        { time: 30, value: 5 },
+      ],
+      0,
+    );
+    r.setData(
+      [
+        { time: 10, value: Number.NEGATIVE_INFINITY },
+        { time: 20, value: -2 },
+        { time: 30, value: null as unknown as number },
+      ],
+      1,
+    );
+    const range = r.getValueRange(0, 100);
+    expect(range).toEqual({ min: -2, max: 5 });
+  });
 });

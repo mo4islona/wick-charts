@@ -365,11 +365,13 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
     const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
 
     if (stacking === 'off') {
-      // Union of all layers' individual ranges
+      // Union of all layers' individual ranges. Skip non-finite values so
+      // null / NaN / ±Infinity / undefined don't corrupt the range.
       let min = Infinity;
       let max = -Infinity;
       for (const data of layers) {
         for (const d of data) {
+          if (!Number.isFinite(d.value)) continue;
           if (d.value < min) min = d.value;
           if (d.value > max) max = d.value;
         }
@@ -378,7 +380,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
       return min < Infinity ? { min, max } : null;
     }
 
-    // Normal stacking: compute stacked totals
+    // Normal stacking: compute stacked totals. Non-finite values are treated
+    // as 0 for the stack — don't crash the range because one layer has a gap.
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
       for (const d of layers[li]) {
@@ -387,7 +390,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
           arr = new Array(layers.length).fill(0);
           timeMap.set(d.time, arr);
         }
-        arr[li] = d.value;
+        arr[li] = Number.isFinite(d.value) ? d.value : 0;
       }
     }
 
