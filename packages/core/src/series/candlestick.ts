@@ -259,10 +259,28 @@ export class CandlestickRenderer implements SeriesRenderer {
       }
     }
 
-    const barWidth = timeScale.barWidthBitmap(dataInterval);
-    const bodyWidth = Math.max(1, Math.round(barWidth * this.options.bodyWidthRatio) - 2);
-    const halfBody = Math.floor(bodyWidth / 2);
+    // Bar-slot width. Only cap when the visible range is *sparse* (≤ 2
+    // candles) so `barWidthBitmap(dataInterval)` is producing a bogus
+    // chart-wide slot. Legitimate zoom (user dragging in on 3+ candles)
+    // must keep its wide bars — a blanket cap would crush intentional
+    // magnification to thin slivers.
+    const naturalBarWidth = timeScale.barWidthBitmap(dataInterval);
+    const sparseCap = Math.round(30 * horizontalPixelRatio);
+    const barWidth = visibleData.length <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
     const wickWidth = Math.max(1, Math.round(horizontalPixelRatio));
+    // Match body parity to wick parity so both rectangles have their
+    // pixel-accurate centers on the same sub-pixel column. Without this,
+    // `Math.floor(bodyWidth / 2)` can offset the body 0.5 bitmap-px sideways
+    // relative to the wick (odd-vs-even width parity mismatch), which reads
+    // as a visibly off-center wick — especially at small bar widths or DPR=1.
+    let bodyWidth = Math.max(1, Math.round(barWidth * this.options.bodyWidthRatio) - 2);
+    if ((bodyWidth & 1) !== (wickWidth & 1)) {
+      // Down-trim by 1 when possible; when bodyWidth is already the minimum
+      // (1) and the wick is even (DPR=2), bump UP to 2 so the parity match
+      // holds instead of silently leaving a 0.5-bitmap-px offset.
+      bodyWidth = bodyWidth > 1 ? bodyWidth - 1 : 2;
+    }
+    const halfBody = Math.floor(bodyWidth / 2);
 
     // Draw volume first (behind candles)
     const chartBitmapHeight = Math.round(yScale.getMediaHeight() * scope.verticalPixelRatio);
@@ -272,6 +290,7 @@ export class CandlestickRenderer implements SeriesRenderer {
       timeScale,
       chartHeight: chartBitmapHeight,
       barWidth,
+      wickWidth,
       entranceByTime,
     });
 
@@ -312,6 +331,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     timeScale,
     chartHeight,
     barWidth,
+    wickWidth,
     entranceByTime,
   }: {
     ctx: CanvasRenderingContext2D;
@@ -319,18 +339,27 @@ export class CandlestickRenderer implements SeriesRenderer {
     timeScale: import('../scales/time-scale').TimeScale;
     chartHeight: number;
     barWidth: number;
+    wickWidth: number;
     entranceByTime: Map<number, number> | null;
   }): void {
-    // Find max volume for scaling
+    // Find max volume for scaling. Filter non-finite values — `Infinity`
+    // would poison `maxVol` (collapsing every real bar to ~1 px), `NaN`
+    // slips past `>` comparisons silently, and `null` coerces to 0 but can
+    // still reach the draw loop below.
     let maxVol = 0;
     for (const c of data) {
-      if (c.volume !== undefined && c.volume > maxVol) maxVol = c.volume;
+      if (Number.isFinite(c.volume) && (c.volume as number) > maxVol) maxVol = c.volume as number;
     }
     if (maxVol === 0) return;
 
-    // Volume occupies bottom 20% of chart
+    // Volume occupies bottom 20% of chart. Match the wick's parity so volume
+    // bars and candles share a vertical axis of symmetry — same rationale as
+    // the body/wick parity fix in `render`.
     const volumeMaxHeight = chartHeight * 0.2;
-    const volBarWidth = Math.max(1, barWidth - 2);
+    let volBarWidth = Math.max(1, barWidth - 2);
+    if ((volBarWidth & 1) !== (wickWidth & 1)) {
+      volBarWidth = volBarWidth > 1 ? volBarWidth - 1 : 2;
+    }
     const halfBar = Math.floor(volBarWidth / 2);
 
     const upVolumeColor = hexToRgba(resolveCandlestickBodyColor(this.options.up.body), 0.2);
@@ -339,10 +368,13 @@ export class CandlestickRenderer implements SeriesRenderer {
     const style = this.options.entryAnimation ?? 'unfold';
 
     for (const c of data) {
-      if (c.volume === undefined || c.volume === 0) continue;
+      // Same finiteness filter as the maxVol loop — catches undefined, 0,
+      // NaN, ±Infinity, and null all at once.
+      if (!Number.isFinite(c.volume) || (c.volume as number) <= 0) continue;
 
+      const vol = c.volume as number;
       const cx = timeScale.timeToBitmapX(c.time);
-      const h = Math.max(1, (c.volume / maxVol) * volumeMaxHeight);
+      const h = Math.max(1, (vol / maxVol) * volumeMaxHeight);
       const isUp = c.close >= c.open;
 
       ctx.fillStyle = isUp ? upVolumeColor : downVolumeColor;

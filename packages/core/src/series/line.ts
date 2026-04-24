@@ -189,6 +189,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     if (all.length < 2) return { x: lastRawX, y: lastRawY };
 
     const penultimate = all[all.length - 2];
+    // Skip the lerp when the penultimate value is non-finite — otherwise the
+    // overlay pulse would consume an interpolated `(NaN, ...)` endpoint.
+    // Anchor to the raw last instead so the dot stays at the new point.
+    if (!Number.isFinite(penultimate.value)) return { x: lastRawX, y: lastRawY };
     const penulX = timeScale.timeToBitmapX(penultimate.time);
     const penulY = yScale.valueToBitmapY(penultimate.value);
 
@@ -237,18 +241,56 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
       const trailingX = endpoint.x;
       const trailingY = endpoint.y;
 
-      // Line
+      // Line — break the path at any non-finite value (null / NaN / Infinity /
+      // undefined). A naive single-path draw would either stroke through NaN
+      // coordinates or leak the area-fill polygon across gaps, so we collect
+      // finite *runs* and render each independently: stroke = one subpath per
+      // run, fill = one closed polygon per run anchored to the chart bottom.
       if (trailingFade) {
         context.save();
         context.globalAlpha = progress;
       }
-      context.beginPath();
-      context.moveTo(timeScale.timeToBitmapX(data[0].time), yScale.valueToBitmapY(data[0].value));
-      for (let i = 1; i < data.length - 1; i++) {
-        context.lineTo(timeScale.timeToBitmapX(data[i].time), yScale.valueToBitmapY(data[i].value));
+
+      const bodyEnd = data.length - 1;
+      const runs: { x: number; y: number }[][] = [];
+      let current: { x: number; y: number }[] | null = null;
+      for (let i = 0; i < bodyEnd; i++) {
+        const v = data[i].value;
+        if (!Number.isFinite(v)) {
+          current = null;
+          continue;
+        }
+        if (!current) {
+          current = [];
+          runs.push(current);
+        }
+        current.push({ x: timeScale.timeToBitmapX(data[i].time), y: yScale.valueToBitmapY(v) });
       }
-      context.lineTo(trailingX, trailingY);
-      if (hasStroke) {
+      // Attach the trailing endpoint only if it's finite AND the last data
+      // point is finite. A poisoned last value would produce a NaN trailing
+      // endpoint; skip it instead of contaminating the polygon.
+      const lastValue = data[bodyEnd]?.value;
+      const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && Number.isFinite(lastValue);
+      if (trailingFinite) {
+        if (current) {
+          current.push({ x: trailingX, y: trailingY });
+        } else {
+          runs.push([{ x: trailingX, y: trailingY }]);
+        }
+      }
+
+      // Stroke — one beginPath covering all multi-point runs. Breaks render
+      // as gaps. Single-finite-point runs (a finite value sandwiched
+      // between two non-finite neighbors, or the trailing endpoint alone
+      // after a poisoned penultimate) are handled separately below — they
+      // can't be stroked as a segment but must not vanish.
+      if (hasStroke && runs.some((run) => run.length >= 2)) {
+        context.beginPath();
+        for (const run of runs) {
+          if (run.length < 2) continue;
+          context.moveTo(run[0].x, run[0].y);
+          for (let j = 1; j < run.length; j++) context.lineTo(run[j].x, run[j].y);
+        }
         context.strokeStyle = color;
         context.lineWidth = lineWidth;
         context.lineJoin = 'round';
@@ -256,13 +298,32 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
         context.stroke();
       }
 
-      // Area fill
+      // Orphaned single-finite-point runs → visible dots. Without this, a
+      // finite point sandwiched between two NaN neighbors would silently
+      // disappear, which is worse than the original "crash on NaN" bug.
+      if (hasStroke) {
+        const orphanRadius = Math.max(1, lineWidth / 2);
+        let dotPathOpen = false;
+        for (const run of runs) {
+          if (run.length !== 1) continue;
+          if (!dotPathOpen) {
+            context.beginPath();
+            dotPathOpen = true;
+          }
+          context.moveTo(run[0].x + orphanRadius, run[0].y);
+          context.arc(run[0].x, run[0].y, orphanRadius, 0, Math.PI * 2);
+        }
+        if (dotPathOpen) {
+          context.fillStyle = color;
+          context.fill();
+        }
+      }
+
+      // Area fill — one closed polygon per run, each dropped to the chart
+      // baseline. Without per-run polygons, a single shared path would bleed
+      // fill across the gaps.
       if (this.options.area.visible) {
-        const firstX = timeScale.timeToBitmapX(data[0].time);
         const bottomY = scope.bitmapSize.height;
-        context.lineTo(trailingX, bottomY);
-        context.lineTo(firstX, bottomY);
-        context.closePath();
         const cacheKey = String(li);
         const cached = this.areaGradientCache.get(cacheKey);
         let grad: CanvasGradient;
@@ -275,7 +336,19 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
           this.areaGradientCache.set(cacheKey, { gradient: grad, bottomY, color });
         }
         context.fillStyle = grad;
-        context.fill();
+        for (const run of runs) {
+          if (run.length < 2) continue;
+          context.beginPath();
+          context.moveTo(run[0].x, run[0].y);
+          for (let j = 1; j < run.length; j++) context.lineTo(run[j].x, run[j].y);
+          // Close the polygon: drop from the last point to the baseline, run
+          // back to the first point's x on the baseline, and closePath snaps
+          // the final edge back up to (first.x, first.y).
+          context.lineTo(run[run.length - 1].x, bottomY);
+          context.lineTo(run[0].x, bottomY);
+          context.closePath();
+          context.fill();
+        }
       }
       if (trailingFade) context.restore();
     }
@@ -316,19 +389,28 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
       return m;
     });
 
-    // Compute stacked Y values per time: cumulative[li][ti]
+    // Compute stacked Y values per time: cumulative[li][ti].
+    // `?? 0` catches missing keys but not `NaN` / `±Infinity` — those are
+    // live values stored in the map via `effectiveValue` when the source
+    // data carried a poisoned point. Substitute 0 for any non-finite entry
+    // so a single bad point doesn't poison the cumulative sum and NaN-out
+    // every layer at that slot.
     const cumulative: number[][] = Array.from({ length: this.stores.length }, () => new Array(times.length).fill(0));
     for (let ti = 0; ti < times.length; ti++) {
       const t = times[ti];
       let total = 0;
       if (percent) {
         for (let li = 0; li < this.stores.length; li++) {
-          if (this.stores[li].isVisible()) total += valueMaps[li].get(t) ?? 0;
+          if (!this.stores[li].isVisible()) continue;
+          const v = valueMaps[li].get(t);
+          if (Number.isFinite(v)) total += v as number;
         }
       }
       let running = 0;
       for (let li = 0; li < this.stores.length; li++) {
-        const raw = this.stores[li].isVisible() ? (valueMaps[li].get(t) ?? 0) : 0;
+        const visible = this.stores[li].isVisible();
+        const v = visible ? valueMaps[li].get(t) : 0;
+        const raw = Number.isFinite(v) ? (v as number) : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }

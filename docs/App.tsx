@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { LinePage } from './pages/LinePage';
 import { PiePage } from './pages/PiePage';
 import { SparklinePage } from './pages/SparklinePage';
+import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
 import { themes } from './themes';
 
@@ -24,6 +25,7 @@ const PAGES: Record<Exclude<Route, 'theme'>, React.FC<{ theme: ChartTheme }>> = 
   bar: BarPage,
   pie: PiePage,
   sparkline: SparklinePage,
+  'stress-test': StressTestPage,
 };
 
 const TITLES: Record<Route, string> = {
@@ -34,6 +36,7 @@ const TITLES: Record<Route, string> = {
   pie: 'Pie & Donut Charts',
   sparkline: 'Sparklines',
   theme: 'Custom Theme',
+  'stress-test': 'Stress Tests',
 };
 
 function isRoute(s: string): s is Route {

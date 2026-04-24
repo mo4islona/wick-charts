@@ -133,11 +133,23 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
   /** Stacking off — each layer drawn independently from zero, overlapping */
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale, dataInterval } = ctx;
-    const { context } = scope;
+    const { context, horizontalPixelRatio } = scope;
     const range = timeScale.getRange();
     const now = performance.now();
 
-    const barWidth = timeScale.barWidthBitmap(dataInterval);
+    // Bar slot width — only cap when the visible range is sparse (≤ 2
+    // points on the most-populated layer). Dense zooms must keep wide bars.
+    // See the matching comment in candlestick.ts.
+    let maxVisibleCount = 0;
+    for (const store of this.stores) {
+      if (!store.isVisible()) continue;
+      const count = store.getVisibleData(range.from, range.to).length;
+      if (count > maxVisibleCount) maxVisibleCount = count;
+      if (maxVisibleCount > 2) break;
+    }
+    const naturalBarWidth = timeScale.barWidthBitmap(dataInterval);
+    const sparseCap = Math.round(30 * horizontalPixelRatio);
+    const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
     const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
     const halfBody = Math.floor(bodyWidth / 2);
 
@@ -156,6 +168,9 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
       const visibleData = this.stores[0].getVisibleData(range.from, range.to);
 
       for (const d of visibleData) {
+        // Skip poisoned values (null / NaN / ±Infinity / undefined) — the
+        // renderer must not draw a NaN-height bar.
+        if (!Number.isFinite(d.value)) continue;
         const value = this.effectiveValue(0, d.time, d.value);
         const progress = this.entranceProgress(0, d.time, now);
         const cx = timeScale.timeToBitmapX(d.time);
@@ -184,6 +199,8 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
       const timeMap = new Map<number, { layer: number; value: number }[]>();
       for (let li = 0; li < layers.length; li++) {
         for (const d of layers[li]) {
+          // Skip poisoned values — same reason as the single-layer path.
+          if (!Number.isFinite(d.value)) continue;
           let arr = timeMap.get(d.time);
           if (!arr) {
             arr = [];
@@ -229,11 +246,21 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
   /** Stacked (normal or percent) rendering */
   private renderStacked(ctx: SeriesRenderContext, percent: boolean): void {
     const { scope, timeScale, yScale, dataInterval } = ctx;
-    const { context } = scope;
+    const { context, horizontalPixelRatio } = scope;
     const range = timeScale.getRange();
     const now = performance.now();
 
-    const barWidth = timeScale.barWidthBitmap(dataInterval);
+    // Bar slot width — sparse-only cap, see renderOff above.
+    let maxVisibleCount = 0;
+    for (const store of this.stores) {
+      if (!store.isVisible()) continue;
+      const count = store.getVisibleData(range.from, range.to).length;
+      if (count > maxVisibleCount) maxVisibleCount = count;
+      if (maxVisibleCount > 2) break;
+    }
+    const naturalBarWidth = timeScale.barWidthBitmap(dataInterval);
+    const sparseCap = Math.round(30 * horizontalPixelRatio);
+    const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
     const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
     const halfBody = Math.floor(bodyWidth / 2);
 
@@ -253,7 +280,10 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
           arr = new Array(layers.length).fill(0);
           timeMap.set(d.time, arr);
         }
-        arr[li] = this.stores[li].isVisible() ? this.effectiveValue(li, d.time, d.value) : 0;
+        // Treat non-finite values as 0 in the stack — one layer's gap must
+        // not NaN-out the whole stacked bar at that time slot.
+        const raw = Number.isFinite(d.value) ? d.value : 0;
+        arr[li] = this.stores[li].isVisible() ? this.effectiveValue(li, d.time, raw) : 0;
       }
     }
 

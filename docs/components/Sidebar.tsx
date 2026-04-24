@@ -1,12 +1,21 @@
 import type { ChartTheme } from '@wick-charts/react';
-import { Activity, BarChart3, CandlestickChart, LayoutDashboard, Palette, PieChart, TrendingUp } from 'lucide-react';
+import {
+  Activity,
+  BarChart3,
+  CandlestickChart,
+  FlaskConical,
+  LayoutDashboard,
+  Palette,
+  PieChart,
+  TrendingUp,
+} from 'lucide-react';
 
 import { hexToRgba } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
 
-export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'sparkline' | 'theme';
+export type Route = 'dashboard' | 'candlestick' | 'line' | 'bar' | 'pie' | 'sparkline' | 'theme' | 'stress-test';
 
-const NAV: { route: Route; label: string; icon: React.ReactNode }[] = [
+const BASE_NAV: { route: Route; label: string; icon: React.ReactNode }[] = [
   { route: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={16} /> },
   { route: 'candlestick', label: 'Candlestick', icon: <CandlestickChart size={16} /> },
   { route: 'line', label: 'Line & Area', icon: <TrendingUp size={16} /> },
@@ -15,6 +24,12 @@ const NAV: { route: Route; label: string; icon: React.ReactNode }[] = [
   { route: 'sparkline', label: 'Sparkline', icon: <Activity size={16} /> },
   { route: 'theme', label: 'Custom Theme', icon: <Palette size={16} /> },
 ];
+
+// The stress-test page is always routable via `#stress-test` but only visible
+// in the sidebar during `pnpm dev`.
+const NAV: { route: Route; label: string; icon: React.ReactNode }[] = import.meta.env.DEV
+  ? [...BASE_NAV, { route: 'stress-test', label: 'Stress', icon: <FlaskConical size={16} /> }]
+  : BASE_NAV;
 
 export function Sidebar({
   route,
