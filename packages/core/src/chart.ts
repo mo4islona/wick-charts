@@ -828,6 +828,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /**
+   * Return the full span of registered data, or `null` before any data has
+   * arrived. `{ from: dataStart, to: dataEnd }` mirrors the viewport's own
+   * tracking and is cheaper than recomputing from series stores.
+   */
+  getDataRange(): VisibleRange | null {
+    const from = this.#viewport.dataStart;
+    const to = this.#viewport.dataEnd;
+    if (from === null || to === null) return null;
+
+    return { from, to };
+  }
+
+  /**
    * Imperatively set the visible time range.
    *
    * Two forms:

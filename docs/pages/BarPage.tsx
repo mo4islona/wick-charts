@@ -9,6 +9,7 @@ import {
   Crosshair,
   InfoBar,
   Legend,
+  Navigator,
   Title,
   Tooltip,
   XAxis,
@@ -18,7 +19,11 @@ import {
 
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
-import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
+import {
+  buildCartesianContainerProps,
+  buildCommonSeriesOptions,
+  buildNavigatorComponent,
+} from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Toggle, ToggleGroup } from '../components/playground/primitives';
@@ -81,6 +86,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
+      {props.navigatorVisible && <Navigator data={{ type: 'bar', points: display }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
 }
@@ -125,6 +131,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       <Legend />
+      {props.navigatorVisible && <Navigator data={{ type: 'bar', series: display }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
 }
@@ -252,6 +259,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
+            ...buildNavigatorComponent(s, 'layers[0]', 'bar'),
           ],
         };
       }}

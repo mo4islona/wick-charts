@@ -4,6 +4,7 @@ import {
   type ChartTheme,
   Crosshair,
   InfoBar,
+  Navigator,
   type OHLCData,
   Title,
   Tooltip,
@@ -14,7 +15,11 @@ import {
 
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
-import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
+import {
+  buildCartesianContainerProps,
+  buildCommonSeriesOptions,
+  buildNavigatorComponent,
+} from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Toggle } from '../components/playground/primitives';
@@ -47,6 +52,8 @@ function CandleChart({
   tooltipVisible,
   infoBarVisible,
   crosshairVisible,
+  navigatorVisible,
+  navigatorHeight,
   perfHudVisible,
   candleEntryAnimation,
   entryMs,
@@ -81,6 +88,15 @@ function CandleChart({
       {crosshairVisible && <Crosshair />}
       {axis?.y?.visible !== false && <YAxis />}
       {axis?.x?.visible !== false && <XAxis />}
+      {navigatorVisible && (
+        <Navigator
+          data={{
+            type: 'line',
+            points: display.map((p) => ({ time: p.time, value: p.close })),
+          }}
+          height={navigatorHeight}
+        />
+      )}
     </ChartContainer>
   );
 }
@@ -194,6 +210,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
             ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
+            ...buildNavigatorComponent(s, 'closePoints'),
           ],
         };
       }}

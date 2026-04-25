@@ -7,6 +7,7 @@ import {
   initInfoBarAnchor,
   initLegendAnchor,
   initLegendRightAnchor,
+  initNavigatorAnchor,
   initThemeContext,
   initTitleAnchor,
 } from './context';
@@ -23,6 +24,7 @@ let titleAnchorEl: HTMLDivElement;
 let infoBarAnchorEl: HTMLDivElement;
 let legendAnchorEl: HTMLDivElement;
 let legendRightAnchorEl: HTMLDivElement;
+let navigatorAnchorEl: HTMLDivElement;
 
 const chartStore = initChartContext();
 const themeStore = initThemeContext(theme);
@@ -30,6 +32,7 @@ const titleAnchorStore = initTitleAnchor();
 const infoBarAnchorStore = initInfoBarAnchor();
 const legendAnchorStore = initLegendAnchor();
 const legendRightAnchorStore = initLegendRightAnchor();
+const navigatorAnchorStore = initNavigatorAnchor();
 
 let instance: ChartInstance | null = null;
 let resizeObserver: ResizeObserver | null = null;
@@ -53,6 +56,7 @@ onMount(() => {
     infoBarAnchorStore.set(infoBarAnchorEl);
     legendAnchorStore.set(legendAnchorEl);
     legendRightAnchorStore.set(legendRightAnchorEl);
+    navigatorAnchorStore.set(navigatorAnchorEl);
     // Measure the stacked top overlay (title + info bar) so data respects
     // that reserved space; the canvas itself stays full-height.
     if (topOverlayEl) {
@@ -77,6 +81,7 @@ onDestroy(() => {
   infoBarAnchorStore.set(null);
   legendAnchorStore.set(null);
   legendRightAnchorStore.set(null);
+  navigatorAnchorStore.set(null);
 });
 
 $: if (instance && theme) {
@@ -135,4 +140,5 @@ $: gradientBg = (() => {
     <div bind:this={legendRightAnchorEl} data-legend-right-anchor="" style="flex:0 0 auto"></div>
   </div>
   <div bind:this={legendAnchorEl} data-legend-anchor="" style="flex:0 0 auto"></div>
+  <div bind:this={navigatorAnchorEl} data-navigator-anchor="" style="flex:0 0 auto"></div>
 </div>

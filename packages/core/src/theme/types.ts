@@ -88,4 +88,48 @@ export interface ChartTheme {
     textColor: string;
     borderColor: string;
   };
+
+  /**
+   * Navigator strip shown below the main chart — a miniature overview with a
+   * draggable window indicating the visible range.
+   *
+   * The `candlestick` shape mirrors the root {@link ChartTheme.candlestick}
+   * (including `[top, bottom]` gradient tuples) so candle-type mini views can
+   * share colors with the main plot.
+   */
+  navigator: {
+    /** Default height of the navigator strip in CSS pixels. */
+    height: number;
+    /** Strip background (behind the miniature series). */
+    background: string;
+    /** Color used for the strip's top + bottom inner-shadow separators. */
+    borderColor: string;
+    /** Line / close-price miniature color and geometry. */
+    line: {
+      color: string;
+      width: number;
+      areaTopColor: string;
+      areaBottomColor: string;
+    };
+    /** Colors for candlestick-type miniature rendering. */
+    candlestick: {
+      up: { body: string | [string, string]; wick: string };
+      down: { body: string | [string, string]; wick: string };
+    };
+    /** The draggable visible-range window indicator. */
+    window: {
+      fill: string;
+      border: string;
+      borderWidth: number;
+    };
+    /** Left/right resize handles on the window edges. */
+    handle: {
+      color: string;
+      width: number;
+    };
+    /** Dim overlay covering the regions outside the window. */
+    mask: {
+      fill: string;
+    };
+  };
 }

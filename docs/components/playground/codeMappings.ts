@@ -55,8 +55,7 @@ export function buildCommonSeriesOptions(
 ): Record<string, PropValue> {
   const out: Record<string, PropValue> = {};
 
-  const anim =
-    kind === 'line' ? s.lineEntryAnimation : kind === 'bar' ? s.barEntryAnimation : s.candleEntryAnimation;
+  const anim = kind === 'line' ? s.lineEntryAnimation : kind === 'bar' ? s.barEntryAnimation : s.candleEntryAnimation;
   if (anim !== ENTRY_ANIM_DEFAULT[kind]) out.entryAnimation = anim;
 
   if (s.entryMs !== ENTRY_MS_DEFAULT) out.entryMs = s.entryMs;
@@ -64,4 +63,29 @@ export function buildCommonSeriesOptions(
   if (kind === 'line' && s.streaming) out.pulse = true;
 
   return out;
+}
+
+const NAVIGATOR_HEIGHT_DEFAULT = 60;
+
+export type NavigatorDataType = 'line' | 'bar' | 'candlestick';
+
+/**
+ * Build the Navigator code-preview component entry when the user enabled it.
+ * `pointsVar` is the variable name displayed for the `points` prop — usually
+ * `'data'` for line/bar pages and `'closePoints'` for candlestick (since the
+ * miniature is derived from `close` values). `dataType` controls the rendered
+ * `type:` field.
+ */
+export function buildNavigatorComponent(
+  s: PlaygroundChartProps,
+  pointsVar: string,
+  dataType: NavigatorDataType = 'line',
+): { component: string; props: Record<string, PropValue> }[] {
+  if (!s.navigatorVisible) return [];
+  const props: Record<string, PropValue> = {
+    data: { type: dataType, points: pointsVar } as unknown as PropValue,
+  };
+  if (s.navigatorHeight !== NAVIGATOR_HEIGHT_DEFAULT) props.height = s.navigatorHeight;
+
+  return [{ component: 'Navigator', props }];
 }

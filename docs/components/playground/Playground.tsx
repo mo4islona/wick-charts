@@ -43,6 +43,8 @@ export interface PlaygroundChartProps {
   entryMs: number;
   liveTracking: boolean;
   headerLayout: HeaderLayout;
+  navigatorVisible: boolean;
+  navigatorHeight: number;
 }
 
 // Re-export types for consumer pages
@@ -121,6 +123,8 @@ function stateToChartProps<TExtra extends object>(
     entryMs: state.entryMs,
     liveTracking: state.liveTracking,
     headerLayout: state.headerLayout,
+    navigatorVisible: state.navigatorVisible,
+    navigatorHeight: state.navigatorHeight,
   } as PlaygroundChartProps & TExtra;
 }
 
@@ -410,6 +414,43 @@ function buildBuiltinSections({
       icon: ICONS.animations,
       defaultOpen: false,
       rows: animRows,
+    });
+  }
+
+  // Navigator is still in beta — only surface its toggle in `pnpm dev`, the
+  // same dev-only gate that exposes the Stress page in the sidebar. Production
+  // builds keep the data props plumbed (so the section just lays dormant) but
+  // hide the controls so the strip can't be turned on accidentally.
+  if (!hideCartesian && import.meta.env.DEV) {
+    sections.push({
+      id: 'navigator',
+      title: 'Navigator (beta)',
+      icon: ICONS.navigator,
+      defaultOpen: false,
+      rows: [
+        {
+          key: 'navigatorVisible',
+          label: 'Visible',
+          hint: 'Miniature overview strip with a draggable zoom window — beta',
+          render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+        } as RowSpec,
+        {
+          key: 'navigatorHeight',
+          label: 'Height',
+          hint: 'Strip height in pixels',
+          visible: (s) => s.navigatorVisible === true,
+          render: (v, onChange) => (
+            <Slider
+              value={v as number}
+              min={30}
+              max={140}
+              step={5}
+              suffix="px"
+              onChange={onChange as (v: number) => void}
+            />
+          ),
+        } as RowSpec,
+      ],
     });
   }
 

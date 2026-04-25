@@ -26,6 +26,12 @@ export type {
   /** @deprecated Use {@link TimePoint} instead. */
   LineData,
   LineSeriesOptions,
+  NavigatorCandlePoint,
+  NavigatorControllerParams,
+  NavigatorData,
+  NavigatorLinePoint,
+  NavigatorOptions,
+  NavigatorSeriesType,
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
@@ -53,6 +59,7 @@ export type {
 } from '@wick-charts/core';
 export {
   ChartInstance,
+  NavigatorController,
   andromeda,
   autoGradient,
   ayuMirage,
@@ -105,6 +112,7 @@ export { default as PieSeries } from './PieSeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
 export { default as InfoBar } from './ui/InfoBar.vue';
 export { default as Legend } from './ui/Legend.vue';
+export { default as Navigator } from './ui/Navigator.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';

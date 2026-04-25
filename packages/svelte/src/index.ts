@@ -26,6 +26,12 @@ export type {
   /** @deprecated Use {@link TimePoint} instead. */
   LineData,
   LineSeriesOptions,
+  NavigatorCandlePoint,
+  NavigatorControllerParams,
+  NavigatorData,
+  NavigatorLinePoint,
+  NavigatorOptions,
+  NavigatorSeriesType,
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
@@ -53,6 +59,7 @@ export type {
 } from '@wick-charts/core';
 export {
   ChartInstance,
+  NavigatorController,
   andromeda,
   autoGradient,
   ayuMirage,
@@ -111,6 +118,7 @@ export {
 export { default as Crosshair } from './ui/Crosshair.svelte';
 export { default as InfoBar } from './ui/InfoBar.svelte';
 export { default as Legend } from './ui/Legend.svelte';
+export { default as Navigator } from './ui/Navigator.svelte';
 export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
