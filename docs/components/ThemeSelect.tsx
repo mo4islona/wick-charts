@@ -80,63 +80,145 @@ export function ThemeSelect({
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+          {mobile && (
+            <style>{`@keyframes theme-menu-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }`}</style>
+          )}
+          <button
+            type="button"
+            aria-label="Close theme menu"
+            onClick={() => setOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: mobile ? 200 : 99,
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              background: mobile ? 'rgba(0,0,0,0.6)' : 'transparent',
+              backdropFilter: mobile ? 'blur(2px)' : undefined,
+              WebkitBackdropFilter: mobile ? 'blur(2px)' : undefined,
+            }}
+          />
           <div
             style={{
-              position: 'absolute',
-              top: '100%',
-              right: 0,
-              marginTop: 4,
               background: theme.tooltip.background,
-              backdropFilter: 'blur(16px)',
-              WebkitBackdropFilter: 'blur(16px)',
-              border: `1px solid ${theme.tooltip.borderColor}`,
-              borderRadius: 8,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
-              padding: 16,
-              zIndex: 100,
+              backdropFilter: mobile ? undefined : 'blur(16px)',
+              WebkitBackdropFilter: mobile ? undefined : 'blur(16px)',
+              border: mobile ? 'none' : `1px solid ${theme.tooltip.borderColor}`,
+              borderLeft: mobile ? `1px solid ${theme.tooltip.borderColor}` : undefined,
+              borderRadius: mobile ? 0 : 8,
+              boxShadow: mobile ? 'none' : '0 4px 16px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
+              zIndex: mobile ? 201 : 100,
               display: 'flex',
-              flexDirection: mobile ? 'column' : 'row',
-              gap: mobile ? 16 : 32,
+              flexDirection: 'column',
               minWidth: mobile ? undefined : 520,
-              maxHeight: 'calc(100vh - 80px)',
-              overflowY: 'auto',
-              paddingBottom: 36,
-              ...(mobile ? { left: 0, right: 0, position: 'fixed' as const, top: 50, marginTop: 0 } : {}),
+              overflow: 'hidden',
+              ...(mobile
+                ? {
+                    position: 'fixed' as const,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 'min(360px, 90vw)',
+                    animation: 'theme-menu-slide-in 180ms ease-out',
+                  }
+                : {
+                    position: 'absolute' as const,
+                    top: '100%',
+                    right: 0,
+                    marginTop: 4,
+                    maxHeight: 'calc(100vh - 80px)',
+                  }),
             }}
           >
-            <ThemeList
-              label="Light"
-              names={lightThemes}
-              value={custom ? null : value}
-              onChange={(v) => {
-                onChange(v);
-                setOpen(false);
-              }}
-              theme={theme}
-            />
-            <ThemeList
-              label="Dark"
-              names={darkThemes}
-              value={custom ? null : value}
-              onChange={(v) => {
-                onChange(v);
-                setOpen(false);
-              }}
-              theme={theme}
-            />
+            {mobile && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderBottom: `1px solid ${theme.tooltip.borderColor}`,
+                  background: theme.tooltip.background,
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: theme.typography.fontSize + 1,
+                    fontWeight: 600,
+                    color: theme.tooltip.textColor,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Theme
+                </span>
+                <button
+                  type="button"
+                  aria-label="Close theme menu"
+                  onClick={() => setOpen(false)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 32,
+                    height: 32,
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'transparent',
+                    color: theme.crosshair.labelTextColor,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <div
               style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                padding: 16,
+                display: 'flex',
+                flexDirection: mobile ? 'column' : 'row',
+                gap: mobile ? 16 : 32,
+              }}
+            >
+              <ThemeList
+                label="Light"
+                names={lightThemes}
+                value={custom ? null : value}
+                onChange={(v) => {
+                  onChange(v);
+                  setOpen(false);
+                }}
+                theme={theme}
+              />
+              <ThemeList
+                label="Dark"
+                names={darkThemes}
+                value={custom ? null : value}
+                onChange={(v) => {
+                  onChange(v);
+                  setOpen(false);
+                }}
+                theme={theme}
+              />
+            </div>
+            <div
+              style={{
                 padding: '8px 16px',
                 borderTop: `1px solid ${theme.tooltip.borderColor}`,
                 fontSize: theme.axis.fontSize,
                 color: theme.crosshair.labelTextColor,
                 opacity: 0.5,
                 textAlign: 'center',
+                flexShrink: 0,
+                background: theme.tooltip.background,
               }}
             >
               Press

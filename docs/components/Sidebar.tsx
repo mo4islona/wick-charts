@@ -1,3 +1,5 @@
+import { cloneElement, isValidElement } from 'react';
+
 import type { ChartTheme } from '@wick-charts/react';
 import {
   Activity,
@@ -8,6 +10,7 @@ import {
   Palette,
   PieChart,
   TrendingUp,
+  X,
 } from 'lucide-react';
 
 import { hexToRgba } from '../utils';
@@ -37,22 +40,29 @@ export function Sidebar({
   collapsed,
   onToggle,
   theme,
+  mobile = false,
 }: {
   route: Route;
   onNavigate: (r: Route) => void;
   collapsed: boolean;
   onToggle: () => void;
   theme: ChartTheme;
+  mobile?: boolean;
 }) {
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
   const accent = theme.line.color;
 
+  const navIconSize = mobile ? 18 : 16;
+  const itemPadding = mobile ? '12px 14px' : collapsed ? '8px 0' : '8px 10px';
+  const fontSize = mobile ? theme.typography.fontSize + 1 : theme.typography.fontSize;
+
   return (
     <div
       style={{
-        width: collapsed ? 48 : 180,
-        transition: 'width 0.2s ease',
+        width: mobile ? 'min(280px, 80vw)' : collapsed ? 48 : 180,
+        height: '100%',
+        transition: mobile ? 'none' : 'width 0.2s ease',
         background: bg,
         borderRight: `1px solid ${border}`,
         display: 'flex',
@@ -61,10 +71,47 @@ export function Sidebar({
         overflow: 'hidden',
       }}
     >
-      {/* Nav items */}
+      {mobile && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 14px',
+            borderBottom: `1px solid ${border}`,
+            color: theme.tooltip.textColor,
+          }}
+        >
+          <span style={{ fontSize: theme.typography.fontSize + 2, fontWeight: 600, letterSpacing: '-0.01em' }}>
+            Wick Charts
+          </span>
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={onToggle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              background: 'transparent',
+              color: theme.axis.textColor,
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
       <nav style={{ flex: 1, padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 2 }}>
         {NAV.map(({ route: r, label, icon }) => {
           const active = r === route;
+          const sized = mobile ? <span style={{ display: 'inline-flex' }}>{withSize(icon, navIconSize)}</span> : icon;
+
           return (
             <button
               type="button"
@@ -73,15 +120,15 @@ export function Sidebar({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: collapsed ? '8px 0' : '8px 10px',
-                justifyContent: collapsed ? 'center' : 'flex-start',
+                gap: mobile ? 12 : 10,
+                padding: itemPadding,
+                justifyContent: collapsed && !mobile ? 'center' : 'flex-start',
                 background: active ? hexToRgba(theme.crosshair.labelBackground, 0.8) : 'transparent',
                 color: active ? theme.tooltip.textColor : theme.crosshair.labelTextColor,
                 border: 'none',
                 borderLeft: active ? `2px solid ${accent}` : '2px solid transparent',
                 borderRadius: 4,
-                fontSize: theme.typography.fontSize,
+                fontSize,
                 fontFamily: 'inherit',
                 fontWeight: active ? 600 : 400,
                 cursor: 'pointer',
@@ -100,7 +147,7 @@ export function Sidebar({
             >
               <span
                 style={{
-                  width: 20,
+                  width: mobile ? 22 : 20,
                   textAlign: 'center',
                   flexShrink: 0,
                   display: 'flex',
@@ -108,18 +155,17 @@ export function Sidebar({
                   justifyContent: 'center',
                 }}
               >
-                {icon}
+                {sized}
               </span>
-              {!collapsed && <span>{label}</span>}
+              {(!collapsed || mobile) && <span>{label}</span>}
             </button>
           );
         })}
       </nav>
 
-      {/* Framework selector */}
       <div
         style={{
-          padding: collapsed ? '6px 4px' : '6px 10px',
+          padding: mobile ? '10px 14px' : collapsed ? '6px 4px' : '6px 10px',
           borderTop: `1px solid ${border}`,
           display: 'flex',
           justifyContent: 'center',
@@ -128,24 +174,33 @@ export function Sidebar({
         <FrameworkSelect theme={theme} compact />
       </div>
 
-      {/* Collapse toggle */}
-      <button
-        type="button"
-        onClick={onToggle}
-        style={{
-          padding: 10,
-          background: 'transparent',
-          color: theme.axis.textColor,
-          border: 'none',
-          borderTop: `1px solid ${border}`,
-          cursor: 'pointer',
-          fontSize: 14,
-          fontFamily: 'inherit',
-          transition: 'color 0.1s',
-        }}
-      >
-        {collapsed ? '›' : '‹'}
-      </button>
+      {!mobile && (
+        <button
+          type="button"
+          onClick={onToggle}
+          style={{
+            padding: 10,
+            background: 'transparent',
+            color: theme.axis.textColor,
+            border: 'none',
+            borderTop: `1px solid ${border}`,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontFamily: 'inherit',
+            transition: 'color 0.1s',
+          }}
+        >
+          {collapsed ? '›' : '‹'}
+        </button>
+      )}
     </div>
   );
+}
+
+function withSize(icon: React.ReactNode, size: number): React.ReactNode {
+  if (isValidElement<{ size?: number }>(icon)) {
+    return cloneElement(icon, { size });
+  }
+
+  return icon;
 }

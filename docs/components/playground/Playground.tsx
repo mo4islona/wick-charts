@@ -1,6 +1,7 @@
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 
 import type { AxisBound, AxisConfig, ChartTheme } from '@wick-charts/react';
+import { SlidersHorizontal, X } from 'lucide-react';
 
 import { useIsMobile } from '../../hooks';
 import type { ChartCodeConfig } from '../CodePreview';
@@ -518,6 +519,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
   const { pct, containerRef, onMouseDown } = usePanelWidth();
   const { pct: codePct, rightRef, onMouseDown: onCodeDragDown } = useCodeHeight();
   const mobile = useIsMobile();
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   const surfaceVars = useMemo(() => themeSurfaceVars(theme), [theme]);
 
@@ -536,16 +538,50 @@ export function Playground<TExtra extends object = Record<string, never>>({
             {charts(chartProps)}
           </div>
         </div>
-        <div className="pg-right">
-          <Panel<CommonState & TExtra>
-            sections={allSections}
-            state={state}
-            setMany={setMany}
-            reset={reset}
-            activeCount={activeCount}
-          />
-          {codeConfigValue && <CodeTabs config={codeConfigValue} theme={theme} />}
-        </div>
+
+        <button
+          type="button"
+          className="pg-mobile-fab"
+          aria-label="Open controls"
+          onClick={() => setMobileControlsOpen(true)}
+        >
+          <SlidersHorizontal size={18} />
+          <span className="pg-mobile-fab-label">Controls</span>
+        </button>
+
+        {mobileControlsOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Close controls"
+              className="pg-mobile-backdrop"
+              onClick={() => setMobileControlsOpen(false)}
+            />
+            <div className="pg-mobile-sheet" role="dialog" aria-modal="true" aria-label="Playground controls">
+              <div className="pg-mobile-sheet-head">
+                <span className="pg-mobile-sheet-title">Controls</span>
+                <button
+                  type="button"
+                  className="pg-mobile-sheet-close"
+                  aria-label="Close controls"
+                  onClick={() => setMobileControlsOpen(false)}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="pg-right">
+                <Panel<CommonState & TExtra>
+                  sections={allSections}
+                  state={state}
+                  setMany={setMany}
+                  reset={reset}
+                  activeCount={activeCount}
+                />
+                {codeConfigValue && <CodeTabs config={codeConfigValue} theme={theme} />}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     );
   }

@@ -230,12 +230,19 @@ export default function App() {
           {/* Mobile overlay sidebar */}
           {mobile && mobileMenuOpen && (
             <>
-              <div
+              <button
+                type="button"
+                aria-label="Close navigation"
                 onClick={() => setMobileMenuOpen(false)}
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  background: 'rgba(0,0,0,0.5)',
+                  background: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(2px)',
+                  WebkitBackdropFilter: 'blur(2px)',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
                   zIndex: 200,
                 }}
               />
@@ -249,6 +256,7 @@ export default function App() {
                   collapsed={false}
                   onToggle={() => setMobileMenuOpen(false)}
                   theme={theme}
+                  mobile
                 />
               </div>
             </>
