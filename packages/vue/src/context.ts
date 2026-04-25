@@ -13,6 +13,7 @@ export const TitleAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wic
 export const InfoBarAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-info-bar-anchor');
 export const LegendAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-anchor');
 export const LegendRightAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-legend-right-anchor');
+export const NavigatorAnchorKey: InjectionKey<Ref<HTMLElement | null>> = Symbol('wick-navigator-anchor');
 
 export function useChartInstance(): ChartInstance {
   const chartRef = inject(ChartKey);

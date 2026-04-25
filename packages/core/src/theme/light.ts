@@ -67,4 +67,32 @@ export const lightTheme: ChartTheme = {
     textColor: '#131722',
     borderColor: 'rgba(0, 0, 0, 0.1)',
   },
+
+  navigator: {
+    height: 48,
+    background: 'transparent',
+    borderColor: 'rgba(139, 148, 158, 0.22)',
+    line: {
+      color: '#8b949e',
+      width: 1,
+      areaTopColor: 'rgba(139, 148, 158, 0.18)',
+      areaBottomColor: 'rgba(139, 148, 158, 0)',
+    },
+    candlestick: {
+      up: { body: autoGradient('#089981'), wick: '#089981' },
+      down: { body: autoGradient('#f23645'), wick: '#f23645' },
+    },
+    window: {
+      fill: 'transparent',
+      border: 'transparent',
+      borderWidth: 0,
+    },
+    handle: {
+      color: 'rgba(0, 0, 0, 0.30)',
+      width: 6,
+    },
+    mask: {
+      fill: 'rgba(255, 255, 255, 0.82)',
+    },
+  },
 };

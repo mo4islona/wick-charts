@@ -34,6 +34,19 @@ export interface ThemeConfig {
   axis?: Partial<ChartTheme['axis']>;
   yLabel?: Partial<ChartTheme['yLabel']>;
   tooltip?: Partial<ChartTheme['tooltip']>;
+  navigator?: {
+    height?: number;
+    background?: string;
+    borderColor?: string;
+    line?: Partial<ChartTheme['navigator']['line']>;
+    candlestick?: {
+      up?: Partial<ChartTheme['navigator']['candlestick']['up']>;
+      down?: Partial<ChartTheme['navigator']['candlestick']['down']>;
+    };
+    window?: Partial<ChartTheme['navigator']['window']>;
+    handle?: Partial<ChartTheme['navigator']['handle']>;
+    mask?: Partial<ChartTheme['navigator']['mask']>;
+  };
   /** URL to load the font (e.g. Google Fonts). */
   fontUrl?: string | null;
 }
@@ -79,10 +92,12 @@ export function createTheme(config: ThemeConfig): ThemePreset {
   const font = config.typography?.fontFamily ?? defFont;
   const baseFontSize = config.typography?.fontSize ?? 12;
 
+  const chartGradient: [string, string] =
+    config.chartGradient ?? (dark ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)] : [lightenHex(bg, 0.06), bg]);
+
   const theme: ChartTheme = {
     background: bg,
-    chartGradient:
-      config.chartGradient ?? (dark ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)] : [lightenHex(bg, 0.06), bg]),
+    chartGradient,
     typography: {
       fontFamily: font,
       fontSize: baseFontSize,
@@ -137,9 +152,101 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       textColor: fg,
       borderColor: config.tooltip?.borderColor ?? defTooltipBorder,
     },
+    navigator: resolveNavigatorTheme({
+      dark,
+      bg,
+      chartGradient,
+      neutralFg: dim,
+      upBody,
+      downBody,
+      upBase,
+      downBase,
+      config: config.navigator,
+    }),
   };
 
   return { name, description, fontUrl, dark, theme };
+}
+
+/**
+ * Build the `navigator` slice of a theme from whatever overrides the caller
+ * supplied, filling gaps from already-resolved chart colors (line, candlestick,
+ * crosshair). Keeps navigator visually coherent with the main plot by default
+ * while still allowing full override.
+ */
+function resolveNavigatorTheme(input: {
+  dark: boolean;
+  bg: string;
+  chartGradient: [string, string];
+  /** Axis/dim foreground — used as the navigator's default neutral so its
+   *  miniature line doesn't compete with theme-accent series colors. */
+  neutralFg: string;
+  upBody: string | [string, string];
+  downBody: string | [string, string];
+  upBase: string;
+  downBase: string;
+  config: ThemeConfig['navigator'];
+}): ChartTheme['navigator'] {
+  const { dark, bg, neutralFg, upBody, downBody, upBase, downBase, config } = input;
+
+  // Strip is transparent by default — the sparkline paints over the page bg,
+  // and the mask wash hides it everywhere except inside the window. That gives
+  // a "spotlight" reading where the visible window is the only bright zone.
+  const stripBg = config?.background ?? 'transparent';
+
+  // Handles still use neutral chrome derived from the page bg.
+  const chromeBase = dark ? 'rgba(255,255,255,1)' : 'rgba(0,0,0,1)';
+  const handleColor = config?.handle?.color ?? hexToRgbaLoose(chromeBase, 0.3);
+
+  // Mask uses the page bg color at high alpha — outside the window the
+  // sparkline gets washed out so the visible window pops by absence of mask.
+  const maskFill = config?.mask?.fill ?? hexToRgbaLoose(bg, dark ? 0.78 : 0.82);
+
+  return {
+    height: config?.height ?? 48,
+    background: stripBg,
+    borderColor: config?.borderColor ?? hexToRgbaLoose(neutralFg, dark ? 0.18 : 0.22),
+    line: {
+      color: config?.line?.color ?? neutralFg,
+      width: config?.line?.width ?? 1,
+      areaTopColor: config?.line?.areaTopColor ?? hexToRgbaLoose(neutralFg, dark ? 0.22 : 0.18),
+      areaBottomColor: config?.line?.areaBottomColor ?? hexToRgbaLoose(neutralFg, 0),
+    },
+    candlestick: {
+      up: {
+        body: config?.candlestick?.up?.body ?? upBody,
+        wick: config?.candlestick?.up?.wick ?? upBase,
+      },
+      down: {
+        body: config?.candlestick?.down?.body ?? downBody,
+        wick: config?.candlestick?.down?.wick ?? downBase,
+      },
+    },
+    // Window has no chrome — the unmasked region IS the window.
+    window: {
+      fill: config?.window?.fill ?? 'transparent',
+      border: config?.window?.border ?? 'transparent',
+      borderWidth: config?.window?.borderWidth ?? 0,
+    },
+    handle: {
+      color: handleColor,
+      width: config?.handle?.width ?? 6,
+    },
+    mask: {
+      fill: maskFill,
+    },
+  };
+}
+
+/** Accepts `#rrggbb`, `rgb(...)`, or `rgba(...)` and applies the supplied
+ *  alpha. Other color forms (named colors, oklch, etc.) pass through unchanged
+ *  — callers shouldn't depend on alpha being applied in those rare cases. */
+function hexToRgbaLoose(color: string, alpha: number): string {
+  if (color.startsWith('#') && color.length === 7) return hexToRgba(color, alpha);
+  const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgb) return `rgba(${rgb[1]},${rgb[2]},${rgb[3]},${alpha})`;
+
+  return color;
 }
 
 export function hexToRgba(hex: string, alpha: number): string {

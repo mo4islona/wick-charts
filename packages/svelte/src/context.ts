@@ -8,6 +8,7 @@ const TITLE_ANCHOR_KEY = Symbol('wick-title-anchor');
 const INFO_BAR_ANCHOR_KEY = Symbol('wick-info-bar-anchor');
 const LEGEND_ANCHOR_KEY = Symbol('wick-legend-anchor');
 const LEGEND_RIGHT_ANCHOR_KEY = Symbol('wick-legend-right-anchor');
+const NAVIGATOR_ANCHOR_KEY = Symbol('wick-navigator-anchor');
 
 export function initChartContext(): Writable<ChartInstance | null> {
   const store = writable<ChartInstance | null>(null);
@@ -59,6 +60,12 @@ export function initLegendRightAnchor(): Writable<HTMLElement | null> {
   return store;
 }
 
+export function initNavigatorAnchor(): Writable<HTMLElement | null> {
+  const store = writable<HTMLElement | null>(null);
+  setContext(NAVIGATOR_ANCHOR_KEY, store);
+  return store;
+}
+
 export function getTitleAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(TITLE_ANCHOR_KEY);
 }
@@ -73,4 +80,8 @@ export function getLegendAnchor(): Readable<HTMLElement | null> {
 
 export function getLegendRightAnchor(): Readable<HTMLElement | null> {
   return getContext<Readable<HTMLElement | null>>(LEGEND_RIGHT_ANCHOR_KEY);
+}
+
+export function getNavigatorAnchor(): Readable<HTMLElement | null> {
+  return getContext<Readable<HTMLElement | null>>(NAVIGATOR_ANCHOR_KEY);
 }

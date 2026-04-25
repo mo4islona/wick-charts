@@ -70,4 +70,34 @@ export const darkTheme: ChartTheme = {
     textColor: '#d1d4dc',
     borderColor: 'rgba(42, 46, 57, 0.8)',
   },
+
+  navigator: {
+    height: 48,
+    background: 'transparent',
+    borderColor: 'rgba(120, 123, 134, 0.18)',
+    line: {
+      color: '#787b86',
+      width: 1,
+      areaTopColor: 'rgba(120, 123, 134, 0.22)',
+      areaBottomColor: 'rgba(120, 123, 134, 0)',
+    },
+    candlestick: {
+      up: { body: autoGradient('#26a69a'), wick: '#26a69a' },
+      down: { body: autoGradient('#ef5350'), wick: '#ef5350' },
+    },
+    window: {
+      fill: 'transparent',
+      border: 'transparent',
+      borderWidth: 0,
+    },
+    handle: {
+      color: 'rgba(255, 255, 255, 0.30)',
+      width: 6,
+    },
+    // Mask = page bg at high alpha. Outside the window the sparkline is
+    // washed out by this color, so the visible window reads as a spotlight.
+    mask: {
+      fill: 'rgba(19, 23, 34, 0.78)',
+    },
+  },
 };

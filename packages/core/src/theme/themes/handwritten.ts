@@ -1,4 +1,4 @@
-import { CAVEAT, CAVEAT_URL, autoGradient, type ThemePreset } from '../create';
+import { CAVEAT, CAVEAT_URL, type ThemePreset, autoGradient } from '../create';
 
 export const handwritten: ThemePreset = {
   name: 'Handwritten',
@@ -63,6 +63,33 @@ export const handwritten: ThemePreset = {
       background: 'rgba(253,245,230,0.95)',
       textColor: '#5c5040',
       borderColor: 'rgba(180,170,150,0.4)',
+    },
+    navigator: {
+      height: 48,
+      background: 'transparent',
+      borderColor: 'rgba(106,143,160,0.22)',
+      line: {
+        color: '#92806c',
+        width: 1,
+        areaTopColor: 'rgba(146,128,108,0.18)',
+        areaBottomColor: 'rgba(146,128,108,0)',
+      },
+      candlestick: {
+        up: { body: autoGradient('#7a9a5e'), wick: '#7a9a5e' },
+        down: { body: autoGradient('#b07060'), wick: '#b07060' },
+      },
+      window: {
+        fill: 'transparent',
+        border: 'transparent',
+        borderWidth: 0,
+      },
+      handle: {
+        color: 'rgba(0,0,0,0.30)',
+        width: 6,
+      },
+      mask: {
+        fill: 'rgba(253,245,230,0.78)',
+      },
     },
   },
 };

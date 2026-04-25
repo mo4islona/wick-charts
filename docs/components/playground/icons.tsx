@@ -81,6 +81,20 @@ export const ICONS: Record<string, ReactNode> = {
       />
     </svg>
   ),
+  navigator: (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <rect x="1.5" y="8" width="9" height="2.5" rx="0.6" stroke="currentColor" fill="none" strokeWidth="1.1" />
+      <rect x="4" y="8" width="4" height="2.5" rx="0.3" fill="currentColor" opacity="0.4" />
+      <path
+        d="M1.5 5.5l1.5-1.5 2 2 2-3 1.5 2 2-1"
+        stroke="currentColor"
+        fill="none"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
 };
 
 export const CHEV_ICON = (

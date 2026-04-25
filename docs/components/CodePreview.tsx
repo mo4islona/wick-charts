@@ -33,7 +33,7 @@ const PACKAGES: Record<Framework, string> = {
 // ── Code generation ──────────────────────────────────────────
 
 function formatValue(v: PropValue, indent: number): string {
-  if (typeof v === 'string') return `'${v}'`;
+  if (typeof v === 'string') return isVarRef(v) ? v : `'${v}'`;
   if (typeof v === 'boolean' || typeof v === 'number') return String(v);
   if (Array.isArray(v)) return `[${v.map((x) => formatValue(x, indent)).join(', ')}]`;
   if (typeof v === 'object' && v !== null) {
@@ -58,9 +58,12 @@ function formatValue(v: PropValue, indent: number): string {
 // codeConfig introduces a genuine variable binding the caller would have in
 // their host code.
 const VAR_REF_NAMES = new Set([
+  'closePoints',
   'data',
+  'data[0]',
   'ohlcData',
   'layers',
+  'layers[0]',
   'sid',
   'series',
   'darkTheme',

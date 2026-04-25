@@ -2,7 +2,15 @@
 import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
-import { ChartKey, InfoBarAnchorKey, LegendAnchorKey, LegendRightAnchorKey, ThemeKey, TitleAnchorKey } from './context';
+import {
+  ChartKey,
+  InfoBarAnchorKey,
+  LegendAnchorKey,
+  LegendRightAnchorKey,
+  NavigatorAnchorKey,
+  ThemeKey,
+  TitleAnchorKey,
+} from './context';
 
 const props = withDefaults(
   defineProps<{
@@ -30,6 +38,7 @@ const titleAnchor = ref<HTMLElement | null>(null);
 const infoBarAnchor = ref<HTMLElement | null>(null);
 const legendAnchor = ref<HTMLElement | null>(null);
 const legendRightAnchor = ref<HTMLElement | null>(null);
+const navigatorAnchor = ref<HTMLElement | null>(null);
 
 provide(ChartKey, chart);
 provide(ThemeKey, themeRef);
@@ -37,6 +46,7 @@ provide(TitleAnchorKey, titleAnchor);
 provide(InfoBarAnchorKey, infoBarAnchor);
 provide(LegendAnchorKey, legendAnchor);
 provide(LegendRightAnchorKey, legendRightAnchor);
+provide(NavigatorAnchorKey, navigatorAnchor);
 
 let resizeObserver: ResizeObserver | null = null;
 let topOverlayHeight = 0;
@@ -136,6 +146,7 @@ const rootStyle = computed(() => {
       <div ref="legendRightAnchor" data-legend-right-anchor="" style="flex: 0 0 auto" />
     </div>
     <div ref="legendAnchor" data-legend-anchor="" style="flex: 0 0 auto" />
+    <div ref="navigatorAnchor" data-navigator-anchor="" style="flex: 0 0 auto" />
   </div>
 </template>
 

@@ -7,6 +7,7 @@ import {
   Legend,
   type LineData,
   LineSeries,
+  Navigator,
   Title,
   Tooltip,
   type TooltipSort,
@@ -16,7 +17,11 @@ import {
 
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
-import { buildCartesianContainerProps, buildCommonSeriesOptions } from '../components/playground/codeMappings';
+import {
+  buildCartesianContainerProps,
+  buildCommonSeriesOptions,
+  buildNavigatorComponent,
+} from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
@@ -112,6 +117,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Lin
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
+      {props.navigatorVisible && <Navigator data={{ type: 'line', series: data }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
 }
@@ -175,6 +181,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Line
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
+      {props.navigatorVisible && <Navigator data={{ type: 'line', series: display }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
 }
@@ -442,6 +449,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
             ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
+            ...buildNavigatorComponent(s, 'data[0]'),
           ],
         };
       }}

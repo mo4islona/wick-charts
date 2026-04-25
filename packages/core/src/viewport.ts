@@ -94,10 +94,10 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   private padding: ResolvedPadding;
   private reboundMs: number;
   private dataInterval = 60_000;
-  private _dataStart: number | null = null;
-  private _dataEnd: number | null = null;
+  #dataStart: number | null = null;
+  #dataEnd: number | null = null;
   /**
-   * The value of `_dataEnd` *before* the most recent `setDataEnd` call.
+   * The value of `#dataEnd` *before* the most recent `setDataEnd` call.
    * `scrollToEnd` uses this to slide the viewport by the data's advance
    * distance — preserving any pan offset the user established instead of
    * snapping the right edge back to the natural-pin position on every tick.
@@ -165,6 +165,16 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     return this._animating;
   }
 
+  /** First data timestamp registered via {@link setDataStart}, or `null` before any data has arrived. */
+  get dataStart(): number | null {
+    return this.#dataStart;
+  }
+
+  /** Last data timestamp registered via {@link setDataEnd}, or `null` before any data has arrived. */
+  get dataEnd(): number | null {
+    return this.#dataEnd;
+  }
+
   setDataInterval(interval: number): void {
     this.dataInterval = interval;
   }
@@ -186,12 +196,12 @@ export class Viewport extends EventEmitter<ViewportEvents> {
   }
 
   setDataStart(time: number): void {
-    this._dataStart = time;
+    this.#dataStart = time;
   }
 
   setDataEnd(time: number): void {
-    this._prevDataEnd = this._dataEnd;
-    this._dataEnd = time;
+    this._prevDataEnd = this.#dataEnd;
+    this.#dataEnd = time;
   }
 
   private cancelAnimation(): void {
@@ -205,12 +215,12 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     // it as a concrete soft bound flush against the data edge.
     const resolvable = (pad: HorizontalPadding) => typeof pad === 'object' || pad === 0 || chartWidth > 0;
     const left =
-      this._dataStart !== null && resolvable(this.padding.left)
-        ? this._dataStart - this.resolveHPad(this.padding.left, range, chartWidth)
+      this.#dataStart !== null && resolvable(this.padding.left)
+        ? this.#dataStart - this.resolveHPad(this.padding.left, range, chartWidth)
         : null;
     const right =
-      this._dataEnd !== null && resolvable(this.padding.right)
-        ? this._dataEnd + this.resolveHPad(this.padding.right, range, chartWidth)
+      this.#dataEnd !== null && resolvable(this.padding.right)
+        ? this.#dataEnd + this.resolveHPad(this.padding.right, range, chartWidth)
         : null;
     return { left, right };
   }
@@ -226,8 +236,8 @@ export class Viewport extends EventEmitter<ViewportEvents> {
    * when padding is purely pixel-based (where width depends on chartWidth, unavailable
    * here). Returns null when data bounds are unknown — no hard ceiling in that case. */
   private softMaxRange(): number | null {
-    if (this._dataStart === null || this._dataEnd === null) return null;
-    const span = this._dataEnd - this._dataStart;
+    if (this.#dataStart === null || this.#dataEnd === null) return null;
+    const span = this.#dataEnd - this.#dataStart;
     if (span <= 0) return null;
 
     const leftPad = typeof this.padding.left === 'object' ? this.padding.left.intervals * this.dataInterval : null;
@@ -262,7 +272,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     if ((to - from) / this.dataInterval < 2) return;
 
     this.cancelAnimation();
-    const lastVisible = this._dataEnd !== null && this._dataEnd >= from && this._dataEnd <= to;
+    const lastVisible = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
     this._autoScroll = lastVisible;
     this.applyRange(from, to);
   }
@@ -465,7 +475,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     // slide into view. A pan that pushes the last point off-screen is a
     // deliberate history inspection and opts out of tracking until the user
     // fits / scrolls back.
-    const lastVisible = this._dataEnd !== null && this._dataEnd >= newFrom && this._dataEnd <= newTo;
+    const lastVisible = this.#dataEnd !== null && this.#dataEnd >= newFrom && this.#dataEnd <= newTo;
     this._autoScroll = lastVisible;
     this.applyRange(newFrom, newTo);
     this.emit('interact');
@@ -646,14 +656,14 @@ export class Viewport extends EventEmitter<ViewportEvents> {
       if (retargetDelta < threshold) return; // let current animation finish
       this.animFrom = { ...this._visibleRange };
       this.animTo = { from: targetFrom, to: targetTo };
-      this._prevDataEnd = this._dataEnd;
+      this._prevDataEnd = this.#dataEnd;
       // Keep animStartTime + animDuration as-is so the ease-out continues from
       // its current progress rather than snapping to fresh-start.
     } else {
       const pending = Math.abs(targetTo - this._visibleRange.to);
       if (pending < threshold) return; // sub-pixel drift, not worth animating
       this.animateTo(targetFrom, targetTo, 150);
-      this._prevDataEnd = this._dataEnd;
+      this._prevDataEnd = this.#dataEnd;
     }
   }
 

@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { autoGradient } from '../../theme/create';
-import {
-  resolveAxisFontSize,
-  resolveAxisTextColor,
-  resolveCandlestickBodyColor,
-} from '../../theme/resolve';
+import { resolveAxisFontSize, resolveAxisTextColor, resolveCandlestickBodyColor } from '../../theme/resolve';
 import type { ChartTheme } from '../../theme/types';
 
 function stubTheme(partial: Partial<ChartTheme['axis']> = {}): ChartTheme {
@@ -23,8 +19,27 @@ function stubTheme(partial: Partial<ChartTheme['axis']> = {}): ChartTheme {
     bands: { upper: '#00f', lower: '#f00' },
     crosshair: { color: '#333', labelBackground: '#444', labelTextColor: '#fff' },
     axis: { fontSize: 10, textColor: '#888', ...partial },
-    yLabel: { fontSize: 11, upBackground: '#0f0', downBackground: '#f00', neutralBackground: '#444', textColor: '#fff' },
+    yLabel: {
+      fontSize: 11,
+      upBackground: '#0f0',
+      downBackground: '#f00',
+      neutralBackground: '#444',
+      textColor: '#fff',
+    },
     tooltip: { fontSize: 12, background: '#000', textColor: '#fff', borderColor: '#222' },
+    navigator: {
+      height: 60,
+      background: '#000',
+      borderColor: '#222',
+      line: { color: '#00f', width: 1, areaTopColor: '#000', areaBottomColor: '#000' },
+      candlestick: {
+        up: { body: '#0f0', wick: '#0f0' },
+        down: { body: '#f00', wick: '#f00' },
+      },
+      window: { fill: 'rgba(0,0,255,0.16)', border: 'rgba(0,0,255,0.6)', borderWidth: 1 },
+      handle: { color: 'rgba(0,0,255,0.75)', width: 2 },
+      mask: { fill: 'rgba(0,0,0,0.35)' },
+    },
   };
 }
 

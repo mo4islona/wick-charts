@@ -39,6 +39,9 @@ export interface CommonState {
   lineEntryAnimation: LineEntryAnim;
   entryMs: number;
   liveTracking: boolean;
+  // Navigator
+  navigatorVisible: boolean;
+  navigatorHeight: number;
 }
 
 export const COMMON_DEFAULTS: CommonState = {
@@ -59,6 +62,8 @@ export const COMMON_DEFAULTS: CommonState = {
   lineEntryAnimation: 'grow',
   entryMs: 400,
   liveTracking: true,
+  navigatorVisible: false,
+  navigatorHeight: 60,
 };
 
 // ── Row/Section spec types ───────────────────────────────────

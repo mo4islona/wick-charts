@@ -2,6 +2,16 @@
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
 export { ChartInstance } from './chart';
+// Navigator
+export { NavigatorController } from './navigator';
+export type {
+  NavigatorCandlePoint,
+  NavigatorControllerParams,
+  NavigatorData,
+  NavigatorLinePoint,
+  NavigatorOptions,
+  NavigatorSeriesType,
+} from './navigator';
 // Overlay primitives — helpers, types, and positioning used by framework overlays
 export type { LegendItem } from './legend';
 // Performance instrumentation

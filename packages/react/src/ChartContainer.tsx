@@ -19,6 +19,7 @@ import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
 import { InfoBar } from './ui/InfoBar';
 import { Legend, type LegendProps } from './ui/Legend';
+import { Navigator } from './ui/Navigator';
 import { PieLegend, type PieLegendProps } from './ui/PieLegend';
 import { Title } from './ui/Title';
 
@@ -88,12 +89,14 @@ export function siftContainerChildren(children: ReactNode): {
   legendEl: ReactElement<LegendProps> | null;
   pieLegendEl: ReactElement<PieLegendProps> | null;
   tooltipLegendEl: ReactElement | null;
+  navigatorEl: ReactElement | null;
   overlay: ReactNode[];
 } {
   let titleEl: ReactElement | null = null;
   let legendEl: ReactElement<LegendProps> | null = null;
   let pieLegendEl: ReactElement<PieLegendProps> | null = null;
   let tooltipLegendEl: ReactElement | null = null;
+  let navigatorEl: ReactElement | null = null;
   const overlay: ReactNode[] = [];
 
   const visit = (child: ReactNode): void => {
@@ -127,12 +130,16 @@ export function siftContainerChildren(children: ReactNode): {
         tooltipLegendEl = child;
         return;
       }
+      if (child.type === Navigator) {
+        navigatorEl = child;
+        return;
+      }
     }
     overlay.push(child);
   };
 
   Children.forEach(children, visit);
-  return { titleEl, legendEl, pieLegendEl, tooltipLegendEl, overlay };
+  return { titleEl, legendEl, pieLegendEl, tooltipLegendEl, navigatorEl, overlay };
 }
 
 /**
@@ -254,7 +261,7 @@ export function ChartContainer({
 
   const chart = chartRef.current;
 
-  const { titleEl, legendEl, pieLegendEl, tooltipLegendEl, overlay } = siftContainerChildren(children);
+  const { titleEl, legendEl, pieLegendEl, tooltipLegendEl, navigatorEl, overlay } = siftContainerChildren(children);
   const legendPosition = legendEl?.props.position ?? 'bottom';
   const pieLegendPosition = pieLegendEl?.props.position ?? 'bottom';
   // Either legend type can pull the layout into row-mode. `Legend` and
@@ -390,6 +397,12 @@ export function ChartContainer({
     </ChartContext.Provider>
   );
 
+  const hoistedNavigator = chart && navigatorEl && (
+    <ChartContext.Provider value={chart}>
+      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{navigatorEl}</ThemeProvider>
+    </ChartContext.Provider>
+  );
+
   return (
     <div
       className={className}
@@ -422,6 +435,7 @@ export function ChartContainer({
         {hoistedLegend}
         {hoistedPieLegend}
       </div>
+      {hoistedNavigator}
     </div>
   );
 }

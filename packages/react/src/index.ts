@@ -26,6 +26,12 @@ export type {
   /** @deprecated Use {@link TimePoint} instead. */
   LineData,
   LineSeriesOptions,
+  NavigatorCandlePoint,
+  NavigatorControllerParams,
+  NavigatorData,
+  NavigatorLinePoint,
+  NavigatorOptions,
+  NavigatorSeriesType,
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
@@ -53,6 +59,7 @@ export type {
 } from '@wick-charts/core';
 export {
   ChartInstance,
+  NavigatorController,
   andromeda,
   autoGradient,
   ayuMirage,
@@ -115,6 +122,8 @@ export { InfoBar } from './ui/InfoBar';
 export type { LegendItemOverride, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
+export type { NavigatorProps } from './ui/Navigator';
+export { Navigator } from './ui/Navigator';
 export { NumberFlow } from './ui/NumberFlow';
 export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderContext } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
