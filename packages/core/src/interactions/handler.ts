@@ -103,8 +103,6 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       this.pan.handleMouseMove({
         clientX: e.touches[0].clientX,
       } as MouseEvent);
-      const rect = this.canvas.getBoundingClientRect();
-      this.emitCrosshair(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
     } else if (e.touches.length === 2) {
       const dist = Math.abs(e.touches[0].clientX - e.touches[1].clientX);
       const center = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -132,6 +130,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       }
       this.touchCount = 0;
       this.lastTouchDist = 0;
+      this.emit('crosshairMove', null);
     }
   };
 

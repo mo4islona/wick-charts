@@ -64,10 +64,16 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
     return { startTime: now };
   }
 
-  applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
-    this.updateOptions({
-      colors: theme.seriesColors.slice(0, this.stores.length),
-    });
+  applyTheme(theme: ChartTheme, prev: ChartTheme): void {
+    // Only swap colors that still match the previous theme's defaults — that
+    // preserves caller-supplied palettes (e.g. candlestick up/down for a P&L
+    // bar) across theme switches, while still tracking the active theme for
+    // colors the caller didn't override.
+    const prevDefaults = prev.seriesColors;
+    const current = this.options.colors;
+    const next = current.map((c, i) => (c === prevDefaults[i] ? (theme.seriesColors[i] ?? c) : c));
+
+    this.updateOptions({ colors: next });
   }
 
   /**
