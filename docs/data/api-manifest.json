@@ -1,0 +1,1770 @@
+{
+  "components": {
+    "LineSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/LineSeries.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "TimePoint[][]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Array of datasets — one per layer. A single line uses `[data]`.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<LineSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "LineSeriesOptions",
+            "props": [
+              {
+                "name": "label",
+                "type": "string",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Display label shown in the tooltip (e.g. \"BTC\", \"Revenue\").",
+                "see": []
+              },
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "One color per layer.",
+                "see": []
+              },
+              {
+                "name": "strokeWidth",
+                "type": "number",
+                "optional": false,
+                "defaultValue": "1",
+                "deprecated": null,
+                "description": "Stroke width in CSS pixels. Default: 1. `0` hides the line stroke.",
+                "see": []
+              },
+              {
+                "name": "area",
+                "type": "{ visible: boolean }",
+                "optional": false,
+                "defaultValue": "{ visible: true }",
+                "deprecated": null,
+                "description": "Area-fill configuration. Default: `{ visible: true }`.",
+                "see": []
+              },
+              {
+                "name": "pulse",
+                "type": "boolean",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Whether to show an animated pulsing dot at the last data point.",
+                "see": []
+              },
+              {
+                "name": "pulseMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Pulse cycle period in milliseconds. `false`/`0` disables the halo (both\nthe drawing and the associated animation loop). Omit to inherit from\n{@link AnimationsConfig.points }.`pulseMs` (default 600 ms). When\n`animations.points.pulseMs` is `false` at the chart level the pulse is\nforced off regardless of this field.",
+                "see": []
+              },
+              {
+                "name": "stacking",
+                "type": "StackingMode",
+                "optional": false,
+                "defaultValue": "'off'",
+                "deprecated": null,
+                "description": "Stacking mode. Default: 'off'.",
+                "see": []
+              },
+              {
+                "name": "entryAnimation",
+                "type": "LineEntryAnimation",
+                "optional": true,
+                "defaultValue": "'grow'",
+                "deprecated": null,
+                "description": "Entrance animation style for new points. Style is specific to the line\nseries; there is no chart-level override for style — only for duration.\nDefault: `'grow'`.",
+                "see": [
+                  "entryMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "enterAnimation",
+                "type": "LineEntryAnimation",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryAnimation} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Entrance animation duration in milliseconds. `false` or `0` disables the\nper-point entrance (equivalent to `entryAnimation: 'none'`). Omit to\ninherit from {@link AnimationsConfig.points }.`entryMs` (default 400).\n\nWhen `animations.points.entryMs` is `false` at the chart level, the\nentrance is forced off regardless of this field.",
+                "see": [
+                  "LineSeriesOptions.entryAnimation"
+                ]
+              },
+              {
+                "name": "enterMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryMs} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "smoothMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Exponential-smoothing time constant (ms) for live-tracking the last\npoint's value under `updateLastPoint`. `0` or `false` snaps directly to\nthe target (no smoothing). Omit to inherit from\n{@link AnimationsConfig.points }.`smoothMs` (default 70 ms).\n\nWhen `animations.points.smoothMs` is `false` at the chart level, smoothing\nis forced off regardless of this field.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        }
+      ]
+    },
+    "BarSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/BarSeries.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "TimePoint[][]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Array of datasets — one per layer. A single-layer bar chart uses `[data]`.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<BarSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "BarSeriesOptions",
+            "props": [
+              {
+                "name": "label",
+                "type": "string",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Display label shown in the tooltip (e.g. \"Volume\").",
+                "see": []
+              },
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "One color per layer.",
+                "see": []
+              },
+              {
+                "name": "barWidthRatio",
+                "type": "number",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "stacking",
+                "type": "StackingMode",
+                "optional": false,
+                "defaultValue": "'off'",
+                "deprecated": null,
+                "description": "Stacking mode. Default: 'off'.",
+                "see": []
+              },
+              {
+                "name": "entryAnimation",
+                "type": "BarEntryAnimation",
+                "optional": true,
+                "defaultValue": "'fade-grow'",
+                "deprecated": null,
+                "description": "Entrance animation style for newly appended bars. Style is specific to\nthe bar series; there is no chart-level override for style — only for\nduration. Default: `'fade-grow'`.",
+                "see": [
+                  "entryMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "enterAnimation",
+                "type": "BarEntryAnimation",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryAnimation} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Entrance animation duration in milliseconds. `false` or `0` disables the\nper-bar entrance (equivalent to `entryAnimation: 'none'`). Omit to inherit\nfrom {@link AnimationsConfig.points }.`entryMs` (default 400).\n\nWhen `animations.points.entryMs` is `false` at the chart level, the\nentrance is forced off regardless of this field.",
+                "see": [
+                  "BarSeriesOptions.entryAnimation"
+                ]
+              },
+              {
+                "name": "enterMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryMs} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "smoothMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Exponential-smoothing time constant (ms) for live-tracking the last\nbar's value under `updateLastPoint`. `0` or `false` snaps directly to the\ntarget (no smoothing). Omit to inherit from\n{@link AnimationsConfig.points }.`smoothMs` (default 70 ms).\n\nWhen `animations.points.smoothMs` is `false` at the chart level, smoothing\nis forced off regardless of this field.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        }
+      ]
+    },
+    "CandlestickSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/CandlestickSeries.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "OHLCInput[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<CandlestickSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "CandlestickSeriesOptions",
+            "props": [
+              {
+                "name": "label",
+                "type": "string",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Display label shown in the tooltip.",
+                "see": []
+              },
+              {
+                "name": "up",
+                "type": "CandlestickDirectionColors",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "CandlestickDirectionColors",
+                  "props": [
+                    {
+                      "name": "body",
+                      "type": "string | [string, string]",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    },
+                    {
+                      "name": "wick",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "down",
+                "type": "CandlestickDirectionColors",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "CandlestickDirectionColors",
+                  "props": [
+                    {
+                      "name": "body",
+                      "type": "string | [string, string]",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    },
+                    {
+                      "name": "wick",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "bodyWidthRatio",
+                "type": "number",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Width of candle body as a fraction of the available bar slot (0-1).",
+                "see": []
+              },
+              {
+                "name": "entryAnimation",
+                "type": "CandlestickEntryAnimation",
+                "optional": true,
+                "defaultValue": "'unfold'",
+                "deprecated": null,
+                "description": "Entrance animation style for newly appended candles. Style is specific to\nthe candlestick; there is no chart-level override for style — only for\nduration. Default: `'unfold'`.",
+                "see": [
+                  "entryMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "enterAnimation",
+                "type": "CandlestickEntryAnimation",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryAnimation} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Entrance animation duration in milliseconds. `false` or `0` disables the\nper-candle entrance (equivalent to `entryAnimation: 'none'`). Omit to\ninherit from {@link AnimationsConfig.points }.`entryMs` (default 400).\n\nWhen `animations.points.entryMs` is `false` at the chart level, the\nentrance is forced off regardless of this field.",
+                "see": [
+                  "CandlestickSeriesOptions.entryAnimation"
+                ]
+              },
+              {
+                "name": "enterMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": "Use {@link entryMs} instead.",
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "smoothMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Exponential-smoothing time constant (ms) for live-tracking the last\ncandle's O/H/L/C under `updateLastPoint`. `0` or `false` snaps directly\nto the target (no smoothing). Omit to inherit from\n{@link AnimationsConfig.points }.`smoothMs` (default 70 ms).\n\nWhen `animations.points.smoothMs` is `false` at the chart level, smoothing\nis forced off regardless of this field.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        }
+      ]
+    },
+    "PieSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/PieSeries.tsx",
+      "alias": null,
+      "description": "Pie chart series. Set `options.innerRadiusRatio` > 0 for donut.",
+      "props": [
+        {
+          "name": "data",
+          "type": "PieSliceData[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<PieSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "PieSeriesOptions",
+            "props": [
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Palette fallback (defaults to theme.seriesColors).",
+                "see": []
+              },
+              {
+                "name": "innerRadiusRatio",
+                "type": "number",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "0 = pie, 0.6 = donut. Fraction of the outer radius used as an inner hole.",
+                "see": []
+              },
+              {
+                "name": "padAngle",
+                "type": "number",
+                "optional": false,
+                "defaultValue": "1.15°",
+                "deprecated": null,
+                "description": "Gap between slices in degrees. Default: 1.15° (≈ 0.02 rad).",
+                "see": []
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Display the label shown in the tooltip.",
+                "see": []
+              },
+              {
+                "name": "sliceLabels",
+                "type": "PieLabelsOptions",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}.",
+                "see": [],
+                "nested": {
+                  "name": "PieLabelsOptions",
+                  "props": [
+                    {
+                      "name": "mode",
+                      "type": "'inside' | 'outside' | 'none'",
+                      "optional": true,
+                      "defaultValue": "'outside'",
+                      "deprecated": null,
+                      "description": "Default: `'outside'`.",
+                      "see": []
+                    },
+                    {
+                      "name": "content",
+                      "type": "'percent' | 'label' | 'both'",
+                      "optional": true,
+                      "defaultValue": "'both'",
+                      "deprecated": null,
+                      "description": "What to display per label. Default: `'both'` (e.g. `\"BTC  42%\"`).",
+                      "see": []
+                    },
+                    {
+                      "name": "fontSize",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "11",
+                      "deprecated": null,
+                      "description": "Font size in CSS pixels. Default: 11.",
+                      "see": []
+                    },
+                    {
+                      "name": "minSliceAngle",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "2.5°",
+                      "deprecated": null,
+                      "description": "Slices narrower than this (in degrees) get no on-pie label. Default: 2.5°\n(≈ 0.7% of the pie). Raise when many tiny slices would crowd the\nde-cluster pass into unreadable overlaps.",
+                      "see": []
+                    },
+                    {
+                      "name": "elbowLen",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "12",
+                      "deprecated": null,
+                      "description": "Leader-line radial segment length in CSS pixels. Default: 12.",
+                      "see": []
+                    },
+                    {
+                      "name": "legPad",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "6",
+                      "deprecated": null,
+                      "description": "Gap between leader line and text in CSS pixels. Default: 6.",
+                      "see": []
+                    },
+                    {
+                      "name": "distance",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "14",
+                      "deprecated": null,
+                      "description": "Radial distance in CSS pixels from the pie's outer edge to the natural\nlabel anchor point. The label then extends horizontally outward by\n{@link railWidth} before the text starts. Clamped internally against\n{@link elbowLen}. Default: 14.",
+                      "see": []
+                    },
+                    {
+                      "name": "railWidth",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "16",
+                      "deprecated": null,
+                      "description": "Horizontal length of the final leader-line segment in CSS pixels — the\nstraight tail that runs from the radial elbow out to the text anchor.\nHigher values give a longer visible \"rail\" before the label. Default: 16.",
+                      "see": []
+                    },
+                    {
+                      "name": "labelGap",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "1.8",
+                      "deprecated": null,
+                      "description": "Minimum vertical gap between adjacent outside labels on the same side,\nexpressed as a multiplier of {@link fontSize}. Default: 1.8.",
+                      "see": []
+                    },
+                    {
+                      "name": "balanceSides",
+                      "type": "boolean",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": "No effect in the radial per-slice layout. A label's X is\npinned to its slice midangle, so forcing the \"other\" side would flip\ntext direction without moving the label and push text across the pie.\nKept in the option surface for backwards compatibility.",
+                      "description": "",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "animate",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "false",
+                "deprecated": null,
+                "description": "When `true`, enables pie motion effects: the outside-label entrance\ndraw-in on mount / data swap, and the hover-explode slice offset.\nDefault: `false` — labels paint fully on the first frame and hovered\nslices stay in place (hover feedback is left to the tooltip / legend /\ncursor). Enable for presentations where the motion adds narrative\nvalue.",
+                "see": []
+              },
+              {
+                "name": "shadow",
+                "type": "boolean | { /** Shadow color. Default: `rgba(0, 0, 0, 0.22)`. */ color?: string; /** Blur radius in CSS pixels. Default: 24. */ blur?: number; /** Horizontal offset in CSS pixels. Default: 0. */ offsetX?: number; /** Vertical offset in CSS pixels. Default: 10. */ offsetY?: number; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Ambient *outer* drop-shadow behind each slice. Adds lift for flat\ndashboards. Omit / `false` to disable (default). `true` uses soft\ndefaults; pass an object to tune individually.",
+                "see": []
+              },
+              {
+                "name": "innerShadow",
+                "type": "boolean | { /** * Rim color. Default: `rgba(0, 0, 0, 0.1)` (blended over the slice * color). Accepts any CSS color. */ color?: string; /** * Fraction of the slice's radial span covered by the darkened band * (0..1). Default: 0.3 — darkening starts at 70% of the radius. */ depth?: number; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Inner rim darkening — a dark band near each slice's outer edge that\ngives the pie an \"inset\" / pressed look. Implemented by extending the\nper-slice radial gradient with a dark edge stop, so it pairs naturally\nwith the existing depth gradient. Omit / `false` to disable (default).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        }
+      ]
+    },
+    "Sparkline": {
+      "kind": "chart",
+      "file": "packages/react/src/ui/Sparkline.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "TimePoint[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "theme",
+          "type": "ChartTheme",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "ChartTheme",
+            "props": [
+              {
+                "name": "background",
+                "type": "string",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Page/container background",
+                "see": []
+              },
+              {
+                "name": "chartGradient",
+                "type": "[string, string]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Chart area gradient [top, bottom] — subtle vignette for depth",
+                "see": []
+              },
+              {
+                "name": "typography",
+                "type": "Typography",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "Typography",
+                  "props": [
+                    {
+                      "name": "fontFamily",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    },
+                    {
+                      "name": "fontSize",
+                      "type": "number",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Base body font size — titles, infobar, pie tooltip/legend default to this.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "grid",
+                "type": "{ color: string; style: 'solid' | 'dashed' | 'dotted'; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Grid line appearance in the chart area.",
+                "see": []
+              },
+              {
+                "name": "candlestick",
+                "type": "{ up: { body: string | [string, string]; wick: string }; down: { body: string | [string, string]; wick: string }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "OHLC candlestick colors. `wick` defaults to `body` in {@link createTheme }\nwhen omitted, so most presets only need to set the body colors.\n\n`body` shape encodes the fill: a single color renders flat; a\n`[top, bottom]` tuple renders a 2-stop vertical gradient. Presets that\nwant the subtle lightened/darkened look pass `autoGradient(color)`.",
+                "see": []
+              },
+              {
+                "name": "line",
+                "type": "{ color: string; width: number; areaTopColor: string; areaBottomColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Default line series appearance including area gradient fill.",
+                "see": []
+              },
+              {
+                "name": "seriesColors",
+                "type": "string[]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Color palette for multi-series charts (stacked bars, overlays).",
+                "see": []
+              },
+              {
+                "name": "bands",
+                "type": "{ upper: string; lower: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Bollinger band / envelope fill colors.",
+                "see": []
+              },
+              {
+                "name": "crosshair",
+                "type": "{ color: string; labelBackground: string; labelTextColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Crosshair line and axis label styling.",
+                "see": []
+              },
+              {
+                "name": "axis",
+                "type": "{ fontSize: number; textColor: string; x?: { fontSize?: number; textColor?: string }; y?: { fontSize?: number; textColor?: string }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Axis tick styling. `fontSize` and `textColor` are the shared defaults used\nfor both X and Y, as well as non-axis label surfaces (legend, crosshair\nlabels, sparkline ticks). Set `x` / `y` only when a specific axis needs to\ndiverge.",
+                "see": []
+              },
+              {
+                "name": "yLabel",
+                "type": "{ fontSize: number; upBackground: string; downBackground: string; neutralBackground: string; textColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Floating label shown at the current value level on the Y axis.",
+                "see": []
+              },
+              {
+                "name": "tooltip",
+                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Hover tooltip styling.",
+                "see": []
+              },
+              {
+                "name": "navigator",
+                "type": "{ /** Default height of the navigator strip in CSS pixels. */ height: number; /** Strip background (behind the miniature series). */ background: string; /** Color used for the strip's top + bottom inner-shadow separators. */ borderColor: string; /** Line / close-price miniature color and geometry. */ line: { color: string; width: number; areaTopColor: string; areaBottomColor: string; }; /** Colors for candlestick-type miniature rendering. */ candlestick: { up: { body: string | [string, string]; wick: string }; down: { body: string | [string, string]; wick: string }; }; /** The draggable visible-range window indicator. */ window: { fill: string; border: string; borderWidth: number; }; /** Left/right resize handles on the window edges. */ handle: { color: string; width: number; }; /** Dim overlay covering the regions outside the window. */ mask: { fill: string; }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Navigator strip shown below the main chart — a miniature overview with a\ndraggable window indicating the visible range.\n\nThe `candlestick` shape mirrors the root {@link ChartTheme.candlestick}\n(including `[top, bottom]` gradient tuples) so candle-type mini views can\nshare colors with the main plot.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "variant",
+          "type": "SparklineVariant",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "'line' (default) or 'bar'",
+          "see": []
+        },
+        {
+          "name": "valuePosition",
+          "type": "SparklineValuePosition",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Where to show the value label",
+          "see": []
+        },
+        {
+          "name": "formatValue",
+          "type": "(value: number) => string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Custom format for the value",
+          "see": []
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Label text above the value",
+          "see": []
+        },
+        {
+          "name": "sublabel",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Sublabel text below the value (defaults to the change %)",
+          "see": []
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Line/bar color override (defaults to theme)",
+          "see": []
+        },
+        {
+          "name": "negativeColor",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Secondary color for negative bars",
+          "see": []
+        },
+        {
+          "name": "area",
+          "type": "{ visible: boolean }",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Show area fill under line",
+          "see": []
+        },
+        {
+          "name": "areaFill",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": "Use {@link area} instead.",
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Chart width (default: 140)",
+          "see": []
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Overall height (default: 48)",
+          "see": []
+        },
+        {
+          "name": "strokeWidth",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stroke width in CSS pixels (default: 1.5)",
+          "see": []
+        },
+        {
+          "name": "gradient",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Show chart background gradient (default: true)",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "CSSProperties",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Container style override",
+          "see": [],
+          "nested": {
+            "name": "CSSProperties",
+            "props": []
+          }
+        }
+      ]
+    },
+    "ChartContainer": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ChartContainer.tsx",
+      "alias": null,
+      "description": "Top-level React wrapper that creates a {@link ChartInstance} and provides it to children via context.\nOwns the DOM container and canvas lifecycle; renders children as an overlay layer.\n\nDetects `<Title>`, `<InfoBar>`, and `<Legend>` children and positions them as:\n  - Title + InfoBar — absolutely-positioned *overlays* stacked at the top of the canvas\n    block, so the canvas (and therefore the grid) fills the full container height. The stacked\n    height is measured and fed back into `chart.setPadding({ top })` so series data stays below\n    them.\n  - Legend — flex sibling at the bottom (or right, when `position=\"right\"`), so its height is\n    reserved by browser layout.",
+      "props": [
+        {
+          "name": "children",
+          "type": "ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Series components and UI overlays (Tooltip, TimeAxis, etc.) rendered inside the chart.",
+          "see": []
+        },
+        {
+          "name": "theme",
+          "type": "ChartTheme",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual theme. Changing this at runtime will update all themed elements.",
+          "see": [],
+          "nested": {
+            "name": "ChartTheme",
+            "props": [
+              {
+                "name": "background",
+                "type": "string",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Page/container background",
+                "see": []
+              },
+              {
+                "name": "chartGradient",
+                "type": "[string, string]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Chart area gradient [top, bottom] — subtle vignette for depth",
+                "see": []
+              },
+              {
+                "name": "typography",
+                "type": "Typography",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "Typography",
+                  "props": [
+                    {
+                      "name": "fontFamily",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "",
+                      "see": []
+                    },
+                    {
+                      "name": "fontSize",
+                      "type": "number",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Base body font size — titles, infobar, pie tooltip/legend default to this.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "grid",
+                "type": "{ color: string; style: 'solid' | 'dashed' | 'dotted'; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Grid line appearance in the chart area.",
+                "see": []
+              },
+              {
+                "name": "candlestick",
+                "type": "{ up: { body: string | [string, string]; wick: string }; down: { body: string | [string, string]; wick: string }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "OHLC candlestick colors. `wick` defaults to `body` in {@link createTheme }\nwhen omitted, so most presets only need to set the body colors.\n\n`body` shape encodes the fill: a single color renders flat; a\n`[top, bottom]` tuple renders a 2-stop vertical gradient. Presets that\nwant the subtle lightened/darkened look pass `autoGradient(color)`.",
+                "see": []
+              },
+              {
+                "name": "line",
+                "type": "{ color: string; width: number; areaTopColor: string; areaBottomColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Default line series appearance including area gradient fill.",
+                "see": []
+              },
+              {
+                "name": "seriesColors",
+                "type": "string[]",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Color palette for multi-series charts (stacked bars, overlays).",
+                "see": []
+              },
+              {
+                "name": "bands",
+                "type": "{ upper: string; lower: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Bollinger band / envelope fill colors.",
+                "see": []
+              },
+              {
+                "name": "crosshair",
+                "type": "{ color: string; labelBackground: string; labelTextColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Crosshair line and axis label styling.",
+                "see": []
+              },
+              {
+                "name": "axis",
+                "type": "{ fontSize: number; textColor: string; x?: { fontSize?: number; textColor?: string }; y?: { fontSize?: number; textColor?: string }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Axis tick styling. `fontSize` and `textColor` are the shared defaults used\nfor both X and Y, as well as non-axis label surfaces (legend, crosshair\nlabels, sparkline ticks). Set `x` / `y` only when a specific axis needs to\ndiverge.",
+                "see": []
+              },
+              {
+                "name": "yLabel",
+                "type": "{ fontSize: number; upBackground: string; downBackground: string; neutralBackground: string; textColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Floating label shown at the current value level on the Y axis.",
+                "see": []
+              },
+              {
+                "name": "tooltip",
+                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Hover tooltip styling.",
+                "see": []
+              },
+              {
+                "name": "navigator",
+                "type": "{ /** Default height of the navigator strip in CSS pixels. */ height: number; /** Strip background (behind the miniature series). */ background: string; /** Color used for the strip's top + bottom inner-shadow separators. */ borderColor: string; /** Line / close-price miniature color and geometry. */ line: { color: string; width: number; areaTopColor: string; areaBottomColor: string; }; /** Colors for candlestick-type miniature rendering. */ candlestick: { up: { body: string | [string, string]; wick: string }; down: { body: string | [string, string]; wick: string }; }; /** The draggable visible-range window indicator. */ window: { fill: string; border: string; borderWidth: number; }; /** Left/right resize handles on the window edges. */ handle: { color: string; width: number; }; /** Dim overlay covering the regions outside the window. */ mask: { fill: string; }; }",
+                "optional": false,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Navigator strip shown below the main chart — a miniature overview with a\ndraggable window indicating the visible range.\n\nThe `candlestick` shape mirrors the root {@link ChartTheme.candlestick}\n(including `[top, bottom]` gradient tuples) so candle-type mini views can\nshare colors with the main plot.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "axis",
+          "type": "AxisConfig",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Grouped axis configuration (Y/X visibility, bounds, sizing).",
+          "see": [],
+          "nested": {
+            "name": "AxisConfig",
+            "props": [
+              {
+                "name": "y",
+                "type": "YAxisConfig",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "YAxisConfig",
+                  "props": [
+                    {
+                      "name": "width",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "55",
+                      "deprecated": null,
+                      "description": "Width in CSS pixels. Default: 55.",
+                      "see": []
+                    },
+                    {
+                      "name": "min",
+                      "type": "AxisBound",
+                      "optional": true,
+                      "defaultValue": "'auto'",
+                      "deprecated": null,
+                      "description": "Minimum bound. Default: 'auto'.",
+                      "see": []
+                    },
+                    {
+                      "name": "max",
+                      "type": "AxisBound",
+                      "optional": true,
+                      "defaultValue": "'auto'",
+                      "deprecated": null,
+                      "description": "Maximum bound. Default: 'auto'.",
+                      "see": []
+                    },
+                    {
+                      "name": "visible",
+                      "type": "boolean",
+                      "optional": true,
+                      "defaultValue": "true",
+                      "deprecated": null,
+                      "description": "Whether the axis is visible. Default: true. When false, width is treated as 0.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "x",
+                "type": "XAxisConfig",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": [],
+                "nested": {
+                  "name": "XAxisConfig",
+                  "props": [
+                    {
+                      "name": "height",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "30",
+                      "deprecated": null,
+                      "description": "Height in CSS pixels. Default: 30.",
+                      "see": []
+                    },
+                    {
+                      "name": "visible",
+                      "type": "boolean",
+                      "optional": true,
+                      "defaultValue": "true",
+                      "deprecated": null,
+                      "description": "Whether the axis is visible. Default: true. When false, height is treated as 0.",
+                      "see": []
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "padding",
+          "type": "{ top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number }; }",
+          "optional": true,
+          "defaultValue": "{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }",
+          "deprecated": null,
+          "description": "Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)\nor data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Applied on mount only.\nDefaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.",
+          "see": []
+        },
+        {
+          "name": "gradient",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Show the chart background gradient. Defaults to true.",
+          "see": []
+        },
+        {
+          "name": "interactive",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Enable zoom, pan, and crosshair interactions. Defaults to true.",
+          "see": []
+        },
+        {
+          "name": "grid",
+          "type": "{ visible: boolean }",
+          "optional": true,
+          "defaultValue": "{ visible: true }",
+          "deprecated": null,
+          "description": "Background grid configuration. Default: `{ visible: true }`.",
+          "see": []
+        },
+        {
+          "name": "headerLayout",
+          "type": "'overlay' | 'inline'",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "How `<Title>` and `<InfoBar>` are positioned relative to the canvas.\n- `'overlay'` (default): absolute overlays on top of the canvas — the grid\n  and Y-axis labels render full-height behind the header strip.\n- `'inline'`: flex siblings above the canvas — the canvas (and grid) are\n  shifted down by the measured header height, so nothing renders behind\n  the title. The chart background still spans the full container.",
+          "see": []
+        },
+        {
+          "name": "perf",
+          "type": "PerfOption",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Enable runtime performance instrumentation. Off by default.\n\n- `true` — attach a {@link PerfMonitor } and render a visible HUD overlay on this chart.\n- `{ hud: true, windowMs, maxSamples, ... }` — same, with monitor options.\n- `{ hud: false, monitor }` — attach to an existing monitor without rendering the HUD.\n\nOnly read at mount; changing this prop after the chart is created is ignored.",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "CSSProperties",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "CSSProperties",
+            "props": []
+          }
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        }
+      ]
+    },
+    "TimeAxis": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/TimeAxis.tsx",
+      "alias": "XAxis",
+      "description": "",
+      "props": [
+        {
+          "name": "labelCount",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`.",
+          "see": []
+        },
+        {
+          "name": "minLabelSpacing",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level.",
+          "see": []
+        }
+      ]
+    },
+    "YAxis": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/YAxis.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Custom tick-label formatter. When supplied, overrides the built-in\nrange-adaptive formatter for this axis.",
+          "see": []
+        },
+        {
+          "name": "labelCount",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Desired number of labels (≥ 2). Overrides any chart-level `axis.y.labelCount`.\nRealized count may differ ±1 after the 1-2-5 snap.",
+          "see": []
+        },
+        {
+          "name": "minLabelSpacing",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level.",
+          "see": []
+        }
+      ]
+    },
+    "Tooltip": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Tooltip.tsx",
+      "alias": null,
+      "description": "Floating near-cursor glass tooltip that appears while hovering the chart.\n\nHover-only: without a crosshair position, the component renders `null`.\nThe companion {@link InfoBar } shows last-known values when no hover is active.",
+      "props": [
+        {
+          "name": "sort",
+          "type": "TooltipSort",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Sort order for line values (default: 'none').",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "TooltipFormatter",
+          "optional": true,
+          "defaultValue": "adaptive precision for ohlc/value",
+          "deprecated": null,
+          "description": "Custom formatter for every displayed number in the default UI. Called per\nrow with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.\nIgnored when {@link children} is a render-prop.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: TooltipRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch. Receives the hover snapshots and replaces the\nbuilt-in panel contents. The floating container (positioning, blur glass,\nclamping) is preserved — use\n[`computeTooltipPosition`](../../core/src/tooltip-position.ts) directly if\nyou need your own container.",
+          "see": []
+        }
+      ]
+    },
+    "Crosshair": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Crosshair.tsx",
+      "alias": null,
+      "description": "",
+      "props": []
+    },
+    "Legend": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Legend.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "items",
+          "type": "LegendItemOverride[]",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Static override for auto-detected items. Renders a non-interactive legend\nwith just swatch + label. Ignored when {@link children} is a render-prop.",
+          "see": []
+        },
+        {
+          "name": "position",
+          "type": "'bottom' | 'right'",
+          "optional": true,
+          "defaultValue": "'bottom'",
+          "deprecated": null,
+          "description": "Layout position. Default: 'bottom'.",
+          "see": []
+        },
+        {
+          "name": "mode",
+          "type": "LegendMode",
+          "optional": true,
+          "defaultValue": "'toggle'",
+          "deprecated": null,
+          "description": "Click behavior for the built-in UI. Default: `'toggle'`. Ignored when {@link children} is provided.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: LegendRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch. Receives the computed `items` (each carrying\nits own `toggle()` / `isolate()` closures) and fully replaces the\nbuilt-in flex row / column. Callers can filter, reorder, and re-style\nwithout reimplementing visibility wiring.",
+          "see": []
+        }
+      ]
+    },
+    "Navigator": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Navigator.tsx",
+      "alias": null,
+      "description": "Miniature navigator strip with a draggable window indicator for the main\nchart's visible range. Must be rendered as a child of `<ChartContainer>`\nso the chart instance is available via context.\n\n`ChartContainer` sifts this element out of its children and places it as a\nflex sibling below the canvas area — it does not render inline.",
+      "props": [
+        {
+          "name": "data",
+          "type": "NavigatorData",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Data to render in the miniature view. Shape:\n  { type: 'line' | 'bar',     points: { time, value }[] }\n  { type: 'candlestick',      points: { time, open, high, low, close }[] }\n\nUsually the same series you feed into the main chart.",
+          "see": []
+        },
+        {
+          "name": "height",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Strip height in CSS pixels. Defaults to `theme.navigator.height` (60).",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "CSSProperties",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Style override for the outer wrapper div.",
+          "see": [],
+          "nested": {
+            "name": "CSSProperties",
+            "props": []
+          }
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        }
+      ]
+    },
+    "Title": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Title.tsx",
+      "alias": null,
+      "description": "Chart title / subtitle bar rendered as a flex row above the chart canvas\n(above {@link InfoBar } when both are present). Hoisted out of the\noverlay layer by {@link ChartContainer }, so browser flex layout reserves\nits height and ResizeObserver drives a Y-range recompute.\n\nPlace it at the top of a chart's children — its slot in the DOM is\ndetermined by `ChartContainer`, not by source order:\n```tsx\n<ChartContainer>\n  <Title sub=\"Live Candlestick\">BTC/USD</Title>\n  <InfoBar />\n  <CandlestickSeries data={data} />\n  ...\n</ChartContainer>\n```",
+      "props": [
+        {
+          "name": "children",
+          "type": "ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Primary label (e.g. \"BTC/USD\").",
+          "see": []
+        },
+        {
+          "name": "sub",
+          "type": "ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Secondary label rendered in a muted colour next to the primary one (e.g.\n\"Live Candlestick\", \"1m\", series count).",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "CSSProperties",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Extra styles merged onto the flex row.",
+          "see": [],
+          "nested": {
+            "name": "CSSProperties",
+            "props": []
+          }
+        }
+      ]
+    },
+    "InfoBar": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/InfoBar.tsx",
+      "alias": null,
+      "description": "Compact OHLC/series info bar rendered as a flex row above the chart canvas.\nPairs with {@link Tooltip } (which then only renders its floating near-cursor part).\n\nPass a render-prop child for a custom layout — the built-in UI is used when\n{@link children} is omitted.",
+      "props": [
+        {
+          "name": "sort",
+          "type": "TooltipSort",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Sort order for line values (default: 'none').",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "TooltipFormatter",
+          "optional": true,
+          "defaultValue": "adaptive precision for ohlc/value",
+          "deprecated": null,
+          "description": "Custom formatter for every displayed number in the default UI. Called per\ncell with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.\nIgnored when {@link children} is a render-prop.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: InfoBarRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch. Receives the computed snapshots and replaces the\nentire built-in layout. Filter, reorder, or re-style rows here without\nre-implementing any data wiring.",
+          "see": []
+        }
+      ]
+    },
+    "PieLegend": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/PieLegend.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible pie\nseries is picked.",
+          "see": []
+        },
+        {
+          "name": "mode",
+          "type": "PieLegendMode",
+          "optional": true,
+          "defaultValue": "'both'",
+          "deprecated": null,
+          "description": "Default: `'both'`. See {@link PieLegendMode}.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "shared `formatCompact`",
+          "deprecated": null,
+          "description": "Custom formatter for the absolute slice value. Default: shared `formatCompact`.",
+          "see": []
+        },
+        {
+          "name": "position",
+          "type": "PieLegendPosition",
+          "optional": true,
+          "defaultValue": "'bottom'",
+          "deprecated": null,
+          "description": "Layout placement. Default: `'bottom'`. See {@link PieLegendPosition}.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: PieLegendRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch. Receives slices + mode + format, replaces default UI.",
+          "see": []
+        }
+      ]
+    },
+    "PieTooltip": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/PieTooltip.tsx",
+      "alias": null,
+      "description": "Tooltip for pie/donut charts. Shows hovered slice label, value, and percentage.",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible pie\nseries is picked.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "shared `formatCompact`",
+          "deprecated": null,
+          "description": "Custom formatter for the slice value. Default: shared `formatCompact`.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: PieTooltipRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch — receives hover info + format, replaces default UI.",
+          "see": []
+        }
+      ]
+    },
+    "NumberFlow": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/NumberFlow.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "((value: number) => string) | Intl.NumberFormatOptions",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Value-to-string formatter. Defaults to the current locale's\n`Intl.NumberFormat` when omitted. Pass the shared `formatCompact` /\n`formatPriceAdaptive` helpers or your own function to customize.\n\n`Intl.NumberFormatOptions` is also accepted (legacy) — it's routed\nthrough the built-in `Intl.NumberFormat` for back-compat with callers\nfrom before this prop was a function.",
+          "see": []
+        },
+        {
+          "name": "locale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "spinDuration",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "CSSProperties",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "",
+          "see": [],
+          "nested": {
+            "name": "CSSProperties",
+            "props": []
+          }
+        }
+      ]
+    },
+    "YLabel": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/YLabel.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible\nsingle-layer time series is picked, falling back to the first visible\nmulti-layer time series. `null` (no compatible series) renders nothing.",
+          "see": []
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Override badge color (e.g. line color). If not set, uses up/down/neutral from theme.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Custom formatter. Routed through NumberFlow as its `format` prop so the\ndigit-by-digit animation still plays on the output string — NumberFlow\nanimates whichever characters the formatter returns.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: YLabelRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch. Receives the resolved value, pixel position, and\ndirection metadata. Replaces the built-in badge + dashed line entirely.",
+          "see": []
+        }
+      ]
+    }
+  }
+}

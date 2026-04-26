@@ -21,6 +21,8 @@
     "bench": "vitest bench --run",
     "size": "node scripts/bundle-size.mjs",
     "readme": "node scripts/generate-readmes.mjs",
+    "api:extract": "node scripts/extract-api.mjs",
+    "api:check": "node scripts/check-api-parity.mjs",
     "publish:all": "pnpm -r build && pnpm -r --filter './packages/*' publish --access public"
   },
   "devDependencies": {

@@ -1,6 +1,14 @@
 {
   "files": {
-    "includes": ["**", "!.claude/worktrees/**", "!test/**", "!node_modules/**", "!**/dist/**", "!coverage/**"]
+    "includes": [
+      "**",
+      "!.claude/worktrees/**",
+      "!test/**",
+      "!node_modules/**",
+      "!**/dist/**",
+      "!coverage/**",
+      "!docs/data/api-manifest.json"
+    ]
   },
   "linter": {
     "enabled": true,
