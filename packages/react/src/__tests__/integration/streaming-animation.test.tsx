@@ -132,13 +132,10 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(
-      <CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />,
-      {
-        width: 800,
-        height: 400,
-      },
-    );
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -146,9 +143,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       ...initial,
       { time: 1_000_000 + 10 * 60_000, open: 101, high: 106, low: 100, close: 105 },
     ];
-    mounted.rerender(
-      <CandlestickSeries id={sid} data={next} options={{ entryAnimation: 'fade-unfold' }} />,
-    );
+    mounted.rerender(<CandlestickSeries id={sid} data={next} options={{ entryAnimation: 'fade-unfold' }} />);
     // rerender + useLayoutEffect schedule RAF work; flushScheduler then drains
     // every queued animation frame to completion. Assert against the full
     // history — if ANY frame during the entrance window recorded a sub-1
@@ -173,13 +168,10 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(
-      <CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />,
-      {
-        width: 800,
-        height: 400,
-      },
-    );
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -189,9 +181,7 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 50; i < 58; i++) {
       burst.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(
-      <CandlestickSeries id={sid} data={burst} options={{ entryAnimation: 'fade-unfold' }} />,
-    );
+    mounted.rerender(<CandlestickSeries id={sid} data={burst} options={{ entryAnimation: 'fade-unfold' }} />);
 
     // Before any RAF drains: entries must be populated for all 8 new candles.
     const series = (

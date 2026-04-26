@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { resolveAxisFontSize, resolveAxisTextColor, type ValueFormatter } from '@wick-charts/core';
+import { type ValueFormatter, resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, watch } from 'vue';
 
 import { useVisibleRange } from '../composables';
@@ -82,8 +82,8 @@ const allTicks = computed(() => {
       :style="{
         position: 'absolute',
         right: '8px',
-        top: chart.yScale.valueToY(price) + 'px',
-        transform: 'translateY(-50%)',
+        top: '0',
+        transform: `translate3d(0, ${chart.yScale.valueToY(price)}px, 0) translateY(-50%)`,
         color: resolveAxisTextColor(theme, 'y'),
         fontSize: resolveAxisFontSize(theme, 'y') + 'px',
         fontFamily: theme.typography.fontFamily,
@@ -91,7 +91,7 @@ const allTicks = computed(() => {
         userSelect: 'none',
         opacity: entry.opacity,
         transition: 'opacity 0.3s ease',
-        willChange: 'opacity',
+        willChange: 'transform, opacity',
       }"
     >
       {{ chart.yScale.formatY(price) }}

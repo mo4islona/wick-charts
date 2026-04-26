@@ -91,8 +91,15 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
             key={time}
             style={{
               position: 'absolute',
-              left: x,
-              transform: 'translateX(-50%)',
+              left: 0,
+              top: 0,
+              // `translate3d` instead of `left: x` keeps the label on its own
+              // compositor layer so per-frame position updates don't trigger
+              // layout. No `transition` on transform — React re-renders on
+              // every viewport change in the same RAF, matching canvas series
+              // motion exactly. Adding a transform-transition would only
+              // introduce a persistent ~6 px lag during panning.
+              transform: `translate3d(${x}px, 0, 0) translateX(-50%)`,
               color: resolveAxisTextColor(theme, 'x'),
               fontSize: resolveAxisFontSize(theme, 'x'),
               fontFamily: theme.typography.fontFamily,
@@ -100,7 +107,7 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
               whiteSpace: 'nowrap',
               opacity: entry.opacity,
               transition: 'opacity 0.3s ease',
-              willChange: 'opacity',
+              willChange: 'transform, opacity',
             }}
           >
             {formatTime(time, tickInterval)}

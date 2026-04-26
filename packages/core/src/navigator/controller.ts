@@ -1,7 +1,9 @@
+import type { Unsubscribe } from '../animation-clock';
 import type { ChartInstance } from '../chart';
 import { TimeScale } from '../scales/time-scale';
 import { YScale } from '../scales/y-scale';
 import type { VisibleRange, YRange } from '../types';
+import { smoothToward } from '../utils/math';
 import { decimateCandles, decimateLinear } from './decimate';
 import { type NavigatorGesture, computePan, computeResize, computeSnapCenter, hitTest } from './interactions';
 import {
@@ -13,6 +15,13 @@ import {
   renderMiniLine,
 } from './render';
 import type { NavigatorData, NavigatorLinePoint, NavigatorOptions } from './types';
+
+/** Time-extent convergence epsilon (ms). Stops the smoothing chase loop when
+ * displayed and target are within half a millisecond — well below one bar
+ * interval at any sane refresh rate. The default `valueDiffers` epsilon
+ * scales with `|target|`, which for a Unix-ms timestamp is ~17000 s — useless
+ * for this domain. */
+const NAVIGATOR_TIME_EPSILON = 0.5;
 
 export interface NavigatorControllerParams {
   container: HTMLElement;
@@ -62,8 +71,18 @@ export class NavigatorController {
   #mediaHeight = 0;
   #pixelRatio = 1;
 
-  #rafHandle: number | null = null;
   #dirty = true;
+  /** Smoothed displayed data extent — chases `#resolveDataRange()` exponentially
+   * so streaming ticks slide the mini-chart instead of snapping each frame.
+   * `null` until first seed (mount or `dataReplaced`). */
+  #displayedDataStart: number | null = null;
+  #displayedDataEnd: number | null = null;
+  /** Subscription to the chart's animation clock — fires once per RAF. */
+  #unsubscribeFrame: Unsubscribe | null = null;
+  /** Listener for the chart's `dataReplaced` event — snaps `displayed*` to
+   * targets so a `setData` call doesn't read as a 100ms slide across the
+   * whole new dataset. */
+  readonly #onDataReplaced: () => void;
 
   #resizeObserver: ResizeObserver;
 
@@ -131,8 +150,23 @@ export class NavigatorController {
 
     this.#onViewportChange = () => this.#markDirty();
     this.#onOverlayChange = () => this.#markDirty();
+    this.#onDataReplaced = () => {
+      // Full data replacement (or history prepend through setData) — snap so
+      // smoothing doesn't animate across what would be a discontinuity. Seed
+      // values are populated lazily on the next #onFrame from the resolved
+      // data range; we just clear the chase state here.
+      this.#displayedDataStart = null;
+      this.#displayedDataEnd = null;
+      this.#markDirty();
+    };
     this.#chart.on('viewportChange', this.#onViewportChange);
     this.#chart.on('overlayChange', this.#onOverlayChange);
+    this.#chart.on('dataReplaced', this.#onDataReplaced);
+
+    // Subscribe to the chart's frame clock — replaces our own RAF loop.
+    // `#onFrame` advances smoothing chase, paints when dirty, and calls
+    // `chart.scheduleNextFrame()` to keep RAF alive while still chasing.
+    this.#unsubscribeFrame = this.#chart.subscribeFrame((frame) => this.#onFrame(frame));
 
     this.#onPointerDown = (e) => this.#handlePointerDown(e);
     this.#onPointerMove = (e) => this.#handlePointerMove(e);
@@ -187,16 +221,15 @@ export class NavigatorController {
   destroy(): void {
     this.#chart.off('viewportChange', this.#onViewportChange);
     this.#chart.off('overlayChange', this.#onOverlayChange);
+    this.#chart.off('dataReplaced', this.#onDataReplaced);
+    this.#unsubscribeFrame?.();
+    this.#unsubscribeFrame = null;
     this.#canvas.removeEventListener('pointerdown', this.#onPointerDown);
     this.#canvas.removeEventListener('pointermove', this.#onPointerMove);
     this.#canvas.removeEventListener('pointerup', this.#onPointerUp);
     this.#canvas.removeEventListener('pointercancel', this.#onPointerUp);
     this.#canvas.removeEventListener('pointerleave', this.#onPointerLeave);
     this.#resizeObserver.disconnect();
-    if (this.#rafHandle !== null) {
-      cancelAnimationFrame(this.#rafHandle);
-      this.#rafHandle = null;
-    }
     this.#canvas.remove();
     this.#overlay.remove();
   }
@@ -239,15 +272,57 @@ export class NavigatorController {
   }
 
   #markDirty(): void {
-    if (this.#dirty && this.#rafHandle !== null) return;
     this.#dirty = true;
+    // Let the chart's clock schedule the next RAF — the navigator paints from
+    // its own onFrame callback. No own dirty flag at chart-side, so main and
+    // overlay paints stay independent of navigator state.
+    this.#chart.scheduleNextFrame();
+  }
 
-    if (this.#rafHandle !== null) return;
-    this.#rafHandle = requestAnimationFrame(() => {
-      this.#rafHandle = null;
-      this.#dirty = false;
+  /** Per-frame heartbeat. Advances smoothing chase, repaints when dirty,
+   * keeps RAF alive while still chasing. */
+  #onFrame(frame: { now: DOMHighResTimeStamp; dt: number; frameId: number }): void {
+    if (this.#activeWidth <= 0 || this.#mediaHeight <= 0) {
+      if (this.#dirty) {
+        this.#render();
+        this.#dirty = false;
+      }
+
+      return;
+    }
+
+    const target = this.#resolveDataRange();
+    const navigatorSmoothMs = this.#chart.getNavigatorSmoothMs();
+    const rate = navigatorSmoothMs > 0 ? 1000 / navigatorSmoothMs : 0;
+
+    // Seed on first frame after mount or after a snap event (`dataReplaced`).
+    if (this.#displayedDataStart === null || this.#displayedDataEnd === null) {
+      this.#displayedDataStart = target.from;
+      this.#displayedDataEnd = target.to;
+    } else if (rate <= 0 || frame.dt === 0) {
+      // Smoothing disabled or first frame (`dt = 0`): snap.
+      this.#displayedDataStart = target.from;
+      this.#displayedDataEnd = target.to;
+    } else {
+      this.#displayedDataStart = smoothToward(this.#displayedDataStart, target.from, rate, frame.dt);
+      this.#displayedDataEnd = smoothToward(this.#displayedDataEnd, target.to, rate, frame.dt);
+    }
+
+    // Convergence check uses an absolute ms epsilon (Unix timestamps make
+    // multiplicative epsilons useless — see NAVIGATOR_TIME_EPSILON note).
+    const stillChasing =
+      Math.abs(this.#displayedDataEnd - target.to) > NAVIGATOR_TIME_EPSILON ||
+      Math.abs(this.#displayedDataStart - target.from) > NAVIGATOR_TIME_EPSILON;
+
+    if (this.#dirty || stillChasing) {
       this.#render();
-    });
+      this.#dirty = false;
+    }
+
+    // Keep RAF alive while we're still chasing the target — without this the
+    // clock goes idle after the viewport tween finishes and smoothing freezes
+    // mid-step.
+    if (stillChasing) this.#chart.scheduleNextFrame();
   }
 
   // --- input -------------------------------------------------------------
@@ -261,9 +336,17 @@ export class NavigatorController {
 
   /** Keep scales synced with current data bounds + size. Safe to call ahead of
    *  the first RAF-driven render — pointer handlers rely on this so hit-tests
-   *  compute against primed scales even on the opening gesture. */
+   *  compute against primed scales even on the opening gesture.
+   *
+   *  Uses `#displayedDataStart` / `#displayedDataEnd` (the smoothed extent)
+   *  when seeded; falls back to the raw target so first-frame and pointer-
+   *  before-render paths still compute against valid coordinates. */
   #updateScales(): { dataRange: VisibleRange; yRange: YRange } {
-    const dataRange = this.#resolveDataRange();
+    const target = this.#resolveDataRange();
+    const dataRange: VisibleRange = {
+      from: this.#displayedDataStart ?? target.from,
+      to: this.#displayedDataEnd ?? target.to,
+    };
     const yRange = this.#resolveYRange();
     this.#timeScale.update(dataRange, this.#activeWidth, this.#pixelRatio);
     this.#yScale.update(yRange, this.#mediaHeight, this.#pixelRatio);

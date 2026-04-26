@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 
-import { resolveAxisFontSize, resolveAxisTextColor, type ValueFormatter } from '@wick-charts/core';
+import { type ValueFormatter, resolveAxisFontSize, resolveAxisTextColor } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useYRange } from '../store-bridge';
@@ -101,8 +101,11 @@ export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) 
             style={{
               position: 'absolute',
               right: 8,
-              top: y,
-              transform: 'translateY(-50%)',
+              top: 0,
+              // `translate3d` instead of `top: y` puts each label on its own
+              // compositor layer for cheap per-frame position updates. Same
+              // reasoning as TimeAxis — see comment there.
+              transform: `translate3d(0, ${y}px, 0) translateY(-50%)`,
               color: resolveAxisTextColor(theme, 'y'),
               fontSize: resolveAxisFontSize(theme, 'y'),
               fontFamily: theme.typography.fontFamily,
@@ -110,7 +113,7 @@ export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) 
               userSelect: 'none',
               opacity: entry.opacity,
               transition: 'opacity 0.3s ease',
-              willChange: 'opacity',
+              willChange: 'transform, opacity',
             }}
           >
             {chart.yScale.formatY(price)}

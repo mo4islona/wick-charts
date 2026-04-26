@@ -1,5 +1,7 @@
+import { AnimationClock, type TickListener, type Unsubscribe } from './animation-clock';
 import {
   DEFAULT_ENTER_MS,
+  DEFAULT_NAVIGATOR_SMOOTH_MS,
   DEFAULT_PULSE_MS,
   DEFAULT_REBOUND_MS,
   DEFAULT_SMOOTH_MS,
@@ -13,9 +15,7 @@ import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import { registerChartViewport } from './internal/test-handles';
-import { PerfHud } from './perf/perf-hud';
-import { PerfMonitor, type PerfMonitorOptions } from './perf/perf-monitor';
-import { RenderScheduler } from './render-scheduler';
+import { PerfHud, PerfMonitor, type PerfMonitorOptions } from './perf';
 import { TimeScale } from './scales/time-scale';
 import { YScale } from './scales/y-scale';
 import { BarRenderer } from './series/bar';
@@ -40,6 +40,7 @@ import type {
   TimePointInput,
   VisibleRange,
 } from './types';
+import { smoothToward } from './utils/math';
 import { detectInterval } from './utils/time';
 import { type HorizontalPadding, Viewport } from './viewport';
 
@@ -68,6 +69,13 @@ interface ChartEvents {
   crosshairMove: (pos: CrosshairPosition | null) => void;
   viewportChange: () => void;
   dataUpdate: () => void;
+  /**
+   * Fired when the data was wholly replaced (via `setData`) rather than
+   * appended. Consumers that maintain smoothing chase state (Navigator's
+   * mini-chart) snap to the new bounds on this event instead of animating
+   * across what would be a discontinuity.
+   */
+  dataReplaced: () => void;
   seriesChange: () => void;
   /**
    * Fired whenever any state that affects **overlay components** (InfoBar,
@@ -135,15 +143,24 @@ export interface AnimationsConfig {
         /** Rebound (snap-back) duration after pan/zoom overshoot (ms). Default: 350. */
         reboundMs?: AnimationTime;
         /**
-         * Y-axis range transition scale. **Frame-count-based, calibrated at
-         * 60 Hz — not wall-clock ms.** Each render frame closes
-         * `min(1, 16 / yAxisMs)` of the remaining gap. Default 80 ≈ the
-         * legacy 0.2-per-frame closure. `false` / `0` snaps the Y range
-         * instantly. Unlike `smoothMs` / `entryMs` / `reboundMs`, the
-         * perceptual duration scales with frame time on refresh rates far
-         * from 60 Hz.
+         * Y-axis range smoothing time constant (ms). Wall-clock, frame-rate
+         * independent — used as `smoothToward(rate = 1000 / yAxisMs, dt)`
+         * for the visible Y window's `min`/`max`. `false` / `0` snaps the
+         * Y range instantly. Default: 80 — perceptually equivalent to the
+         * legacy `0.2`-per-frame closure at 60 Hz, while behaving identically
+         * at any refresh rate (the underlying math switched from frame-count
+         * to wall-clock, but the field name and default are preserved).
          */
         yAxisMs?: AnimationTime;
+        /**
+         * Navigator mini-chart data-extent smoothing (ms). When new points
+         * arrive, the navigator's effective `dataEnd`/`dataStart` chase the
+         * real bounds via `smoothToward` instead of jumping each tick.
+         * `setData` and history-prepend events skip the chase via the
+         * `'dataReplaced'` chart event. `false` / `0` disables — mini-chart
+         * snaps to data on every update. Default: 120.
+         */
+        navigatorSmoothMs?: AnimationTime;
       };
 }
 
@@ -162,6 +179,7 @@ export interface ResolvedAnimationsConfig {
   viewport: {
     reboundMs: number;
     yAxisMs: number;
+    navigatorSmoothMs: number;
   };
 }
 
@@ -246,7 +264,7 @@ export function resolveAnimationsConfig(input: ChartOptions['animations']): Reso
   if (input === false) {
     return {
       points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
-      viewport: { reboundMs: 0, yAxisMs: 0 },
+      viewport: { reboundMs: 0, yAxisMs: 0, navigatorSmoothMs: 0 },
     };
   }
 
@@ -267,10 +285,11 @@ export function resolveAnimationsConfig(input: ChartOptions['animations']): Reso
 
   const viewport =
     rawViewport === false
-      ? { reboundMs: 0, yAxisMs: 0 }
+      ? { reboundMs: 0, yAxisMs: 0, navigatorSmoothMs: 0 }
       : {
           reboundMs: resolveTime(rawViewport?.reboundMs, DEFAULT_REBOUND_MS),
           yAxisMs: resolveTime(rawViewport?.yAxisMs, DEFAULT_Y_AXIS_MS),
+          navigatorSmoothMs: resolveTime(rawViewport?.navigatorSmoothMs, DEFAULT_NAVIGATOR_SMOOTH_MS),
         };
 
   return { points, viewport };
@@ -328,10 +347,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   #canvasManager: CanvasManager;
   /** Manages visible range, Y range, panning, zooming, and animated transitions. */
   readonly #viewport: Viewport;
-  /** Schedules main-layer redraws (background, grid, series). */
-  #mainScheduler: RenderScheduler;
-  /** Schedules overlay redraws (crosshair). */
-  #overlayScheduler: RenderScheduler;
+  /** Single RAF scheduler — owns the shared frame clock (`now`/`dt`/`frameId`)
+   * and dispatches main vs overlay paints with mutual exclusion. */
+  #clock!: AnimationClock;
   /** Maps time values to horizontal pixel coordinates. */
   readonly timeScale: TimeScale;
   /** Maps price/value to vertical pixel coordinates. */
@@ -431,24 +449,28 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     const monitor = this.#perfMonitor;
     if (monitor) {
-      this.#mainScheduler = new RenderScheduler((t) => {
-        monitor.resetDrawCalls('main');
-        const t0 = performance.now();
-        this.renderMain(t);
-        monitor.recordFrame('main', performance.now() - t0, t);
-      });
-      this.#overlayScheduler = new RenderScheduler((t) => {
-        monitor.resetDrawCalls('overlay');
-        const t0 = performance.now();
-        this.renderOverlay(t);
-        monitor.recordFrame('overlay', performance.now() - t0, t);
+      this.#clock = new AnimationClock({
+        onMain: (t) => {
+          monitor.resetDrawCalls('main');
+          const t0 = performance.now();
+          this.renderMain(t);
+          monitor.recordFrame('main', performance.now() - t0, t);
+        },
+        onOverlay: (t) => {
+          monitor.resetDrawCalls('overlay');
+          const t0 = performance.now();
+          this.renderOverlay(t);
+          monitor.recordFrame('overlay', performance.now() - t0, t);
+        },
       });
       if (resolvedPerf.showHud) {
         this.#perfHud = new PerfHud(container, monitor);
       }
     } else {
-      this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
-      this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
+      this.#clock = new AnimationClock({
+        onMain: (t) => this.renderMain(t),
+        onOverlay: (t) => this.renderOverlay(t),
+      });
     }
 
     const interactive = options?.interactive !== false;
@@ -461,7 +483,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       // fresh coordinates when viewportChange triggers their re-render.
       // Does NOT advance Y smoothing — that only happens inside renderMain().
       this.syncScales();
-      this.#mainScheduler.markDirty();
+      this.#clock.requestFrame('main');
       this.emit('viewportChange');
     });
 
@@ -477,7 +499,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       // so we must redraw immediately in the same frame to avoid a black flash.
       // Snap Y range: canvas dimensions changed structurally.
       this.updateScales(true);
-      this.renderMain();
+      // Wrap in runSynchronous so the clock supplies `now = performance.now()`
+      // and `dt = 0` (no smoothing step inside this resize repaint).
+      this.#clock.runSynchronous(() => this.renderMain());
       // Notify React components — yScale changed due to new canvas dimensions
       // (e.g. Legend appeared and shrank the chart area).
       this.emit('viewportChange');
@@ -485,7 +509,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
     this.#interactions?.on('crosshairMove', (pos) => {
       this.#crosshairPos = pos;
-      this.#overlayScheduler.markDirty();
+      this.#clock.requestFrame('overlay');
       this.emit('crosshairMove', pos);
 
       // Generic spatial-hover dispatch — any renderer that implements hitTest+setHoverIndex opts in.
@@ -665,7 +689,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.#series.splice(idx, 1);
       this.#seriesIdCache = null;
       this.updateViewportPadding();
-      this.#mainScheduler.markDirty();
+      this.#clock.requestFrame('main');
       this.emit('seriesChange');
       this.#bumpOverlayVersion();
     }
@@ -682,7 +706,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
    */
   setSeriesData(id: string, data: unknown, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
-    entry?.renderer.setData(data, layerIndex);
+    if (!entry) return;
+
+    // Set BEFORE setData — store.update fires synchronously inside setData,
+    // which routes to onDataChanged where the flag is read+cleared.
+    this.#nextEventIsReplace = true;
+    try {
+      entry.renderer.setData(data, layerIndex);
+    } finally {
+      // Defensive clear: if a renderer doesn't trigger onDataChanged
+      // synchronously (rare — pie or future custom store), the flag would
+      // otherwise leak into the next data event and cause a spurious snap.
+      this.#nextEventIsReplace = false;
+    }
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
@@ -729,7 +765,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if ('label' in options && typeof options.label === 'string') {
       entry.label = options.label;
     }
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
 
     const nextColors = entry.renderer.getLayerColors();
     const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
@@ -757,7 +793,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         } else if (this.#batchVisualDirty) {
           this.#batchVisualDirty = false;
           this.updateYRange(true);
-          this.#mainScheduler.markDirty();
+          this.#clock.requestFrame('main');
         }
         if (this.#batchOverlayDirty) {
           this.#batchOverlayDirty = false;
@@ -781,7 +817,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     }
 
     this.updateYRange(true);
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
   }
 
   isSeriesVisible(seriesId: string): boolean {
@@ -807,7 +843,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     }
 
     this.updateYRange(true);
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
   }
 
   isLayerVisible(seriesId: string, layerIndex: number): boolean {
@@ -1100,7 +1136,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     for (const entry of this.#series) {
       entry.renderer.applyTheme(theme, prev);
     }
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
     this.#bumpOverlayVersion();
   }
 
@@ -1121,7 +1157,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if (this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH) {
       this.updateScales(true);
     }
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
   }
 
   /**
@@ -1143,7 +1179,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if (dirty) {
       this.syncScales();
       this.emit('viewportChange');
-      this.#mainScheduler.markDirty();
+      this.#clock.requestFrame('main');
     }
   }
 
@@ -1161,7 +1197,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     if (dirty) {
       this.syncScales();
       this.emit('viewportChange');
-      this.#mainScheduler.markDirty();
+      this.#clock.requestFrame('main');
     }
   }
 
@@ -1213,7 +1249,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
       this.updateYRange(true);
     }
     this.syncScales();
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
     // Vertical changes need their own emit: fitToData's viewport 'change'
     // fires *before* updateYRange runs, so subscribers that land on it see
     // a stale yScale. Re-emit after syncScales pushes the new yRange so
@@ -1227,7 +1263,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   /** Show or hide the background grid. Takes effect on the next render frame. */
   setGrid(grid: { visible: boolean }): void {
     this.#grid = grid.visible;
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
   }
 
   /**
@@ -1242,7 +1278,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   setEdgeState(side: EdgeSide, state: EdgeState): void {
     if (this.#edgeStates[side] === state) return;
     this.#edgeStates[side] = state;
-    this.#overlayScheduler.markDirty();
+    this.#clock.requestFrame('overlay');
   }
 
   /** Read the current host-declared state for a given edge. */
@@ -1280,7 +1316,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
         changed = true;
       }
     }
-    if (changed) this.#mainScheduler.markDirty();
+    if (changed) this.#clock.requestFrame('main');
   }
 
   private updateViewportPadding(): void {
@@ -1293,8 +1329,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     this.#series = [];
     this.#seriesIdCache = null;
     this.#viewport.destroy();
-    this.#mainScheduler.destroy();
-    this.#overlayScheduler.destroy();
+    this.#clock.destroy();
     this.#interactions?.destroy();
     this.#canvasManager.destroy();
     this.#perfHud?.destroy();
@@ -1312,8 +1347,46 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     return this.#perfMonitor;
   }
 
-  /** Compute the earliest and latest timestamps across all series. */
-  private getDataBounds(): { first: number | undefined; last: number | undefined } {
+  /**
+   * Subscribe to the chart's frame clock. Listener fires once per RAF after
+   * main/overlay rendering completes, with the same `now` / `dt` / `frameId`
+   * the renderers saw. External consumers (Navigator) use this to ride the
+   * chart's RAF cadence without spawning a parallel `requestAnimationFrame`
+   * loop.
+   */
+  subscribeFrame(listener: TickListener): Unsubscribe {
+    return this.#clock.onTick(listener);
+  }
+
+  /**
+   * Ensure a RAF will fire on the next frame without setting a chart-side
+   * dirty flag. Used by external consumers (Navigator) that draw on their
+   * own canvas and only need a heartbeat to advance their own smoothing.
+   */
+  scheduleNextFrame(): void {
+    this.#clock.scheduleNextFrame();
+  }
+
+  /**
+   * Mark a render path dirty. Mostly internal; exposed so test harnesses and
+   * external integrations can request a paint without reaching into private
+   * state.
+   */
+  requestFrame(scope: 'main' | 'overlay'): void {
+    this.#clock.requestFrame(scope);
+  }
+
+  /** Resolved navigator data-extent smoothing (ms). `0` disables — mini-chart
+   * snaps to data each tick. Read by `NavigatorController` per frame. */
+  getNavigatorSmoothMs(): number {
+    return this.#animationsConfig.viewport.navigatorSmoothMs;
+  }
+
+  /** Compute the earliest and latest timestamps across all series.
+   * Public so the Navigator (and any external consumer that needs the data
+   * extent — e.g. a custom overview component) can read it without poking
+   * into private series state. */
+  getDataBounds(): { first: number | undefined; last: number | undefined } {
     let first: number | undefined;
     let last: number | undefined;
     for (const entry of this.#series) {
@@ -1329,6 +1402,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
 
   /** Total data points across all series at last onDataChanged — used to detect batch vs tick. */
   #prevDataLength = 0;
+
+  /**
+   * Marker set by `setSeriesData` (full data replacement) and read+cleared by
+   * `onDataChanged`. Lets the chart emit a typed `'dataReplaced'` event for
+   * consumers (Navigator) that need to snap chase state instead of animating
+   * across a discontinuity. `appendData` and `updateData` leave this false,
+   * so a burst of streaming ticks never masquerades as a replacement.
+   */
+  #nextEventIsReplace = false;
 
   private onDataChanged(): void {
     if (this.#batchDepth > 0) {
@@ -1384,7 +1466,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     // so yScale was stale at that point.
     this.syncScales();
 
-    this.#mainScheduler.markDirty();
+    this.#clock.requestFrame('main');
+
+    const wasReplace = this.#nextEventIsReplace;
+    this.#nextEventIsReplace = false;
+    if (wasReplace) {
+      this.emit('dataReplaced');
+    }
     this.emit('dataUpdate');
     this.#bumpOverlayVersion();
   }
@@ -1408,6 +1496,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   #smoothMax = 0;
   /** Whether the Y range has been initialized (first snap vs smooth lerp). */
   #yInited = false;
+  /** Frame-id of the last advance step. Defence-in-depth against double-advance
+   * — bare-return (no scale touched) when `clock.frameId` matches. */
+  #yLastFrameId = -1;
+  /** Frame-id of the last `viewport.tick` advance. Both `renderMain` and a
+   * standalone `renderOverlay` advance the viewport tween, but only one path
+   * fires per frame (mutual exclusion in the clock) — this guard exists so
+   * any future change that breaks that invariant doesn't double-step. */
+  #viewportTickedFrame = -1;
 
   private updateYRange(snap = false): void {
     let min = Infinity;
@@ -1470,30 +1566,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     max = this.resolveBound(this.#yBounds.max, max, min, allValues ?? [], 'max');
 
     const yAxisMs = this.#animationsConfig.viewport.yAxisMs;
-    if (!this.#yInited || snap || yAxisMs <= 0) {
+    const dt = this.#clock.dt;
+    if (!this.#yInited || snap || yAxisMs <= 0 || dt === 0) {
+      // Snap path: first render, explicit snap (resize / batch load),
+      // smoothing disabled, or `dt === 0` (synchronous frame via
+      // `runSynchronous`). All collapse to "seed displayed = target".
       this.#smoothMin = min;
       this.#smoothMax = max;
       this.#yInited = true;
-    } else {
-      // Per-frame exponential chase — closes `min(1, 16 / yAxisMs)` of the
-      // remaining gap each render. This is calibrated for 60 Hz (default
-      // yAxisMs = 80 matches the legacy 0.2-per-16ms closure). On displays
-      // with significantly different refresh rates the perceptual duration
-      // scales with frame time — a documented tradeoff; other timing knobs
-      // (`smoothMs`, `enterMs`, `reboundMs`) use wall-clock `dt` instead,
-      // but Y-axis smoothing piggybacks on the render scheduler and must
-      // stay deterministic for pan/zoom integration tests that mock RAF
-      // without mocking `performance.now()`.
-      const speed = Math.min(1, 16 / yAxisMs);
-      this.#smoothMin += (min - this.#smoothMin) * speed;
-      this.#smoothMax += (max - this.#smoothMax) * speed;
+      this.#yLastFrameId = this.#clock.frameId;
+    } else if (this.#yLastFrameId !== this.#clock.frameId) {
+      // Frame-id guard: defence-in-depth against double-advance. The current
+      // architecture only calls updateYRange once per frame (inside
+      // renderMain), so this branch is the normal path. If a future change
+      // ever wires a second call, the guard prevents two smoothing steps
+      // per frame.
+      this.#yLastFrameId = this.#clock.frameId;
+      // Wall-clock exponential chase — frame-rate independent. `rate` in 1/s
+      // (`smoothToward` decays by `exp(-rate * dt)`). Default `yAxisMs = 80`
+      // gives `rate = 12.5/s`; at 60 Hz one frame closes ~19 % of the
+      // remaining gap (`1 - exp(-12.5 * 0.01667) ≈ 0.188`), matching the
+      // legacy frame-count closure perceptually but stable at any refresh rate.
+      const rate = 1000 / yAxisMs;
+      this.#smoothMin = smoothToward(this.#smoothMin, min, rate, dt);
+      this.#smoothMax = smoothToward(this.#smoothMax, max, rate, dt);
       // Never clip data — expand immediately if data exceeds smooth range
       if (min < this.#smoothMin) this.#smoothMin = min;
       if (max > this.#smoothMax) this.#smoothMax = max;
       // Keep rendering until Y range has converged
       const eps = Math.max(Math.abs(this.#smoothMax - this.#smoothMin) * 0.0001, 0.001);
       if (Math.abs(this.#smoothMin - min) > eps || Math.abs(this.#smoothMax - max) > eps) {
-        this.#mainScheduler.markDirty();
+        this.#clock.requestFrame('main');
       }
     }
 
@@ -1556,17 +1659,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   }
 
   /** Expensive: background, grid, all series. Only on data/viewport/resize change. */
-  private renderMain(timestamp?: number): void {
+  private renderMain(_timestamp?: number): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
-    // Advance viewport animation in the same frame as render. Prefer the RAF-
-    // provided timestamp so deterministic test harnesses (installRaf) drive
-    // smoothing dt from synthetic frame time instead of the real wall clock.
-    const now = typeof timestamp === 'number' ? timestamp : performance.now();
-    const stillAnimating = this.#viewport.tick(now);
-    if (stillAnimating) {
-      this.#mainScheduler.markDirty();
+    // All animation timing reads from the shared clock — no `performance.now()`
+    // in the hot path.
+    const now = this.#clock.now;
+    const dt = this.#clock.dt;
+    const frameId = this.#clock.frameId;
+
+    if (this.#viewportTickedFrame !== frameId) {
+      this.#viewportTickedFrame = frameId;
+      const stillAnimating = this.#viewport.tick(now);
+      if (stillAnimating) {
+        this.#clock.requestFrame('main');
+      }
     }
 
     this.updateScales();
@@ -1601,6 +1709,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           theme: this.#theme,
           dataInterval: this.#dataInterval,
           padding,
+          now,
+          dt,
+          frameId,
         };
 
         if (perfMon) {
@@ -1621,7 +1732,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
     // Generic animation poll — any renderer that still needs a frame keeps us going.
     for (const entry of this.#series) {
       if (entry.renderer.needsAnimation) {
-        this.#mainScheduler.markDirty();
+        this.#clock.requestFrame('main');
         break;
       }
     }
@@ -1634,6 +1745,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
   private renderOverlay(_timestamp?: number): void {
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
+
+    // Shared frame clock — pulse, crosshair animations and edge indicators all
+    // read these instead of `performance.now()`.
+    const now = this.#clock.now;
+    const dt = this.#clock.dt;
+    const frameId = this.#clock.frameId;
+
+    // Advance viewport tween in interaction-only frames (overlay-dirty without
+    // main-dirty — e.g. crosshair move while a scroll/rebound is mid-flight).
+    // Without this the tween stalls until the next data/render event; with the
+    // frame-id guard, it never double-ticks when the main path already ran.
+    if (this.#viewportTickedFrame !== frameId) {
+      this.#viewportTickedFrame = frameId;
+      const stillAnimating = this.#viewport.tick(now);
+      if (stillAnimating) {
+        // Re-arm overlay so the tween keeps progressing on subsequent frames
+        // even when no other overlay content is animating.
+        this.#clock.requestFrame('overlay');
+      }
+    }
 
     // Determine whether any renderer wants a persistent overlay tick (e.g. line pulse).
     let overlayAnimates = false;
@@ -1685,6 +1816,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           dataInterval: this.#dataInterval,
           padding: overlayPadding,
           crosshair: this.#crosshairPos,
+          now,
+          dt,
+          frameId,
         });
       }
 
@@ -1710,18 +1844,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> {
           break;
         }
       }
-      if (visibleLast) this.#overlayScheduler.markDirty();
+      if (visibleLast) this.#clock.requestFrame('overlay');
     }
 
     // Spinner needs a frame cadence of its own, independent of series overlays.
-    if (edgeAnimates) this.#overlayScheduler.markDirty();
+    if (edgeAnimates) this.#clock.requestFrame('overlay');
   }
 
   private drawEdgeIndicators(
     scope: Parameters<Parameters<CanvasManager['useOverlayLayer']>[0]>[0],
     chartMediaHeight: number,
   ): void {
-    const now = performance.now();
+    const now = this.#clock.now;
     for (const side of ['left', 'right'] as const) {
       const state = this.#edgeStates[side];
       if (state === 'idle' || state === 'has-more') continue;

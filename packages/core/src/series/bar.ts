@@ -122,7 +122,7 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
   }
 
   render(ctx: SeriesRenderContext): void {
-    this.advanceLiveTracking(performance.now());
+    this.advanceLiveTracking(ctx);
     switch (this.options.stacking) {
       case 'normal':
         this.renderStacked(ctx, false);
@@ -141,7 +141,7 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
     const { scope, timeScale, yScale, dataInterval } = ctx;
     const { context, horizontalPixelRatio } = scope;
     const range = timeScale.getRange();
-    const now = performance.now();
+    const now = ctx.now;
 
     // Bar slot width — only cap when the visible range is sparse (≤ 2
     // points on the most-populated layer). Dense zooms must keep wide bars.
@@ -254,7 +254,7 @@ export class BarRenderer extends BaseMultiLayerSeries<LineData, BarEntry> {
     const { scope, timeScale, yScale, dataInterval } = ctx;
     const { context, horizontalPixelRatio } = scope;
     const range = timeScale.getRange();
-    const now = performance.now();
+    const now = ctx.now;
 
     // Bar slot width — sparse-only cap, see renderOff above.
     let maxVisibleCount = 0;

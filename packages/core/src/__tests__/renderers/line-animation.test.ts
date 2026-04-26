@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LineRenderer } from '../../series/line';
 import type { LineData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 const DATA: LineData[] = [
   { time: 10, value: 5 },
@@ -21,6 +21,7 @@ describe('LineRenderer — animation', () => {
   let now = 0;
   beforeEach(() => {
     now = 1000;
+    resetSyntheticFrameClock();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {

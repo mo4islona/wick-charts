@@ -224,7 +224,6 @@ export class PieRenderer implements SeriesRenderer {
   #hoverIndex = -1;
   /** Animated offset per slice (0..1), smoothly interpolated toward target. */
   #sliceOffsets: number[] = [];
-  #lastRenderTime = 0;
   /**
    * Outside-label reveal progress (0..1). Eased toward 1 on mount / data-swap
    * when `animate` is on; drives the leader-line draw-in and label fade-in
@@ -431,7 +430,6 @@ export class PieRenderer implements SeriesRenderer {
     this.#dataListeners = [];
     this.#data = [];
     this.#sliceOffsets = [];
-    this.#lastRenderTime = 0;
   }
 
   /**
@@ -820,16 +818,8 @@ export class PieRenderer implements SeriesRenderer {
   render(ctx: SeriesRenderContext): void {
     if (this.#data.length === 0) return;
 
-    const { scope, theme, padding } = ctx;
+    const { scope, theme, padding, dt } = ctx;
     const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
-
-    const now = performance.now();
-    // Clamp dt: when the renderer goes idle (animation finished, no markDirty),
-    // `lastRenderTime` is stale by however long the user paused. An unclamped dt
-    // makes the next hover snap to its target in one frame — which looks like
-    // "animation stopped working" after the first burst of activity.
-    const dt = this.#lastRenderTime ? Math.min(0.05, (now - this.#lastRenderTime) / 1000) : 0;
-    this.#lastRenderTime = now;
 
     const total = this.#data.reduce((sum, d) => sum + d.value, 0);
     if (total <= 0) return;

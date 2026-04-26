@@ -1,11 +1,11 @@
-import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
+import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS } from '../animation-constants';
 import { TimeSeriesStore } from '../data/store';
 import type { TimePoint, TimePointInput } from '../types';
 import { smoothToward } from '../utils/math';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import { computeEntranceProgress, resolveMs, valueDiffers } from './shared-animation';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { SeriesRenderer } from './types';
+import type { FrameClockState, SeriesRenderer } from './types';
 
 /**
  * Shape of the options that {@link BaseMultiLayerSeries} reads directly from
@@ -41,8 +41,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
   protected lastSeededTimes: number[];
   /** Per-layer entrance animations keyed by the point's `time`. */
   protected entries: Array<Map<number, TEntry>>;
-  /** Last render timestamp for frame-rate-independent smoothing. */
-  protected lastRenderTime = 0;
+  /** Frame-id of the last `advanceLiveTracking` step. Guards against double-
+   * advance when the same renderer ticks from `render` and `drawOverlay` in
+   * one frame — both paths receive the same `frameId`. */
+  protected lastAnimFrameId = -1;
 
   constructor(layerCount: number) {
     this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TData>());
@@ -147,7 +149,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
     for (const m of this.entries) m.clear();
     this.displayedLastValues = this.displayedLastValues.map(() => null);
     this.lastSeededTimes = this.lastSeededTimes.map(() => Number.NaN);
-    this.lastRenderTime = 0;
+    this.lastAnimFrameId = -1;
   }
 
   /**
@@ -179,14 +181,15 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
    * Advance smoothed last-value per layer. Seeds directly on first render or
    * when the last point's time changes; otherwise exponentially chases the
    * target value. Must run at the top of every render pass (and drawOverlay)
-   * so snapshots see fresh state regardless of which pass ticks first.
+   * so snapshots see fresh state regardless of which pass ticks first — the
+   * `frameId` guard ensures the actual chase step happens at most once per
+   * frame even when both paths fire.
    */
-  protected advanceLiveTracking(now: number): void {
-    if (now === this.lastRenderTime) return;
+  protected advanceLiveTracking(frame: FrameClockState): void {
+    if (this.lastAnimFrameId === frame.frameId) return;
 
-    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
-    this.lastRenderTime = now;
-
+    this.lastAnimFrameId = frame.frameId;
+    const dt = frame.dt;
     const smoothMs = resolveMs(this.getCommonOptions().smoothMs, DEFAULT_SMOOTH_MS);
     const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
     for (let li = 0; li < this.stores.length; li++) {
@@ -205,6 +208,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint, TEntry exten
         continue;
       }
 
+      // `smoothToward(x, target, rate, 0)` returns `x` unchanged — so a
+      // second pass with dt=0 (overlay called right after main, no advance
+      // of the wall clock) is a natural no-op. No special-case needed; the
+      // frame-id guard above already prevents the typical case anyway.
       this.displayedLastValues[li] = smoothToward(displayed, actualLast.value, rate, dt);
     }
   }

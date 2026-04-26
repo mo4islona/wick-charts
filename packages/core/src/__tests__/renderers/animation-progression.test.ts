@@ -14,7 +14,7 @@ import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { LineRenderer } from '../../series/line';
 import type { LineData, OHLCData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 function mkOhlcStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
   const s = new TimeSeriesStore<OHLCData>();
@@ -27,6 +27,7 @@ describe('entrance animation — frame-by-frame progression', () => {
   let now = 0;
   beforeEach(() => {
     now = 1000;
+    resetSyntheticFrameClock();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {

@@ -142,7 +142,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
   }
 
   render(ctx: SeriesRenderContext): void {
-    this.advanceLiveTracking(performance.now());
+    this.advanceLiveTracking(ctx);
     if (this.options.stacking === 'off') {
       this.renderOff(ctx);
     } else {
@@ -204,13 +204,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
 
   /** Each layer drawn independently */
   private renderOff(ctx: SeriesRenderContext): void {
-    const { scope, timeScale, yScale } = ctx;
+    const { scope, timeScale, yScale, now } = ctx;
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
     const hasStroke = this.options.strokeWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
-    const now = performance.now();
     const style = this.options.entryAnimation ?? 'grow';
 
     for (let li = 0; li < this.stores.length; li++) {
@@ -356,7 +355,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
 
   /** Stacked area rendering */
   private renderStacked(ctx: SeriesRenderContext, percent: boolean): void {
-    const { scope, timeScale, yScale } = ctx;
+    const { scope, timeScale, yScale, now } = ctx;
     const { context } = scope;
     const range = timeScale.getRange();
     const { verticalPixelRatio } = scope;
@@ -425,7 +424,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     // the previous index. Anywhere else, lerping `xy[length-1]` would distort an
     // already-superseded segment or pull an off-screen point into the on-screen
     // tail.
-    const now = performance.now();
     const style = this.options.entryAnimation ?? 'grow';
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
@@ -607,8 +605,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     // or `animations: false`) disables the halo entirely; per-series `pulse`
     // still controls whether the dot is ever drawn.
     if (this.hasPulse && pulseMs > 0) {
-      const now = performance.now();
-      this.advanceLiveTracking(now);
+      const { now } = ctx;
+      this.advanceLiveTracking(ctx);
       const stacking = this.options.stacking;
       for (let li = 0; li < this.stores.length; li++) {
         if (!this.stores[li].isVisible()) continue;
@@ -629,6 +627,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
             color,
             pixelRatio: size.horizontalPixelRatio,
             pulseMs,
+            now,
           });
           continue;
         }
@@ -692,6 +691,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
           color,
           pixelRatio: size.horizontalPixelRatio,
           pulseMs,
+          now,
         });
       }
     }
@@ -704,6 +704,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     color,
     pixelRatio,
     pulseMs,
+    now,
   }: {
     ctx: CanvasRenderingContext2D;
     x: number;
@@ -711,6 +712,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     color: string;
     pixelRatio: number;
     pulseMs: number;
+    now: DOMHighResTimeStamp;
   }): void {
     const dotRadius = 3 * pixelRatio;
     // Legacy formulation preserved for backward visual compatibility:
@@ -718,7 +720,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint, LineEntry> {
     // cycle of |sin| lands at ≈ π · pulseMs ms (≈1.9s at the default 600).
     // Callers gate on `pulseMs > 0` before invoking; this function therefore
     // assumes a positive period.
-    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(performance.now() / pulseMs));
+    const pulse = 0.4 + 0.6 * Math.abs(Math.sin(now / pulseMs));
     const glowRadius = dotRadius + 4 * pixelRatio * pulse;
 
     ctx.beginPath();

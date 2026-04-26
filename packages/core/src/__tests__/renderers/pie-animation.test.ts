@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PieRenderer } from '../../series/pie';
 import type { PieSliceData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 const SLICES: PieSliceData[] = [
   { label: 'A', value: 50 },
@@ -19,6 +19,7 @@ describe('PieRenderer — slice explode animation', () => {
   let now = 0;
   beforeEach(() => {
     now = 1000;
+    resetSyntheticFrameClock();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {

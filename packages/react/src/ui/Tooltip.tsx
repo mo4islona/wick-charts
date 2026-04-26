@@ -278,9 +278,7 @@ function FloatingTooltip({
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
           const isUp = ohlc.close >= ohlc.open;
-          const valColor = resolveCandlestickBodyColor(
-            isUp ? theme.candlestick.up.body : theme.candlestick.down.body,
-          );
+          const valColor = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
               <TooltipRow label="Open" color={valColor} display={format(ohlc.open, 'open')} />

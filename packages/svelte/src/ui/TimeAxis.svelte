@@ -73,7 +73,7 @@ $: theme = chart?.getTheme();
   >
     {#each allTicks as [time, entry] (time)}
       <span
-        style="position:absolute;left:{chart.timeScale.timeToX(time)}px;transform:translateX(-50%);color:{resolveAxisTextColor(theme, 'x')};font-size:{resolveAxisFontSize(theme, 'x')}px;font-family:{theme.typography.fontFamily};user-select:none;white-space:nowrap;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:opacity;"
+        style="position:absolute;left:0;top:0;transform:translate3d({chart.timeScale.timeToX(time)}px, 0, 0) translateX(-50%);color:{resolveAxisTextColor(theme, 'x')};font-size:{resolveAxisFontSize(theme, 'x')}px;font-family:{theme.typography.fontFamily};user-select:none;white-space:nowrap;opacity:{entry.opacity};transition:opacity 0.3s ease;will-change:transform, opacity;"
       >
         {formatTime(time, tickInterval)}
       </span>

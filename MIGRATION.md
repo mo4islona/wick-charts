@@ -1,5 +1,59 @@
 # Migration guide
 
+## 0.3 → 0.4 — unified animation pipeline
+
+Animations in 0.3 were driven by three independent `requestAnimationFrame` loops (main canvas, overlay canvas, navigator) plus per-renderer wall-clock chase math, plus a frame-count-based Y-axis smoothing — each on its own time base. Streaming a new point read as four offset motions instead of one. 0.4 collapses everything onto a shared `AnimationClock`: one RAF per chart, one `now` / `dt` / `frameId` shared by every animation domain. Y-axis labels (TimeAxis / YAxis) now slide via `transform: translate3d(...)` so they ride the same frame as the canvas series.
+
+**No breaking changes to the public API.** Field names, option shapes, defaults, and existing event names are preserved. The changes below are all additive or internal.
+
+### Behavior change: `animations.viewport.yAxisMs` is now wall-clock
+
+The field name and default (80 ms) are unchanged, but the underlying math switched from a frame-count closure (`min(1, 16 / yAxisMs)` of the gap per render) to a wall-clock exponential chase (`smoothToward(rate = 1000 / yAxisMs, dt)`). At 60 Hz the perceptual feel is identical (~19 % of the gap closes per frame, matching the legacy 0.2). At 120 / 30 Hz the new chase reaches the same wall-clock convergence regardless of refresh rate — the old code visibly raced on 120 Hz monitors and dragged on 30 Hz. If you tuned `yAxisMs` against the old frame-count math and the new wall-clock feel is off, the same numeric range applies; nudge up to slow, down to speed up.
+
+### New: `animations.viewport.navigatorSmoothMs`
+
+The mini-chart in `NavigatorController` now exponentially chases its data extent instead of jumping each tick. Default **120 ms** (slightly slower than `points.smoothMs` so the navigator reads as background inertia, not reactive echo). `setData` and history-prepend events skip the chase via the new `'dataReplaced'` chart event (see below).
+
+```ts
+animations: { viewport: { navigatorSmoothMs: 120 } }
+animations: { viewport: { navigatorSmoothMs: false } } // disable — snap each tick
+```
+
+### New: `'dataReplaced'` chart event
+
+`ChartInstance` now distinguishes full data replacements (`setSeriesData`) from streaming updates (`appendData` / `updateData`):
+
+```ts
+chart.on('dataReplaced', () => { /* navigator snaps, etc. */ });
+chart.on('dataUpdate',   () => { /* fires on every change, including replace */ });
+```
+
+`'dataUpdate'` is **additive** — it still fires on every change, including replacements, so existing listeners keep working. `'dataReplaced'` fires _in addition_ when the change came from `setSeriesData`. Hosts that maintain chase state (custom mini-charts, reveal animations) should listen to `'dataReplaced'` and snap instead of animating across the discontinuity.
+
+### New: `chart.subscribeFrame(...)` / `chart.scheduleNextFrame()` / `chart.requestFrame(...)`
+
+External integrations (Navigator and any custom overview component) can now ride the chart's frame clock without spinning their own `requestAnimationFrame` loop:
+
+```ts
+const unsub = chart.subscribeFrame(({ now, dt, frameId }) => { /* ... */ });
+chart.scheduleNextFrame();              // ensure another RAF without dirtying chart paint
+chart.requestFrame('main' | 'overlay'); // request a chart paint
+```
+
+### New: `chart.getDataBounds()` is public
+
+Was internal in 0.3. Now public so external mini-chart components can read the current data extent without poking into private series state.
+
+### Internal: `RenderScheduler` deprecated
+
+`RenderScheduler` (`packages/core/src/render-scheduler.ts`) still exists as a thin shim for any code that imported it directly via deep-import — but its role inside `ChartInstance` moved to the new `AnimationClock`. Will be removed in 0.5; new code should use the chart-level frame APIs above.
+
+### Internal: render-context fields `now` / `dt` / `frameId`
+
+`SeriesRenderContext` and `OverlayRenderContext` gained three required fields supplied by the chart: `now: DOMHighResTimeStamp`, `dt: number` (seconds since previous frame, clamped to 50 ms), and `frameId: number` (monotonic counter). Built-in renderers read these instead of `performance.now()`. **Custom renderer implementations** that build their own context objects (rare — most users register series via the public `addLineSeries` / `addCandlestickSeries` / etc.) must add the fields. The render-context test helper (`buildRenderContext`) now auto-derives them from `performance.now()` so existing tests don't need updating.
+
+---
+
 ## 0.2 → 0.3
 
 Version 0.3 restructures `ChartTheme` so every key lives where it semantically belongs. Confusing flat keys like `typography.axisFontSize` (shared across axes, legend, tooltips) and `candlestick.upColor` / `wickUpColor` (direction and part mixed at one level) are gone. Font sizes move into their owning sections; candlestick nests by direction first. Series renderer options (`CandlestickSeriesOptions`) follow the same restructure so instance overrides stay consistent with the theme.
