@@ -2,45 +2,44 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { type ChartTheme, ThemeProvider, createTheme } from '@wick-charts/react';
 
-import { type Route, Sidebar } from './components/Sidebar';
+import { Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
 import { type JsonValue, normalizeThemeConfig, themeToJson } from './components/theme-editor/themeJson';
 import { FrameworkProvider } from './context/framework';
 import { useFrameworkState } from './hooks/useFramework';
 import { useIsMobile } from './hooks/useIsMobile';
-import { BarPage } from './pages/BarPage';
-import { CandlestickPage } from './pages/CandlestickPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { LinePage } from './pages/LinePage';
-import { PiePage } from './pages/PiePage';
-import { SparklinePage } from './pages/SparklinePage';
+import { ApiRoutePage } from './pages/api';
+import { ChartRoutePage } from './pages/charts';
+import { HookPage } from './pages/HookPage';
+import { MigrationPage } from './pages/MigrationPage';
+import { OverviewPage } from './pages/OverviewPage';
 import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
+import { ROUTE_ALIASES, type Route, getTitle, hookKeyForRoute, isRoute } from './routes';
 import { themes } from './themes';
 
-const PAGES: Record<Exclude<Route, 'theme'>, React.FC<{ theme: ChartTheme }>> = {
-  dashboard: DashboardPage,
-  candlestick: CandlestickPage,
-  line: LinePage,
-  bar: BarPage,
-  pie: PiePage,
-  sparkline: SparklinePage,
-  'stress-test': StressTestPage,
-};
+interface RenderArgs {
+  route: Route;
+  theme: ChartTheme;
+  baseTheme: ChartTheme;
+  editorValue: JsonValue;
+  onEditorChange: (next: JsonValue) => void;
+}
 
-const TITLES: Record<Route, string> = {
-  dashboard: '',
-  candlestick: 'Candlestick Charts',
-  line: 'Line & Area Charts',
-  bar: 'Bar Charts',
-  pie: 'Pie & Donut Charts',
-  sparkline: 'Sparklines',
-  theme: 'Custom Theme',
-  'stress-test': 'Stress Tests',
-};
+function renderRoute({ route, theme, baseTheme, editorValue, onEditorChange }: RenderArgs) {
+  if (route === 'overview') return <OverviewPage theme={theme} />;
+  if (route === 'migration') return <MigrationPage theme={theme} />;
+  if (route === 'customization/theme') {
+    return <ThemePage theme={baseTheme} value={editorValue} onChange={onEditorChange} />;
+  }
+  if (route === 'stress-test') return <StressTestPage theme={theme} />;
+  if (route.startsWith('charts/')) return <ChartRoutePage route={route} theme={theme} />;
+  if (route.startsWith('api/')) return <ApiRoutePage route={route} theme={theme} />;
 
-function isRoute(s: string): s is Route {
-  return s === 'theme' || s in PAGES;
+  const hookKey = hookKeyForRoute(route);
+  if (hookKey) return <HookPage hookKey={hookKey} theme={theme} />;
+
+  return null;
 }
 
 // BT.601 luma — matches createTheme's isDarkBg but works on runtime hex colors.
@@ -53,18 +52,29 @@ function luminance(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
+function readHash(): Route {
+  const raw = window.location.hash.slice(1);
+  // Strip leading slash so both `#overview` and `#/overview` work.
+  const stripped = raw.replace(/^\//, '');
+  // Migrate old single-key URLs (`#dashboard`, `#line`, …) → new path form.
+  const aliased = ROUTE_ALIASES[stripped];
+  if (aliased) {
+    window.location.hash = aliased;
+
+    return aliased;
+  }
+  if (isRoute(stripped)) return stripped;
+
+  return 'overview';
+}
+
 function useHashRoute(): [Route, (r: Route) => void] {
-  const [route, setRoute] = useState<Route>(() => {
-    const h = window.location.hash.slice(1);
-    return isRoute(h) ? h : 'dashboard';
-  });
+  const [route, setRoute] = useState<Route>(readHash);
 
   useEffect(() => {
-    const handler = () => {
-      const h = window.location.hash.slice(1);
-      if (isRoute(h)) setRoute(h);
-    };
+    const handler = () => setRoute(readHash());
     window.addEventListener('hashchange', handler);
+
     return () => window.removeEventListener('hashchange', handler);
   }, []);
 
@@ -182,7 +192,7 @@ export default function App() {
     document.body.style.setProperty('--page-glow', glow);
   }, [themeName, theme, preset.fontUrl, isDarkActive]);
 
-  const pageTitle = TITLES[route];
+  const pageTitle = getTitle(route);
 
   const bgImage = (() => {
     const major = isDarkActive ? 0.06 : 0.12;
@@ -304,16 +314,18 @@ export default function App() {
                     </svg>
                   </button>
                 )}
-                <h1
-                  style={{
-                    margin: 0,
-                    fontSize: mobile ? theme.typography.fontSize + 2 : theme.typography.fontSize + 4,
-                    fontWeight: 600,
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  {pageTitle}
-                </h1>
+                {pageTitle && (
+                  <h1
+                    style={{
+                      margin: 0,
+                      fontSize: mobile ? theme.typography.fontSize + 2 : theme.typography.fontSize + 4,
+                      fontWeight: 600,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    {pageTitle}
+                  </h1>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 4 : 8 }}>
@@ -385,15 +397,13 @@ export default function App() {
 
             {/* Page content */}
             <div style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>
-              {route === 'theme' ? (
-                <ThemePage theme={baseTheme} value={editorValue} onChange={onEditorChange} />
-              ) : (
-                (() => {
-                  const Page = PAGES[route];
-
-                  return <Page theme={theme} />;
-                })()
-              )}
+              {renderRoute({
+                route,
+                theme,
+                baseTheme,
+                editorValue,
+                onEditorChange,
+              })}
             </div>
           </div>
         </div>

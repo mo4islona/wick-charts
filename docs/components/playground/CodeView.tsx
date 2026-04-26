@@ -36,9 +36,24 @@ function flattenTokens(tokens: (string | Prism.Token)[], inheritedType?: string)
 }
 
 function detectGrammar(code: string): Prism.Grammar {
-  const isReactish = code.includes('import ') && !code.includes('<template>') && !code.includes('<script>');
+  // Vue / Svelte snippets carry a real template tag — keep those on the
+  // HTML grammar so attributes / interpolations highlight correctly.
+  const isMarkup = code.includes('<template>') || code.includes('<script ') || code.includes('<script>');
+  if (isMarkup) return Prism.languages.markup;
 
-  return isReactish ? Prism.languages.jsx : Prism.languages.markup;
+  // Anything else with TS / JS shape lands on JSX (which extends JS and
+  // handles `interface`, `:`, generics decently). Catches:
+  //   - import lines (existing behaviour)
+  //   - interface / type / const / function / enum declarations
+  //   - arrow functions, render-prop bodies
+  //   - bare object literals (`{ visible: true }`)
+  const looksJs =
+    code.includes('import ') ||
+    /\b(interface|type|const|let|function|enum|class)\s+\w/.test(code) ||
+    code.includes('=>') ||
+    /\{[^}]*:[^}]*\}/.test(code);
+
+  return looksJs ? Prism.languages.jsx : Prism.languages.markup;
 }
 
 /**
