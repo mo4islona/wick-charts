@@ -2,8 +2,6 @@
 import { getThemeContext, getTitleAnchor } from '../context';
 import { portal } from './portal';
 
-export let sub: string | undefined = undefined;
-
 const themeStore = getThemeContext();
 const anchorStore = getTitleAnchor();
 
@@ -29,14 +27,14 @@ $: anchor = $anchorStore;
     "
   >
     <span><slot /></span>
-    {#if sub}
+    {#if $$slots.sub}
       <span
         style="
           font-weight:400;
           color:{theme.axis.textColor};
           font-size:{theme.axis.fontSize}px;
         "
-      >{sub}</span>
+      ><slot name="sub" /></span>
     {/if}
   </div>
 {/if}

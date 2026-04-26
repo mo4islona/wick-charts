@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { type AxisConfig, ChartInstance, type ChartTheme, darkTheme } from '@wick-charts/core';
+import {
+  type AxisConfig,
+  ChartInstance,
+  type ChartOptions,
+  type ChartTheme,
+  darkTheme,
+} from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
 import {
@@ -12,15 +18,45 @@ import {
   TitleAnchorKey,
 } from './context';
 
+type PerfOption = NonNullable<ChartOptions['perf']>;
+
 const props = withDefaults(
   defineProps<{
     theme?: ChartTheme;
     axis?: AxisConfig;
+    /**
+     * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
+     * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Applied on mount only.
+     * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
+     */
+    padding?: {
+      top?: number;
+      bottom?: number;
+      right?: number | { intervals: number };
+      left?: number | { intervals: number };
+    };
+    /** Show the chart background gradient. Defaults to true. */
+    gradient?: boolean;
+    /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+    interactive?: boolean;
     /** Background grid configuration. Default: `{ visible: true }`. */
     grid?: { visible: boolean };
+    /**
+     * How `<Title>` and `<InfoBar>` are positioned relative to the canvas.
+     * - `'overlay'` (default): absolute overlays on top of the canvas.
+     * - `'inline'`: flex siblings above the canvas — the canvas (and grid) shift down.
+     */
+    headerLayout?: 'overlay' | 'inline';
+    /**
+     * Enable runtime performance instrumentation. Off by default. Read at mount only;
+     * later changes are ignored.
+     */
+    perf?: PerfOption;
   }>(),
   {
     theme: () => darkTheme,
+    gradient: true,
+    headerLayout: 'overlay',
   },
 );
 
@@ -28,12 +64,12 @@ const containerRef = ref<HTMLDivElement>();
 const chart = shallowRef<ChartInstance | null>(null);
 const themeRef = shallowRef<ChartTheme>(props.theme);
 
-// Anchors for hoisted overlays. Title / InfoBar teleport into a top
-// overlay anchor that is positioned *absolute* at the top of the canvas
-// block, so the canvas (and its grid) spans the full container height. The
-// combined anchor height is measured and fed into `chart.setPadding({ top })`
-// so data stays below the header.
+// Capture perf at mount only — mirrors React's perfRef so a new object
+// identity later doesn't recreate the chart.
+const perfAtMount = props.perf;
+
 const topOverlayRef = ref<HTMLElement | null>(null);
+const inlineHeaderRef = ref<HTMLElement | null>(null);
 const titleAnchor = ref<HTMLElement | null>(null);
 const infoBarAnchor = ref<HTMLElement | null>(null);
 const legendAnchor = ref<HTMLElement | null>(null);
@@ -49,30 +85,50 @@ provide(LegendRightAnchorKey, legendRightAnchor);
 provide(NavigatorAnchorKey, navigatorAnchor);
 
 let resizeObserver: ResizeObserver | null = null;
-let topOverlayHeight = 0;
+const topOverlayHeight = ref(0);
+
+// Inline mode: browser flex already reserves header height, so folding it
+// into padding.top would double-shift the data. Only overlay needs the fold.
+const headerExtra = computed(() => (props.headerLayout === 'overlay' ? topOverlayHeight.value : 0));
 
 function applyPadding() {
   if (!chart.value) return;
-  chart.value.setPadding({ top: 20 + topOverlayHeight });
+  const userTop = props.padding?.top ?? 20;
+  const merged: ChartOptions['padding'] = { top: userTop + headerExtra.value };
+  if (props.padding?.bottom !== undefined) merged.bottom = props.padding.bottom;
+  if (props.padding?.right !== undefined) merged.right = props.padding.right;
+  if (props.padding?.left !== undefined) merged.left = props.padding.left;
+  chart.value.setPadding(merged);
 }
 
 onMounted(async () => {
   if (!containerRef.value) return;
-  const options: any = {};
+
+  const options: ChartOptions = {};
   if (props.axis) options.axis = props.axis;
   if (props.theme) options.theme = props.theme;
+  if (props.padding) options.padding = props.padding;
+  if (props.interactive !== undefined) options.interactive = props.interactive;
   if (props.grid !== undefined) options.grid = props.grid;
+  if (perfAtMount !== undefined) options.perf = perfAtMount;
   chart.value = new ChartInstance(containerRef.value, options);
 
   await nextTick();
-  if (!topOverlayRef.value) return;
-  const measure = () => {
-    topOverlayHeight = topOverlayRef.value?.getBoundingClientRect().height ?? 0;
+
+  // Only the overlay header needs measurement — inline mode lets browser
+  // flex layout reserve header height directly.
+  const headerEl = props.headerLayout === 'overlay' ? topOverlayRef.value : null;
+  if (headerEl) {
+    const measure = () => {
+      topOverlayHeight.value = headerEl.getBoundingClientRect().height;
+      applyPadding();
+    };
+    measure();
+    resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(headerEl);
+  } else {
     applyPadding();
-  };
-  measure();
-  resizeObserver = new ResizeObserver(measure);
-  resizeObserver.observe(topOverlayRef.value);
+  }
 });
 
 onUnmounted(() => {
@@ -107,13 +163,28 @@ watch(
   },
 );
 
+watch(
+  () => [
+    props.padding?.top,
+    props.padding?.bottom,
+    typeof props.padding?.right === 'object' ? props.padding.right.intervals : props.padding?.right,
+    typeof props.padding?.left === 'object' ? props.padding.left.intervals : props.padding?.left,
+    headerExtra.value,
+  ],
+  applyPadding,
+);
+
 const rootStyle = computed(() => {
   const t = themeRef.value;
   const [gtop, gbot] = t?.chartGradient ?? ['transparent', 'transparent'];
   const bg = t?.background ?? 'transparent';
+  const background = props.gradient
+    ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)`
+    : bg;
+
   return (
     'position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; ' +
-    `background: linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)`
+    `background: ${background}`
   );
 });
 </script>
@@ -121,26 +192,39 @@ const rootStyle = computed(() => {
 <template>
   <div :style="rootStyle">
     <div style="display: flex; flex-direction: row; flex: 1; min-height: 0">
-      <div
-        ref="containerRef"
-        style="position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden"
-      >
-        <!-- Top overlay (Title + InfoBar) — stacked absolute inside the
-             canvas block so the grid extends full-height behind them. -->
+      <!-- Canvas-block column. In inline mode the header is a flex sibling
+           above the canvas inside this column; in overlay mode it's absolute
+           over the canvas (rendered inside `containerRef`). -->
+      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0">
         <div
-          ref="topOverlayRef"
-          data-chart-top-overlay=""
-          style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+          v-if="headerLayout === 'inline'"
+          ref="inlineHeaderRef"
+          data-chart-header=""
+          style="flex-shrink: 0; display: flex; flex-direction: column; pointer-events: none"
         >
           <div ref="titleAnchor" data-chart-title-anchor="" />
           <div ref="infoBarAnchor" data-tooltip-legend-anchor="" />
         </div>
         <div
-          v-if="chart"
-          data-chart-series-overlay=""
-          style="position: absolute; inset: 0; pointer-events: none; z-index: 3"
+          ref="containerRef"
+          style="position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden"
         >
-          <slot />
+          <div
+            v-if="headerLayout === 'overlay'"
+            ref="topOverlayRef"
+            data-chart-top-overlay=""
+            style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+          >
+            <div ref="titleAnchor" data-chart-title-anchor="" />
+            <div ref="infoBarAnchor" data-tooltip-legend-anchor="" />
+          </div>
+          <div
+            v-if="chart"
+            data-chart-series-overlay=""
+            style="position: absolute; inset: 0; pointer-events: none; z-index: 3"
+          >
+            <slot />
+          </div>
         </div>
       </div>
       <div ref="legendRightAnchor" data-legend-right-anchor="" style="flex: 0 0 auto" />
@@ -149,4 +233,3 @@ const rootStyle = computed(() => {
     <div ref="navigatorAnchor" data-navigator-anchor="" style="flex: 0 0 auto" />
   </div>
 </template>
-
