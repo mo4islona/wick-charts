@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BarRenderer } from '../../series/bar';
 import type { LineData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 const DATA: LineData[] = [{ time: 10, value: 5 }];
 
@@ -19,6 +19,7 @@ describe('BarRenderer — animation', () => {
   let now = 0;
   beforeEach(() => {
     now = 1000;
+    resetSyntheticFrameClock();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {

@@ -22,7 +22,24 @@ export interface RenderPadding {
   bottom: number;
 }
 
-export interface SeriesRenderContext {
+/**
+ * Frame clock state — same instance shared across `SeriesRenderContext` and
+ * `OverlayRenderContext`. Read these instead of `performance.now()` so all
+ * animations advance from one shared clock per RAF.
+ */
+export interface FrameClockState {
+  /** Wall-clock timestamp of the current frame (ms, monotonic via RAF). */
+  now: DOMHighResTimeStamp;
+  /** Seconds since the previous frame, clamped to {@link MAX_FRAME_DT_S}.
+   * `0` on the first frame and inside `runSynchronous` — also doubles as a
+   * snap signal for chase-style smoothing. */
+  dt: number;
+  /** Monotonic frame counter. Use to guard against double-advance when a
+   * domain might be ticked twice in one frame (main + overlay paths). */
+  frameId: number;
+}
+
+export interface SeriesRenderContext extends FrameClockState {
   scope: BitmapCoordinateSpace;
   timeScale: TimeScale;
   yScale: YScale;
@@ -33,7 +50,7 @@ export interface SeriesRenderContext {
 }
 
 /** Overlay render state passed to {@link SeriesRenderer.drawOverlay}. */
-export interface OverlayRenderContext {
+export interface OverlayRenderContext extends FrameClockState {
   scope: BitmapCoordinateSpace;
   timeScale: TimeScale;
   yScale: YScale;

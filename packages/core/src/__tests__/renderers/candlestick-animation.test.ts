@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimeSeriesStore } from '../../data/store';
 import { CandlestickRenderer } from '../../series/candlestick';
 import type { OHLCData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 const BULL = { open: 10, high: 12, low: 9, close: 11 };
 
@@ -27,6 +27,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
   let now = 0;
   beforeEach(() => {
     now = 1000;
+    resetSyntheticFrameClock();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
   });
   afterEach(() => {

@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_ENTER_MS,
+  DEFAULT_NAVIGATOR_SMOOTH_MS,
   DEFAULT_PULSE_MS,
   DEFAULT_REBOUND_MS,
   DEFAULT_SMOOTH_MS,
@@ -19,10 +20,17 @@ import type { CandlestickRenderer } from '../series/candlestick';
 import type { LineRenderer } from '../series/line';
 
 describe('resolveAnimationsConfig', () => {
+  const defaultViewport = {
+    reboundMs: DEFAULT_REBOUND_MS,
+    yAxisMs: DEFAULT_Y_AXIS_MS,
+    navigatorSmoothMs: DEFAULT_NAVIGATOR_SMOOTH_MS,
+  };
+  const offViewport = { reboundMs: 0, yAxisMs: 0, navigatorSmoothMs: 0 };
+
   it('defaults to all categories on when undefined', () => {
     expect(resolveAnimationsConfig(undefined)).toEqual({
       points: { enterMs: DEFAULT_ENTER_MS, smoothMs: DEFAULT_SMOOTH_MS, pulseMs: DEFAULT_PULSE_MS },
-      viewport: { reboundMs: DEFAULT_REBOUND_MS, yAxisMs: DEFAULT_Y_AXIS_MS },
+      viewport: defaultViewport,
     });
   });
 
@@ -33,18 +41,18 @@ describe('resolveAnimationsConfig', () => {
   it('false collapses every field to 0', () => {
     expect(resolveAnimationsConfig(false)).toEqual({
       points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
-      viewport: { reboundMs: 0, yAxisMs: 0 },
+      viewport: offViewport,
     });
   });
 
   it('category-level false disables every field in that category', () => {
     expect(resolveAnimationsConfig({ points: false })).toEqual({
       points: { enterMs: 0, smoothMs: 0, pulseMs: 0 },
-      viewport: { reboundMs: DEFAULT_REBOUND_MS, yAxisMs: DEFAULT_Y_AXIS_MS },
+      viewport: defaultViewport,
     });
     expect(resolveAnimationsConfig({ viewport: false })).toEqual({
       points: { enterMs: DEFAULT_ENTER_MS, smoothMs: DEFAULT_SMOOTH_MS, pulseMs: DEFAULT_PULSE_MS },
-      viewport: { reboundMs: 0, yAxisMs: 0 },
+      viewport: offViewport,
     });
   });
 
@@ -90,12 +98,17 @@ describe('ChartInstance.animations propagation', () => {
     const hasEntry = (r as unknown as { entries: Map<number, unknown> }).entries.size > 0;
 
     // Seed displayedLast, update, advance one frame. Distinguishes smoothing on
-    // (partial close) from smoothing off (full snap).
-    const advance = (t: number) =>
-      (r as unknown as { advanceLiveTracking: (t: number) => void }).advanceLiveTracking(t);
-    advance(1);
+    // (partial close) from smoothing off (full snap). The renderer's
+    // `advanceLiveTracking` now reads `dt` from a frame object — fabricate
+    // synthetic frames here, with `dt` in seconds (16 ms ≈ one 60 Hz frame).
+    let frameId = 0;
+    const advance = (dt: number) =>
+      (
+        r as unknown as { advanceLiveTracking: (frame: { now: number; dt: number; frameId: number }) => void }
+      ).advanceLiveTracking({ now: ++frameId * 16, dt, frameId });
+    advance(0); // seed
     r.updateLastPoint({ time: 20, open: 10, high: 18, low: 9, close: 18 });
-    advance(17);
+    advance(0.016);
     const dl = (r as unknown as { displayedLast: { close: number } }).displayedLast;
     const snappedOnUpdate = dl.close === 18;
 

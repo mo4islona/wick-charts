@@ -1,4 +1,4 @@
-import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS, MAX_FRAME_DT_S } from '../animation-constants';
+import { DEFAULT_ENTER_MS, DEFAULT_SMOOTH_MS } from '../animation-constants';
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
@@ -8,7 +8,7 @@ import { hexToRgba } from '../utils/color';
 import { clamp, easeOutCubic, lerp, smoothToward } from '../utils/math';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
 import { resolveMs, valueDiffers } from './shared-animation';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import type { FrameClockState, SeriesRenderContext, SeriesRenderer } from './types';
 
 const DEFAULT_OPTIONS: CandlestickSeriesOptions = {
   up: { body: '#26a69a', wick: '#26a69a' },
@@ -41,8 +41,10 @@ export class CandlestickRenderer implements SeriesRenderer {
   private displayedLast: OHLCData | null = null;
   /** `time` of the candle currently seeded into {@link displayedLast}. Detects new-candle transitions. */
   private lastSeededTime = Number.NaN;
-  /** Last render timestamp for frame-rate-independent smoothing. */
-  private lastRenderTime = 0;
+  /** Frame-id of the last `advanceLiveTracking` step. Guards against double-
+   * advance when the same renderer ticks from `render` and `drawOverlay` in
+   * one frame — both paths receive the same `frameId`. */
+  private lastAnimFrameId = -1;
   /** Per-candle entrance animations. Keyed by candle `time`; entries are deleted once progress reaches 1. */
   private entries: Map<number, { startTime: number }> = new Map();
 
@@ -115,7 +117,7 @@ export class CandlestickRenderer implements SeriesRenderer {
     this.store.removeAllListeners();
     this.displayedLast = null;
     this.lastSeededTime = Number.NaN;
-    this.lastRenderTime = 0;
+    this.lastAnimFrameId = -1;
     this.entries.clear();
   }
 
@@ -183,9 +185,11 @@ export class CandlestickRenderer implements SeriesRenderer {
    * the last candle's `time` changes (new candle); otherwise exponentially chases
    * the target OHLC so live `updateLastPoint` ticks interpolate instead of jumping.
    */
-  private advanceLiveTracking(now: number): void {
-    const dt = this.lastRenderTime ? Math.min(MAX_FRAME_DT_S, (now - this.lastRenderTime) / 1000) : 0;
-    this.lastRenderTime = now;
+  private advanceLiveTracking(frame: FrameClockState): void {
+    if (this.lastAnimFrameId === frame.frameId) return;
+
+    this.lastAnimFrameId = frame.frameId;
+    const dt = frame.dt;
 
     const actualLast = this.store.last();
     if (!actualLast) {
@@ -199,12 +203,14 @@ export class CandlestickRenderer implements SeriesRenderer {
     // decay rate used by `smoothToward`. `0` / `false` disables smoothing.
     const smoothMs = resolveMs(this.options.smoothMs, DEFAULT_SMOOTH_MS);
     const rate = smoothMs > 0 ? 1000 / smoothMs : 0;
-    // rate <= 0 explicitly disables smoothing: always display the target as-is.
     if (this.displayedLast === null || isNewCandle || rate <= 0) {
       this.displayedLast = { ...actualLast };
       this.lastSeededTime = actualLast.time;
       return;
     }
+    // dt === 0 (overlay-after-main same RAF, runSynchronous): smoothToward
+    // returns `current` unchanged — no movement, no snap. The frame-id guard
+    // upstream already short-circuits the typical case.
 
     const prev = this.displayedLast;
     const prevVolume = prev.volume ?? 0;
@@ -220,12 +226,11 @@ export class CandlestickRenderer implements SeriesRenderer {
   }
 
   render(ctx: SeriesRenderContext): void {
-    const { scope, timeScale, yScale, dataInterval } = ctx;
+    const { scope, timeScale, yScale, dataInterval, now } = ctx;
     const { context, horizontalPixelRatio } = scope;
     const range = timeScale.getRange();
 
-    const now = performance.now();
-    this.advanceLiveTracking(now);
+    this.advanceLiveTracking(ctx);
 
     let visibleData = this.store.getVisibleData(range.from, range.to);
     const pixelWidth = scope.mediaSize.width;

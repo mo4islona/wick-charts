@@ -1,4 +1,4 @@
-import { DEFAULT_REBOUND_MS } from './animation-constants';
+import { DEFAULT_REBOUND_MS, STREAM_SCROLL_MS } from './animation-constants';
 import { EventEmitter } from './events';
 import type { VisibleRange, YRange } from './types';
 import { lerp } from './utils/math';
@@ -662,7 +662,7 @@ export class Viewport extends EventEmitter<ViewportEvents> {
     } else {
       const pending = Math.abs(targetTo - this._visibleRange.to);
       if (pending < threshold) return; // sub-pixel drift, not worth animating
-      this.animateTo(targetFrom, targetTo, 150);
+      this.animateTo(targetFrom, targetTo, STREAM_SCROLL_MS);
       this._prevDataEnd = this.#dataEnd;
     }
   }

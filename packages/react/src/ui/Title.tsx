@@ -53,9 +53,7 @@ export function Title({ children, sub, style }: TitleProps) {
     >
       {children != null && children !== false && <span>{children}</span>}
       {sub != null && sub !== false && (
-        <span style={{ fontWeight: 400, color: theme.axis.textColor, fontSize: theme.axis.fontSize }}>
-          {sub}
-        </span>
+        <span style={{ fontWeight: 400, color: theme.axis.textColor, fontSize: theme.axis.fontSize }}>{sub}</span>
       )}
     </div>
   );

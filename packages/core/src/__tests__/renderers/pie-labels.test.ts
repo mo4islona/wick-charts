@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PieRenderer } from '../../series/pie';
 import type { PieSliceData } from '../../types';
-import { buildRenderContext } from '../helpers/render-context';
+import { buildRenderContext, resetSyntheticFrameClock } from '../helpers/render-context';
 
 /**
  * Tests for the per-slice label rendering on pie/donut charts.
@@ -43,16 +43,21 @@ function advance(ms: number): void {
   virtualNow += ms;
 }
 
-/** Render many frames to push `labelReveal` to its steady-state value (≈ 1). */
-function settleReveal(r: PieRenderer, ctx: Parameters<PieRenderer['render']>[0]): void {
+/** Render many frames to push `labelReveal` to its steady-state value (≈ 1).
+ * Rebuilds the render context each iteration so the synthetic frame clock
+ * advances `dt` and `frameId` — without that, every iteration reuses the
+ * stale dt from the original ctx and the chase doesn't progress. */
+function settleReveal(r: PieRenderer, _ctx: Parameters<PieRenderer['render']>[0]): void {
   for (let i = 0; i < 80; i++) {
     advance(32);
-    r.render(ctx);
+    const { ctx: fresh } = buildRenderContext();
+    r.render(fresh);
   }
 }
 
 beforeEach(() => {
   virtualNow = 1000;
+  resetSyntheticFrameClock();
   vi.spyOn(performance, 'now').mockImplementation(() => virtualNow);
 });
 

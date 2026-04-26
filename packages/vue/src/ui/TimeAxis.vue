@@ -74,8 +74,9 @@ const tickData = computed(() => {
       :key="time"
       :style="{
         position: 'absolute',
-        left: chart.timeScale.timeToX(time) + 'px',
-        transform: 'translateX(-50%)',
+        left: '0',
+        top: '0',
+        transform: `translate3d(${chart.timeScale.timeToX(time)}px, 0, 0) translateX(-50%)`,
         color: resolveAxisTextColor(theme, 'x'),
         fontSize: resolveAxisFontSize(theme, 'x') + 'px',
         fontFamily: theme.typography.fontFamily,
@@ -83,7 +84,7 @@ const tickData = computed(() => {
         whiteSpace: 'nowrap',
         opacity: entry.opacity,
         transition: 'opacity 0.3s ease',
-        willChange: 'opacity',
+        willChange: 'transform, opacity',
       }"
     >
       {{ formatTime(time, tickData.tickInterval) }}

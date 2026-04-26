@@ -1,3 +1,12 @@
+/**
+ * @deprecated 0.4 — superseded by {@link AnimationClock}. Kept as a thin shim
+ * for any external code that imported `RenderScheduler` directly via deep-
+ * import. Will be removed in 0.5.
+ *
+ * The two-scheduler setup (separate main + overlay RAF loops) was replaced
+ * by a single shared frame clock that owns one RAF and dispatches main /
+ * overlay paths with mutual exclusion. New code should not use this class.
+ */
 export type RenderCallback = (timestamp: DOMHighResTimeStamp) => void;
 
 export class RenderScheduler {
@@ -11,6 +20,7 @@ export class RenderScheduler {
 
   markDirty(): void {
     if (this.dirty) return;
+
     this.dirty = true;
     this.rafId = requestAnimationFrame(this.render);
   }

@@ -21,17 +21,21 @@ const candlestickData = [
   { time: 3, open: 3, high: 4, low: 3, close: 4 },
 ];
 
-const lineData = [[
-  { time: 1, value: 10 },
-  { time: 2, value: 20 },
-  { time: 3, value: 30 },
-]];
+const lineData = [
+  [
+    { time: 1, value: 10 },
+    { time: 2, value: 20 },
+    { time: 3, value: 30 },
+  ],
+];
 
-const barData = [[
-  { time: 1, value: 5 },
-  { time: 2, value: 15 },
-  { time: 3, value: 25 },
-]];
+const barData = [
+  [
+    { time: 1, value: 5 },
+    { time: 2, value: 15 },
+    { time: 3, value: 25 },
+  ],
+];
 
 const pieData = [
   { label: 'A', value: 30 },
@@ -141,12 +145,14 @@ describe('Svelte wrapper smoke', () => {
     const before = main.__spy!.countOf('lineTo');
 
     await result.component.$set({
-      lineData: [[
-        { time: 1, value: 100 },
-        { time: 2, value: 200 },
-        { time: 3, value: 300 },
-        { time: 4, value: 400 },
-      ]],
+      lineData: [
+        [
+          { time: 1, value: 100 },
+          { time: 2, value: 200 },
+          { time: 3, value: 300 },
+          { time: 4, value: 400 },
+        ],
+      ],
     });
     await settle();
 
