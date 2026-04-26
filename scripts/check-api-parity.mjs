@@ -53,11 +53,14 @@ const REACT_ONLY = new Set(['Sparkline']);
  * - `className` / `style` → React idiomatic. Vue/Svelte pass these through
  *   as fall-through attributes (`class=` / `style=`) without declaring them
  *   in `defineProps` / `export let`.
+ * - `sub` (Title only) → React accepts `ReactNode`; Vue/Svelte expose it as a
+ *   named slot (`<slot name="sub">`) so consumers can pass arbitrary markup
+ *   without a string-only ceiling.
  *
  * These keys are skipped on the Vue/Svelte side of the diff. Real prop
  * additions or renames still trip the checker.
  */
-const FRAMEWORK_CONVENTION_PROPS = new Set(['children', 'className', 'style']);
+const FRAMEWORK_CONVENTION_PROPS = new Set(['children', 'className', 'style', 'sub']);
 
 /**
  * Allowed type-name aliases — when a prop's React type and Vue/Svelte type
