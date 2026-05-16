@@ -41,15 +41,15 @@ const SCENARIOS = [
   {
     name: 'candlestick-only',
     source: `
-import { ChartContainer, CandlestickSeries, Crosshair, TimeAxis, YAxis, darkTheme } from '@wick-charts/react';
-globalThis.__wickSizeProbe = { ChartContainer, CandlestickSeries, Crosshair, TimeAxis, YAxis, darkTheme };
+import { ChartContainer, CandlestickSeries, Crosshair, TimeAxis, YAxis, catppuccin } from '@wick-charts/react';
+globalThis.__wickSizeProbe = { ChartContainer, CandlestickSeries, Crosshair, TimeAxis, YAxis, catppuccin };
 `,
   },
   {
     name: 'line-only',
     source: `
-import { ChartContainer, LineSeries, Crosshair, TimeAxis, YAxis, darkTheme } from '@wick-charts/react';
-globalThis.__wickSizeProbe = { ChartContainer, LineSeries, Crosshair, TimeAxis, YAxis, darkTheme };
+import { ChartContainer, LineSeries, Crosshair, TimeAxis, YAxis, catppuccin } from '@wick-charts/react';
+globalThis.__wickSizeProbe = { ChartContainer, LineSeries, Crosshair, TimeAxis, YAxis, catppuccin };
 `,
   },
   {
