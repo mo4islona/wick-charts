@@ -28,7 +28,7 @@ import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
 import { PerfHud, type PerfMonitor } from './perf';
 import { RenderScheduler } from './render-scheduler';
-import { TimeScale } from './scales/time-scale';
+import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
 import { BarRenderer } from './series/bar';
 import { CandlestickRenderer } from './series/candlestick';
@@ -48,10 +48,11 @@ import type {
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
+  SeriesType,
   TimePoint,
   TimePointInput,
-  VisibleRange,
   VisibleRangeSpec,
+  XRange,
   YRange,
 } from './types';
 import { detectInterval, normalizeTime } from './utils/time';
@@ -88,9 +89,6 @@ interface SeriesEntry {
   id: string;
   label?: string;
   renderer: SeriesRenderer;
-  /** Null for non-time-series types like Pie. */
-  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous storage — the concrete item type (TimePoint / OHLCData / TimePoint) depends on the series and is narrowed at the use site.
-  store: TimeSeriesStore<any> | null;
   visible: boolean;
 }
 
@@ -108,7 +106,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Schedules overlay redraws (crosshair). */
   #overlayScheduler: RenderScheduler;
   /** Maps time values to horizontal pixel coordinates. */
-  readonly timeScale: TimeScale;
+  readonly timeScale: XScale;
   /** Maps price/value to vertical pixel coordinates. */
   readonly yScale: YScale;
   /** Zoom, pan, crosshair — null when interactive=false. */
@@ -226,7 +224,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * streaming-target writes go here. Initialized to `{0,0}` and treated
    * as "uninitialized" by `#computeXTarget` until first paint.
    */
-  #logical: VisibleRange = { from: 0, to: 0 };
+  #logical: XRange = { from: 0, to: 0 };
   /** Padded Y range — engine's raw Y target plus pixel padding from `#padding`. */
   #yRange: YRange = { min: 0, max: 0 };
   /**
@@ -296,7 +294,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#ownsPerfMonitor = resolvedPerf.ownsMonitor;
 
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
-    this.timeScale = new TimeScale();
+    this.timeScale = new XScale();
     this.yScale = new YScale();
 
     const ticksMs = this.#animationsConfig.axis.ticksMs;
@@ -415,92 +413,70 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return candidate;
   }
 
-  /** Map a renderer instance to its `series.<kind>` config bucket. Pie has
-   *  no per-series animation wiring yet (Phase 3), so we return null. */
-  #rendererKind(renderer: SeriesRenderer): 'candle' | 'bar' | 'line' | null {
-    if (renderer instanceof CandlestickRenderer) return 'candle';
-    if (renderer instanceof BarRenderer) return 'bar';
-    if (renderer instanceof LineRenderer) return 'line';
-
-    return null;
-  }
-
-  /** Add a candlestick (OHLC) series and return its unique ID. */
-  addCandlestickSeries(options?: Partial<CandlestickSeriesOptions & { id?: string }>): string {
-    const store = new TimeSeriesStore<OHLCData>();
-    const renderer = new CandlestickRenderer(store, {
-      up: { ...this.#theme.candlestick.up },
-      down: { ...this.#theme.candlestick.down },
-      bodyWidthRatio: 0.6,
-      ...this.#animationsConfig.defaults('candle'),
-      ...options,
-      ...this.#animationsConfig.overrides('candle'),
-    });
-
-    return this.#registerSeries(renderer, renderer.store, options ?? {});
-  }
-
-  /** Add a line series and return its unique ID. */
-  addLineSeries(options?: Partial<LineSeriesOptions & { layers?: number; id?: string }>): string {
-    const { layers, ...rest } = options ?? {};
-    const layerCount = layers ?? 1;
-
-    const renderer = new LineRenderer(layerCount, {
-      colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
-      strokeWidth: this.#theme.line.width,
-      area: { visible: true },
-      ...this.#animationsConfig.defaults('line'),
-      ...rest,
-      ...this.#animationsConfig.overrides('line'),
-    });
-
-    return this.#registerSeries(renderer, renderer.store, rest);
-  }
-
-  /** Add a bar series and return its unique ID. */
-  addBarSeries(options?: Partial<BarSeriesOptions & { layers?: number; id?: string }>): string {
-    const { layers, ...rest } = options ?? {};
-    const layerCount = layers ?? 1;
-
-    const renderer = new BarRenderer(layerCount, {
-      colors: this.#theme.seriesColors.slice(0, layerCount),
-      barWidthRatio: 0.6,
-      ...this.#animationsConfig.defaults('bar'),
-      ...rest,
-      ...this.#animationsConfig.overrides('bar'),
-    });
-
-    return this.#registerSeries(renderer, renderer.store, rest);
-  }
-
   /**
-   * Shared registration boilerplate for every renderer: assign an id, hook
-   * data notifications, push into `#series`, invalidate caches, and emit
-   * the usual churn events. Pie passes `null` for `store`; time-series
-   * renderers pass their owned `TimeSeriesStore`.
+   * Add a series of the given `type` and return its unique ID. `options` is
+   * typed per `type` via the overloads. `layers` (line/bar) and `id` are
+   * consumed here; everything else is forwarded to the renderer.
    */
-  #registerSeries(
-    renderer: SeriesRenderer,
-    store: SeriesEntry['store'],
-    opts: { id?: string; label?: string },
-  ): string {
-    const id = this.#resolveId(opts.id);
+  addSeries(type: 'candlestick', options?: Partial<CandlestickSeriesOptions & { id?: string }>): string;
+  addSeries(type: 'line', options?: Partial<LineSeriesOptions & { layers?: number; id?: string }>): string;
+  addSeries(type: 'bar', options?: Partial<BarSeriesOptions & { layers?: number; id?: string }>): string;
+  addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string }>): string;
+  addSeries(type: SeriesType, options: Record<string, unknown> = {}): string {
+    const { layers, id, ...rest } = options as {
+      layers?: number;
+      id?: string;
+      label?: string;
+      [key: string]: unknown;
+    };
+    const layerCount = layers ?? 1;
+
+    // Merge order matches the old per-type adders: theme defaults (injected in
+    // #createRenderer) -> animation defaults -> user options -> forced-off overrides.
+    const merged = {
+      ...this.#animationsConfig.defaults(type),
+      ...rest,
+      ...this.#animationsConfig.overrides(type),
+    };
+    const renderer = this.#createRenderer(type, layerCount, merged);
+
+    const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id, label: opts.label, renderer, store, visible: true });
+    this.#series.push({ id: seriesId, label: rest.label, renderer, visible: true });
     this.#seriesIdCache = null;
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
 
-    return id;
+    return seriesId;
   }
 
-  /** Add a pie/donut series. Set `innerRadiusRatio > 0` for donut. */
-  addPieSeries(options?: Partial<PieSeriesOptions & { id?: string }>): string {
-    // Pie has no TimeSeriesStore, but routing through onDataChanged() keeps
-    // batch() semantics consistent with time-series renderers.
-    const renderer = new PieRenderer(options);
-
-    return this.#registerSeries(renderer, null, options ?? {});
+  /**
+   * Construct the renderer for a series `type`, injecting the active theme's
+   * colors. Non-theme defaults (bodyWidthRatio, area, barWidthRatio) live in
+   * each renderer's own `DEFAULT_OPTIONS`, so they aren't repeated here.
+   */
+  #createRenderer(type: SeriesType, layerCount: number, opts: Record<string, unknown>): SeriesRenderer {
+    switch (type) {
+      case 'candlestick':
+        return new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {
+          up: { ...this.#theme.candlestick.up },
+          down: { ...this.#theme.candlestick.down },
+          ...opts,
+        });
+      case 'line':
+        return new LineRenderer(layerCount, {
+          colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
+          strokeWidth: this.#theme.line.width,
+          ...opts,
+        });
+      case 'bar':
+        return new BarRenderer(layerCount, {
+          colors: this.#theme.seriesColors.slice(0, layerCount),
+          ...opts,
+        });
+      case 'pie':
+        return new PieRenderer({ ...opts });
+    }
   }
 
   /** Remove a series by ID and clean up its resources. */
@@ -610,8 +586,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // category is disabled, the per-series force-off must be re-applied
     // here — otherwise a simple parent re-render silently re-enables
     // animations the chart asked to hold off.
-    const kind = this.#rendererKind(entry.renderer);
-    const forceOff = kind === null ? {} : this.#animationsConfig.overrides(kind);
+    const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
     entry.renderer.updateOptions({ ...options, ...forceOff });
     // Keep stored label in sync with options (affects tooltip/legend)
     if ('label' in options && typeof options.label === 'string') {
@@ -785,7 +760,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * arrived. `{ from: dataStart, to: dataEnd }` mirrors the chart's own
    * tracking and is cheaper than recomputing from series stores.
    */
-  getDataRange(): VisibleRange | null {
+  getDataRange(): XRange | null {
     if (this.#dataStart === null || this.#dataEnd === null) return null;
 
     return { from: this.#dataStart, to: this.#dataEnd };
@@ -936,8 +911,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   getLastData(seriesId: string): OHLCData | TimePoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
-    if (!entry?.store) return null;
-    return entry.store.last() ?? null;
+    if (!entry || entry.renderer.kind === 'pie') return null;
+
+    return entry.renderer.getLastDataPoint();
   }
 
   /** Find the data point closest to the given timestamp within one data interval. */
@@ -979,21 +955,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #hasNonPieSeries(): boolean {
     for (const entry of this.#series) {
       if (!entry.visible) continue;
-      if (!(entry.renderer instanceof PieRenderer)) return true;
+      if (entry.renderer.kind !== 'pie') return true;
     }
 
     return false;
-  }
-
-  /**
-   * Type of a registered series, or `null` for unknown ids. `'pie'` for
-   * `PieRenderer`; everything else is a time-series (`'time'`).
-   */
-  getSeriesType(seriesId: string): 'pie' | 'time' | null {
-    const entry = this.#series.find((s) => s.id === seriesId);
-    if (!entry) return null;
-
-    return entry.renderer instanceof PieRenderer ? 'pie' : 'time';
   }
 
   /**
@@ -1010,7 +975,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const singleLayerOnly = opts?.singleLayerOnly === true;
     const result: string[] = [];
     for (const entry of this.#series) {
-      const isPie = entry.renderer instanceof PieRenderer;
+      const isPie = entry.renderer.kind === 'pie';
       if (type === 'pie' && !isPie) continue;
       if (type === 'time' && isPie) continue;
 
@@ -1334,12 +1299,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     let last: number | undefined;
     for (const entry of this.#series) {
       if (!entry.visible) continue;
-      if (!entry.store) continue;
-      const f = entry.store.first();
-      const l = entry.store.last();
-      if (f && (first === undefined || f.time < first)) first = f.time;
-      if (l && (last === undefined || l.time > last)) last = l.time;
+      if (entry.renderer.kind === 'pie') continue;
+
+      // `getTimeBounds` aggregates across ALL layers, so a ragged multi-layer
+      // series reports its true span (not just layer 0's).
+      const bounds = entry.renderer.getTimeBounds();
+      if (bounds === null) continue;
+
+      if (first === undefined || bounds.first < first) first = bounds.first;
+      if (last === undefined || bounds.last > last) last = bounds.last;
     }
+
     return { first, last };
   }
 
@@ -1434,10 +1404,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   private updateDataInterval(): void {
     for (const entry of this.#series) {
-      if (!entry.store) continue;
-      const all = entry.store.getAll();
-      if (all.length >= 2) {
-        const times = all.slice(0, 20).map((d) => d.time);
+      if (entry.renderer.kind === 'pie') continue;
+
+      // `>= 2` guard preserved: `detectInterval` on a lone timestamp lies.
+      const times = entry.renderer.sampleTimes(20);
+      if (times.length >= 2) {
         this.#dataInterval = detectInterval(times);
         break;
       }
@@ -1478,11 +1449,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * Sample the visible data window and return the resolved Y bounds, or
    * `null` when no series has data inside the X destination range.
    * Sampling runs against `logicalRange` (the X target, not the animating
-   * current) so Y stays on a stable target while X eases — both dimensions
+   * current), so Y stays on a stable target while X eases — both dimensions
    * converge together. Clears {@link #yInited} on empty so the next emit
    * with valid data lands as an instant snap.
    */
-  #computeYTarget(xTarget?: VisibleRange): { min: number; max: number } | null {
+  #computeYTarget(xTarget?: XRange): { min: number; max: number } | null {
     const targetVisible = xTarget ?? this.#logical;
 
     // Only collect individual values when bounds use a function/percentage (rare).
@@ -1521,7 +1492,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * - **autoscroll off** → `null` (no X retarget; user has panned away
    *   from the tail).
    */
-  #computeXTarget(): VisibleRange | null {
+  #computeXTarget(): XRange | null {
     if (this.#dataStart === null || this.#dataEnd === null) return null;
 
     const { from, to } = this.#logical;
@@ -1641,7 +1612,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * follow-up `renderMain` syncs scales — a redundant `viewportChange`
    * emit here would just trigger a wasted React re-render per stream tick.
    */
-  #commitLogical(range: VisibleRange, opts: { emitChange: boolean; skipValidation?: boolean }): void {
+  #commitLogical(range: XRange, opts: { emitChange: boolean; skipValidation?: boolean }): void {
     const { from, to } = range;
     if (!Number.isFinite(from) || !Number.isFinite(to)) return;
     if (to <= from) return;

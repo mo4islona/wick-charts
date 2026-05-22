@@ -13,14 +13,11 @@
  * The chart's `#computeYTarget` wires both stages together.
  */
 
-import type { TimeSeriesStore } from '../data/store';
 import type { SeriesRenderer } from '../series/types';
-import type { AxisBound, OHLCData, TimePoint, VisibleRange } from '../types';
+import type { AxisBound, XRange } from '../types';
 
 export interface YTargetSeries {
   readonly renderer: SeriesRenderer;
-  // biome-ignore lint/suspicious/noExplicitAny: matches the heterogeneous storage in ChartInstance.
-  readonly store: TimeSeriesStore<any> | null;
   readonly visible: boolean;
 }
 
@@ -34,52 +31,28 @@ export interface YTargetSeries {
  * distribution (otherwise only min/max are visited).
  */
 export function computeTargetYRange(
-  targetVisible: VisibleRange,
+  targetVisible: XRange,
   series: readonly YTargetSeries[],
   allValues: number[] | null,
 ): { min: number; max: number } | null {
   let min = Infinity;
   let max = -Infinity;
 
+  // Single path: every time-series renderer answers `getValueRange` directly
+  // (stacked totals, raw min/max, or candle high/low). Pie has no Y range.
+  // `allValues` now receives `[min, max]` per series rather than every sample
+  // — function-style bounds see the range, not the full distribution (this
+  // already held for multi-layer; see INTERNAL_REFACTOR.md).
   for (const entry of series) {
     if (!entry.visible) continue;
+    if (entry.renderer.kind === 'pie') continue;
 
-    // Custom value range from the renderer (e.g. stacked totals) wins.
-    if (entry.renderer.getValueRange) {
-      const r = entry.renderer.getValueRange(targetVisible.from, targetVisible.to);
-      if (r) {
-        if (r.max > max) max = r.max;
-        if (r.min < min) min = r.min;
-        allValues?.push(r.min, r.max);
-        continue;
-      }
-    }
-    if (!entry.store) continue;
+    const r = entry.renderer.getValueRange(targetVisible.from, targetVisible.to);
+    if (!r) continue;
 
-    const visible = entry.store.getVisibleData(targetVisible.from, targetVisible.to);
-    for (const point of visible) {
-      if ('high' in point) {
-        const ohlc = point as OHLCData;
-        // Skip non-finite values (null / undefined / NaN / ±Infinity). Without
-        // the guard, `Infinity` poisons max, `-Infinity` poisons min, and
-        // `null` coerces to 0, collapsing the range to a single flat line.
-        if (Number.isFinite(ohlc.high)) {
-          if (ohlc.high > max) max = ohlc.high;
-          allValues?.push(ohlc.high);
-        }
-        if (Number.isFinite(ohlc.low)) {
-          if (ohlc.low < min) min = ohlc.low;
-          allValues?.push(ohlc.low);
-        }
-      } else {
-        const line = point as TimePoint;
-        if (Number.isFinite(line.value)) {
-          if (line.value > max) max = line.value;
-          if (line.value < min) min = line.value;
-          allValues?.push(line.value);
-        }
-      }
-    }
+    if (r.max > max) max = r.max;
+    if (r.min < min) min = r.min;
+    allValues?.push(r.min, r.max);
   }
 
   if (min === Infinity || max === -Infinity) return null;

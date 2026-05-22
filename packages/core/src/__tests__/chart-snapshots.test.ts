@@ -31,8 +31,8 @@ describe('buildLastSnapshots', () => {
   });
 
   it('returns a snapshot per visible series at its last point', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
     chart.setSeriesData(a, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },
@@ -52,8 +52,8 @@ describe('buildLastSnapshots', () => {
   });
 
   it('skips hidden series', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
     chart.setSeriesData(a, [{ time: 1, value: 10 }]);
     chart.setSeriesData(b, [{ time: 1, value: 20 }]);
     chart.setSeriesVisible(b, false);
@@ -63,7 +63,7 @@ describe('buildLastSnapshots', () => {
   });
 
   it('expands multi-layer series into one snapshot per visible layer, each at its own time', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(
       id,
@@ -91,7 +91,7 @@ describe('buildLastSnapshots', () => {
   });
 
   it('freezes the result so consumers cannot mutate it or the chart store', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 42 },
@@ -113,7 +113,7 @@ describe('buildLastSnapshots', () => {
   });
 
   it('returns the same reference across calls when the chart state is unchanged', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
 
     const first = buildLastSnapshots(chart, { cacheKey: 'infobar' });
@@ -122,7 +122,7 @@ describe('buildLastSnapshots', () => {
   });
 
   it('invalidates the cache on overlay mutations: setSeriesVisible, setTheme, updateSeriesOptions', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
 
     const before = buildLastSnapshots(chart, { cacheKey: 'infobar' });
@@ -143,7 +143,7 @@ describe('buildLastSnapshots', () => {
   });
 
   it('uses independent cache slots per cacheKey', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
 
     const a = buildLastSnapshots(chart, { cacheKey: 'a', sort: 'asc' });
@@ -153,8 +153,8 @@ describe('buildLastSnapshots', () => {
   });
 
   it('respects sort order', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
     chart.setSeriesData(a, [{ time: 1, value: 50 }]);
     chart.setSeriesData(b, [{ time: 1, value: 10 }]);
 
@@ -182,7 +182,7 @@ describe('buildHoverSnapshots', () => {
   });
 
   it('returns a snapshot per visible series at the queried time', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },
@@ -194,7 +194,7 @@ describe('buildHoverSnapshots', () => {
   });
 
   it('caches by (time, sort, overlayVersion) and returns the same reference for repeat calls', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },
@@ -205,7 +205,7 @@ describe('buildHoverSnapshots', () => {
   });
 
   it('recomputes when the queried time changes', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },
@@ -216,8 +216,8 @@ describe('buildHoverSnapshots', () => {
   });
 
   it('filters hidden series from the result', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
     chart.setSeriesData(a, [{ time: 1, value: 10 }]);
     chart.setSeriesData(b, [{ time: 1, value: 20 }]);
     chart.setSeriesVisible(b, false);
@@ -230,7 +230,7 @@ describe('buildHoverSnapshots', () => {
     // Previously `layerIndex` was the filtered array position: hiding
     // layer 0 would report layer 1 as `layerIndex: 0`, breaking row keys
     // and any slot code grouping by layer.
-    const id = chart.addLineSeries({ layers: 3 });
+    const id = chart.addSeries('line', { layers: 3 });
     chart.setSeriesData(id, [{ time: 10, value: 1 }], 0);
     chart.setSeriesData(id, [{ time: 10, value: 2 }], 1);
     chart.setSeriesData(id, [{ time: 10, value: 3 }], 2);
@@ -243,7 +243,7 @@ describe('buildHoverSnapshots', () => {
   });
 
   it('uses resolved sample time for each layer, not the query time', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(
       id,
       [
@@ -271,7 +271,7 @@ describe('buildHoverSnapshots', () => {
     // Previously: getLayerSnapshots → null when every layer is hidden,
     // helper fell through to getDataAtTime (which returns layer 0's data),
     // producing a snapshot for a series the chart isn't drawing.
-    const multi = chart.addLineSeries({ layers: 2 });
+    const multi = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(multi, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(multi, [{ time: 1, value: 20 }], 1);
     chart.setLayerVisible(multi, 0, false);

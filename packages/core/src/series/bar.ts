@@ -1,5 +1,4 @@
 import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
-import type { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint } from '../types';
 import { BaseMultiLayerSeries } from './base-multi-layer';
@@ -30,16 +29,12 @@ function normalize(options: BarSeriesOptions): ResolvedBarOptions {
 }
 
 export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
+  readonly kind = 'bar' as const;
   protected declare options: ResolvedBarOptions;
 
   constructor(layerCount: number, options?: Partial<BarSeriesOptions>) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
-  }
-
-  /** For chart compatibility — returns first store */
-  get store(): TimeSeriesStore<TimePoint> {
-    return this.stores[0];
   }
 
   updateOptions(options: Partial<BarSeriesOptions>): void {

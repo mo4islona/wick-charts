@@ -82,7 +82,7 @@ function makeChart(): { chart: ChartInstance; container: HTMLElement } {
 function seedSeries(chart: ChartInstance, seriesCount: number, points: number, startTime = 1_000_000): string[] {
   const ids: string[] = [];
   for (let s = 0; s < seriesCount; s++) {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const data = Array.from({ length: points }, (_, i) => ({
       time: startTime + i * INTERVAL,
       value: 50 + s * 10,
@@ -156,7 +156,7 @@ describe('multi-series streaming preserves user zoom (LinePage regression)', () 
     // also has to flow through the per-series delta without tripping the
     // bulk-load path.
     const layerCount = 6;
-    const id = chart.addLineSeries({ layers: layerCount });
+    const id = chart.addSeries('line', { layers: layerCount });
     for (let li = 0; li < layerCount; li++) {
       chart.setSeriesData(
         id,
@@ -191,7 +191,7 @@ describe('multi-series streaming preserves user zoom (LinePage regression)', () 
   it('bulk replace of a single series (setSeriesData, >5 points) still refits', () => {
     // Sanity: per-series batch detection must NOT regress the existing
     // bulk-load semantic that `chart-y-range-animator.test.ts` pins.
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 5 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 })),

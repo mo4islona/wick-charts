@@ -25,7 +25,7 @@ describe('ChartInstance.batch', () => {
   });
 
   it('collapses multiple setSeriesData calls into a single dataUpdate event', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     let updates = 0;
     chart.on('dataUpdate', () => {
       updates++;
@@ -40,7 +40,7 @@ describe('ChartInstance.batch', () => {
   });
 
   it('collapses setSeriesVisible calls inside batch', () => {
-    const id = chart.addLineSeries({ layers: 1 });
+    const id = chart.addSeries('line', { layers: 1 });
     chart.setSeriesData(id, [{ time: 1, value: 1 }]);
 
     // One dataUpdate from the initial setSeriesData.
@@ -59,7 +59,7 @@ describe('ChartInstance.batch', () => {
   });
 
   it('throwing inside fn still flushes the batch (try/finally invariant)', () => {
-    const id = chart.addLineSeries({ layers: 1 });
+    const id = chart.addSeries('line', { layers: 1 });
     let updates = 0;
     chart.on('dataUpdate', () => {
       updates++;
@@ -83,7 +83,7 @@ describe('ChartInstance.batch', () => {
   });
 
   it('nested batches only flush at the outer boundary', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     let updates = 0;
     chart.on('dataUpdate', () => {
       updates++;

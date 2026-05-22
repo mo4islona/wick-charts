@@ -19,7 +19,7 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
   const seriesRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    const id = chart.addPieSeries({ ...options, id: idProp });
+    const id = chart.addSeries('pie', { ...options, id: idProp });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);

@@ -4,15 +4,12 @@
  * chart state beyond the series array and the current visible X window.
  */
 
-import type { TimeSeriesStore } from '../data/store';
 import type { SeriesRenderer } from '../series/types';
-import type { OHLCData, TimePoint, VisibleRange } from '../types';
+import type { OHLCData, TimePoint, XRange } from '../types';
 
 export interface LastValueSeries {
   readonly id: string;
   readonly renderer: SeriesRenderer;
-  // biome-ignore lint/suspicious/noExplicitAny: matches the heterogeneous storage in ChartInstance — concrete item type depends on the series and is narrowed at the use site.
-  readonly store: TimeSeriesStore<any> | null;
 }
 
 export interface LastValueResult {
@@ -30,21 +27,23 @@ const extractValue = (p: OHLCData | TimePoint): number => ('close' in p ? p.clos
 export function getLastValue(
   seriesId: string,
   series: readonly LastValueSeries[],
-  visibleRange: VisibleRange,
+  xRange: XRange,
 ): LastValueResult | null {
   const entry = series.find((s) => s.id === seriesId);
-  if (!entry?.store) return null;
+  if (!entry) return null;
 
-  const last = entry.store.last();
+  const renderer = entry.renderer;
+  if (renderer.kind === 'pie') return null;
+
+  const last = renderer.getLastDataPoint();
   if (!last) return null;
 
-  const { from, to } = visibleRange;
-
+  const { from, to } = xRange;
   if (last.time >= from && last.time <= to) {
     return { value: extractValue(last), isLive: true };
   }
 
-  const visible = entry.store.getVisibleData(from, to);
+  const visible = renderer.getVisibleDataPoints(from, to);
   if (visible.length === 0) return null;
 
   return { value: extractValue(visible[visible.length - 1]), isLive: false };
@@ -58,7 +57,7 @@ export function getLastValue(
 export function getStackedLastValue(
   seriesId: string,
   series: readonly LastValueSeries[],
-  visibleRange: VisibleRange,
+  xRange: XRange,
 ): LastValueResult | null {
   const entry = series.find((s) => s.id === seriesId);
   if (!entry) return null;
@@ -66,18 +65,19 @@ export function getStackedLastValue(
   const stacked = entry.renderer.getStackedLastValue?.();
   if (stacked) return stacked;
 
-  return getLastValue(seriesId, series, visibleRange);
+  return getLastValue(seriesId, series, xRange);
 }
 
 /** Second-to-last value, useful for computing change. */
 export function getPreviousClose(seriesId: string, series: readonly LastValueSeries[]): number | null {
   const entry = series.find((s) => s.id === seriesId);
-  if (!entry?.store) return null;
+  if (!entry) return null;
 
-  const all = entry.store.getAll();
-  if (all.length < 2) return null;
+  const renderer = entry.renderer;
+  if (renderer.kind === 'pie') return null;
 
-  const prev = all[all.length - 2];
+  const prev = renderer.getSecondLastDataPoint();
+  if (!prev) return null;
 
   return 'close' in prev ? (prev as OHLCData).close : (prev as TimePoint).value;
 }

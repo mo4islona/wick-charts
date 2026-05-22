@@ -10,7 +10,7 @@
  * pure, no state mutation.
  */
 
-import type { HorizontalPadding, VisibleRange } from '../types';
+import type { HorizontalPadding, XRange } from '../types';
 import { resolvePaddingTime } from './viewport-padding';
 
 /** Minimum pending shift (expressed via dataInterval) before streaming X retargets. */
@@ -20,7 +20,7 @@ const AUTOSCROLL_MIN_DELTA_PX = 4;
 
 export interface StreamingTargetInput {
   /** Current logical X range. */
-  currentLogical: VisibleRange;
+  currentLogical: XRange;
   /** Latest data timestamp. */
   lastTime: number;
   /** Previous `dataEnd` value (or `null` on the first call) for offset preservation. */
@@ -40,7 +40,7 @@ export interface StreamingTargetInput {
 
 export interface StreamingTargetResult {
   /** New logical X to commit, or `null` to keep the current one (held / sub-threshold). */
-  newLogical: VisibleRange | null;
+  newLogical: XRange | null;
   /** When `true`, caller should release the `holdUntilFilled` flag. */
   releaseHold: boolean;
   /** When `true`, caller should set `autoScroll = true`. */

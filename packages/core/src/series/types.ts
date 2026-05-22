@@ -1,6 +1,6 @@
 import type { AnimationState } from '../animation/viewport-engine';
 import type { BitmapCoordinateSpace } from '../canvas-manager';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { OHLCData, TimePoint } from '../types';
@@ -25,7 +25,7 @@ export interface RenderPadding {
 
 export interface SeriesRenderContext {
   scope: BitmapCoordinateSpace;
-  timeScale: TimeScale;
+  timeScale: XScale;
   yScale: YScale;
   theme: ChartTheme;
   dataInterval: number;
@@ -48,7 +48,7 @@ export interface SeriesRenderContext {
 /** Overlay render state passed to {@link SeriesRenderer.drawOverlay}. */
 export interface OverlayRenderContext {
   scope: BitmapCoordinateSpace;
-  timeScale: TimeScale;
+  timeScale: XScale;
   yScale: YScale;
   theme: ChartTheme;
   dataInterval: number;
@@ -75,19 +75,24 @@ export interface HoverInfo {
 
 export type SliceInfo = HoverInfo;
 
+/** Discriminant for the {@link SeriesRenderer} union. */
+export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie';
+
 /**
- * Every series renderer implements this interface. Chart dispatches uniformly —
- * any type-specific behavior is opted into via the optional members below.
+ * Members shared by every series renderer, regardless of whether it owns a
+ * time axis. Chart dispatches these uniformly; type-specific behavior is
+ * opted into via the optional members below.
  *
  * Single-layer renderers (Candlestick, Pie) default most layer methods to no-ops.
  * Multi-layer renderers (Line, Bar) override them against each internal store.
+ *
+ * Time-series data queries are NOT here — they live on {@link TimeSeriesRenderer}
+ * as required methods, so Chart narrows via `kind !== 'pie'` and calls them
+ * directly (no optional chaining).
  */
-export interface SeriesRenderer {
+export interface BaseSeriesRenderer {
   /** Paint the series on the main layer. */
   render(ctx: SeriesRenderContext): void;
-
-  /** Optional: return the effective min/max for auto-range (e.g. stacked totals). */
-  getValueRange?(from: number, to: number): { min: number; max: number } | null;
 
   // --- Data ingest ---------------------------------------------------------
 
@@ -252,3 +257,38 @@ export interface SeriesRenderer {
   /** Tear down listeners and any owned resources. */
   dispose(): void;
 }
+
+/**
+ * A renderer with a time axis (Candlestick, Line, Bar). Owns its data and
+ * answers the time-series queries directly — Chart never reaches into a store.
+ * Multi-layer renderers (Line, Bar) aggregate across their layers internally;
+ * `getLastDataPoint` / `getSecondLastDataPoint` / `getVisibleDataPoints` are
+ * pinned to layer 0 (see {@link BaseMultiLayerSeries}).
+ */
+export interface TimeSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'candlestick' | 'line' | 'bar';
+
+  /** Earliest/latest sample time across all owned layers, or null when empty. */
+  getTimeBounds(): { first: number; last: number } | null;
+  /** Last data point (layer 0 for multi-layer), or null when empty. */
+  getLastDataPoint(): OHLCData | TimePoint | null;
+  /** Second-to-last data point (layer 0 for multi-layer), or null. */
+  getSecondLastDataPoint(): OHLCData | TimePoint | null;
+  /** First `maxCount` sample times from the first populated layer — feeds interval detection. */
+  sampleTimes(maxCount: number): number[];
+  /** Visible points in `[from, to]` (layer 0 for multi-layer). */
+  getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint)[];
+  /** Effective min/max for auto-range (stacked totals for multi-layer; raw min/max otherwise). */
+  getValueRange(from: number, to: number): { min: number; max: number } | null;
+}
+
+/** A spatial renderer with no time axis (Pie). Has no time-series queries. */
+export interface PieSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'pie';
+}
+
+/**
+ * Every series renderer is one of these. Discriminated on `kind`: narrow with
+ * `kind === 'pie'` (or `!== 'pie'`) to reach the variant-specific surface.
+ */
+export type SeriesRenderer = TimeSeriesRenderer | PieSeriesRenderer;

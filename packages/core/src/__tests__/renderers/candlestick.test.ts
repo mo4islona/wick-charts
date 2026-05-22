@@ -511,3 +511,30 @@ describe('CandlestickRenderer.render', () => {
     expect(warns).toHaveLength(2);
   });
 });
+
+describe('CandlestickRenderer.getValueRange', () => {
+  it('empty range → null', () => {
+    const r = new CandlestickRenderer(mkStore([]));
+    expect(r.getValueRange(0, 100)).toBeNull();
+  });
+
+  it('returns lowest low / highest high across visible candles', () => {
+    const r = new CandlestickRenderer(
+      mkStore([
+        { time: 10, ...BULL }, // low 9, high 12
+        { time: 30, ...BEAR }, // low 8, high 13
+      ]),
+    );
+    expect(r.getValueRange(0, 100)).toEqual({ min: 8, max: 13 });
+  });
+
+  it('skips a poisoned candle (NaN high/low) instead of corrupting the range', () => {
+    const r = new CandlestickRenderer(
+      mkStore([
+        { time: 10, ...BULL }, // low 9, high 12
+        { time: 30, open: Number.NaN, high: Number.NaN, low: Number.NaN, close: Number.NaN },
+      ]),
+    );
+    expect(r.getValueRange(0, 100)).toEqual({ min: 9, max: 12 });
+  });
+});

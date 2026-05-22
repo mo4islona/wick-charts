@@ -10,7 +10,7 @@ describe('LineRenderer.getValueRange', () => {
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 100 });
   });
 
-  it('single layer (layerCount=1) returns null', () => {
+  it('single layer (off) returns its own min/max', () => {
     const r = new LineRenderer(1);
     r.setData(
       [
@@ -19,7 +19,23 @@ describe('LineRenderer.getValueRange', () => {
       ],
       0,
     );
-    expect(r.getValueRange(0, 100)).toBeNull();
+    // The `length <= 1 → null` early-out was removed; off-stacking single layer
+    // degenerates to the store's own min/max, which y-target now relies on.
+    expect(r.getValueRange(0, 100)).toEqual({ min: 5, max: 15 });
+  });
+
+  it('single layer (normal) anchors min at 0', () => {
+    const r = new LineRenderer(1, { stacking: 'normal' });
+    r.setData(
+      [
+        { time: 1, value: 50 },
+        { time: 2, value: 70 },
+      ],
+      0,
+    );
+    // A single-layer "stack" grows from 0 — intentional change vs the old
+    // per-value fallback (which reported min 50). See INTERNAL_REFACTOR.md.
+    expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 70 });
   });
 
   it('stacking: off multi-layer returns union of all layers min/max', () => {
@@ -110,5 +126,30 @@ describe('LineRenderer.getValueRange', () => {
     // negSum = -10 + -5 = -15, posSum = 0
     // max (0) > min (-15) => { min: -15, max: 0 }
     expect(r.getValueRange(0, 100)).toEqual({ min: -15, max: 0 });
+  });
+});
+
+describe('LineRenderer.getTimeBounds', () => {
+  it('returns null when every layer is empty', () => {
+    expect(new LineRenderer(2).getTimeBounds()).toBeNull();
+  });
+
+  it('aggregates first/last across all layers', () => {
+    const r = new LineRenderer(2);
+    r.setData([{ time: 1, value: 10 }], 0);
+    r.setData([{ time: 5, value: 20 }], 1);
+    expect(r.getTimeBounds()).toEqual({ first: 1, last: 5 });
+  });
+
+  it('survives an empty layer 0 (data only on layer 1)', () => {
+    const r = new LineRenderer(2);
+    r.setData(
+      [
+        { time: 3, value: 1 },
+        { time: 7, value: 2 },
+      ],
+      1,
+    );
+    expect(r.getTimeBounds()).toEqual({ first: 3, last: 7 });
   });
 });

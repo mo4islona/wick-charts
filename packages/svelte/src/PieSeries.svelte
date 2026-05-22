@@ -16,7 +16,7 @@ let seriesId: string | null = null;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addPieSeries({ ...options, id });
+  seriesId = chart.addSeries('pie', { ...options, id });
 });
 
 onDestroy(() => {

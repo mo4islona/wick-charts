@@ -24,7 +24,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('sets data for a candlestick series', () => {
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
     const data = [
       { time: 1000, open: 10, high: 12, low: 8, close: 11 },
       { time: 2000, open: 11, high: 13, low: 10, close: 12 },
@@ -34,7 +34,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('sets data for a single-layer line series', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1000, value: 10 },
       { time: 2000, value: 20 },
@@ -43,7 +43,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('sets data for a single-layer bar series', () => {
-    const id = chart.addBarSeries();
+    const id = chart.addSeries('bar');
     chart.setSeriesData(id, [
       { time: 1000, value: 5 },
       { time: 2000, value: 15 },
@@ -52,7 +52,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('writes to the right layer of a multi-layer line series', () => {
-    const id = chart.addLineSeries({ layers: 3 });
+    const id = chart.addSeries('line', { layers: 3 });
     chart.setSeriesData(id, [{ time: 1, value: 100 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 200 }], 1);
     chart.setSeriesData(id, [{ time: 1, value: 300 }], 2);
@@ -62,7 +62,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('writes to the right layer of a multi-layer bar series', () => {
-    const id = chart.addBarSeries({ layers: 2 });
+    const id = chart.addSeries('bar', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 1 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 2 }], 1);
     const snapshots = chart.getLayerSnapshots(id, 1);
@@ -71,7 +71,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('sets data for a pie series', () => {
-    const id = chart.addPieSeries();
+    const id = chart.addSeries('pie');
     chart.setSeriesData(id, [
       { label: 'A', value: 10 },
       { label: 'B', value: 30 },
@@ -88,7 +88,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('appendData + updateData pass through to the renderer', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1000, value: 10 }]);
     chart.appendData(id, { time: 2000, value: 20 });
     expect(chart.getLastData(id)).toMatchObject({ time: 2000, value: 20 });
@@ -97,7 +97,7 @@ describe('ChartInstance.setSeriesData — unified data API', () => {
   });
 
   it('setSeriesData normalizes Date time fields', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const t = new Date(2024, 0, 1, 12, 0, 0);
     chart.setSeriesData(id, [{ time: t, value: 42 }]);
     const last = chart.getLastData(id) as { time: number; value: number };

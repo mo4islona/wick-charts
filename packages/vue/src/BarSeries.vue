@@ -15,7 +15,7 @@ const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addBarSeries({
+  const id = chart.addSeries('bar', {
     ...props.options,
     layers: props.data.length,
     id: props.id,

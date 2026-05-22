@@ -38,7 +38,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
     chart.on('overlayChange', listener);
 
     const before = chart.getOverlayVersion();
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     expect(chart.getOverlayVersion()).toBeGreaterThan(before);
     expect(listener).toHaveBeenCalled();
 
@@ -50,7 +50,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on dataUpdate', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const listener = vi.fn();
     chart.on('overlayChange', listener);
 
@@ -65,7 +65,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on setSeriesVisible', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
     const before = chart.getOverlayVersion();
     const listener = vi.fn();
@@ -77,7 +77,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on setLayerVisible for multi-layer series', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 20 }], 1);
     const before = chart.getOverlayVersion();
@@ -90,7 +90,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on updateSeriesOptions', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const before = chart.getOverlayVersion();
     const listener = vi.fn();
     chart.on('overlayChange', listener);
@@ -101,7 +101,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on setTheme', () => {
-    chart.addLineSeries();
+    chart.addSeries('line');
     const before = chart.getOverlayVersion();
     const listener = vi.fn();
     chart.on('overlayChange', listener);
@@ -112,7 +112,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('does not bump on no-op setSeriesVisible', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesVisible(id, true);
     const stable = chart.getOverlayVersion();
     chart.setSeriesVisible(id, true);
@@ -122,7 +122,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   it('does not bump on updateSeriesOptions when overlay-relevant fields are unchanged', () => {
     // Vue deep watchers replay `updateSeriesOptions` with fresh but equal
     // objects every render. Those must not thrash the snapshot cache.
-    const id = chart.addLineSeries({ label: 'same', colors: ['#112233'] });
+    const id = chart.addSeries('line', { label: 'same', colors: ['#112233'] });
     const stable = chart.getOverlayVersion();
     const listener = vi.fn();
     chart.on('overlayChange', listener);
@@ -134,7 +134,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('bumps on updateSeriesOptions only when label or layer colors actually change', () => {
-    const id = chart.addLineSeries({ label: 'first', colors: ['#112233'] });
+    const id = chart.addSeries('line', { label: 'first', colors: ['#112233'] });
     const afterAdd = chart.getOverlayVersion();
 
     chart.updateSeriesOptions(id, { label: 'second' });
@@ -155,9 +155,9 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
     // Legend's isolate batches many setSeriesVisible / setLayerVisible
     // calls. Emitting N overlayChange events during the batch caused N
     // overlay renders instead of one.
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
-    const c = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
+    const c = chart.addSeries('line');
     chart.setSeriesData(a, [{ time: 1, value: 1 }]);
     chart.setSeriesData(b, [{ time: 1, value: 2 }]);
     chart.setSeriesData(c, [{ time: 1, value: 3 }]);
@@ -178,7 +178,7 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   });
 
   it('does not emit overlayChange when a batch made no overlay-affecting changes', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const listener = vi.fn();
     chart.on('overlayChange', listener);
     listener.mockClear();

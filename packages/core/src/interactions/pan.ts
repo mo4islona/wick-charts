@@ -1,4 +1,4 @@
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { PanZoomTarget } from './pan-zoom-target';
 
 export class PanHandler {
@@ -7,7 +7,7 @@ export class PanHandler {
 
   constructor(
     private target: PanZoomTarget,
-    private timeScale: TimeScale,
+    private timeScale: XScale,
     private canvas: HTMLCanvasElement,
   ) {}
 

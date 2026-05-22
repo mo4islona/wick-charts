@@ -1,4 +1,4 @@
-import type { VisibleRange } from '../types';
+import type { XRange } from '../types';
 import { niceTimeIntervals } from '../utils/time';
 import { AxisTickTracker } from './tick-tracker';
 
@@ -8,7 +8,7 @@ const MAX_TICKS = 50;
 /** Default minimum pixel gap between adjacent X labels when no config is supplied. */
 const DEFAULT_MIN_LABEL_SPACING = 80;
 
-export class TimeScale {
+export class XScale {
   /**
    * Shared fade state for time ticks. Grid lines (canvas) and DOM tick labels
    * read opacity from the same tracker, so a tick fading in/out looks
@@ -46,7 +46,7 @@ export class TimeScale {
     return this.minSpacingValue ?? DEFAULT_MIN_LABEL_SPACING;
   }
 
-  update(range: VisibleRange, mediaWidth: number, pixelRatio: number, dataInterval?: number): void {
+  update(range: XRange, mediaWidth: number, pixelRatio: number, dataInterval?: number): void {
     this.from = range.from;
     this.to = range.to;
     this.width = mediaWidth;
@@ -147,7 +147,7 @@ export class TimeScale {
     return { ticks, tickInterval: interval };
   }
 
-  getRange(): VisibleRange {
+  getRange(): XRange {
     return { from: this.from, to: this.to };
   }
 

@@ -96,7 +96,7 @@ describe('chart-level tick-tracker arming', () => {
 
   it('initial paint seeds ticks at full opacity and does not arm the trackers mid-fade', () => {
     ({ chart, container } = makeChart());
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const data = Array.from({ length: 10 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 + i * 5 }));
     chart.setSeriesData(id, data);
     // Only one frame — viewport/series may still be animating after this.
@@ -197,7 +197,7 @@ describe('chart-level tick-tracker arming', () => {
 });
 
 function seedLine(chart: ChartInstance, values: number[], startTime = 1_000_000): string {
-  const id = chart.addLineSeries();
+  const id = chart.addSeries('line');
   const data = values.map((value, i) => ({ time: startTime + i * INTERVAL, value }));
   chart.setSeriesData(id, data);
 

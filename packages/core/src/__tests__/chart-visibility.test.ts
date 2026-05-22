@@ -47,14 +47,14 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
   });
 
   it('isSeriesVisible returns true by default for a newly added series', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
     expect(chart.isSeriesVisible(id)).toBe(true);
   });
 
   it('setSeriesVisible(id, false) excludes the series from the Y-range', () => {
-    const small = chart.addLineSeries();
-    const big = chart.addLineSeries();
+    const small = chart.addSeries('line');
+    const big = chart.addSeries('line');
     chart.setSeriesData(small, [
       { time: 1, value: 1 },
       { time: 2, value: 5 },
@@ -77,8 +77,8 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
   });
 
   it('re-showing a hidden series restores it to the Y-range', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
     chart.setSeriesData(a, [{ time: 1, value: 10 }]);
     chart.setSeriesData(b, [{ time: 1, value: 1000 }]);
     const fullMax = chart.getYRange().max;
@@ -94,7 +94,7 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
   });
 
   it('hiding a series that is already hidden is a no-op (no state change)', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
     chart.setSeriesVisible(id, false);
     const afterFirstHide = chart.getYRange();
@@ -109,7 +109,7 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
   it('setLayerVisible on a single-layer series is ignored (use setSeriesVisible instead)', () => {
     // Candlestick renderer has layerCount === 1; the public API refuses to
     // toggle per-layer visibility on it to keep "layer" a multi-layer concept.
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
     chart.setSeriesData(id, [
       { time: 1, open: 10, high: 12, low: 8, close: 11 },
       { time: 2, open: 11, high: 14, low: 10, close: 13 },
@@ -131,9 +131,9 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
     // that pulled the target mid-batch would have it reflect partial state.
 
     it('multiple setSeriesVisible(false) inside batch produce the isolated-only Y range', () => {
-      const a = chart.addLineSeries();
-      const b = chart.addLineSeries();
-      const c = chart.addLineSeries();
+      const a = chart.addSeries('line');
+      const b = chart.addSeries('line');
+      const c = chart.addSeries('line');
       chart.setSeriesData(a, [{ time: 1, value: 10 }]);
       chart.setSeriesData(b, [{ time: 1, value: 100 }]);
       chart.setSeriesData(c, [{ time: 1, value: 500 }]);
@@ -155,8 +155,8 @@ describe('ChartInstance.setSeriesVisible (whole-series toggle)', () => {
     });
 
     it('re-showing all series inside batch restores the combined Y range', () => {
-      const a = chart.addLineSeries();
-      const b = chart.addLineSeries();
+      const a = chart.addSeries('line');
+      const b = chart.addSeries('line');
       chart.setSeriesData(a, [{ time: 1, value: 10 }]);
       chart.setSeriesData(b, [{ time: 1, value: 500 }]);
 

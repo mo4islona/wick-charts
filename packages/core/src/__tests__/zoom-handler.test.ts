@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { PanZoomTarget } from '../interactions/pan-zoom-target';
 import { ZoomHandler } from '../interactions/zoom';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 
 /**
  * Unit test for the wheel-driven zoom path. The handler is pure — no DOM —
@@ -26,7 +26,7 @@ describe('ZoomHandler.handleWheel', () => {
     const timeScale = {
       getMediaWidth: vi.fn(() => 800),
       xToTime: vi.fn((x: number) => x * 100), // identity-ish — each pixel = 100ms
-    } as unknown as TimeScale;
+    } as unknown as XScale;
     const handler = new ZoomHandler(target, timeScale);
     return { target, timeScale, handler };
   }
@@ -127,7 +127,7 @@ describe('ZoomHandler rebound removal', () => {
       const timeScale = {
         getMediaWidth: vi.fn(() => 800),
         xToTime: vi.fn((x: number) => x * 100),
-      } as unknown as TimeScale;
+      } as unknown as XScale;
       const handler = new ZoomHandler(target, timeScale);
       handler.handleWheel({
         deltaY: -100,
@@ -149,7 +149,7 @@ describe('ZoomHandler rebound removal', () => {
     const timeScale = {
       getMediaWidth: vi.fn(() => 800),
       xToTime: vi.fn((x: number) => x * 100),
-    } as unknown as TimeScale;
+    } as unknown as XScale;
     const handler = new ZoomHandler(target, timeScale);
 
     expect(() => handler.cancelPendingRebound()).not.toThrow();

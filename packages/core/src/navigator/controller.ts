@@ -1,9 +1,9 @@
 import { Animator, easeOutCubic } from '../animation';
 import { DEFAULT_LINE_ENTRY } from '../animation/config';
 import type { ChartInstance } from '../chart';
-import { TimeScale } from '../scales/time-scale';
+import { XScale } from '../scales/x-scale';
 import { YScale } from '../scales/y-scale';
-import type { VisibleRange, YRange } from '../types';
+import type { XRange, YRange } from '../types';
 import { decimateCandles, decimateLinear } from './decimate';
 import { type NavigatorGesture, computePan, computeResize, computeSnapCenter, hitTest } from './interactions';
 import {
@@ -57,7 +57,7 @@ export class NavigatorController {
 
   // Own scales — both cover the full data span. The main chart's scales move
   // with the viewport; these don't.
-  readonly #timeScale = new TimeScale();
+  readonly #timeScale = new XScale();
   readonly #yScale = new YScale();
 
   #mediaWidth = 0;
@@ -92,7 +92,7 @@ export class NavigatorController {
     pointerId: number;
     gesture: NavigatorGesture;
     startX: number;
-    startVisible: VisibleRange;
+    startVisible: XRange;
     pixelsPerTime: number;
   } | null = null;
 
@@ -300,23 +300,23 @@ export class NavigatorController {
   /** Keep scales synced with current data bounds + size. Safe to call ahead of
    *  the first RAF-driven render — pointer handlers rely on this so hit-tests
    *  compute against primed scales even on the opening gesture. */
-  #updateScales(): { dataRange: VisibleRange; yRange: YRange } {
-    const dataRange = this.#resolveDataRange();
+  #updateScales(): { xRange: XRange; yRange: YRange } {
+    const xRange = this.#resolveXRange();
     const yRange = this.#resolveYRange();
-    this.#timeScale.update(dataRange, this.#activeWidth, this.#pixelRatio);
+    this.#timeScale.update(xRange, this.#activeWidth, this.#pixelRatio);
     this.#yScale.update(yRange, this.#mediaHeight, this.#pixelRatio);
 
-    return { dataRange, yRange };
+    return { xRange, yRange };
   }
 
   #currentWindowGeometry(): WindowGeometry {
     this.#updateScales();
 
-    return computeWindowGeometry(this.#timeScale, this.#chart.getVisibleRange(), this.#resolveDataRange());
+    return computeWindowGeometry(this.#timeScale, this.#chart.getVisibleRange(), this.#resolveXRange());
   }
 
   #pixelsPerTime(): number {
-    const dataRange = this.#resolveDataRange();
+    const dataRange = this.#resolveXRange();
     const span = dataRange.to - dataRange.from;
     if (span <= 0 || this.#activeWidth <= 0) return 0;
 
@@ -327,8 +327,8 @@ export class NavigatorController {
     if (e.button !== undefined && e.button !== 0) return;
 
     const x = this.#eventX(e);
-    const dataRange = this.#resolveDataRange();
-    if (dataRange.to <= dataRange.from) return;
+    const xRange = this.#resolveXRange();
+    if (xRange.to <= xRange.from) return;
 
     const geom = this.#currentWindowGeometry();
     const hit = hitTest(x, geom);
@@ -340,7 +340,7 @@ export class NavigatorController {
     let startVisible = this.#chart.getVisibleRange();
     if (hit.snapToCenter) {
       const time = this.#timeScale.xToTime(x);
-      const next = computeSnapCenter({ time, startVisible, dataRange });
+      const next = computeSnapCenter({ time, startVisible, xRange });
       this.#chart.setVisibleRange(next);
       startVisible = next;
     }
@@ -369,9 +369,9 @@ export class NavigatorController {
     if (e.pointerId !== drag.pointerId) return;
 
     const deltaPx = this.#eventX(e) - drag.startX;
-    const dataRange = this.#resolveDataRange();
+    const dataRange = this.#resolveXRange();
 
-    let next: VisibleRange;
+    let next: XRange;
     if (drag.gesture === 'pan') {
       next = computePan({
         startVisible: drag.startVisible,
@@ -411,7 +411,7 @@ export class NavigatorController {
     if (this.#activeWidth <= 0 || this.#mediaHeight <= 0) return;
 
     const theme = this.#chart.getTheme().navigator;
-    const { dataRange } = this.#updateScales();
+    const { xRange } = this.#updateScales();
 
     // Recompute canvas pixel size — yAxisWidth may have changed since the last
     // resize event (e.g. axis config update), and the canvas needs to shrink
@@ -489,15 +489,15 @@ export class NavigatorController {
     ctx.restore();
 
     // Window + mask + handles live in DOM, not on canvas.
-    this.#updateOverlayDom(theme, dataRange);
+    this.#updateOverlayDom(theme, xRange);
   }
 
-  #updateOverlayDom(theme: ReturnType<ChartInstance['getTheme']>['navigator'], dataRange: VisibleRange): void {
-    if (dataRange.to <= dataRange.from) return;
+  #updateOverlayDom(theme: ReturnType<ChartInstance['getTheme']>['navigator'], xRange: XRange): void {
+    if (xRange.to <= xRange.from) return;
 
     const visible = this.#chart.getVisibleRange();
-    const fromClamped = Math.max(dataRange.from, Math.min(dataRange.to, visible.from));
-    const toClamped = Math.max(dataRange.from, Math.min(dataRange.to, visible.to));
+    const fromClamped = Math.max(xRange.from, Math.min(xRange.to, visible.from));
+    const toClamped = Math.max(xRange.from, Math.min(xRange.to, visible.to));
     const x1 = this.#timeScale.timeToX(fromClamped);
     const x2 = this.#timeScale.timeToX(toClamped);
     const left = Math.min(x1, x2);
@@ -547,7 +547,7 @@ export class NavigatorController {
     }
   }
 
-  #resolveDataRange(): VisibleRange {
+  #resolveXRange(): XRange {
     // Source of truth — caller-supplied points span the navigator's x extent.
     const data = this.#data;
     let firstTime = Number.POSITIVE_INFINITY;

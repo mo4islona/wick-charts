@@ -16,7 +16,7 @@ const seriesId = ref<string | null>(null);
 let prevLen = 0;
 
 onMounted(() => {
-  const id = chart.addCandlestickSeries({ ...props.options, id: props.id });
+  const id = chart.addSeries('candlestick', { ...props.options, id: props.id });
   seriesId.value = id;
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply

@@ -15,38 +15,6 @@ function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   return { chart: new ChartInstance(container, { interactive: false }), container };
 }
 
-describe('ChartInstance.getSeriesType', () => {
-  let chart: ChartInstance;
-  let container: HTMLElement;
-
-  beforeEach(() => {
-    ({ chart, container } = makeChart());
-  });
-
-  afterEach(() => {
-    chart.destroy();
-    container.remove();
-  });
-
-  it('returns "time" for line, bar and candlestick series', () => {
-    const line = chart.addLineSeries();
-    const bar = chart.addBarSeries();
-    const candle = chart.addCandlestickSeries();
-    expect(chart.getSeriesType(line)).toBe('time');
-    expect(chart.getSeriesType(bar)).toBe('time');
-    expect(chart.getSeriesType(candle)).toBe('time');
-  });
-
-  it('returns "pie" for pie series', () => {
-    const pie = chart.addPieSeries();
-    expect(chart.getSeriesType(pie)).toBe('pie');
-  });
-
-  it('returns null for unknown ids', () => {
-    expect(chart.getSeriesType('nope')).toBeNull();
-  });
-});
-
 describe('ChartInstance.getSeriesIdsByType', () => {
   let chart: ChartInstance;
   let container: HTMLElement;
@@ -61,17 +29,17 @@ describe('ChartInstance.getSeriesIdsByType', () => {
   });
 
   it('partitions series by renderer type', () => {
-    const l = chart.addLineSeries();
-    const p = chart.addPieSeries();
-    const b = chart.addBarSeries();
+    const l = chart.addSeries('line');
+    const p = chart.addSeries('pie');
+    const b = chart.addSeries('bar');
 
     expect(chart.getSeriesIdsByType('time').sort()).toEqual([l, b].sort());
     expect(chart.getSeriesIdsByType('pie')).toEqual([p]);
   });
 
   it('visibleOnly excludes series with isSeriesVisible=false', () => {
-    const shown = chart.addLineSeries();
-    const hidden = chart.addLineSeries();
+    const shown = chart.addSeries('line');
+    const hidden = chart.addSeries('line');
     chart.setSeriesVisible(hidden, false);
 
     expect(chart.getSeriesIdsByType('time', { visibleOnly: true })).toEqual([shown]);
@@ -79,7 +47,7 @@ describe('ChartInstance.getSeriesIdsByType', () => {
   });
 
   it('visibleOnly excludes multi-layer series when every layer is hidden', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 1 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 2 }], 1);
 
@@ -96,8 +64,8 @@ describe('ChartInstance.getSeriesIdsByType', () => {
   });
 
   it('singleLayerOnly excludes multi-layer series', () => {
-    const single = chart.addLineSeries();
-    const multi = chart.addLineSeries({ layers: 3 });
+    const single = chart.addSeries('line');
+    const multi = chart.addSeries('line', { layers: 3 });
 
     const result = chart.getSeriesIdsByType('time', { singleLayerOnly: true });
     expect(result).toEqual([single]);
@@ -119,7 +87,7 @@ describe('ChartInstance.getStackedLastValue', () => {
   });
 
   it('matches getLastValue for single-layer line series', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 42 },
@@ -129,14 +97,14 @@ describe('ChartInstance.getStackedLastValue', () => {
   });
 
   it('returns cumulative stack top for stacked multi-layer line series', () => {
-    const id = chart.addLineSeries({ layers: 2, stacking: 'normal' });
+    const id = chart.addSeries('line', { layers: 2, stacking: 'normal' });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 25 }], 1);
     expect(chart.getStackedLastValue(id)?.value).toBe(35);
   });
 
   it('returns cumulative stack top for stacked multi-layer bar series', () => {
-    const id = chart.addBarSeries({ layers: 3, stacking: 'normal' });
+    const id = chart.addSeries('bar', { layers: 3, stacking: 'normal' });
     chart.setSeriesData(id, [{ time: 1, value: 5 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 7 }], 1);
     chart.setSeriesData(id, [{ time: 1, value: 3 }], 2);
@@ -152,7 +120,7 @@ describe('ChartInstance.getStackedLastValue', () => {
     // values that collapses to a number that doesn't match
     // `renderStacked`'s geometry — positives and negatives stack
     // independently; the painted head sits on the side with contributions.
-    const id = chart.addBarSeries({ layers: 3, stacking: 'normal' });
+    const id = chart.addSeries('bar', { layers: 3, stacking: 'normal' });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: -4 }], 1);
     chart.setSeriesData(id, [{ time: 1, value: 6 }], 2);
@@ -162,32 +130,32 @@ describe('ChartInstance.getStackedLastValue', () => {
   });
 
   it('normal-stacked bar with all-negative layers anchors to the negative bottom', () => {
-    const id = chart.addBarSeries({ layers: 2, stacking: 'normal' });
+    const id = chart.addSeries('bar', { layers: 2, stacking: 'normal' });
     chart.setSeriesData(id, [{ time: 1, value: -5 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: -7 }], 1);
     expect(chart.getStackedLastValue(id)?.value).toBe(-12);
   });
 
   it('percent-stacked bar reports +100 / -100 / 0 based on the sign of contributions', () => {
-    const positiveOnly = chart.addBarSeries({ layers: 2, stacking: 'percent' });
+    const positiveOnly = chart.addSeries('bar', { layers: 2, stacking: 'percent' });
     chart.setSeriesData(positiveOnly, [{ time: 1, value: 3 }], 0);
     chart.setSeriesData(positiveOnly, [{ time: 1, value: 5 }], 1);
     expect(chart.getStackedLastValue(positiveOnly)?.value).toBe(100);
 
-    const negativeOnly = chart.addBarSeries({ layers: 2, stacking: 'percent' });
+    const negativeOnly = chart.addSeries('bar', { layers: 2, stacking: 'percent' });
     chart.setSeriesData(negativeOnly, [{ time: 1, value: -2 }], 0);
     chart.setSeriesData(negativeOnly, [{ time: 1, value: -8 }], 1);
     // Previously returned 0 for all-negative percent stacks.
     expect(chart.getStackedLastValue(negativeOnly)?.value).toBe(-100);
 
-    const zero = chart.addBarSeries({ layers: 1, stacking: 'percent' });
+    const zero = chart.addSeries('bar', { layers: 1, stacking: 'percent' });
     chart.setSeriesData(zero, [{ time: 1, value: 0 }], 0);
     // Single-layer path uses raw last value, which is 0 here.
     expect(chart.getStackedLastValue(zero)?.value).toBe(0);
   });
 
   it('normal-stacked line with mixed-sign layers anchors to the positive top', () => {
-    const id = chart.addLineSeries({ layers: 2, stacking: 'normal' });
+    const id = chart.addSeries('line', { layers: 2, stacking: 'normal' });
     chart.setSeriesData(id, [{ time: 1, value: 4 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: -3 }], 1);
     expect(chart.getStackedLastValue(id)?.value).toBe(4);
@@ -210,7 +178,7 @@ describe('ChartInstance.getLayerSnapshots (real layerIndex + sample time)', () =
   it('reports each entry with its owning layerIndex — not the filtered array index', () => {
     // Previously callers inferred layerIndex from the array position,
     // which silently shifted when hidden layers were filtered out.
-    const id = chart.addLineSeries({ layers: 3 });
+    const id = chart.addSeries('line', { layers: 3 });
     chart.setSeriesData(id, [{ time: 10, value: 1 }], 0);
     chart.setSeriesData(id, [{ time: 10, value: 2 }], 1);
     chart.setSeriesData(id, [{ time: 10, value: 3 }], 2);
@@ -223,7 +191,7 @@ describe('ChartInstance.getLayerSnapshots (real layerIndex + sample time)', () =
   });
 
   it('reports the resolved sample time per layer, not the query time', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(
       id,
       [
@@ -262,13 +230,13 @@ describe('ChartInstance.getLayerLastSnapshots', () => {
   });
 
   it('returns null for single-layer series', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [{ time: 1, value: 10 }]);
     expect(chart.getLayerLastSnapshots(id)).toBeNull();
   });
 
   it('returns per-layer last for ragged multi-layer line series — each layer at its own time', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(
       id,
@@ -287,7 +255,7 @@ describe('ChartInstance.getLayerLastSnapshots', () => {
   });
 
   it('skips hidden layers', () => {
-    const id = chart.addLineSeries({ layers: 2 });
+    const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
     chart.setSeriesData(id, [{ time: 1, value: 20 }], 1);
     chart.setLayerVisible(id, 0, false);
@@ -311,13 +279,12 @@ describe('ChartInstance.getSeriesLabel', () => {
     container.remove();
   });
 
-  it('returns the label set on addLineSeries / addBarSeries / addCandlestickSeries / addPieSeries', () => {
-    // Candlestick label used to be silently dropped by addCandlestickSeries;
-    // fixed when that path was routed through the shared #registerSeries helper.
-    const line = chart.addLineSeries({ label: 'Price' });
-    const bar = chart.addBarSeries({ label: 'Volume' });
-    const candle = chart.addCandlestickSeries({ label: 'BTC' });
-    const pie = chart.addPieSeries({ label: 'Share' });
+  it('returns the label set on addSeries for line / bar / candlestick / pie', () => {
+    // All four series types preserve the `label` option through addSeries.
+    const line = chart.addSeries('line', { label: 'Price' });
+    const bar = chart.addSeries('bar', { label: 'Volume' });
+    const candle = chart.addSeries('candlestick', { label: 'BTC' });
+    const pie = chart.addSeries('pie', { label: 'Share' });
 
     expect(chart.getSeriesLabel(line)).toBe('Price');
     expect(chart.getSeriesLabel(bar)).toBe('Volume');
@@ -326,7 +293,46 @@ describe('ChartInstance.getSeriesLabel', () => {
   });
 
   it('returns undefined when no label was provided', () => {
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
     expect(chart.getSeriesLabel(id)).toBeUndefined();
+  });
+});
+
+describe('ChartInstance.getDataBounds (multi-layer aggregation)', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  // `getDataBounds` is private — it feeds #dataStart/#dataEnd and the X fit.
+  const dataBounds = (c: ChartInstance): { first: number | undefined; last: number | undefined } =>
+    (c as unknown as { getDataBounds(): { first: number | undefined; last: number | undefined } }).getDataBounds();
+
+  it('aggregates across multi-layer time ranges (not just layer 0)', () => {
+    const id = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 5, value: 20 }], 1);
+    // Old layer-0-only behavior would have reported last: 1.
+    expect(dataBounds(chart)).toEqual({ first: 1, last: 5 });
+  });
+
+  it('survives an empty layer 0 (data only on layer 1)', () => {
+    const id = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 3, value: 1 },
+        { time: 7, value: 2 },
+      ],
+      1,
+    );
+    expect(dataBounds(chart)).toEqual({ first: 3, last: 7 });
   });
 });

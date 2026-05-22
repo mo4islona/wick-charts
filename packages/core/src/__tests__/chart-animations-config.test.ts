@@ -25,6 +25,7 @@ import {
 } from '../animation/config';
 import { ChartInstance } from '../chart';
 import type { CandlestickRenderer } from '../series/candlestick';
+import type { CandlestickSeriesOptions } from '../types';
 
 const resolveAnimationsConfig = (input: boolean | AnimationsConfig | undefined) => AnimationConfig.resolve(input);
 
@@ -190,9 +191,9 @@ describe('ChartInstance.animations propagation', () => {
 
   function candleRenderer(
     chart: ChartInstance,
-    opts?: Parameters<ChartInstance['addCandlestickSeries']>[0],
+    opts?: Partial<CandlestickSeriesOptions & { id?: string }>,
   ): CandlestickRenderer {
-    const id = chart.addCandlestickSeries(opts);
+    const id = chart.addSeries('candlestick', opts);
     const entry = (
       chart as unknown as {
         listSeriesForTest: () => Array<{ id: string; renderer: CandlestickRenderer }>;
@@ -218,7 +219,7 @@ describe('ChartInstance.animations propagation', () => {
    * picks that up.
    */
   function addAndAppendCandle(chart: ChartInstance): { hasEntry: boolean; snappedOnUpdate: boolean } {
-    const seriesId = chart.addCandlestickSeries();
+    const seriesId = chart.addSeries('candlestick');
     chart.setSeriesData(seriesId, [{ time: 10, open: 10, high: 12, low: 9, close: 11 }]);
     chart.appendData(seriesId, { time: 20, open: 10, high: 12, low: 9, close: 11 });
 
@@ -246,7 +247,7 @@ describe('ChartInstance.animations propagation', () => {
   }
 
   function addLineAndAppend(chart: ChartInstance): { hasEntry: boolean } {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 10, value: 5 },
       { time: 20, value: 6 },

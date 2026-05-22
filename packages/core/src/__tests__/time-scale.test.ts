@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { TimeScale } from '../scales/time-scale';
+import { XScale } from '../scales/x-scale';
 
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
@@ -8,7 +8,7 @@ const DAY = 86_400_000;
 
 describe('TimeScale', () => {
   function makeScale(from: number, to: number, width = 800, pixelRatio = 1) {
-    const s = new TimeScale();
+    const s = new XScale();
     s.update({ from, to }, width, pixelRatio);
     return s;
   }
@@ -151,7 +151,7 @@ describe('TimeScale', () => {
 
     it('custom minLabelSpacing is respected', () => {
       const width = 800;
-      const s = new TimeScale();
+      const s = new XScale();
       s.setMinSpacing(160);
       s.update({ from: 0, to: DAY * 7 }, width, 1, HOUR);
       const { ticks, tickInterval } = s.niceTickValues(HOUR);
@@ -164,7 +164,7 @@ describe('TimeScale', () => {
 
     it('dataInterval bucket change resets hysteresis', () => {
       // First prime with HOUR → resolvedInterval from sub_day tier.
-      const s = new TimeScale();
+      const s = new XScale();
       s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);
       s.niceTickValues(HOUR);
 
@@ -178,7 +178,7 @@ describe('TimeScale', () => {
     it('returned tickInterval equals resolvedInterval, not the dataInterval argument', () => {
       // Passing HOUR as dataInterval but viewing 7 days at 800px should
       // escalate to DAY-scale tickInterval.
-      const s = new TimeScale();
+      const s = new XScale();
       s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);
       const { tickInterval } = s.niceTickValues(HOUR);
       expect(tickInterval).not.toBe(HOUR);
@@ -186,7 +186,7 @@ describe('TimeScale', () => {
     });
 
     it('rejects invalid setter inputs', () => {
-      const s = new TimeScale();
+      const s = new XScale();
       s.setLabelCount(Number.NaN);
       s.setMinSpacing(-1);
       s.update({ from: 0, to: DAY * 7 }, 800, 1, HOUR);

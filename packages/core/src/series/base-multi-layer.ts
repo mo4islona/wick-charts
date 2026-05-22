@@ -4,7 +4,7 @@ import type { ChartTheme } from '../theme/types';
 import type { TimePoint, TimePointInput } from '../types';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
 
 /**
  * Shape of the options that {@link BaseMultiLayerSeries} reads directly.
@@ -48,7 +48,10 @@ const scalarLerp = (a: number, b: number, t: number): number => a + (b - a) * t;
  * resolved-options shape; the base reads only the common slice declared
  * by {@link CommonSeriesOptions}.
  */
-export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements SeriesRenderer {
+export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements TimeSeriesRenderer {
+  /** Concrete subclass discriminant — `'line'` or `'bar'`. */
+  abstract readonly kind: 'line' | 'bar';
+
   /**
    * Common-slice view of the subclass's options. Each subclass widens the
    * field type in its own declaration (via `declare`) to its full resolved
@@ -491,13 +494,67 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements S
     return total;
   }
 
+  // --- TimeSeriesRenderer data queries --------------------------------------
+
+  /** Earliest first-sample / latest last-sample across ALL layers, skipping
+   *  empty ones. Aggregating every layer (not just `stores[0]`) is what fixes
+   *  the multi-layer time-range leak: a populated layer 1 with an empty layer 0
+   *  still reports the real bounds. */
+  getTimeBounds(): { first: number; last: number } | null {
+    let first = Infinity;
+    let last = -Infinity;
+    for (const store of this.stores) {
+      const f = store.first();
+      if (!f) continue;
+
+      const l = store.last() ?? f;
+      if (f.time < first) first = f.time;
+      if (l.time > last) last = l.time;
+    }
+
+    return first === Infinity ? null : { first, last };
+  }
+
+  /**
+   * Last data point of **layer 0 (`stores[0]`) only** — preserves the behavior
+   * of the deleted `get store()` getter. NOTE: this is intentionally NOT the
+   * same as {@link getStackedLastValue}, which for non-stacked multi-layer
+   * reports the top visible layer and for stacked reports the cumulative sum.
+   * Last-data / previous-close semantics stay pinned to layer 0 for back-compat.
+   */
+  getLastDataPoint(): TData | null {
+    return this.stores[0]?.last() ?? null;
+  }
+
+  /** Second-to-last point of layer 0 (`stores[0]`). See {@link getLastDataPoint}. */
+  getSecondLastDataPoint(): TData | null {
+    const all = this.stores[0]?.getAll();
+    if (!all || all.length < 2) return null;
+
+    return all[all.length - 2];
+  }
+
+  /** First `maxCount` sample times from the first populated layer. */
+  sampleTimes(maxCount: number): number[] {
+    for (const store of this.stores) {
+      const all = store.getAll();
+      if (all.length === 0) continue;
+
+      return all.slice(0, maxCount).map((d) => d.time);
+    }
+
+    return [];
+  }
+
+  /** Visible points of layer 0 (`stores[0]`). See {@link getLastDataPoint}. */
+  getVisibleDataPoints(from: number, to: number): readonly TData[] {
+    return this.stores[0]?.getVisibleData(from, to) ?? [];
+  }
+
   getValueRange(from: number, to: number): { min: number; max: number } | null {
     const stacking = this.options.stacking;
     if (stacking === 'percent') {
       return { min: 0, max: 100 };
-    }
-    if (this.stores.length <= 1) {
-      return null; // single store — chart handles it via entry.store
     }
 
     const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));

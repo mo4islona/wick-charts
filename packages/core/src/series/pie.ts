@@ -1,7 +1,7 @@
 import type { ChartTheme } from '../theme/types';
 import type { PieLabelsOptions, PieSeriesOptions, PieSliceData } from '../types';
 import { clamp, smoothToward } from '../utils/math';
-import type { HoverInfo, RenderPadding, SeriesRenderContext, SeriesRenderer, SliceInfo } from './types';
+import type { HoverInfo, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
 
 const DEFAULT_LABELS: Required<PieLabelsOptions> = {
   mode: 'outside',
@@ -216,7 +216,8 @@ function blendOver(base: string, overlay: string): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bb.toString(16).padStart(2, '0')}`;
 }
 
-export class PieRenderer implements SeriesRenderer {
+export class PieRenderer implements PieSeriesRenderer {
+  readonly kind = 'pie' as const;
   #data: PieSliceData[] = [];
   #options: PieSeriesOptions;
   /** Index of the hovered slice (-1 = none). Set via {@link setHoverIndex}. */

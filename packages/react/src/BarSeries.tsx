@@ -26,7 +26,7 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   const prevLastTimesRef = useRef<(number | null)[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addBarSeries({ ...options, layers: data.length, id: idProp });
+    const id = chart.addSeries('bar', { ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);

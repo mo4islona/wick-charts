@@ -1,12 +1,12 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { TickTrackerSnapshot } from '../scales/tick-tracker';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 
 export interface RenderGridArgs {
   scope: BitmapCoordinateSpace;
-  timeScale: TimeScale;
+  timeScale: XScale;
   yScale: YScale;
   theme: ChartTheme;
   /** Faded tick state from `yScale.tickTracker`. */

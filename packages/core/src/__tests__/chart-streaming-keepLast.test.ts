@@ -50,7 +50,11 @@ function renderer(chart: ChartInstance, id: string): AnyRenderer {
 }
 
 function storeLength(r: AnyRenderer): number {
-  return (r as unknown as { store?: { length: number }; stores?: Array<{ length: number }> }).store?.length ?? 0;
+  // Candlestick exposes `store`; line/bar own `stores[]` (the `get store()`
+  // back-compat getter was removed), so fall back to the first layer.
+  const x = r as unknown as { store?: { length: number }; stores?: Array<{ length: number }> };
+
+  return x.store?.length ?? x.stores?.[0]?.length ?? 0;
 }
 
 function multiLayerLength(r: AnyRenderer, layer: number): number {
@@ -58,7 +62,7 @@ function multiLayerLength(r: AnyRenderer, layer: number): number {
 }
 
 function seedCandles(chart: ChartInstance, count: number): string {
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   const data: OHLCData[] = Array.from({ length: count }, (_, i) => ({
     time: 1_000_000 + i * INTERVAL,
     open: 100,
@@ -72,7 +76,7 @@ function seedCandles(chart: ChartInstance, count: number): string {
 }
 
 function seedLine(chart: ChartInstance, count: number, layers?: number): string {
-  const id = chart.addLineSeries(layers !== undefined ? { layers } : undefined);
+  const id = chart.addSeries('line', layers !== undefined ? { layers } : undefined);
   const data: TimePoint[] = Array.from({ length: count }, (_, i) => ({
     time: 1_000_000 + i * INTERVAL,
     value: 10 + i,
@@ -118,7 +122,7 @@ describe('chart.keepLast — trim contract', () => {
   });
 
   it('bar: trims via the same base-multi-layer code path', () => {
-    const id = chart.addBarSeries();
+    const id = chart.addSeries('bar');
     const data = Array.from({ length: 30 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: i }));
     chart.setSeriesData(id, data);
     expect(multiLayerLength(renderer(chart, id), 0)).toBe(30);
