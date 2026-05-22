@@ -1,4 +1,4 @@
-import type { VisibleRange } from '../types';
+import type { XRange } from '../types';
 import type { WindowGeometry } from './render';
 
 /** Width of the hit-test zone around each window edge handle, in media px. */
@@ -44,11 +44,11 @@ export function hitTest(x: number, geom: WindowGeometry): HitResult {
  * inside `dataRange`.
  */
 export function computePan(params: {
-  startVisible: VisibleRange;
+  startVisible: XRange;
   deltaPx: number;
   pixelsPerTime: number;
-  dataRange: VisibleRange;
-}): VisibleRange {
+  dataRange: XRange;
+}): XRange {
   const { startVisible, deltaPx, pixelsPerTime, dataRange } = params;
   const span = startVisible.to - startVisible.from;
   const dt = deltaPx / pixelsPerTime;
@@ -78,12 +78,12 @@ export function computePan(params: {
  */
 export function computeResize(params: {
   edge: 'left' | 'right';
-  startVisible: VisibleRange;
+  startVisible: XRange;
   deltaPx: number;
   pixelsPerTime: number;
-  dataRange: VisibleRange;
+  dataRange: XRange;
   minSpan: number;
-}): VisibleRange {
+}): XRange {
   const { edge, startVisible, deltaPx, pixelsPerTime, dataRange, minSpan } = params;
   const dt = deltaPx / pixelsPerTime;
 
@@ -121,25 +121,21 @@ export function computeResize(params: {
  * Snap the window so its centre lands on `time`, preserving span, clamped to
  * `dataRange`. Used on click-to-center outside the window.
  */
-export function computeSnapCenter(params: {
-  time: number;
-  startVisible: VisibleRange;
-  dataRange: VisibleRange;
-}): VisibleRange {
-  const { time, startVisible, dataRange } = params;
+export function computeSnapCenter(params: { time: number; startVisible: XRange; xRange: XRange }): XRange {
+  const { time, startVisible, xRange } = params;
   const span = startVisible.to - startVisible.from;
   let from = time - span / 2;
   let to = from + span;
 
-  if (from < dataRange.from) {
-    from = dataRange.from;
+  if (from < xRange.from) {
+    from = xRange.from;
     to = from + span;
   }
-  if (to > dataRange.to) {
-    to = dataRange.to;
+  if (to > xRange.to) {
+    to = xRange.to;
     from = to - span;
   }
-  if (from < dataRange.from) from = dataRange.from;
+  if (from < xRange.from) from = xRange.from;
 
   return { from, to };
 }

@@ -11,7 +11,7 @@
  * transient tick churn during layout settling should not look animated.
  */
 
-import { Animator } from '../animation/animator';
+import { Animator } from '../animation';
 import { DEFAULT_TICKS_MS } from '../animation/config';
 
 export interface TickEntry {

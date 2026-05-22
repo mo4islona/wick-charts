@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PanHandler } from '../interactions/pan';
 import type { PanZoomTarget } from '../interactions/pan-zoom-target';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 
 /**
  * Unit test for the mouse-driven pan path. Mocks the PanZoomTarget +
@@ -24,7 +24,7 @@ describe('PanHandler', () => {
     const timeScale = {
       pixelDeltaToTimeDelta: vi.fn((px: number) => px * 100), // 1 px = 100 ms
       getMediaWidth: vi.fn(() => 800),
-    } as unknown as TimeScale;
+    } as unknown as XScale;
     const canvas = document.createElement('canvas');
     const handler = new PanHandler(target, timeScale, canvas);
     return { target, timeScale, canvas, handler };

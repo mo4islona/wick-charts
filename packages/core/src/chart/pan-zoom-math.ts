@@ -9,7 +9,7 @@
  * `edgeReached`) the caller applies as side effects.
  */
 
-import type { HorizontalPadding, VisibleRange } from '../types';
+import type { HorizontalPadding, XRange } from '../types';
 import { resolvePaddingTime } from './viewport-padding';
 
 /** Minimum overshoot fraction of visible range before edgeReached fires. */
@@ -94,7 +94,7 @@ export function softMaxRange(input: SoftMaxRangeInput): number | null {
 }
 
 export interface PanInput {
-  currentLogical: VisibleRange;
+  currentLogical: XRange;
   timeDelta: number;
   chartWidth: number;
   dataInterval: number;
@@ -111,7 +111,7 @@ export interface EdgeReachedInfo {
 
 export interface PanResult {
   /** New logical X range to commit, or `null` if the input range is invalid. */
-  newLogical: VisibleRange | null;
+  newLogical: XRange | null;
   /** When `true`, the new window no longer contains the data tail — caller should disable autoScroll. */
   autoScrollOff: boolean;
   /** When set, caller should fire its `edgeReached` event with this payload. */
@@ -186,7 +186,7 @@ export function computePan(input: PanInput): PanResult {
 }
 
 export interface ZoomInput {
-  currentLogical: VisibleRange;
+  currentLogical: XRange;
   centerTime: number;
   factor: number;
   chartWidth: number;
@@ -198,7 +198,7 @@ export interface ZoomInput {
 
 export interface ZoomResult {
   /** New logical X range to commit, or `null` if the input range is invalid. */
-  newLogical: VisibleRange | null;
+  newLogical: XRange | null;
 }
 
 /**

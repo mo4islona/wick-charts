@@ -29,7 +29,7 @@ function makeChartWithData(): { chart: ChartInstance; chartContainer: HTMLElemen
   document.body.appendChild(chartContainer);
 
   const chart = new ChartInstance(chartContainer, { interactive: false });
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   const data = Array.from({ length: 100 }, (_, i) => ({
     time: 1_000_000 + i * INTERVAL,
     open: 100,

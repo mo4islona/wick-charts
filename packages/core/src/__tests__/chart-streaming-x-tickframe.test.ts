@@ -88,7 +88,7 @@ describe('streaming X slide — DOM re-render trigger fires per animating frame'
   });
 
   it('tickFrame fires once per RAF while the X animator is in flight (covers tick-non-fading windows)', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     // 30 bars at INTERVAL = 60_000 ms. Default ticksMs ~ 250 ms, so after
     // the initial-paint settle the tick trackers are not animating.
     chart.setSeriesData(

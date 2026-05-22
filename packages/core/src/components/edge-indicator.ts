@@ -1,5 +1,5 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { ChartTheme } from '../theme/types';
 
 /** Radius of each spinner dot, in media pixels. */
@@ -22,7 +22,7 @@ export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
 
 export interface EdgeIndicatorContext {
   scope: BitmapCoordinateSpace;
-  timeScale: TimeScale;
+  timeScale: XScale;
   theme: ChartTheme;
   /** Chart area height in media pixels (excludes the X-axis band).
    * Renderers multiply by `scope.verticalPixelRatio` to convert to bitmap units. */

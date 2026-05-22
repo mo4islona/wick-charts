@@ -31,7 +31,7 @@ interface HookEntry {
 const HOOKS: Record<string, HookEntry> = {
   useChartInstance: {
     description:
-      'Returns the underlying `ChartInstance` for the surrounding `<ChartContainer>`. Use this to call imperative methods (e.g. `addLineSeries`, `setSeriesData`, `resetZoom`) from inside child components. Must be called from a component rendered inside a `<ChartContainer>` — calling it outside throws.',
+      'Returns the underlying `ChartInstance` for the surrounding `<ChartContainer>`. Use this to call imperative methods (e.g. `addSeries`, `setSeriesData`, `resetZoom`) from inside child components. Must be called from a component rendered inside a `<ChartContainer>` — calling it outside throws.',
     react: {
       name: 'useChartInstance',
       signature: '() => ChartInstance',

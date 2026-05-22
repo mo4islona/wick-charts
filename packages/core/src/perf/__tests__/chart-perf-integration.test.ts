@@ -71,7 +71,7 @@ function makeContainer(): HTMLElement {
 }
 
 function seedCandles(chart: ChartInstance, count: number): string {
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   const data = Array.from({ length: count }, (_, i) => ({
     time: 1_000_000 + i * INTERVAL,
     open: 100,

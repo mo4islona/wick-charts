@@ -17,7 +17,7 @@ let prevLen = 0;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addCandlestickSeries({ ...options, id });
+  seriesId = chart.addSeries('candlestick', { ...options, id });
 });
 
 onDestroy(() => {

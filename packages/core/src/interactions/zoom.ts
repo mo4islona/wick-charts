@@ -1,10 +1,10 @@
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { PanZoomTarget } from './pan-zoom-target';
 
 export class ZoomHandler {
   constructor(
     private target: PanZoomTarget,
-    private timeScale: TimeScale,
+    private timeScale: XScale,
   ) {}
 
   handleWheel(e: WheelEvent): void {

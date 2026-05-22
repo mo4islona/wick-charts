@@ -110,7 +110,7 @@ describe('ChartInstance — streaming stress', () => {
 
   it('warm-up burst (0 → 500 points) keeps the right edge monotonically advancing and preserves a 50-bar window', () => {
     ({ chart, container } = makeChart({ viewport: { maxVisibleBars: 50 } }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
 
     // First two points arrive together so the chart can detect dataInterval.
     chart.setSeriesData(id, [
@@ -152,7 +152,7 @@ describe('ChartInstance — streaming stress', () => {
 
   it('sharp value jumps do not poison the Y range or produce NaN', () => {
     ({ chart, container } = makeChart({ viewport: { maxVisibleBars: 100 } }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     // Seed with a non-degenerate range so initial Y bounds aren't flat.
     chart.setSeriesData(id, [
       { time: 0, value: 50 },
@@ -184,7 +184,7 @@ describe('ChartInstance — streaming stress', () => {
 
   it('variable inter-arrival jitter — visible right edge stays within ~one interval of the latest data', () => {
     ({ chart, container } = makeChart({ viewport: { maxVisibleBars: 80 } }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 0, value: 50 },
       { time: INTERVAL, value: 50 },
@@ -217,7 +217,7 @@ describe('ChartInstance — streaming stress', () => {
 
   it('burst-then-pause: post-pause first scroll does not produce a 5-second slide', () => {
     ({ chart, container } = makeChart({ viewport: { maxVisibleBars: 60 } }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 0, value: 10 },
       { time: INTERVAL, value: 10 },
@@ -255,7 +255,7 @@ describe('ChartInstance — streaming stress', () => {
 
   it('user pan during warm-up flips autoScroll off and the burst stops auto-following', () => {
     ({ chart, container } = makeChart({ viewport: { maxVisibleBars: 50 } }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 0, value: 100 },
       { time: INTERVAL, value: 100 },

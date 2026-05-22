@@ -144,7 +144,7 @@ describe('computeSnapCenter', () => {
     const out = computeSnapCenter({
       time: 700,
       startVisible: { from: 100, to: 300 },
-      dataRange: DATA,
+      xRange: DATA,
     });
     expect(out.to - out.from).toBe(200);
     // Center of [600, 800] is 700.
@@ -155,7 +155,7 @@ describe('computeSnapCenter', () => {
     const out = computeSnapCenter({
       time: 10,
       startVisible: { from: 100, to: 300 },
-      dataRange: DATA,
+      xRange: DATA,
     });
     expect(out.from).toBe(0);
     expect(out.to - out.from).toBe(200);
@@ -165,7 +165,7 @@ describe('computeSnapCenter', () => {
     const out = computeSnapCenter({
       time: 1200,
       startVisible: { from: 100, to: 300 },
-      dataRange: DATA,
+      xRange: DATA,
     });
     expect(out.to).toBe(1000);
     expect(out.to - out.from).toBe(200);

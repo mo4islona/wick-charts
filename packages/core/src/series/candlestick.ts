@@ -9,7 +9,7 @@ import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
-import type { SeriesRenderContext, SeriesRenderer } from './types';
+import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
@@ -69,7 +69,8 @@ function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOption
   };
 }
 
-export class CandlestickRenderer implements SeriesRenderer {
+export class CandlestickRenderer implements TimeSeriesRenderer {
+  readonly kind = 'candlestick' as const;
   readonly store: TimeSeriesStore<OHLCData>;
   private options: ResolvedCandlestickOptions;
 
@@ -263,6 +264,52 @@ export class CandlestickRenderer implements SeriesRenderer {
     return this.store.findNearest(time, interval);
   }
 
+  // --- TimeSeriesRenderer data queries --------------------------------------
+
+  getTimeBounds(): { first: number; last: number } | null {
+    const f = this.store.first();
+    const l = this.store.last();
+    if (!f || !l) return null;
+
+    return { first: f.time, last: l.time };
+  }
+
+  getLastDataPoint(): OHLCData | null {
+    return this.store.last() ?? null;
+  }
+
+  getSecondLastDataPoint(): OHLCData | null {
+    const all = this.store.getAll();
+
+    return all.length >= 2 ? all[all.length - 2] : null;
+  }
+
+  sampleTimes(maxCount: number): number[] {
+    return this.store
+      .getAll()
+      .slice(0, maxCount)
+      .map((d) => d.time);
+  }
+
+  getVisibleDataPoints(from: number, to: number): readonly OHLCData[] {
+    return this.store.getVisibleData(from, to);
+  }
+
+  getValueRange(from: number, to: number): { min: number; max: number } | null {
+    const visible = this.store.getVisibleData(from, to);
+
+    // Independent finite guards per bound — mirrors the y-target fallback this
+    // replaces, so a poisoned high/low (NaN / ±Infinity) can't corrupt the range.
+    let min = Infinity;
+    let max = -Infinity;
+    for (const candle of visible) {
+      if (Number.isFinite(candle.low) && candle.low < min) min = candle.low;
+      if (Number.isFinite(candle.high) && candle.high > max) max = candle.high;
+    }
+
+    return min === Infinity || max === -Infinity ? null : { min, max };
+  }
+
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
 
@@ -412,7 +459,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   }: {
     ctx: CanvasRenderingContext2D;
     data: OHLCData[];
-    timeScale: import('../scales/time-scale').TimeScale;
+    timeScale: import('../scales/x-scale').XScale;
     chartHeight: number;
     barWidth: number;
     wickWidth: number;
@@ -492,7 +539,7 @@ export class CandlestickRenderer implements SeriesRenderer {
   }: {
     ctx: CanvasRenderingContext2D;
     candles: OHLCData[];
-    timeScale: import('../scales/time-scale').TimeScale;
+    timeScale: import('../scales/x-scale').XScale;
     yScale: import('../scales/y-scale').YScale;
     halfBody: number;
     bodyWidth: number;

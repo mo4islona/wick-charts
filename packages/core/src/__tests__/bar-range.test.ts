@@ -10,7 +10,7 @@ describe('BarRenderer.getValueRange', () => {
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 100 });
   });
 
-  it('single layer (layerCount=1) returns null', () => {
+  it('single layer (off) returns its own min/max', () => {
     const r = new BarRenderer(1);
     r.setData(
       [
@@ -19,7 +19,23 @@ describe('BarRenderer.getValueRange', () => {
       ],
       0,
     );
-    expect(r.getValueRange(0, 100)).toBeNull();
+    // The `length <= 1 → null` early-out was removed; off-stacking single layer
+    // degenerates to the store's own min/max, which y-target now relies on.
+    expect(r.getValueRange(0, 100)).toEqual({ min: 5, max: 15 });
+  });
+
+  it('single layer (normal) anchors min at 0', () => {
+    const r = new BarRenderer(1, { stacking: 'normal' });
+    r.setData(
+      [
+        { time: 1, value: 50 },
+        { time: 2, value: 70 },
+      ],
+      0,
+    );
+    // A single-layer "stack" grows from 0 — intentional change vs the old
+    // per-value fallback (which reported min 50). See INTERNAL_REFACTOR.md.
+    expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 70 });
   });
 
   it('stacking: off multi-layer returns union of all layers min/max', () => {

@@ -39,7 +39,7 @@ describe('gesture priority on the X slot', () => {
   it('pan during a streaming append commits logical to the pan destination, not the stream target', () => {
     const INTERVAL = 60_000;
     const chart = makeChartWithSize();
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 10 + i })),
@@ -66,7 +66,7 @@ describe('gesture priority on the X slot', () => {
   it('pan toggles autoScroll off when the gesture pushes dataEnd off-screen', () => {
     const INTERVAL = 60_000;
     const chart = makeChartWithSize();
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 10 + i })),
@@ -112,7 +112,7 @@ describe('autoscroll re-engagement reads logical, not visual', () => {
   it('pan back over dataEnd re-engages autoScroll the next renderMain tick', () => {
     const INTERVAL = 60_000;
     const chart = makeChartWithSize();
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 10 + i })),

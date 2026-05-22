@@ -9,6 +9,7 @@ import { ChartInstance, type ChartOptions } from '../chart';
 import type { BarRenderer } from '../series/bar';
 import type { CandlestickRenderer } from '../series/candlestick';
 import type { LineRenderer } from '../series/line';
+import type { BarSeriesOptions, CandlestickSeriesOptions, LineSeriesOptions } from '../types';
 
 function makeChart(animations?: ChartOptions['animations']): ChartInstance {
   const container = document.createElement('div');
@@ -33,12 +34,12 @@ function makeSizedChart(animations?: ChartOptions['animations']): ChartInstance 
 
 function candleRenderer(
   chart: ChartInstance,
-  opts?: Parameters<ChartInstance['addCandlestickSeries']>[0],
+  opts?: Partial<CandlestickSeriesOptions & { id?: string }>,
 ): {
   id: string;
   renderer: CandlestickRenderer;
 } {
-  const id = chart.addCandlestickSeries(opts);
+  const id = chart.addSeries('candlestick', opts);
   const entry = (chart as unknown as { listSeriesForTest: () => Array<{ id: string; renderer: CandlestickRenderer }> })
     .listSeriesForTest()
     .find((s) => s.id === id)!;
@@ -47,12 +48,12 @@ function candleRenderer(
 
 function lineRenderer(
   chart: ChartInstance,
-  opts?: Parameters<ChartInstance['addLineSeries']>[0],
+  opts?: Partial<LineSeriesOptions & { layers?: number; id?: string }>,
 ): {
   id: string;
   renderer: LineRenderer;
 } {
-  const id = chart.addLineSeries(opts);
+  const id = chart.addSeries('line', opts);
   const entry = (chart as unknown as { listSeriesForTest: () => Array<{ id: string; renderer: LineRenderer }> })
     .listSeriesForTest()
     .find((s) => s.id === id)!;
@@ -61,12 +62,12 @@ function lineRenderer(
 
 function barRenderer(
   chart: ChartInstance,
-  opts?: Parameters<ChartInstance['addBarSeries']>[0],
+  opts?: Partial<BarSeriesOptions & { layers?: number; id?: string }>,
 ): {
   id: string;
   renderer: BarRenderer;
 } {
-  const id = chart.addBarSeries(opts);
+  const id = chart.addSeries('bar', opts);
   const entry = (chart as unknown as { listSeriesForTest: () => Array<{ id: string; renderer: BarRenderer }> })
     .listSeriesForTest()
     .find((s) => s.id === id)!;
@@ -135,8 +136,8 @@ describe('updateSeriesOptions honors chart-level animation gates', () => {
 describe('engine-driven lockstep', () => {
   it('setSeriesVisible(false) drops alpha to 0 and contracts Y in one engine tick', () => {
     const chart = makeSizedChart({ toggle: 0 });
-    const small = chart.addLineSeries();
-    const big = chart.addLineSeries();
+    const small = chart.addSeries('line');
+    const big = chart.addSeries('line');
     chart.setSeriesData(small, [
       { time: 1, value: 1 },
       { time: 2, value: 5 },
@@ -165,7 +166,7 @@ describe('engine-driven lockstep', () => {
 
   it('setSeriesData (bulk replace) snaps X visual to the fitted range and Y to the new bounds atomically', () => {
     const chart = makeSizedChart();
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },

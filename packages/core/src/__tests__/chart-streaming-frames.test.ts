@@ -105,7 +105,7 @@ describe('streaming RAF chain', () => {
   });
 
   it('engine.state.animating stays true during the data_tick duration after each appendData', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 30 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 + Math.sin(i) * 10 })),
@@ -124,7 +124,7 @@ describe('streaming RAF chain', () => {
   });
 
   it('fires multiple viewportChange events across the data_tick ease — not just one', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 30 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 + Math.sin(i) * 10 })),
@@ -144,7 +144,7 @@ describe('streaming RAF chain', () => {
   });
 
   it('streaming burst (30 successive appendData) keeps re-arming RAF — total frames much greater than emit count', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(
       id,
       Array.from({ length: 10 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 + i })),

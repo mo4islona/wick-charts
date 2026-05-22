@@ -1,5 +1,5 @@
 import { EventEmitter } from '../events';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { CrosshairPosition } from '../types';
 import { PanHandler } from './pan';
@@ -15,11 +15,11 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   private zoom: ZoomHandler;
   private pan: PanHandler;
   private canvas: HTMLCanvasElement;
-  private timeScale: TimeScale;
+  private timeScale: XScale;
   private yScale: YScale;
   private target: PanZoomTarget;
 
-  constructor(canvas: HTMLCanvasElement, target: PanZoomTarget, timeScale: TimeScale, yScale: YScale) {
+  constructor(canvas: HTMLCanvasElement, target: PanZoomTarget, timeScale: XScale, yScale: YScale) {
     super();
     this.canvas = canvas;
     this.target = target;

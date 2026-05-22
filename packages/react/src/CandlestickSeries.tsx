@@ -28,7 +28,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   const prevLastTimeRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
-    const id = chart.addCandlestickSeries({ ...options, id: idProp });
+    const id = chart.addSeries('candlestick', { ...options, id: idProp });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);

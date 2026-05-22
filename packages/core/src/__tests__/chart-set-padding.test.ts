@@ -19,7 +19,7 @@ describe('ChartInstance.setPadding — refit discipline', () => {
     Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
     document.body.appendChild(container);
     chart = new ChartInstance(container, { interactive: false });
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1000, value: 10 },
       { time: 2000, value: 20 },

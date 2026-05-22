@@ -36,13 +36,13 @@ describe('midpoint snap consistency', () => {
   });
 
   it('line: single-layer and multi-layer agree on the later point at a midpoint tie', () => {
-    const single = chart.addLineSeries();
+    const single = chart.addSeries('line');
     chart.setSeriesData(single, [
       { time: 100, value: 1 },
       { time: 200, value: 2 },
     ]);
 
-    const multi = chart.addLineSeries({ layers: 2 });
+    const multi = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(
       multi,
       [
@@ -73,13 +73,13 @@ describe('midpoint snap consistency', () => {
   });
 
   it('bar: multi-layer agrees with single-layer at a midpoint tie', () => {
-    const single = chart.addBarSeries();
+    const single = chart.addSeries('bar');
     chart.setSeriesData(single, [
       { time: 100, value: 7 },
       { time: 200, value: 8 },
     ]);
 
-    const multi = chart.addBarSeries({ layers: 2 });
+    const multi = chart.addSeries('bar', { layers: 2 });
     chart.setSeriesData(
       multi,
       [

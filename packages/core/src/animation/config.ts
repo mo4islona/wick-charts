@@ -11,6 +11,7 @@
  *      for the chart's `addXSeries` option-merge.
  */
 
+import type { SeriesKind } from '../series/types';
 import type { VisibleRange, YRange } from '../types';
 import { spring } from './spring';
 import { type AnimationTime, resolveAnimationTime } from './time';
@@ -347,8 +348,6 @@ export interface ResolvedSeriesAnimations {
   pie: { entryMs: number; updateMs: number };
 }
 
-export type SeriesAnimationKind = 'candle' | 'bar' | 'line';
-
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   line: { entryMs: 0, smoothMs: 0, pulseMs: 0 },
   candlestick: { entryMs: 0, smoothMs: 0 },
@@ -452,17 +451,23 @@ export class AnimationConfig {
    * renderer's option shape. `pulseMs` is line-only; bars / candles
    * ignore it.
    */
-  defaults(kind: SeriesAnimationKind): Record<string, unknown> {
+  defaults(kind: SeriesKind): Record<string, unknown> {
     if (kind === 'line') {
       const { entryMs, smoothMs, pulseMs } = this.series.line;
 
       return { entryMs, smoothMs, pulseMs };
     }
 
-    if (kind === 'candle') {
+    if (kind === 'candlestick') {
       const { entryMs, smoothMs } = this.series.candlestick;
 
       return { entryMs, smoothMs };
+    }
+
+    if (kind === 'pie') {
+      const { entryMs, updateMs } = this.series.pie;
+
+      return { entryMs, updateMs };
     }
 
     const { entryMs, smoothMs } = this.series.bar;
@@ -476,7 +481,7 @@ export class AnimationConfig {
    * AFTER user options so the disable can't be undone at the per-series
    * layer.
    */
-  overrides(kind: SeriesAnimationKind): Record<string, unknown> {
+  overrides(kind: SeriesKind): Record<string, unknown> {
     const out: Record<string, unknown> = {};
 
     if (kind === 'line') {
@@ -488,7 +493,10 @@ export class AnimationConfig {
       return out;
     }
 
-    const { entryMs, smoothMs } = kind === 'candle' ? this.series.candlestick : this.series.bar;
+    // Pie has no force-off path (its animation system isn't wired yet).
+    if (kind === 'pie') return out;
+
+    const { entryMs, smoothMs } = kind === 'candlestick' ? this.series.candlestick : this.series.bar;
     if (entryMs === 0) out.entryMs = 0;
     if (smoothMs === 0) out.smoothMs = 0;
 

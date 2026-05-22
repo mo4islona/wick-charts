@@ -1,6 +1,5 @@
 import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../animation/config';
 import { decimateLineData } from '../data/decimation';
-import type { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
@@ -49,17 +48,13 @@ function normalize(input: LineSeriesOptions): ResolvedLineOptions {
 }
 
 export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
+  readonly kind = 'line' as const;
   protected declare options: ResolvedLineOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
   constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
-  }
-
-  /** Back-compat: first store. */
-  get store(): TimeSeriesStore<TimePoint> {
-    return this.stores[0];
   }
 
   updateOptions(options: Partial<LineSeriesOptions>): void {

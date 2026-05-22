@@ -7,13 +7,13 @@
 
 import type { CanvasManager } from '../canvas-manager';
 import { type EdgeSide, type EdgeState, renderEdgeIndicator } from '../components/edge-indicator';
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { ChartTheme } from '../theme/types';
 
 export interface EdgeIndicatorContext {
   scope: Parameters<Parameters<CanvasManager['useOverlayLayer']>[0]>[0];
   chartMediaHeight: number;
-  timeScale: TimeScale;
+  timeScale: XScale;
   theme: ChartTheme;
   edgeStates: Record<EdgeSide, EdgeState>;
   /**

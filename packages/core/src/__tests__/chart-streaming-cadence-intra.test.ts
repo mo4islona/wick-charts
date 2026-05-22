@@ -90,7 +90,7 @@ describe('intra-bar updates do not trigger an X retarget', () => {
   });
 
   it('updateData never starts an X slide — only Y may retarget for the new value', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
 
     chart.setSeriesData(
       id,

@@ -103,7 +103,7 @@ function makeChart(opts: { yAxisMs?: number } = {}): { chart: ChartInstance; con
 }
 
 function seedLine(chart: ChartInstance, values: number[], startTime = 1_000_000): string {
-  const id = chart.addLineSeries();
+  const id = chart.addSeries('line');
   const data = values.map((value, i) => ({ time: startTime + i * INTERVAL, value }));
   chart.setSeriesData(id, data);
 
@@ -254,7 +254,7 @@ describe('chart Y-range animator', () => {
     // shifts X right; the Y target must reflect the high-Y window the X
     // *will land on*, not an interpolated middle.
     ({ chart, container } = makeChart({ yAxisMs: 200 }));
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     const data = Array.from({ length: 50 }, (_, i) => ({
       time: 1_000_000 + i * INTERVAL,
       // Low values (10) for the first 30 points, high values (100) for the last 20.
@@ -341,7 +341,7 @@ describe('chart Y-range animator', () => {
   it('setSeriesVisible eases the Y range over toggleMs (matches the alpha fade)', () => {
     ({ chart, container } = makeChart({ yAxisMs: 200 }));
     seedLine(chart, [10, 20, 30, 40, 50]);
-    const id2 = chart.addLineSeries();
+    const id2 = chart.addSeries('line');
     chart.setSeriesData(
       id2,
       [200, 220, 210, 230, 250].map((value, i) => ({ time: 1_000_000 + i * INTERVAL, value })),

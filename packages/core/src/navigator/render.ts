@@ -1,4 +1,4 @@
-import type { TimeScale } from '../scales/time-scale';
+import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
@@ -7,7 +7,7 @@ import type { NavigatorCandlePoint, NavigatorLinePoint } from './types';
 
 export interface NavigatorRenderContext {
   ctx: CanvasRenderingContext2D;
-  timeScale: TimeScale;
+  timeScale: XScale;
   yScale: YScale;
   mediaWidth: number;
   mediaHeight: number;
@@ -241,7 +241,7 @@ export interface WindowGeometry {
 }
 
 export function computeWindowGeometry(
-  timeScale: TimeScale,
+  timeScale: XScale,
   visible: VisibleRange,
   dataRange: VisibleRange,
 ): WindowGeometry {

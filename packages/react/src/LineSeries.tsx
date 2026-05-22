@@ -26,7 +26,7 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   const prevLastTimesRef = useRef<(number | null)[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addLineSeries({ ...options, layers: data.length, id: idProp });
+    const id = chart.addSeries('line', { ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevLensRef.current = new Array(data.length).fill(0);
     prevFirstTimesRef.current = new Array(data.length).fill(null);

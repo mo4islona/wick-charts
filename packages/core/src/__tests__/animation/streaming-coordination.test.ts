@@ -93,7 +93,7 @@ describe('streaming coordination — unified animation', () => {
   });
 
   it('1 → 50 single-point appends settle X, Y, and live-track on the same frame', () => {
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
 
     // Seed exactly one candle. fitToData snaps the viewport.
     let lastTime = 1_000_000;
@@ -152,7 +152,7 @@ describe('streaming coordination — unified animation', () => {
     // = `SHARED_ANIMATION_MS`) and is NOT coordinated through the streaming
     // animator. Pin that decoupling so a future refactor that tries to fold
     // entrance into the streaming retarget gets caught here.
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
     chart.setSeriesData(id, [{ time: 1_000_000, open: 100, high: 105, low: 95, close: 101 }]);
     raf.flush(1);
 
@@ -191,7 +191,7 @@ describe('streaming coordination — unified animation', () => {
     // the same `SHARED_ANIMATION_MS` (250 ms) budget, so the entering candle
     // is still ramping its alpha while Y converges. When entrance is hard-
     // disabled the chart snaps Y outward instead (see chart.ts updateYRange).
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
 
     // Seed a tight range.
     chart.setSeriesData(

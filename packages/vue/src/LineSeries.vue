@@ -15,7 +15,7 @@ const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 
 onMounted(() => {
-  const id = chart.addLineSeries({
+  const id = chart.addSeries('line', {
     ...props.options,
     layers: props.data.length,
     id: props.id,

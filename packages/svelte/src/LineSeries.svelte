@@ -16,7 +16,7 @@ let seriesId: string | null = null;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addLineSeries({ ...options, layers: data.length, id });
+  seriesId = chart.addSeries('line', { ...options, layers: data.length, id });
 });
 
 onDestroy(() => {

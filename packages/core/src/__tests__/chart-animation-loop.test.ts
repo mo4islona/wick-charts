@@ -78,7 +78,7 @@ describe('ChartInstance render loop continues while renderer.needsAnimation is t
     // called regardless once markDirty schedules a frame.
     void manager;
 
-    const id = chart.addCandlestickSeries();
+    const id = chart.addSeries('candlestick');
     const renderer = (
       chart as unknown as { listSeriesForTest: () => Array<{ id: string; renderer: CandlestickRenderer }> }
     )

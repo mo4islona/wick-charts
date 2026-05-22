@@ -81,7 +81,7 @@ function makeChart(extra: Partial<ChartOptions> = {}): { chart: ChartInstance; c
 }
 
 function seedCandles(chart: ChartInstance, count: number, startTime = 1_000_000): { id: string; lastTime: number } {
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   const data = Array.from({ length: count }, (_, i) => ({
     time: startTime + i * INTERVAL,
     open: 100,

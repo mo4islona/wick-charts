@@ -40,7 +40,7 @@ describe('ChartInstance scale sync', () => {
   });
 
   it('yScale domain reflects the data range immediately after setSeriesData', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 10 },
       { time: 2, value: 20 },
@@ -55,7 +55,7 @@ describe('ChartInstance scale sync', () => {
   });
 
   it('yScale updates when data grows 10x (no stale domain)', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1, value: 1 },
       { time: 2, value: 10 },
@@ -72,7 +72,7 @@ describe('ChartInstance scale sync', () => {
   });
 
   it('timeScale mapping updates when the viewport range changes via fitContent', () => {
-    const id = chart.addLineSeries();
+    const id = chart.addSeries('line');
     chart.setSeriesData(id, [
       { time: 1000, value: 1 },
       { time: 2000, value: 2 },
@@ -94,8 +94,8 @@ describe('ChartInstance scale sync', () => {
   });
 
   it('batched data changes across multiple series land with a single consistent scale read', () => {
-    const a = chart.addLineSeries();
-    const b = chart.addLineSeries();
+    const a = chart.addSeries('line');
+    const b = chart.addSeries('line');
 
     chart.batch(() => {
       chart.setSeriesData(a, [

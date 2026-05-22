@@ -76,7 +76,7 @@ function installRaf() {
 }
 
 function seedCandles(chart: ChartInstance, count: number): void {
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   const data = Array.from({ length: count }, (_, i) => ({
     time: 1_000_000 + i * INTERVAL,
     open: 100 + (i % 7),
@@ -131,7 +131,7 @@ function buildStreamingChart(initialCandles: number): {
   const container = makeContainer();
   const raf = installRaf();
   const chart = new ChartInstance(container, { interactive: false });
-  const id = chart.addCandlestickSeries();
+  const id = chart.addSeries('candlestick');
   chart.setSeriesData(
     id,
     Array.from({ length: initialCandles }, (_, i) => ({

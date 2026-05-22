@@ -1,5 +1,5 @@
 import type { BitmapCoordinateSpace } from '../../canvas-manager';
-import { TimeScale } from '../../scales/time-scale';
+import { XScale } from '../../scales/x-scale';
 import { YScale } from '../../scales/y-scale';
 import type { OverlayRenderContext, SeriesRenderContext } from '../../series/types';
 import { catppuccin } from '../../theme/themes/catppuccin';
@@ -28,7 +28,7 @@ export interface BuiltRenderContext {
   ctx: SeriesRenderContext;
   overlayCtx: (crosshair?: OverlayRenderContext['crosshair']) => OverlayRenderContext;
   spy: CanvasRecorder;
-  timeScale: TimeScale;
+  timeScale: XScale;
   yScale: YScale;
 }
 
@@ -62,7 +62,7 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
     verticalPixelRatio: pixelRatio,
   };
 
-  const timeScale = new TimeScale();
+  const timeScale = new XScale();
   timeScale.update(timeRange, mediaWidth, pixelRatio);
 
   const yScale = new YScale();
