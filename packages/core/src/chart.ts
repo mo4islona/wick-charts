@@ -1684,9 +1684,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /**
    * Zoom around a time anchor. `factor < 1` zooms in, `> 1` zooms out.
-   * Zoom-in pins the right edge; zoom-out is hard-capped at the padded
-   * data span. Forwards the committed target to the engine as a gesture
-   * for visual easing. Public so consumers can drive zoom programmatically.
+   * In historical mode the window anchors to `centerTime` (cursor-driven).
+   * Zoom-out is hard-capped at the padded data span. Forwards the committed
+   * target to the engine as a gesture for visual easing. Public so consumers
+   * can drive zoom programmatically.
    *
    * Sticky-follow: while `#autoScroll` is on, the new window is repositioned
    * so its right edge sits at `dataEnd + paddingRight` (follow position).

@@ -204,8 +204,10 @@ export interface ZoomResult {
 /**
  * Zoom in / out around a time anchor. `factor < 1` zooms in, `> 1` zooms out.
  *
- * - Zoom-in pins the right edge (never drifts left). Below the 10-bar floor
- *   a rubber-band lets the gesture push past with progressive damping.
+ * - Zoom anchors to `centerTime`. Sticky-follow positioning (when autoScroll
+ *   is on) is the caller's concern — see `Chart.zoomAt`.
+ * - Below the 10-bar floor, zoom-in rubber-bands the factor with progressive
+ *   damping so the gesture pushes past softly instead of hard-stopping.
  * - Zoom-out is hard-capped at the padded data span; past that the math
  *   clamps newRange so the result never reveals an empty gap past the
  *   data edges.
@@ -253,14 +255,6 @@ export function computeZoom(input: ZoomInput): ZoomResult {
   const ratioAnchor = (centerTime - from) / range;
   let newFrom = centerTime - ratioAnchor * newRange;
   let newTo = newFrom + newRange;
-
-  // Zoom-in guardrail: never let the right edge drift left past its
-  // current position. Keeps the last candle in view.
-  if (factor < 1 && newTo < to) {
-    const shift = to - newTo;
-    newFrom += shift;
-    newTo += shift;
-  }
 
   // Zoom-out: clamp sides into soft bounds.
   if (factor > 1) {
