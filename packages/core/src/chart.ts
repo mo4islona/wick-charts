@@ -1648,12 +1648,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Shift the visible time range by `timeDelta` ms. Rubber-band resistance
-   * applies once the gesture overshoots a soft data bound; a pan that
-   * pushes the data tail off screen flips autoscroll off. Fires
-   * `edgeReached` if the gesture overshot past the 10%-of-range threshold.
-   * Forwards the committed target to the engine as a gesture for visual
-   * easing. Public so consumers can drive pan programmatically.
+   * Shift the visible time range by `timeDelta` ms. Hard-clamped so at
+   * least one data point stays on screen — no rubber-band, no overshoot.
+   * A pan that moves the viewport off the live-tail position flips
+   * autoscroll off. Fires `edgeReached` whenever the clamp trims the
+   * gesture (i.e., the user pushed past the boundary), so consumers can
+   * trigger history loads. Forwards the committed target to the engine
+   * as a gesture for visual easing. Public so consumers can drive pan
+   * programmatically.
    */
   pan(timeDelta: number, chartWidth = this.#lastChartWidth): void {
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
@@ -1827,14 +1829,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.syncScales();
 
-    // Re-engage tail-following when a user pan brings the destination back
-    // into the data zone. Reads the *logical* X target so the flip happens
-    // at the destination, not one or two frames earlier when the eased
-    // visual dips through.
+    // Re-engage tail-following only when the user lands the viewport *at*
+    // the live-tail position (newTo ≈ dataEnd + paddingRight). Just having
+    // dataEnd inside the window is no longer enough — the previous rule
+    // let any clamp-to-edge pan flip autoScroll back on and streaming
+    // would visibly drag the viewport back to the tail.
     if (this.#dataEnd !== null && !this.#autoScroll) {
       const logical = this.#engine.lastXTarget ?? this.#logical;
-      if (logical.from <= this.#dataEnd && this.#dataEnd <= logical.to) {
-        this.#autoScroll = true;
+      const range = logical.to - logical.from;
+      if (range > 0) {
+        const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+        const rightPadTime = resolvePaddingTime(this.#padding.right, range, this.#dataInterval, chartWidth);
+        const tolerance = this.#dataInterval * 0.5;
+        if (Math.abs(logical.to - (this.#dataEnd + rightPadTime)) < tolerance) {
+          this.#autoScroll = true;
+        }
       }
     }
 

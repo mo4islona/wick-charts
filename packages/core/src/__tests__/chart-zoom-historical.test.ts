@@ -93,8 +93,11 @@ describe('ChartInstance.zoomAt — cursor-anchored when autoScroll=false', () =>
   it('zoom-in in historical mode centers the new window around the cursor', () => {
     seedCandles(chart, 200);
 
-    // Pan the data tail off-screen → autoScroll flips false.
-    chart.pan(-300 * INTERVAL, 800);
+    // Pan the data tail off-screen but stay clear of the hard-clamp
+    // boundary so the cursor anchor can be preserved during zoom. A pan
+    // that bottoms out at `newTo = dataStart` would force the post-zoom
+    // clamp to shift the window and break the cursor-ratio contract.
+    chart.pan(-30 * INTERVAL, 800);
     expect(chart.getAutoScroll()).toBe(false);
 
     const { from: fromBefore, to: toBefore } = chart.getVisibleRange();
@@ -120,7 +123,7 @@ describe('ChartInstance.zoomAt — cursor-anchored when autoScroll=false', () =>
 
   it('zoom-in with cursor on the historical right edge naturally keeps to ≈ previous to', () => {
     seedCandles(chart, 200);
-    chart.pan(-300 * INTERVAL, 800);
+    chart.pan(-30 * INTERVAL, 800);
     expect(chart.getAutoScroll()).toBe(false);
 
     const { to: toBefore } = chart.getVisibleRange();

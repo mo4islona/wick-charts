@@ -83,9 +83,11 @@ describe('gesture priority on the X slot', () => {
 
 /**
  * Autoscroll re-engagement reads the bridge's *logical* lastXTarget, not
- * the eased visual. A pan that brings the logical destination back over
- * dataEnd flips autoScroll back on; otherwise streaming would stay
- * disabled even though the user clearly returned to the live tail.
+ * the eased visual. Re-engagement is strict: the viewport must land back
+ * at the live-tail position (newTo ≈ dataEnd + paddingRight). Just
+ * having dataEnd anywhere in the window is no longer enough — the
+ * looser rule used to let any clamp-to-edge pan flip autoScroll back
+ * on and streaming would visibly drag the viewport back to the tail.
  */
 describe('autoscroll re-engagement reads logical, not visual', () => {
   function makeChartWithSize(): ChartInstance {
@@ -109,7 +111,7 @@ describe('autoscroll re-engagement reads logical, not visual', () => {
     return new ChartInstance(container, { animations: { axis: { x: { gesture: 0 } } } });
   }
 
-  it('pan back over dataEnd re-engages autoScroll the next renderMain tick', () => {
+  it('pan back to live-tail position re-engages autoScroll', () => {
     const INTERVAL = 60_000;
     const chart = makeChartWithSize();
     const id = chart.addSeries('line');
@@ -118,17 +120,40 @@ describe('autoscroll re-engagement reads logical, not visual', () => {
       Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 10 + i })),
     );
 
+    // Snapshot the initial live-tail position — that's the only viewport
+    // that re-engages autoScroll under the new strict rule.
+    const live = chart.getVisibleRange();
+
     // Pan off-tail: autoScroll flips false.
     chart.pan(-30 * INTERVAL, 800);
     expect(chart.getAutoScroll()).toBe(false);
 
-    // Pan back so the live tail is inside the logical range again.
-    chart.pan(30 * INTERVAL, 800);
+    // Pan back precisely the amount needed to land newTo back at the
+    // live-tail position (dataEnd + paddingRight).
+    const after = chart.getVisibleRange();
+    const delta = live.to - after.to;
+    chart.pan(delta, 800);
 
-    // Pan itself already re-arms autoScroll inside chart.pan when the last
-    // data point is back in view. The renderMain per-frame check covers
-    // the streaming-tick-brings-dataEnd-back case (exercised separately
-    // in chart-streaming-autoscroll).
     expect(chart.getAutoScroll()).toBe(true);
+  });
+
+  it('pan back into the window but past the live-tail position keeps autoScroll off', () => {
+    const INTERVAL = 60_000;
+    const chart = makeChartWithSize();
+    const id = chart.addSeries('line');
+    chart.setSeriesData(
+      id,
+      Array.from({ length: 20 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 10 + i })),
+    );
+
+    chart.pan(-30 * INTERVAL, 800);
+    expect(chart.getAutoScroll()).toBe(false);
+
+    // Pan back, but stop short of (and past, after clamp) the live tail.
+    // Old looser rule would have re-armed autoScroll the moment dataEnd
+    // re-entered the window — that's the "slow return" path we removed.
+    chart.pan(20 * INTERVAL, 800);
+
+    expect(chart.getAutoScroll()).toBe(false);
   });
 });

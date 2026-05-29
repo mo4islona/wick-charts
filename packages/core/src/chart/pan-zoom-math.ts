@@ -1,9 +1,9 @@
 /**
  * Pure pan / zoom math for the viewport's logical X range. Extracted out
- * of `Viewport` so the rubber-band, soft-bound clamp, and edge-reached
- * classification can be unit-tested in isolation and so the next refactor
- * step can move data-anchor state (dataStart / dataEnd / padding /
- * dataInterval) onto the chart without dragging the class along.
+ * of `Viewport` so the hard-clamp and edge-reached classification can be
+ * unit-tested in isolation and so the next refactor step can move
+ * data-anchor state (dataStart / dataEnd / padding / dataInterval) onto
+ * the chart without dragging the class along.
  *
  * Inputs are explicit (no class fields). Outputs include flags (`autoScrollOff`,
  * `edgeReached`) the caller applies as side effects.
@@ -12,12 +12,6 @@
 import type { HorizontalPadding, XRange } from '../types';
 import { resolvePaddingTime } from './viewport-padding';
 
-/** Minimum overshoot fraction of visible range before edgeReached fires. */
-export const EDGE_REACHED_MIN_FRACTION = 0.1;
-/** Maximum overshoot as a fraction of the visible range during a pan gesture. */
-export const PAN_MAX_OVERSHOOT_FRACTION = 0.3;
-/** Maximum zoom-in overshoot as a fraction of softMinRange. */
-export const ZOOM_MIN_OVERSHOOT_FRACTION = 0.4;
 /** Default maximum visible bars before fitToData caps and tail-scroll takes over. */
 export const DEFAULT_MAX_VISIBLE_BARS = 200;
 /** Minimum allowed `maxVisibleBars` — matches the visible-bar floor below which
@@ -39,7 +33,9 @@ export interface SoftBoundsInput {
 }
 
 /**
- * Compute the left / right soft pan-time bound. Returns `null` on a side
+ * Compute the left / right soft pan-time bound (data edge + padding).
+ * Used to detect the "live tail" position for autoScroll-engagement —
+ * not for clamping the user's pan/zoom. Returns `null` on a side
  * whose data boundary is unset or whose padding requires a chart width
  * that isn't available yet.
  */
@@ -93,6 +89,16 @@ export function softMaxRange(input: SoftMaxRangeInput): number | null {
   return span + dataInterval * 5;
 }
 
+/**
+ * Live-tail tolerance: how close `newTo` must be to `dataEnd + rightPad`
+ * for the viewport to count as "at the live tail" (autoScroll stays on /
+ * re-engages). Half a bar — under the user's perceptual threshold but
+ * tight enough that any real pan flips autoScroll off immediately.
+ */
+function liveTailTolerance(dataInterval: number): number {
+  return dataInterval * 0.5;
+}
+
 export interface PanInput {
   currentLogical: XRange;
   timeDelta: number;
@@ -112,20 +118,26 @@ export interface EdgeReachedInfo {
 export interface PanResult {
   /** New logical X range to commit, or `null` if the input range is invalid. */
   newLogical: XRange | null;
-  /** When `true`, the new window no longer contains the data tail — caller should disable autoScroll. */
+  /** When `true`, the viewport is no longer at the live-tail position — caller should disable autoScroll. */
   autoScrollOff: boolean;
   /** When set, caller should fire its `edgeReached` event with this payload. */
   edgeReached: EdgeReachedInfo | null;
 }
 
 /**
- * Shift the visible range by a time delta. Overshooting either data edge
- * applies rubber-band resistance, clamped at `PAN_MAX_OVERSHOOT_FRACTION`
- * of the range.
+ * Shift the visible range by a time delta. Hard-clamped to the rule
+ * "at least one data point stays visible": `newFrom <= dataEnd` (the
+ * last point can sit at the very left edge) and `newTo >= dataStart`
+ * (the first point can sit at the very right edge). No rubber-band,
+ * no overshoot — the viewport stops dead at the boundary.
  *
- * A pan that leaves the last data point on screen stays "live" (autoscroll
- * untouched); one that pushes it off counts as deliberate history
- * inspection (`autoScrollOff: true`).
+ * A pan that lands the viewport off the live-tail position (newTo no
+ * longer ≈ dataEnd + paddingRight) flips autoscroll off; staying
+ * within tolerance keeps it on.
+ *
+ * `edgeReached` fires whenever the clamp actually trims the gesture —
+ * i.e., the user tried to push past the boundary. Consumers wire this
+ * to history-load triggers.
  */
 export function computePan(input: PanInput): PanResult {
   const { currentLogical, timeDelta, chartWidth, dataInterval, padding, dataStart, dataEnd } = input;
@@ -135,52 +147,40 @@ export function computePan(input: PanInput): PanResult {
     return { newLogical: null, autoScrollOff: false, edgeReached: null };
   }
 
-  const { left: softLeft, right: softRight } = computeSoftBounds({
-    range,
-    chartWidth,
-    dataInterval,
-    padding,
-    dataStart,
-    dataEnd,
-  });
-  const maxOver = range * PAN_MAX_OVERSHOOT_FRACTION;
+  let newFrom = from + timeDelta;
+  let newTo = to + timeDelta;
 
-  let effDelta = timeDelta;
-  if (timeDelta > 0 && softRight !== null) {
-    const overRight = Math.max(0, to - softRight);
-    if (overRight > 0) effDelta *= 1 / (overRight / maxOver + 1);
-  } else if (timeDelta < 0 && softLeft !== null) {
-    const overLeft = Math.max(0, softLeft - from);
-    if (overLeft > 0) effDelta *= 1 / (overLeft / maxOver + 1);
-  }
+  let edgeReached: EdgeReachedInfo | null = null;
 
-  let newFrom = from + effDelta;
-  let newTo = to + effDelta;
-
-  if (softRight !== null && newTo > softRight + maxOver) {
-    const excess = newTo - (softRight + maxOver);
+  // Hard clamp: keep at least one data point on screen.
+  if (dataEnd !== null && newFrom > dataEnd) {
+    const excess = newFrom - dataEnd;
     newFrom -= excess;
     newTo -= excess;
+    edgeReached = { side: 'right', overshoot: excess, boundaryTime: dataEnd };
   }
-  if (softLeft !== null && newFrom < softLeft - maxOver) {
-    const excess = softLeft - maxOver - newFrom;
+  if (dataStart !== null && newTo < dataStart) {
+    const excess = dataStart - newTo;
     newFrom += excess;
     newTo += excess;
+    // Left clamp overrides a same-frame right clamp (range > data span):
+    // honour the more recent collision so consumers fire one event per pan.
+    edgeReached = { side: 'left', overshoot: excess, boundaryTime: dataStart };
   }
 
-  const lastVisible = dataEnd !== null && dataEnd >= newFrom && dataEnd <= newTo;
-
-  const edgeThreshold = range * EDGE_REACHED_MIN_FRACTION;
-  let edgeReached: EdgeReachedInfo | null = null;
-  if (softRight !== null && newTo - softRight > edgeThreshold) {
-    edgeReached = { side: 'right', overshoot: newTo - softRight, boundaryTime: softRight };
-  } else if (softLeft !== null && softLeft - newFrom > edgeThreshold) {
-    edgeReached = { side: 'left', overshoot: softLeft - newFrom, boundaryTime: softLeft };
-  }
+  // AutoScroll stays on only while the viewport sits at the live-tail
+  // position (newTo ≈ dataEnd + paddingRight). Any deliberate pan moves
+  // newTo outside the tolerance and flips it off.
+  const rightPadTime =
+    dataEnd !== null && (typeof padding.right === 'object' || padding.right === 0 || chartWidth > 0)
+      ? resolvePaddingTime(padding.right, newTo - newFrom, dataInterval, chartWidth)
+      : 0;
+  const tolerance = liveTailTolerance(dataInterval);
+  const atLiveTail = dataEnd !== null && Math.abs(newTo - (dataEnd + rightPadTime)) < tolerance;
 
   return {
     newLogical: { from: newFrom, to: newTo },
-    autoScrollOff: !lastVisible,
+    autoScrollOff: !atLiveTail,
     edgeReached,
   };
 }
@@ -206,11 +206,13 @@ export interface ZoomResult {
  *
  * - Zoom anchors to `centerTime`. Sticky-follow positioning (when autoScroll
  *   is on) is the caller's concern — see `Chart.zoomAt`.
- * - Below the 10-bar floor, zoom-in rubber-bands the factor with progressive
- *   damping so the gesture pushes past softly instead of hard-stopping.
- * - Zoom-out is hard-capped at the padded data span; past that the math
- *   clamps newRange so the result never reveals an empty gap past the
- *   data edges.
+ * - Zoom-in is hard-clamped at the 10-bar floor (`softMinRange`).
+ * - Zoom-out is hard-clamped at the padded data span — beyond that the
+ *   data shrinks to a useless dot.
+ * - No position clamping: the cursor anchor always wins. Zooming past a
+ *   data edge leaves empty space on one side of the window; pan to bring
+ *   the data back into focus. The pan path enforces the "at least one
+ *   point visible" rule on its own; zoom should not fight the cursor.
  * - Zoom does NOT toggle autoScroll — that's a pan-only concern.
  */
 export function computeZoom(input: ZoomInput): ZoomResult {
@@ -235,40 +237,18 @@ export function computeZoom(input: ZoomInput): ZoomResult {
       ? softRight - softLeft
       : softMaxRange({ dataInterval, padding, dataStart, dataEnd });
 
-  let effFactor = factor;
-  const minMaxOver = softMin * ZOOM_MIN_OVERSHOOT_FRACTION;
+  let newRange = range * factor;
 
-  // Zoom-in past the 10-bar floor: rubber-band resistance on the factor.
-  if (factor < 1 && range < softMin) {
-    const over = softMin - range;
-    const ratio = Math.min(1, over / minMaxOver);
-    const resistance = (1 - ratio) ** 2;
-    effFactor = 1 - (1 - factor) * resistance;
-  }
-
-  let newRange = range * effFactor;
-  if (newRange < softMin - minMaxOver) newRange = softMin - minMaxOver;
+  // Zoom-in: hard-stop at the 10-bar floor.
+  if (newRange < softMin) newRange = softMin;
+  // Zoom-out: hard-cap at the padded data span.
   if (factor > 1 && hardMaxRange !== null && newRange > hardMaxRange) {
     newRange = hardMaxRange;
   }
 
   const ratioAnchor = (centerTime - from) / range;
-  let newFrom = centerTime - ratioAnchor * newRange;
-  let newTo = newFrom + newRange;
-
-  // Zoom-out: clamp sides into soft bounds.
-  if (factor > 1) {
-    if (softRight !== null && newTo > softRight) {
-      const shift = newTo - softRight;
-      newFrom -= shift;
-      newTo -= shift;
-    }
-    if (softLeft !== null && newFrom < softLeft) {
-      const shift = softLeft - newFrom;
-      newFrom += shift;
-      newTo += shift;
-    }
-  }
+  const newFrom = centerTime - ratioAnchor * newRange;
+  const newTo = newFrom + newRange;
 
   return { newLogical: { from: newFrom, to: newTo } };
 }
