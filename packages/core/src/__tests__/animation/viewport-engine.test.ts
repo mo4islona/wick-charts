@@ -18,6 +18,8 @@ interface SetupArgs {
   nextX?: VisibleRange | null;
   nextY?: YRange | null;
   xSettleMs?: number;
+  stickyMs?: number;
+  stickyFloorMs?: number;
 }
 
 function setup(args: SetupArgs = {}): {
@@ -39,7 +41,8 @@ function setup(args: SetupArgs = {}): {
     y: {
       curve: hermite(),
       settleMs: 250,
-      stickyMs: 1000,
+      stickyMs: args.stickyMs ?? 1000,
+      stickyFloorMs: args.stickyFloorMs ?? 200,
       gestureMs: 100,
       toggleMs: 250,
     },
@@ -264,7 +267,7 @@ describe('ViewportEngine — toggleUntil (Y lockout during visibility change)', 
     const yCallback = vi.fn(() => toggleY as YRange | null);
     const engine = createViewportEngine({
       initial: { xRange: initialX, yRange: initialY },
-      y: { curve: hermite(), settleMs: 250, stickyMs: 1000, gestureMs: 100, toggleMs: 0 },
+      y: { curve: hermite(), settleMs: 250, stickyMs: 1000, stickyFloorMs: 200, gestureMs: 100, toggleMs: 0 },
       x: { curve: spring<VisibleRange>(), settleMs: 200, gestureMs: 150 },
       computeXTarget: () => STREAM_X,
       computeYTarget: yCallback,
@@ -279,5 +282,46 @@ describe('ViewportEngine — toggleUntil (Y lockout during visibility change)', 
     engine.onPointAppended(1);
     // Lockout was never armed (toggleUntil=0) — streaming retarget fires.
     expect(engine.getTarget().y).toEqual(streamY);
+  });
+});
+
+/**
+ * Dynamic sticky-Y: the inward contract duration scales with the contraction
+ * magnitude (constant-speed recede). A big outlier easing off uses the full
+ * sticky budget; a small recede finishes near the floor instead of crawling
+ * over the whole budget. Setup defaults: range 100, stickyMs 1000, floor 200.
+ */
+describe('ViewportEngine — dynamic sticky contract', () => {
+  const NEXT_X: VisibleRange = { from: 0, to: 1000 };
+
+  it('a small recede settles within the floor while a large one is still mid-flight', () => {
+    // Small: max 100 → 95 (fraction 0.05 → floored to 200ms). Lands at 200ms.
+    const small = setup({ nextX: NEXT_X, nextY: { min: 0, max: 95 } });
+    small.engine.onPointAppended(0);
+    small.engine.tick(200);
+    expect(small.engine.getAnimationState().yRange.max).toBeCloseTo(95, 5);
+
+    // Large: max 100 → 10 (fraction 0.9 → 900ms). At 200ms still far above
+    // the target — the outlier eases off slowly (the sticky-Y hold).
+    const large = setup({ nextX: NEXT_X, nextY: { min: 0, max: 10 } });
+    large.engine.onPointAppended(0);
+    large.engine.tick(200);
+    expect(large.engine.getAnimationState().yRange.max).toBeGreaterThan(40);
+
+    // ...and lands by its full scaled budget.
+    large.engine.tick(900);
+    expect(large.engine.getAnimationState().yRange.max).toBeCloseTo(10, 5);
+  });
+
+  it('stickyFloor === sticky restores a fixed-duration contract (no scaling)', () => {
+    // floor == cap → a small recede no longer shortcuts to the floor; it
+    // takes the full 1000ms budget, so it is not settled at 200ms.
+    const fixed = setup({ stickyMs: 1000, stickyFloorMs: 1000, nextX: NEXT_X, nextY: { min: 0, max: 95 } });
+    fixed.engine.onPointAppended(0);
+    fixed.engine.tick(200);
+
+    const { max } = fixed.engine.getAnimationState().yRange;
+    expect(max).toBeGreaterThan(95);
+    expect(max).toBeLessThan(100);
   });
 });

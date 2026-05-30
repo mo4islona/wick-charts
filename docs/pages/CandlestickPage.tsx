@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import {
   CandlestickSeries,
   ChartContainer,
@@ -16,17 +18,15 @@ import {
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
 import {
-  buildAnimationsProp,
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
   buildNavigatorComponent,
+  useAnimationsProp,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Toggle } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
-import { useMemo } from 'react';
-
 import { generateOHLCData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile, useOHLCStream } from '../hooks';
@@ -72,7 +72,7 @@ function CandleChart({
   const { data: d } = useOHLCStream(data, { startDelay, interval: DEMO_INTERVAL, speed: 5 });
   const display = streaming ? d : data;
   const sid = 'candle';
-  const animations = buildAnimationsProp({
+  const animations = useAnimationsProp({
     ...rest,
     candleEntryAnimation,
     headerLayout,

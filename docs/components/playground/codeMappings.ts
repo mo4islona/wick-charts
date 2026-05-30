@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import { type AnimationsConfig, hermite, snap, spring } from '@wick-charts/react';
 
 import type { PropValue } from '../CodePreview';
@@ -29,7 +31,8 @@ const DEFAULTS = {
   // Y axis
   yCurve: 'hermite' as const,
   ySettleMs: 250,
-  yStickyMs: 2500,
+  yStickyMinMs: 500,
+  yStickyMaxMs: 2500,
   yGestureMs: 100,
   // Cross-cutting
   ticksMs: 250,
@@ -134,7 +137,22 @@ function pickYAxis(s: PlaygroundChartProps, curveAs: 'string' | 'factory'): Reco
     out.curve = curveAs === 'factory' ? Y_CURVE_FACTORIES[s.yCurve] : `${s.yCurve}()`;
   }
   if (s.ySettleMs !== DEFAULTS.ySettleMs) out.settle = s.ySettleMs;
-  if (s.yStickyMs !== DEFAULTS.yStickyMs) out.sticky = s.yStickyMs;
+
+  const stickyMinDiff = s.yStickyMinMs !== DEFAULTS.yStickyMinMs;
+  const stickyMaxDiff = s.yStickyMaxMs !== DEFAULTS.yStickyMaxMs;
+  if (stickyMinDiff || stickyMaxDiff) {
+    if (s.yStickyMinMs === s.yStickyMaxMs) {
+      // Equal floor/cap — emit the scalar (fixed-duration) form.
+      out.sticky = s.yStickyMinMs;
+    } else {
+      // Dynamic range — emit only the side(s) that differ from default.
+      const sticky: Record<string, number> = {};
+      if (stickyMinDiff) sticky.min = s.yStickyMinMs;
+      if (stickyMaxDiff) sticky.max = s.yStickyMaxMs;
+      out.sticky = sticky;
+    }
+  }
+
   if (s.yGestureMs !== DEFAULTS.yGestureMs) out.gesture = s.yGestureMs;
 
   return nonEmpty(out);
@@ -204,6 +222,28 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
  */
 export function buildAnimationsProp(s: PlaygroundChartProps): AnimationsConfig | undefined {
   return pickAnimations(s, 'factory') as AnimationsConfig | undefined;
+}
+
+/**
+ * Reference-stable `animations` prop for the demo charts.
+ *
+ * `ChartContainer` treats `animations` as init-only by reference — a fresh
+ * object on every render recreates the underlying `ChartInstance` (and its
+ * canvas), which throws away the user's pan/zoom. The demo pages re-render on
+ * every streaming tick, so an unmemoized `buildAnimationsProp(props)` tears the
+ * chart down continuously the moment any animation field is non-default.
+ *
+ * We key the memo on the serialized `'string'` form: the `'factory'` form holds
+ * curve factory singletons that `JSON.stringify` drops to `null`, whereas the
+ * string form (`'spring()'` …) is fully serializable and captures every field
+ * the prop depends on, so the reference only changes on a real config change.
+ */
+export function useAnimationsProp(s: PlaygroundChartProps): AnimationsConfig | undefined {
+  const key = JSON.stringify(pickAnimations(s, 'string') ?? null);
+
+  // `key` encodes every animation field `buildAnimationsProp` reads, so the
+  // memo rebuilds only on a real config change (not every streaming tick).
+  return useMemo(() => buildAnimationsProp(s), [key]);
 }
 
 /**

@@ -69,8 +69,15 @@ export interface ViewportEngineYOptions {
   curve: TransitionFactory<YRange>;
   /** Outward settle time — bound expanding to a new extreme. */
   settleMs: Milliseconds;
-  /** Inward settle time — bound contracting after extreme leaves window (sticky-Y). */
+  /**
+   * Inward settle *cap* — the time to contract by a full range's worth after
+   * an extreme leaves the window (sticky-Y). The engine scales each contract
+   * between {@link stickyFloorMs} and this by the contraction magnitude.
+   */
   stickyMs: Milliseconds;
+  /** Floor for the dynamic inward settle — shortest contract, hit by tiny
+   *  receders. Equal to {@link stickyMs} ⇒ fixed-duration sticky. */
+  stickyFloorMs: Milliseconds;
   /** One-shot override during a user gesture. */
   gestureMs: Milliseconds;
   /** One-shot override on `onSeriesVisibilityChanged`. */
@@ -123,6 +130,7 @@ interface YState {
   readonly transition: Transition<YRange>;
   settleMs: Milliseconds;
   stickyMs: Milliseconds;
+  stickyFloorMs: Milliseconds;
   gestureMs: Milliseconds;
   toggleMs: Milliseconds;
   /**
@@ -170,6 +178,7 @@ export class ViewportEngine {
       transition: opts.y.curve({ initial: opts.initial.yRange }),
       settleMs: opts.y.settleMs,
       stickyMs: opts.y.stickyMs,
+      stickyFloorMs: opts.y.stickyFloorMs,
       gestureMs: opts.y.gestureMs,
       toggleMs: opts.y.toggleMs,
       toggleUntil: 0,
@@ -219,6 +228,36 @@ export class ViewportEngine {
     if (wasIdle) this.#onWake?.();
   }
 
+  /**
+   * Magnitude-scaled inward (sticky) settle time. The configured `stickyMs`
+   * is the budget for contracting a *full range* worth; the duration handed
+   * to the curve scales with how far the bound actually recedes, so the
+   * inward speed stays roughly constant: a big outlier easing off uses the
+   * full sticky hold while a small recede finishes near the floor instead of
+   * crawling over the whole budget.
+   *
+   * The magnitude is the larger of the two sides' inward deltas (the side
+   * that contracts most sets the pace), normalized by the current visible
+   * range. The curve applies the returned duration only to sides that are
+   * actually contracting — expanding sides always use `settleMs` — so a
+   * single value here is correct even when one bound expands while the other
+   * contracts. `stickyFloorMs === stickyMs` collapses this back to a fixed
+   * duration.
+   */
+  #contractMs(cur: YRange, next: YRange): Milliseconds {
+    const sticky = this.#y.stickyMs;
+    if (sticky <= 0) return sticky;
+
+    const range = Math.max(cur.max - cur.min, Number.EPSILON);
+    const inwardMin = Math.max(0, next.min - cur.min);
+    const inwardMax = Math.max(0, cur.max - next.max);
+    const fraction = Math.min(1, Math.max(inwardMin, inwardMax) / range);
+
+    const floor = Math.min(this.#y.stickyFloorMs, sticky);
+
+    return Math.max(floor, sticky * fraction);
+  }
+
   // --- Inputs --------------------------------------------------------------
 
   onPointAppended(now?: number): void {
@@ -241,7 +280,7 @@ export class ViewportEngine {
       this.#y.transition.retarget(newY, {
         now: startWall,
         expandMs: this.#y.settleMs,
-        contractMs: this.#y.stickyMs,
+        contractMs: this.#contractMs(this.#y.transition.current, newY),
       });
     }
     this.#wake(wasIdle);
@@ -319,7 +358,7 @@ export class ViewportEngine {
         this.#y.transition.retarget(newY, {
           now: startWall,
           expandMs: this.#y.settleMs,
-          contractMs: this.#y.stickyMs,
+          contractMs: this.#contractMs(this.#y.transition.current, newY),
         });
       }
       this.#wake(wasIdle);
@@ -332,7 +371,7 @@ export class ViewportEngine {
       this.#y.transition.retarget(newY, {
         now: startWall,
         expandMs: this.#y.settleMs,
-        contractMs: this.#y.stickyMs,
+        contractMs: this.#contractMs(this.#y.transition.current, newY),
       });
     }
     this.#wake(wasIdle);

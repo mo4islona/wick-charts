@@ -18,10 +18,10 @@ import {
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
 import {
-  buildAnimationsProp,
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
   buildNavigatorComponent,
+  useAnimationsProp,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
@@ -90,6 +90,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
   });
   const data = props.streaming ? [datasets[0]] : [props.allData[0]];
   const sid = 'line';
+  const animations = useAnimationsProp(props);
 
   return (
     <ChartContainer
@@ -98,7 +99,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible}
-      animations={buildAnimationsProp(props)}
+      animations={animations}
     >
       <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
@@ -152,6 +153,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
     strategy: strategyFor(props.dataMode),
   });
   const display = props.streaming ? datasets : props.allData;
+  const animations = useAnimationsProp(props);
 
   return (
     <ChartContainer
@@ -160,7 +162,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible}
-      animations={buildAnimationsProp(props)}
+      animations={animations}
     >
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}

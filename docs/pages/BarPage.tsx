@@ -20,10 +20,10 @@ import {
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
 import {
-  buildAnimationsProp,
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
   buildNavigatorComponent,
+  useAnimationsProp,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
@@ -58,6 +58,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
     kind: 'bar',
   });
   const display = props.streaming ? datasets[0] : singleData;
+  const animations = useAnimationsProp(props);
 
   return (
     <ChartContainer
@@ -66,7 +67,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible}
-      animations={buildAnimationsProp(props)}
+      animations={animations}
     >
       <Title sub="Up/Down">Single</Title>
       {props.infoBarVisible && <InfoBar />}
@@ -104,6 +105,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
 
     return props.axis ?? {};
   }, [props.axis, props.stacking]);
+  const animations = useAnimationsProp(props);
 
   return (
     <ChartContainer
@@ -112,7 +114,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible}
-      animations={buildAnimationsProp(props)}
+      animations={animations}
     >
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar />}

@@ -59,7 +59,8 @@ export interface PlaygroundChartProps {
   xGestureMs: number;
   yCurve: AxisCurve;
   ySettleMs: number;
-  yStickyMs: number;
+  yStickyMinMs: number;
+  yStickyMaxMs: number;
   yGestureMs: number;
   // Cross-cutting — fed into `animations.{axis.ticks, toggle}`
   ticksMs: number;
@@ -158,7 +159,8 @@ function stateToChartProps<TExtra extends object>(
     xGestureMs: state.xGestureMs,
     yCurve: state.yCurve,
     ySettleMs: state.ySettleMs,
-    yStickyMs: state.yStickyMs,
+    yStickyMinMs: state.yStickyMinMs,
+    yStickyMaxMs: state.yStickyMaxMs,
     yGestureMs: state.yGestureMs,
     ticksMs: state.ticksMs,
     toggleMs: state.toggleMs,
@@ -179,6 +181,7 @@ function msSliderRow({
   group,
   max,
   step,
+  span,
 }: {
   key: string;
   label: string;
@@ -186,12 +189,14 @@ function msSliderRow({
   group: string;
   max: number;
   step: number;
+  span?: 1 | 2;
 }): RowSpec {
   return {
     key,
     label,
     hint,
     group,
+    span,
     render: (v, onChange) => (
       <Slider
         value={v as number}
@@ -620,12 +625,22 @@ function buildBuiltinSections({
           step: 50,
         }),
         msSliderRow({
-          key: 'yStickyMs',
-          label: 'Y sticky',
-          hint: 'Inward contraction after an extreme leaves. Larger = stickier auto-fit.',
+          key: 'yStickyMinMs',
+          label: 'Y sticky min',
+          hint: 'Floor of the dynamic contract — a tiny recede. Short = snappy small re-fits.',
+          group: 'Y axis',
+          max: 3000,
+          step: 50,
+          span: 1,
+        }),
+        msSliderRow({
+          key: 'yStickyMaxMs',
+          label: 'Y sticky max',
+          hint: 'Cap of the dynamic contract — a full-range contraction. Larger = stickier auto-fit hold.',
           group: 'Y axis',
           max: 10000,
           step: 100,
+          span: 1,
         }),
         msSliderRow({
           key: 'yGestureMs',

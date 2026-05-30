@@ -21,7 +21,8 @@ import {
   DEFAULT_X_SETTLE_MS,
   DEFAULT_Y_GESTURE_MS,
   DEFAULT_Y_SETTLE_MS,
-  DEFAULT_Y_STICKY_MS,
+  DEFAULT_Y_STICKY_MAX_MS,
+  DEFAULT_Y_STICKY_MIN_MS,
 } from '../animation/config';
 import { ChartInstance } from '../chart';
 import type { CandlestickRenderer } from '../series/candlestick';
@@ -36,7 +37,8 @@ describe('resolveAnimationsConfig', () => {
         y: {
           curve: expect.any(Function),
           settleMs: DEFAULT_Y_SETTLE_MS,
-          stickyMs: DEFAULT_Y_STICKY_MS,
+          stickyMs: DEFAULT_Y_STICKY_MAX_MS,
+          stickyFloorMs: DEFAULT_Y_STICKY_MIN_MS,
           gestureMs: DEFAULT_Y_GESTURE_MS,
         },
         x: {
@@ -150,10 +152,27 @@ describe('resolveAnimationsConfig', () => {
     expect(out.axis.x.settleMs).toBe(100);
   });
 
-  it('axis.y.sticky overrides the sticky-Y default', () => {
+  it('scalar axis.y.sticky sets a fixed contract (min === max)', () => {
     const out = resolveAnimationsConfig({ axis: { y: { sticky: 4000 } } });
     expect(out.axis.y.stickyMs).toBe(4000);
+    expect(out.axis.y.stickyFloorMs).toBe(4000);
     expect(out.axis.y.settleMs).toBe(DEFAULT_Y_SETTLE_MS);
+  });
+
+  it('object axis.y.sticky sets the dynamic [min, max] contract range', () => {
+    const out = resolveAnimationsConfig({ axis: { y: { sticky: { min: 300, max: 3000 } } } });
+    expect(out.axis.y.stickyFloorMs).toBe(300);
+    expect(out.axis.y.stickyMs).toBe(3000);
+  });
+
+  it('partial axis.y.sticky fills the omitted side from its default', () => {
+    const onlyMin = resolveAnimationsConfig({ axis: { y: { sticky: { min: 800 } } } });
+    expect(onlyMin.axis.y.stickyFloorMs).toBe(800);
+    expect(onlyMin.axis.y.stickyMs).toBe(DEFAULT_Y_STICKY_MAX_MS);
+
+    const onlyMax = resolveAnimationsConfig({ axis: { y: { sticky: { max: 1200 } } } });
+    expect(onlyMax.axis.y.stickyFloorMs).toBe(DEFAULT_Y_STICKY_MIN_MS);
+    expect(onlyMax.axis.y.stickyMs).toBe(1200);
   });
 
   it('axis.x.gesture overrides the X gesture default', () => {
