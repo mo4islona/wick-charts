@@ -51,9 +51,15 @@ function ResetButton({ theme, onClick, label }: { theme: PanelCtx['theme']; onCl
  * the window fills up, panning takes over.
  */
 function WarmUpComparison({ theme, perfHud, yEngine }: PanelCtx) {
-  const seed = useMemo(() => makeSeed(Date.now() - 5 * INTERVAL, 5), []);
+  const seed = useMemo(() => makeSeed(Date.now() - 40 * INTERVAL, 40), []);
   const [data, setData] = useState<TimePoint[]>(seed);
   const [running, setRunning] = useState(true);
+  // Bumped by "Restart burst" to force a chart remount. `initialRange` is a
+  // one-shot consumed at mount, so re-seeding `data` alone won't re-arm the
+  // warm-up window — the live instance refits to the seed via the bulk-replace
+  // path and tail-scrolls immediately. Keying the chart on `runId` recreates
+  // the instance so the warm-up hold is applied fresh on every restart.
+  const [runId, setRunId] = useState(0);
   const seedRef = useRef(seed);
   const runningRef = useRef(running);
   runningRef.current = running;
@@ -67,7 +73,7 @@ function WarmUpComparison({ theme, perfHud, yEngine }: PanelCtx) {
       if (!runningRef.current) return;
 
       setData((prev) => {
-        if (prev.length >= 250) return prev;
+        if (prev.length >= 500) return prev;
 
         const last = prev[prev.length - 1];
         const next: TimePoint = {
@@ -85,11 +91,13 @@ function WarmUpComparison({ theme, perfHud, yEngine }: PanelCtx) {
   const reset = () => {
     setData(seedRef.current);
     setRunning(true);
+    setRunId((n) => n + 1);
   };
 
   const chartCell = (cap: number, label: string) => (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
       <ChartContainer
+        key={`${cap}-${runId}`}
         theme={theme}
         perf={perfHud}
         animations={animations}
@@ -109,12 +117,12 @@ function WarmUpComparison({ theme, perfHud, yEngine }: PanelCtx) {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <ResetButton theme={theme} onClick={reset} label="Restart burst" />
         <span style={{ fontSize: 12, color: theme.axis.textColor, opacity: 0.7 }}>
-          {running && data.length < 250 ? `streaming · ${data.length}/250` : 'idle'}
+          {running && data.length < 500 ? `streaming · ${data.length}/500` : 'idle'}
         </span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, minHeight: 0 }}>
-        {chartCell(50, 'cap = 50')}
-        {chartCell(200, 'cap = 200 (default)')}
+        {chartCell(100, 'cap = 100')}
+        {chartCell(200, 'cap = 200')}
       </div>
     </div>
   );
@@ -605,7 +613,7 @@ export const streamingPanels: readonly StressPanel[] = [
   {
     id: 'stream-warmup-compare',
     title: 'Warm-up vs scroll threshold',
-    hint: 'Restart the burst and watch each chart. cap=50 transitions to tail-scroll around point 50; cap=200 keeps expanding.',
+    hint: 'Restart the burst and watch each chart. cap=200 fills around point 200 then tail-scrolls (left edge advances); cap=900 never fills within the 500-point burst, so it keeps expanding the whole run.',
     note: 'Both charts receive the same stream. Smoothness is the eye-test target — no per-tick jerks during warm-up, no overshoot at the transition.',
     render: (ctx) => <WarmUpComparison {...ctx} />,
     minHeight: 360,
