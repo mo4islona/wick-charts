@@ -80,11 +80,24 @@ export const DEFAULT_X_GESTURE_MS = 150;
 export const DEFAULT_Y_SETTLE_MS = 250;
 
 /**
- * Inward Y settle duration — applied when a bound contracts *toward* the
- * current centre after a recent extreme leaves the window. Long so the chart
- * holds the wider bound when an outlier scrolls off (the "sticky-Y" feel).
+ * Inward Y settle *cap* — the time to contract by a full range's worth after
+ * a recent extreme leaves the window. The engine scales the actual contract
+ * duration by the contraction magnitude (see {@link ViewportEngine}), so a
+ * big outlier easing off takes the full budget (the long "sticky-Y" hold)
+ * while a small recede finishes proportionally sooner. Long so the chart
+ * holds the wider bound when an outlier scrolls off.
  */
-export const DEFAULT_Y_STICKY_MS = 2500;
+export const DEFAULT_Y_STICKY_MAX_MS = 2500;
+
+/**
+ * Floor for the dynamic inward Y settle — the minimum contract duration, hit
+ * by tiny contractions. Above it, duration scales with the contraction
+ * magnitude up to {@link DEFAULT_Y_STICKY_MAX_MS}. Keeps small receders snappy
+ * (no multi-second crawl over a few pixels) while still damping the
+ * highest-frequency bound noise. A scalar `sticky` (equal min/max) restores
+ * the legacy fixed-duration contract.
+ */
+export const DEFAULT_Y_STICKY_MIN_MS = 500;
 
 /**
  * Short-ease applied to the Y animator while a user gesture is active.
@@ -154,13 +167,22 @@ export interface AnimationsConfig {
                */
               settle?: AnimationTime;
               /**
-               * Inward settle time — bound contracting after an extreme
-               * leaves the window. Long by default so the chart doesn't
-               * reflow when outliers scroll off ("sticky-Y").
+               * Inward (contraction) settle — applied when a bound recedes
+               * after an extreme leaves the window (the "sticky-Y" hold).
                *
-               * @default {@link DEFAULT_Y_STICKY_MS}
+               * - `{ min, max }` — **dynamic**: the contract duration scales
+               *   with the contraction magnitude, from `min` (a tiny recede)
+               *   up to `max` (a full-range contraction). Big outliers ease
+               *   off slowly while small receders finish quickly, so the axis
+               *   doesn't crawl for seconds over a few pixels. Either side
+               *   falls back to its default when omitted.
+               * - a scalar `AnimationTime` — **fixed**: `min === max`, every
+               *   contraction takes the same time regardless of size (the
+               *   legacy sticky feel). `false` snaps contractions instantly.
+               *
+               * @default `{ min:` {@link DEFAULT_Y_STICKY_MIN_MS}`, max:` {@link DEFAULT_Y_STICKY_MAX_MS}` }`
                */
-              sticky?: AnimationTime;
+              sticky?: AnimationTime | { min?: AnimationTime; max?: AnimationTime };
               /**
                * One-shot override during a user gesture (pan/zoom). Shorter
                * than `sticky` so contractions during interaction converge in
@@ -329,7 +351,10 @@ export interface AnimationsConfig {
 export interface ResolvedYAxisAnimation {
   curve: TransitionFactory<YRange>;
   settleMs: number;
+  /** Inward contract cap (public `sticky.max`) — full-range contraction. */
   stickyMs: number;
+  /** Inward contract floor (public `sticky.min`) — a tiny recede. */
+  stickyFloorMs: number;
   gestureMs: number;
 }
 
@@ -354,6 +379,37 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   bar: { entryMs: 0, smoothMs: 0 },
   pie: { entryMs: 0, updateMs: 0 },
 };
+
+/**
+ * Parse the public `sticky` input into the resolved `[floor, cap]` duration
+ * pair the engine consumes (`stickyFloorMs` / `stickyMs`):
+ *
+ * - object `{ min, max }` → dynamic range; each side falls back to its
+ *   default when omitted.
+ * - scalar `AnimationTime` (number / string / `false`) → fixed contract:
+ *   floor equals cap, so magnitude-scaling is a no-op (the legacy feel).
+ *   `false` resolves to `0` — contractions snap.
+ * - omitted → the default dynamic range.
+ */
+function resolveSticky(raw: AnimationTime | { min?: AnimationTime; max?: AnimationTime } | undefined): {
+  stickyMs: number;
+  stickyFloorMs: number;
+} {
+  if (raw !== null && typeof raw === 'object') {
+    return {
+      stickyMs: resolveAnimationTime(raw.max, DEFAULT_Y_STICKY_MAX_MS),
+      stickyFloorMs: resolveAnimationTime(raw.min, DEFAULT_Y_STICKY_MIN_MS),
+    };
+  }
+
+  if (raw === undefined) {
+    return { stickyMs: DEFAULT_Y_STICKY_MAX_MS, stickyFloorMs: DEFAULT_Y_STICKY_MIN_MS };
+  }
+
+  const fixed = resolveAnimationTime(raw, DEFAULT_Y_STICKY_MAX_MS);
+
+  return { stickyMs: fixed, stickyFloorMs: fixed };
+}
 
 /**
  * Resolved animation config. Pass the user's `ChartOptions.animations` to
@@ -392,7 +448,7 @@ export class AnimationConfig {
     if (input === false) {
       return new AnimationConfig(
         {
-          y: { curve: snap(), settleMs: 0, stickyMs: 0, gestureMs: 0 },
+          y: { curve: snap(), settleMs: 0, stickyMs: 0, stickyFloorMs: 0, gestureMs: 0 },
           x: { curve: snap(), settleMs: 0, gestureMs: 0 },
           ticksMs: 0,
         },
@@ -415,12 +471,13 @@ export class AnimationConfig {
             curve: snap(),
             settleMs: 0,
             stickyMs: 0,
+            stickyFloorMs: 0,
             gestureMs: 0,
           }
         : {
-            curve: rawY?.curve ?? spring<YRange>(),
+            curve: rawY?.curve ?? hermite(),
             settleMs: resolveAnimationTime(rawY?.settle, DEFAULT_Y_SETTLE_MS),
-            stickyMs: resolveAnimationTime(rawY?.sticky, DEFAULT_Y_STICKY_MS),
+            ...resolveSticky(rawY?.sticky),
             gestureMs: resolveAnimationTime(rawY?.gesture, DEFAULT_Y_GESTURE_MS),
           };
 

@@ -273,6 +273,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         curve: animY.curve,
         settleMs: animY.settleMs,
         stickyMs: animY.stickyMs,
+        stickyFloorMs: animY.stickyFloorMs,
         gestureMs: animY.gestureMs,
         toggleMs: this.#animationsConfig.toggleMs,
       },

@@ -75,8 +75,10 @@ export interface CommonState {
   yCurve: AxisCurve;
   /** `axis.y.settle` — outward chase to a new extreme. */
   ySettleMs: number;
-  /** `axis.y.sticky` — inward contraction after an extreme leaves (sticky-Y feel). */
-  yStickyMs: number;
+  /** `axis.y.sticky.min` — floor of the dynamic inward contract (a tiny recede). */
+  yStickyMinMs: number;
+  /** `axis.y.sticky.max` — cap of the dynamic inward contract (full-range "sticky-Y" hold). */
+  yStickyMaxMs: number;
   /** `axis.y.gesture` — Y override during gestures (frame-per-tick interactive feel). */
   yGestureMs: number;
 
@@ -123,7 +125,8 @@ export const COMMON_DEFAULTS: CommonState = {
   xGestureMs: 150,
   yCurve: 'hermite',
   ySettleMs: 250,
-  yStickyMs: 2500,
+  yStickyMinMs: 500,
+  yStickyMaxMs: 2500,
   yGestureMs: 100,
   ticksMs: 250,
   toggleMs: 250,
