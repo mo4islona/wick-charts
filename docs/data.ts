@@ -309,10 +309,18 @@ class BaseStream<T extends { time: number }, S extends AnyStrategy<T>> {
   }
 
   start(tickMs = 100): void {
+    // Idempotent: the docs hooks call `start()` again on every tab re-show
+    // (visibilitychange). Stacking a second interval would double the emit
+    // rate and orphan the first timer, so bail if one is already running.
+    if (this.timer) return;
+
     // 100ms tick → at the canonical 5_000ms bar interval we emit ~50 intra
     // updates per bar (smooth wobble) and cross at most one boundary per tick
     // even at 10× dashboard speed. Keeping tickMs small avoids the visible
     // "5-at-a-time" batching that happens when tickMs >> interval / speed.
+    // Resetting `lastReal` here rebaselines the real clock so the first tick
+    // after a resume sees a normal dt — virtualNow is preserved, so the
+    // stream continues from where it paused with no catch-up burst.
     this.lastReal = Date.now();
     this.timer = setInterval(() => this.tick(), tickMs);
   }

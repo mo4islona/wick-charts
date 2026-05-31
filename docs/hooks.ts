@@ -55,6 +55,45 @@ function capArray<T>(arr: T[], max?: number): T[] {
   return arr.slice(arr.length - max);
 }
 
+/**
+ * Run streams only while the tab is visible. A hidden tab throttles
+ * `setInterval` to ~1Hz (then ~1/min) but never stops it, so the wall-clock
+ * catch-up in `BaseStream.tick` keeps spawning bars in the background — wasted
+ * CPU, and on the resume frame the viewport snaps forward to absorb the data
+ * that piled up while hidden (the visible "gap"). Pausing on `hidden` and
+ * resuming on `visible` freezes generation cleanly; `start()` rebaselines its
+ * clock on resume so live bars continue with no catch-up burst.
+ *
+ * `document` is touched here in the hook layer rather than inside `BaseStream`
+ * so the stream classes stay DOM-free and their fake-timer unit tests keep
+ * working. Returns a cleanup that detaches the listener and stops every stream.
+ */
+export function runWhileVisible(sources: Array<{ start(): void; stop(): void }>): () => void {
+  const sync = () => {
+    if (document.visibilityState === 'hidden') {
+      for (const s of sources) {
+        s.stop();
+      }
+
+      return;
+    }
+
+    for (const s of sources) {
+      s.start();
+    }
+  };
+
+  sync();
+  document.addEventListener('visibilitychange', sync);
+
+  return () => {
+    document.removeEventListener('visibilitychange', sync);
+    for (const s of sources) {
+      s.stop();
+    }
+  };
+}
+
 export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
   const startDelay = opts.startDelay ?? 50;
   const streamInterval = opts.interval ?? DEMO_INTERVAL;
@@ -121,10 +160,11 @@ export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
         return capArray(next, maxPointsRef.current);
       });
     });
-    source.start();
+    const stopVisibility = runWhileVisible([source]);
+
     return () => {
       unsub();
-      source.stop();
+      stopVisibility();
     };
   }, [phase, streamInterval, speedRef, allDataRef, maxPointsRef]);
 
@@ -224,10 +264,11 @@ export function useLineStreams(allData: TimePoint[][], opts: LineStreamOpts = {}
     );
     // Fixed tick rate keeps all series in the same chart updating in lockstep;
     // prior per-series random jitter produced visible desync between lines.
-    for (const s of sources) s.start();
+    const stopVisibility = runWhileVisible(sources);
+
     return () => {
       for (const u of unsubs) u();
-      for (const s of sources) s.stop();
+      stopVisibility();
     };
   }, [phase, dataInterval, kind, seriesCount, allDataRef, speedRef, maxPointsRef, strategyRef]);
 

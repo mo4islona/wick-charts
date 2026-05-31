@@ -214,6 +214,45 @@ describe('OHLCStream resume semantics', () => {
   });
 });
 
+describe('BaseStream lifecycle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(5_000_000));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('start() is idempotent so a tab re-show cannot stack a second timer', () => {
+    const historyLast = { time: 5_000_000 - INTERVAL, value: 100 };
+    const stream = new LineStream({
+      last: historyLast,
+      startIndex: 299,
+      interval: INTERVAL,
+      strategy: lineDriftStrategy(100),
+      speed: () => 1,
+    });
+    const emitted: number[] = [];
+    stream.onTick((p) => emitted.push(p.time));
+
+    // A re-show calls start() again while already running; it must be a no-op.
+    stream.start(500);
+    stream.start(500);
+    vi.advanceTimersByTime(20_000);
+    expect(emitted.length).toBeGreaterThan(0);
+
+    // A single stop() must silence the stream completely. With a stacked
+    // second interval, stop() clears only the latest handle and the first
+    // would keep emitting past the stop.
+    stream.stop();
+    const countAtStop = emitted.length;
+    vi.advanceTimersByTime(20_000);
+
+    expect(emitted.length).toBe(countAtStop);
+  });
+});
+
 // ── helpers ────────────────────────────────────────────────
 
 function uniqueSorted(times: number[]): number[] {
