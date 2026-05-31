@@ -62,10 +62,31 @@ export interface ThemeConfig {
  * `rgba(...)`, gradients) — the built-in presets all use plain hex on the
  * top-level `background`, so this is fine for the vast majority of cases.
  */
+/**
+ * Expand a `#rgb` shorthand to `#rrggbb`. `#rrggbb` and any non-hex input pass
+ * through unchanged. The fixed `slice(1,3)/(3,5)/(5,7)` parsing used by the
+ * color helpers below reads `NaN` channels on a 4-char shorthand (e.g.
+ * `#fff` → `rgba(255, 15, NaN, …)`), so every parser normalizes through this
+ * first. Without it `createTheme({ background: '#000' })` also mis-derived a
+ * *light* theme because `isDarkBg` bailed on `length < 7`.
+ */
+export function expandHex(hex: string): string {
+  if (!hex.startsWith('#') || hex.length !== 4) return hex;
+
+  const r = hex[1];
+  const g = hex[2];
+  const b = hex[3];
+
+  return `#${r}${r}${g}${g}${b}${b}`;
+}
+
 export function isDarkBg(bg: string): boolean {
-  if (!bg.startsWith('#') || bg.length < 7) return false;
+  const hex = expandHex(bg);
+  if (!hex.startsWith('#') || hex.length < 7) return false;
   return (
-    parseInt(bg.slice(1, 3), 16) * 0.299 + parseInt(bg.slice(3, 5), 16) * 0.587 + parseInt(bg.slice(5, 7), 16) * 0.114 <
+    parseInt(hex.slice(1, 3), 16) * 0.299 +
+      parseInt(hex.slice(3, 5), 16) * 0.587 +
+      parseInt(hex.slice(5, 7), 16) * 0.114 <
     128
   );
 }
@@ -75,7 +96,10 @@ export function isDarkBg(bg: string): boolean {
  * Only `background` is required — everything else is derived from it.
  */
 export function createTheme(config: ThemeConfig): ThemePreset {
-  const { background: bg, name = 'Custom', description, fontUrl = null } = config;
+  const { name = 'Custom', description, fontUrl = null } = config;
+  // Normalize once up front so shorthand backgrounds (`#000`, `#abc`) flow
+  // through every derived color (lighten/darken/rgba) without NaN channels.
+  const bg = expandHex(config.background);
   const dark = isDarkBg(bg);
 
   // Default palette based on dark/light
@@ -261,25 +285,28 @@ function hexToRgbaLoose(color: string, alpha: number): string {
 }
 
 export function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const h = expandHex(hex);
+  const r = parseInt(h.slice(1, 3), 16);
+  const g = parseInt(h.slice(3, 5), 16);
+  const b = parseInt(h.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function lightenHex(hex: string, amount: number): string {
   if (!hex.startsWith('#')) return hex;
-  const r = Math.min(255, Math.round(parseInt(hex.slice(1, 3), 16) + 255 * amount));
-  const g = Math.min(255, Math.round(parseInt(hex.slice(3, 5), 16) + 255 * amount));
-  const b = Math.min(255, Math.round(parseInt(hex.slice(5, 7), 16) + 255 * amount));
+  const h = expandHex(hex);
+  const r = Math.min(255, Math.round(parseInt(h.slice(1, 3), 16) + 255 * amount));
+  const g = Math.min(255, Math.round(parseInt(h.slice(3, 5), 16) + 255 * amount));
+  const b = Math.min(255, Math.round(parseInt(h.slice(5, 7), 16) + 255 * amount));
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 export function darkenHex(hex: string, amount: number): string {
   if (!hex.startsWith('#')) return hex;
-  const r = Math.max(0, Math.round(parseInt(hex.slice(1, 3), 16) * (1 - amount)));
-  const g = Math.max(0, Math.round(parseInt(hex.slice(3, 5), 16) * (1 - amount)));
-  const b = Math.max(0, Math.round(parseInt(hex.slice(5, 7), 16) * (1 - amount)));
+  const h = expandHex(hex);
+  const r = Math.max(0, Math.round(parseInt(h.slice(1, 3), 16) * (1 - amount)));
+  const g = Math.max(0, Math.round(parseInt(h.slice(3, 5), 16) * (1 - amount)));
+  const b = Math.max(0, Math.round(parseInt(h.slice(5, 7), 16) * (1 - amount)));
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 

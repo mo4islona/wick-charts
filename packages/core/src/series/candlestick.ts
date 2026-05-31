@@ -6,7 +6,7 @@ import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { hexToRgba } from '../utils/color';
-import { lerp } from '../utils/math';
+import { easeOutCubic, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
 import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
@@ -101,6 +101,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   /** False while {@link #displayedMaxVol} is still chasing the raw window max —
    *  feeds {@link needsAnimation} so frames keep flowing until it converges. */
   #volScaleSettled = true;
+  /** Whether the previous frame was rendering decimated (bucketed) candles.
+   *  Crossing this boundary changes `volume` semantics (per-candle ↔ summed
+   *  bucket), so the volume scale snaps rather than easing — otherwise the EMA
+   *  clamps every bar to full band height for ~30 frames. */
+  #prevDecimated = false;
   /** Series-level alpha for visibility cross-fade. Chart calls {@link setAlpha} on hide. */
   readonly #alphaAnimator: Animator<number> = new Animator<number>({
     initial: 1,
@@ -376,9 +381,13 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
         if (state === undefined) continue;
 
         const elapsed = now - state.startTime;
-        const progress = entryMs <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / entryMs));
-        if (progress >= 1) continue;
+        const linear = entryMs <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / entryMs));
+        if (linear >= 1) continue;
 
+        // Ease so the body/wick/volume unfold decelerates into place instead of
+        // moving at constant velocity and hard-stopping at settle — matches the
+        // line series' eased grow entrance.
+        const progress = easeOutCubic(linear);
         if (entranceByTime === null) entranceByTime = new Map();
         entranceByTime.set(c.time, progress);
       }
@@ -407,7 +416,12 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     }
     const halfBody = Math.floor(bodyWidth / 2);
 
-    // Draw volume first (behind candles)
+    // Draw volume first (behind candles). Snap the volume scale on the frame
+    // the decimation boundary is crossed — summed-bucket vs per-candle volume
+    // differ by ~2x, and easing across it pins every bar to full band height
+    // until the EMA catches up.
+    const volScaleSnap = decimated !== this.#prevDecimated;
+    this.#prevDecimated = decimated;
     const chartBitmapHeight = Math.round(yScale.getMediaHeight() * scope.verticalPixelRatio);
     this.drawVolume({
       ctx: context,
@@ -417,6 +431,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       barWidth,
       wickWidth,
       entranceByTime,
+      snapVolScale: volScaleSnap,
     });
 
     // Then candles on top
@@ -483,6 +498,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     barWidth,
     wickWidth,
     entranceByTime,
+    snapVolScale,
   }: {
     ctx: CanvasRenderingContext2D;
     data: OHLCData[];
@@ -491,6 +507,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     barWidth: number;
     wickWidth: number;
     entranceByTime: Map<number, number> | null;
+    /** Snap (not ease) the volume scale this frame — set when the decimation
+     *  boundary was just crossed and `volume` semantics changed. */
+    snapVolScale: boolean;
   }): void {
     // Find max volume for scaling. Filter non-finite values — `Infinity`
     // would poison `rawMax` (collapsing every real bar to ~1 px), `NaN`
@@ -513,7 +532,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // re-scales the volume band smoothly in lockstep with the sticky-Y price
     // axis instead of snapping in one frame. First frame (or post-`setData`)
     // seeds directly — no ease from a stale/zero baseline.
-    if (this.#displayedMaxVol === null) {
+    if (this.#displayedMaxVol === null || snapVolScale) {
       this.#displayedMaxVol = rawMax;
     } else {
       this.#displayedMaxVol += (rawMax - this.#displayedMaxVol) * VOL_SCALE_ALPHA;

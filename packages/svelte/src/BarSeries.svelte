@@ -1,5 +1,6 @@
 <script lang="ts">
-import type { BarSeriesOptions, TimePoint } from '@wick-charts/core';
+import type { BarSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
+import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -12,6 +13,11 @@ export let id: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
+// Per-layer sync state in a non-reactive container: mutating a `const` object's
+// property keeps the reactive block free of a self-dependency cycle while still
+// driving the shared append/keepLast/update/replace reconciliation (no per-tick
+// Y snap).
+const sync: { state: SeriesSyncState[] } = { state: [] };
 
 onMount(() => {
   const chart = get(chartStore);
@@ -27,10 +33,17 @@ onDestroy(() => {
 
 $: {
   const chart = $chartStore;
-  if (seriesId && chart) {
+  const sid = seriesId;
+  if (sid && chart) {
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        chart.setSeriesData(seriesId!, data[i], i);
+        sync.state[i] = syncSeriesLayer({
+          chart,
+          id: sid,
+          data: data[i],
+          prev: sync.state[i] ?? EMPTY_SYNC_STATE,
+          layerIndex: i,
+        });
       }
     });
   }

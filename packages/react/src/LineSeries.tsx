@@ -1,6 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import { type LineSeriesOptions, type TimePoint, normalizeTime } from '@wick-charts/core';
+import {
+  EMPTY_SYNC_STATE,
+  type LineSeriesOptions,
+  type SeriesSyncState,
+  type TimePoint,
+  syncSeriesLayer,
+} from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
@@ -13,30 +19,19 @@ export interface LineSeriesProps {
   id?: string;
 }
 
-/** Only fall back to a full `setSeriesData` replace when more than this many new
- * points appear in a single tick — otherwise streamed updates would always look
- * like bulk loads and the renderer would clear its entrance-animation entries. */
-const BULK_THRESHOLD = 20;
-
 export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
-  const prevLensRef = useRef<number[]>([]);
-  const prevFirstTimesRef = useRef<(number | null)[]>([]);
-  const prevLastTimesRef = useRef<(number | null)[]>([]);
+  const prevSyncRef = useRef<SeriesSyncState[]>([]);
 
   useLayoutEffect(() => {
     const id = chart.addSeries('line', { ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
-    prevLensRef.current = new Array(data.length).fill(0);
-    prevFirstTimesRef.current = new Array(data.length).fill(null);
-    prevLastTimesRef.current = new Array(data.length).fill(null);
+    prevSyncRef.current = new Array(data.length).fill(EMPTY_SYNC_STATE);
     return () => {
       chart.removeSeries(id);
       seriesRef.current = null;
-      prevLensRef.current = [];
-      prevFirstTimesRef.current = [];
-      prevLastTimesRef.current = [];
+      prevSyncRef.current = [];
     };
   }, [chart, data.length, idProp]);
 
@@ -46,45 +41,13 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
 
     chart.batch(() => {
       for (let i = 0; i < data.length; i++) {
-        const layer = data[i];
-        const prevLen = prevLensRef.current[i] ?? 0;
-        const prevFirst = prevFirstTimesRef.current[i] ?? null;
-
-        if (layer.length === 0) {
-          chart.setSeriesData(id, [], i);
-          prevLensRef.current[i] = 0;
-          prevFirstTimesRef.current[i] = null;
-          prevLastTimesRef.current[i] = null;
-          continue;
-        }
-
-        const firstTime = normalizeTime(layer[0].time);
-        const lastTime = normalizeTime(layer[layer.length - 1].time);
-        const prevLast = prevLastTimesRef.current[i] ?? null;
-        const shifted = prevFirst !== null && prevFirst !== firstTime;
-        const added = layer.length - prevLen;
-        const hasNewLast = prevLast !== null && prevLast !== lastTime;
-
-        // Rolling-window slide (maxPoints cap): drop oldest, append newest,
-        // length unchanged. Append the new tail then trim the head — this
-        // path goes through `keepLast` (no Y snap) instead of `setSeriesData`
-        // (which would force a per-tick Y snap, visible on wild-value feeds).
-        if (shifted && added === 0 && hasNewLast) {
-          chart.appendData(id, layer[layer.length - 1], i);
-          chart.keepLast(id, layer.length, i);
-        } else if (prevLen === 0 || layer.length < prevLen || added > BULK_THRESHOLD || shifted) {
-          chart.setSeriesData(id, layer, i);
-        } else if (layer.length === prevLen) {
-          chart.updateData(id, layer[layer.length - 1], i);
-        } else {
-          for (let j = prevLen; j < layer.length; j++) {
-            chart.appendData(id, layer[j], i);
-          }
-        }
-
-        prevLensRef.current[i] = layer.length;
-        prevFirstTimesRef.current[i] = firstTime;
-        prevLastTimesRef.current[i] = lastTime;
+        prevSyncRef.current[i] = syncSeriesLayer({
+          chart,
+          id,
+          data: data[i],
+          prev: prevSyncRef.current[i] ?? EMPTY_SYNC_STATE,
+          layerIndex: i,
+        });
       }
     });
   }, [chart, data]);

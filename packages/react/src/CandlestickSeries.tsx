@@ -1,15 +1,14 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
-import { normalizeTime } from '@wick-charts/core';
+import {
+  type CandlestickSeriesOptions,
+  EMPTY_SYNC_STATE,
+  type OHLCInput,
+  type SeriesSyncState,
+  syncSeriesLayer,
+} from '@wick-charts/core';
 
 import { useChartInstance } from './context';
-
-/** Only fall back to a full `setSeriesData` replace when more than this many new
- * candles appear in a single tick. Streamed bursts (OHLCStream emits up to ~8
- * per 500ms) must stay under this so their appendData path still fires entrance
- * animations; history loads (50/batch) deliberately exceed it. */
-const BULK_THRESHOLD = 20;
 
 export interface CandlestickSeriesProps {
   /** OHLC candles to render. Each element carries `time/open/high/low/close` and an optional `volume`. */
@@ -23,9 +22,7 @@ export interface CandlestickSeriesProps {
 export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
-  const prevLenRef = useRef(0);
-  const prevFirstTimeRef = useRef<number | null>(null);
-  const prevLastTimeRef = useRef<number | null>(null);
+  const prevSyncRef = useRef<SeriesSyncState>(EMPTY_SYNC_STATE);
 
   useLayoutEffect(() => {
     const id = chart.addSeries('candlestick', { ...options, id: idProp });
@@ -33,9 +30,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     return () => {
       chart.removeSeries(id);
       seriesRef.current = null;
-      prevLenRef.current = 0;
-      prevFirstTimeRef.current = null;
-      prevLastTimeRef.current = null;
+      prevSyncRef.current = EMPTY_SYNC_STATE;
     };
   }, [chart, idProp]);
 
@@ -43,45 +38,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     const id = seriesRef.current;
     if (!id) return;
 
-    if (data.length === 0) {
-      // Explicit clear
-      chart.setSeriesData(id, []);
-      prevLenRef.current = 0;
-      prevFirstTimeRef.current = null;
-      prevLastTimeRef.current = null;
-      return;
-    }
-
-    const prevLen = prevLenRef.current;
-    const prevFirst = prevFirstTimeRef.current;
-    const prevLast = prevLastTimeRef.current;
-    const firstTime = normalizeTime(data[0].time);
-    const lastTime = normalizeTime(data[data.length - 1].time);
-    const shifted = prevFirst !== null && prevFirst !== firstTime;
-    const added = data.length - prevLen;
-    const hasNewLast = prevLast !== null && prevLast !== lastTime;
-
-    // Rolling-window slide: same array length but first AND last timestamps
-    // advanced (old point dropped, new point appended). Append the new tail
-    // then trim the head — `keepLast` keeps the streaming Y chase smooth,
-    // unlike `setSeriesData` which would snap Y on every tick.
-    if (shifted && added === 0 && hasNewLast) {
-      chart.appendData(id, data[data.length - 1]);
-      chart.keepLast(id, data.length);
-    } else if (prevLen === 0 || data.length < prevLen || added > BULK_THRESHOLD || shifted) {
-      chart.setSeriesData(id, data);
-    } else if (data.length === prevLen) {
-      // Same length, same timestamps — last candle updated in place.
-      chart.updateData(id, data[data.length - 1]);
-    } else {
-      for (let i = prevLen; i < data.length; i++) {
-        chart.appendData(id, data[i]);
-      }
-    }
-
-    prevLenRef.current = data.length;
-    prevFirstTimeRef.current = firstTime;
-    prevLastTimeRef.current = lastTime;
+    prevSyncRef.current = syncSeriesLayer({ chart, id, data, prev: prevSyncRef.current });
   }, [chart, data]);
 
   useEffect(() => {

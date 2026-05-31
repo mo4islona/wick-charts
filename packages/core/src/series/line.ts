@@ -3,7 +3,7 @@ import { decimateLineData } from '../data/decimation';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
-import { lerp } from '../utils/math';
+import { easeOutCubic, lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
@@ -168,9 +168,15 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const penulX = timeScale.timeToBitmapX(penultimate.time);
     const penulY = yScale.valueToBitmapY(penultimate.value);
 
+    // Ease the unfurl so the head decelerates into its resting spot instead of
+    // travelling at constant velocity and hard-stopping at settle (a visible
+    // pop on every appended segment). Linear `progress` still drives the
+    // fade-alpha path elsewhere — only the geometry is eased.
+    const eased = easeOutCubic(progress);
+
     return {
-      x: lerp(penulX, lastRawX, progress),
-      y: lerp(penulY, lastRawY, progress),
+      x: lerp(penulX, lastRawX, eased),
+      y: lerp(penulY, lastRawY, eased),
     };
   }
 
@@ -507,7 +513,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         lowerXY.push([timeScale.timeToBitmapX(times[ti]), lowerY]);
       }
-      if (style === 'grow') applyGrowLerp(lowerXY, lowerProg);
+      if (style === 'grow') applyGrowLerp(lowerXY, easeOutCubic(lowerProg));
 
       // Upper edge = alpha-weighted cumulative. For the bottom-most slice
       // during a fade we additionally lerp it down to bitmapBottom so the
@@ -521,7 +527,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         upperXY.push([timeScale.timeToBitmapX(times[ti]), upperY]);
       }
-      if (style === 'grow') applyGrowLerp(upperXY, upperProg);
+      if (style === 'grow') applyGrowLerp(upperXY, easeOutCubic(upperProg));
 
       const useFade = style === 'fade' && upperProg < 1;
       if (useFade) {
@@ -670,15 +676,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           scope.context.globalAlpha *= layerAlpha;
         }
 
+        // Halo: the series color at reduced alpha via globalAlpha rather than
+        // splicing an alpha into the color string — the old regex/concat path
+        // produced an invalid fillStyle for shorthand hex, 8-digit hex, hsl()
+        // and named colors (it only handled #rrggbb / rgb()).
+        scope.context.save();
+        scope.context.globalAlpha *= 0.25;
         scope.context.beginPath();
         scope.context.arc(px, py, r + 3 * size.horizontalPixelRatio, 0, Math.PI * 2);
-        const glowColor = color.startsWith('#')
-          ? color + '40'
-          : /^rgb\(/i.test(color)
-            ? color.replace(/^rgb\((.*)\)$/i, 'rgba($1, 0.25)')
-            : color.replace(/[\d.]+\)\s*$/, '0.25)');
-        scope.context.fillStyle = glowColor;
+        scope.context.fillStyle = color;
         scope.context.fill();
+        scope.context.restore();
 
         scope.context.beginPath();
         scope.context.arc(px, py, r, 0, Math.PI * 2);
@@ -772,10 +780,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
             const all = this.stores[li].getAll();
             const penultimate = all.length >= 2 ? all[all.length - 2] : null;
             if (penultimate !== null && penultimate.time !== t) {
+              // Match the eased unfurl of the line head (trailingEndpoint) so
+              // the pulse dot glides in lockstep instead of leading it.
+              const eased = easeOutCubic(progress);
               const prevX = timeScale.timeToBitmapX(penultimate.time);
               const prevY = yScale.valueToBitmapY(cumulativeAt(penultimate.time));
-              pulseX = lerp(prevX, pulseX, progress);
-              pulseY = lerp(prevY, pulseY, progress);
+              pulseX = lerp(prevX, pulseX, eased);
+              pulseY = lerp(prevY, pulseY, eased);
             }
           }
         }

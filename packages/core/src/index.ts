@@ -28,6 +28,11 @@ export type { MountAxisLabelsOptions } from './axis/dom-labels';
 export { mountAxisLabels } from './axis/dom-labels';
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
 export { ChartInstance } from './chart';
+// Series data reconciliation — shared by the React / Vue / Svelte wrappers so
+// every framework picks the same cheapest-correct mutation (append / keepLast /
+// update / replace) and streams without Y-snapping.
+export type { SeriesSyncState, SyncSeriesLayerArgs } from './data/sync';
+export { EMPTY_SYNC_STATE, syncSeriesLayer } from './data/sync';
 // Overlay primitives — helpers, types, and positioning used by framework overlays
 export type { LegendItem } from './legend';
 export type {
