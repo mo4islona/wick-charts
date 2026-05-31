@@ -1,6 +1,12 @@
 import { type CSSProperties, useMemo } from 'react';
 
-import { type ChartTheme, type TimePoint, formatCompact, resolveCandlestickBodyColor } from '@wick-charts/core';
+import {
+  type AxisBound,
+  type ChartTheme,
+  type TimePoint,
+  formatCompact,
+  resolveCandlestickBodyColor,
+} from '@wick-charts/core';
 
 import { BarSeries } from '../BarSeries';
 import { ChartContainer } from '../ChartContainer';
@@ -52,6 +58,15 @@ export interface SparklineProps {
   };
   /** @deprecated Use {@link area} instead. */
   areaFill?: boolean;
+  /**
+   * Fixed Y-axis bounds. Omit a side (or pass `'auto'`) to keep that edge
+   * auto-scaled. Useful to pin a baseline (`{ min: 0 }`) or hold a stable
+   * window so streaming ticks don't rescale the line.
+   *
+   * Each bound is an {@link AxisBound}: a number, `'auto'`, a percentage
+   * offset string (`'+10%'`), or a `(values) => number` reducer.
+   */
+  yRange?: { min?: AxisBound; max?: AxisBound };
   /** Chart width (default: 140) */
   width?: number;
   /** Overall height (default: 48) */
@@ -94,6 +109,7 @@ export function Sparkline({
   negativeColor,
   area,
   areaFill,
+  yRange,
   flow,
   width = 140,
   height = 48,
@@ -236,7 +252,12 @@ export function Sparkline({
       <ChartContainer
         theme={theme}
         axis={{
-          y: { visible: false, width: 0 },
+          // `min`/`max` are stable user props (not recomputed per tick), so
+          // ChartContainer's setAxis effect — keyed on the primitive bound
+          // values — only re-applies on an actual change, never per stream
+          // tick. This is why a fixed `yRange` is safe where the old
+          // recompute-every-update min/max was not (see note above).
+          y: { visible: false, width: 0, min: yRange?.min, max: yRange?.max },
           x: { visible: false, height: 0 },
         }}
         padding={{ top: 5, right: 0, bottom: 0, left: 0 }}
