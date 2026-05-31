@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+
 import { act, render } from '@testing-library/react';
 import { Sparkline, catppuccin } from '@wick-charts/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -132,6 +134,35 @@ describe('Sparkline', () => {
     act(() => flushAllRaf());
 
     expect(host.textContent).not.toContain('BTC');
+  });
+
+  it('yRange clamps the vertical spread of the line', () => {
+    function lineToYSpread(node: ReactElement): number {
+      // Fresh child container per render — RTL caches one React root per
+      // container, so reusing `host` across two renders would throw.
+      const container = document.createElement('div');
+      host.appendChild(container);
+      act(() => {
+        render(node, { container });
+      });
+      act(() => flushAllRaf());
+
+      const canvas = container.querySelector('canvas') as HTMLCanvasElement;
+      canvas.getContext('2d');
+      const ys = canvas.__spy!.callsOf('lineTo').map((c) => c.args[1] as number);
+
+      return Math.max(...ys) - Math.min(...ys);
+    }
+
+    // data spans 10..18; a wide fixed range (0..1000) squashes it into a thin
+    // band near the baseline, so the drawn line's vertical spread shrinks well
+    // below the auto-fit spread that stretches across the full plot height.
+    const autoSpread = lineToYSpread(<Sparkline data={data} theme={catppuccin.theme} />);
+    const clampedSpread = lineToYSpread(
+      <Sparkline data={data} theme={catppuccin.theme} yRange={{ min: 0, max: 1000 }} />,
+    );
+
+    expect(clampedSpread).toBeLessThan(autoSpread);
   });
 
   it.each([undefined, 'right', 'left', 'offscreen'] as const)('flow mode renders for align=%s', (align) => {
