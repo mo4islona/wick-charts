@@ -1,0 +1,21 @@
+# Codecov gate policy.
+#
+# Without this file Codecov applies strict defaults — `project` fails on any
+# drop versus the base and `patch` demands changed lines match the whole-
+# project coverage level. That's unrealistic for large refactor PRs, so the
+# thresholds below keep the gate meaningful without blocking on small,
+# intentional movements.
+#
+# What gets measured is decided in vitest.config.ts (coverage.include /
+# exclude); type-only modules and *.d.ts are excluded there, so they never
+# reach Codecov.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 0%
