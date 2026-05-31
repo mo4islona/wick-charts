@@ -363,6 +363,99 @@ describe('CandlestickRenderer.render', () => {
     expect(spy.countOf('fillRect')).toBe(4);
   });
 
+  describe('volume scale eases on zoom (no single-frame snap)', () => {
+    // Volume bars are scaled to the tallest bar in the *visible window*. A zoom
+    // that drops the tall bar out of view changes that max — without easing the
+    // whole band would re-scale in one frame while the candles glide via
+    // sticky-Y, reading as a jump. The scale now EMA-chases the window max.
+
+    // Tall bar (vol 1000) far left; the zoom window below excludes it so its
+    // max collapses from 1000 → 100.
+    const data: OHLCData[] = [
+      { time: 10, ...BULL, volume: 1000 },
+      { time: 50, ...BULL, volume: 100 },
+      { time: 60, ...BULL, volume: 100 },
+      { time: 70, ...BULL, volume: 100 },
+      { time: 80, ...BULL, volume: 100 },
+    ];
+    const fullWindow = { from: 0, to: 100 };
+    const zoomWindow = { from: 55, to: 85 };
+    const yRange = { min: 0, max: 20 };
+
+    // Tallest semi-transparent (volume) bar height in a frame's draw calls.
+    const maxVolBarHeight = (spy: ReturnType<typeof buildRenderContext>['spy']): number => {
+      const heights = spy
+        .callsOf('fillRect')
+        .filter((c) => typeof c.fillStyle === 'string' && c.fillStyle.startsWith('rgba'))
+        .map((c) => c.args[3] as number);
+
+      return heights.length === 0 ? 0 : Math.max(...heights);
+    };
+
+    it('seeds the scale on the first frame — a settled render needs no animation', () => {
+      const r = new CandlestickRenderer(mkStore(data), {});
+      const { ctx } = buildRenderContext({ timeRange: fullWindow, yRange });
+      r.render(ctx);
+
+      expect(r.needsAnimation).toBe(false);
+    });
+
+    it('zoom-out does not snap the band — it eases and requests frames until settled', () => {
+      // Reference: a fresh renderer painted directly on the zoom window seeds
+      // its scale to 100, so its in-window bars fill the band (the snapped height).
+      const ref = new CandlestickRenderer(mkStore(data), {});
+      const { ctx: refCtx, spy: refSpy } = buildRenderContext({ timeRange: zoomWindow, yRange });
+      ref.render(refCtx);
+      const snappedHeight = maxVolBarHeight(refSpy);
+      expect(snappedHeight).toBeGreaterThan(0);
+
+      // Subject: seed on the full window (scale → 1000), then zoom in one frame.
+      const r = new CandlestickRenderer(mkStore(data), {});
+      r.render(buildRenderContext({ timeRange: fullWindow, yRange }).ctx);
+
+      const { spy: zoomSpy } = (() => {
+        const built = buildRenderContext({ timeRange: zoomWindow, yRange });
+        r.render(built.ctx);
+        return built;
+      })();
+
+      // First zoom frame: scale still near 1000, so the in-window bars are far
+      // shorter than the snapped target — proof it did not re-scale instantly.
+      expect(maxVolBarHeight(zoomSpy)).toBeLessThan(snappedHeight * 0.5);
+      expect(r.needsAnimation).toBe(true);
+
+      // Drive frames until the scale converges; it lands on the snapped height.
+      let lastHeight = 0;
+      for (let i = 0; i < 200 && r.needsAnimation; i++) {
+        const built = buildRenderContext({ timeRange: zoomWindow, yRange });
+        r.render(built.ctx);
+        lastHeight = maxVolBarHeight(built.spy);
+      }
+      expect(r.needsAnimation).toBe(false);
+      expect(lastHeight).toBeCloseTo(snappedHeight, 0);
+    });
+
+    it('never overshoots the band while the scale eases upward (zoom into a taller window)', () => {
+      // Seed on a small-volume window, then zoom so a tall bar enters: the scale
+      // lags below the new max, so the tall bar would exceed the 20% band
+      // without the height clamp.
+      const r = new CandlestickRenderer(mkStore(data), {});
+      r.render(buildRenderContext({ timeRange: zoomWindow, yRange }).ctx);
+
+      // The band height equals the snapped (fully-scaled) bar — capture it.
+      const ref = new CandlestickRenderer(mkStore(data), {});
+      const refBuilt = buildRenderContext({ timeRange: zoomWindow, yRange });
+      ref.render(refBuilt.ctx);
+      const bandHeight = maxVolBarHeight(refBuilt.spy);
+
+      // Zoom out so the vol-1000 bar enters while the scale is still ~100.
+      const built = buildRenderContext({ timeRange: fullWindow, yRange });
+      r.render(built.ctx);
+
+      expect(maxVolBarHeight(built.spy)).toBeLessThanOrEqual(bandHeight + 0.5);
+    });
+  });
+
   it('slices by visibleRange — far-out-of-range candles are not drawn', () => {
     // Store pads by one candle on each side (for continuity across edges), so
     // assert on far-outside candles whose neighbors are also outside.
