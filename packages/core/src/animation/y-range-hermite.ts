@@ -92,8 +92,15 @@ export class YRangeHermite implements Transition<YRange> {
 
     const { x, vMin, vMax } = this.#sample(now);
     this.#x0 = x;
-    this.#v0Min = vMin;
-    this.#v0Max = vMax;
+    // Project the carried velocity onto the new travel direction and drop it
+    // when it points the wrong way. Without this, a fast outward expand whose
+    // velocity is carried into a slow inward contract balloons the bound
+    // *further outward* (the `h10·dur·v0` term scales with the long contract
+    // duration) before settling back — a visible overshoot on ordinary
+    // streaming. Same-direction retargets keep their velocity, so motion stays
+    // C¹-continuous where it matters.
+    this.#v0Min = Math.sign(vMin) === Math.sign(value.min - x.min) ? vMin : 0;
+    this.#v0Max = Math.sign(vMax) === Math.sign(value.max - x.max) ? vMax : 0;
     this.#durMin = (value.min < x.min ? expandMs : contractMs) / 1000;
     this.#durMax = (value.max > x.max ? expandMs : contractMs) / 1000;
     this.#target = { min: value.min, max: value.max };

@@ -24,11 +24,10 @@ export interface RenderGridArgs {
  * negligible compared to the rest of the main-layer draw.
  */
 export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks }: RenderGridArgs): void {
-  const { context, bitmapSize, horizontalPixelRatio } = scope;
+  const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
   context.save();
   context.strokeStyle = theme.grid.color;
-  context.lineWidth = 1;
 
   if (theme.grid.style === 'dashed') {
     context.setLineDash([4 * horizontalPixelRatio, 4 * horizontalPixelRatio]);
@@ -36,10 +35,17 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks 
     context.setLineDash([1 * horizontalPixelRatio, 3 * horizontalPixelRatio]);
   }
 
+  // Scale the stroke to device pixels so gridlines stay 1 CSS-px crisp at any
+  // DPR (matching the series strokes), instead of rendering at a faint 0.5
+  // CSS-px on HiDPI. Half-pixel center snap only when the width is odd — even
+  // widths land cleanly on an integer device-pixel boundary.
+  const yLineWidth = Math.max(1, Math.round(verticalPixelRatio));
+  const yHalf = yLineWidth % 2 === 1 ? 0.5 : 0;
+  context.lineWidth = yLineWidth;
   for (const { value, opacity } of yTicks.entries) {
     if (opacity <= 0.01) continue;
 
-    const y = Math.round(yScale.valueToBitmapY(value)) + 0.5;
+    const y = Math.round(yScale.valueToBitmapY(value)) + yHalf;
     context.globalAlpha = opacity;
     context.beginPath();
     context.moveTo(0, y);
@@ -47,10 +53,13 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks 
     context.stroke();
   }
 
+  const xLineWidth = Math.max(1, Math.round(horizontalPixelRatio));
+  const xHalf = xLineWidth % 2 === 1 ? 0.5 : 0;
+  context.lineWidth = xLineWidth;
   for (const { value, opacity } of timeTicks.entries) {
     if (opacity <= 0.01) continue;
 
-    const x = Math.round(timeScale.timeToBitmapX(value)) + 0.5;
+    const x = Math.round(timeScale.timeToBitmapX(value)) + xHalf;
     context.globalAlpha = opacity;
     context.beginPath();
     context.moveTo(x, 0);

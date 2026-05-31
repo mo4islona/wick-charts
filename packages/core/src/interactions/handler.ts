@@ -2,6 +2,7 @@ import { EventEmitter } from '../events';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { CrosshairPosition } from '../types';
+import { clamp } from '../utils/math';
 import { PanHandler } from './pan';
 import type { PanZoomTarget } from './pan-zoom-target';
 import { ZoomHandler } from './zoom';
@@ -9,6 +10,16 @@ import { ZoomHandler } from './zoom';
 interface InteractionEvents {
   crosshairMove: (pos: CrosshairPosition | null) => void;
   click: (pos: CrosshairPosition) => void;
+}
+
+/** Euclidean finger spread. Using only the X projection (the old behavior)
+ *  collapses to ~0 for a vertical pinch — yielding a divide-by-near-zero zoom
+ *  factor — and reads a 45° pinch as ~0.7x. */
+function touchDistance(a: Touch, b: Touch): number {
+  const dx = a.clientX - b.clientX;
+  const dy = a.clientY - b.clientY;
+
+  return Math.hypot(dx, dy);
 }
 
 export class InteractionHandler extends EventEmitter<InteractionEvents> {
@@ -41,6 +52,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
     canvas.addEventListener('touchmove', this.onTouchMove, { passive: false });
     canvas.addEventListener('touchend', this.onTouchEnd);
+    canvas.addEventListener('touchcancel', this.onTouchCancel);
   }
 
   private onWheel = (e: WheelEvent): void => {
@@ -91,7 +103,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
         clientX: e.touches[0].clientX,
       } as MouseEvent);
     } else if (e.touches.length === 2) {
-      this.lastTouchDist = Math.abs(e.touches[0].clientX - e.touches[1].clientX);
+      this.lastTouchDist = touchDistance(e.touches[0], e.touches[1]);
     }
   };
 
@@ -102,12 +114,14 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
         clientX: e.touches[0].clientX,
       } as MouseEvent);
     } else if (e.touches.length === 2) {
-      const dist = Math.abs(e.touches[0].clientX - e.touches[1].clientX);
+      const dist = touchDistance(e.touches[0], e.touches[1]);
       const center = (e.touches[0].clientX + e.touches[1].clientX) / 2;
       const rect = this.canvas.getBoundingClientRect();
 
-      if (this.lastTouchDist > 0) {
-        const factor = this.lastTouchDist / dist;
+      // Guard the denominator (a collapsed pinch → `dist` 0 → Infinity factor)
+      // and clamp so a noisy single-frame spread can't snap the viewport.
+      if (dist > 0 && this.lastTouchDist > 0) {
+        const factor = clamp(this.lastTouchDist / dist, 0.1, 10);
         const centerTime = this.timeScale.xToTime(center - rect.left);
         this.target.zoomAt(centerTime, factor, this.timeScale.getMediaWidth());
       }
@@ -122,7 +136,28 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       this.touchCount = 0;
       this.lastTouchDist = 0;
       this.emit('crosshairMove', null);
+
+      return;
     }
+
+    // Lifting one finger of a pinch leaves a single touch. Without handling
+    // this the handler stays in 2-finger mode (`touchCount` 2) and the next
+    // `onTouchMove` matches neither branch — so "pinch then drag with one
+    // finger" goes completely dead until all fingers lift. Drop to
+    // single-finger mode and re-seed the pan from the remaining touch (the
+    // 2-finger start never began a pan drag, so a fresh mousedown is needed).
+    if (e.touches.length === 1) {
+      this.touchCount = 1;
+      this.lastTouchDist = 0;
+      this.pan.handleMouseDown({ button: 0, clientX: e.touches[0].clientX } as MouseEvent);
+    }
+  };
+
+  private onTouchCancel = (): void => {
+    this.pan.handleMouseUp();
+    this.touchCount = 0;
+    this.lastTouchDist = 0;
+    this.emit('crosshairMove', null);
   };
 
   private emitCrosshair(offsetX: number, offsetY: number): void {
@@ -147,6 +182,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);
     this.canvas.removeEventListener('touchend', this.onTouchEnd);
+    this.canvas.removeEventListener('touchcancel', this.onTouchCancel);
     this.removeAllListeners();
   }
 }

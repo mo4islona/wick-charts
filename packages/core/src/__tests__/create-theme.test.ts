@@ -163,3 +163,38 @@ describe('createTheme', () => {
     expect(preset.fontUrl).toBe('https://fonts.example.com/foo.css');
   });
 });
+
+describe('createTheme color math (shorthand / NaN-channel guards)', () => {
+  it('classifies #000 as dark and #fff as light (no length<7 bail)', async () => {
+    const { isDarkBg } = await import('../theme/create');
+    expect(isDarkBg('#000')).toBe(true);
+    expect(isDarkBg('#fff')).toBe(false);
+    expect(isDarkBg('#000000')).toBe(true);
+  });
+
+  it('createTheme({ background: "#000" }) builds a dark theme (was mis-derived as light)', () => {
+    const preset = createTheme({ background: '#000' });
+    expect(preset.dark).toBe(true);
+    // Background is normalized to full hex so downstream parsers never see a shorthand.
+    expect(preset.theme.background).toBe('#000000');
+  });
+
+  it('hexToRgba expands shorthand instead of emitting NaN channels', async () => {
+    const { hexToRgba } = await import('../theme/create');
+    expect(hexToRgba('#fff', 0.5)).toBe('rgba(255, 255, 255, 0.5)');
+    expect(hexToRgba('#abc', 1)).toBe('rgba(170, 187, 204, 1)');
+    expect(hexToRgba('#000', 0.5)).not.toContain('NaN');
+  });
+
+  it('lighten/darken expand shorthand', async () => {
+    const { lightenHex, darkenHex } = await import('../theme/create');
+    expect(lightenHex('#000', 0)).toBe('#000000');
+    expect(darkenHex('#fff', 0)).toBe('#ffffff');
+  });
+
+  it('a shorthand background derives no NaN-bearing colors', () => {
+    const preset = createTheme({ background: '#abc' });
+    const json = JSON.stringify(preset.theme);
+    expect(json).not.toContain('NaN');
+  });
+});

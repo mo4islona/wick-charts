@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { BarSeriesOptions, TimePoint } from '@wick-charts/core';
+import type { BarSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
+import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
@@ -13,6 +14,17 @@ const props = defineProps<{
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
+// Per-layer sync state — drives the shared append/keepLast/update/replace
+// reconciliation so streaming eases instead of snapping Y every tick.
+let prevSync: SeriesSyncState[] = [];
+
+function applyData(id: string, data: TimePoint[][]): void {
+  chart.batch(() => {
+    for (let i = 0; i < data.length; i++) {
+      prevSync[i] = syncSeriesLayer({ chart, id, data: data[i], prev: prevSync[i] ?? EMPTY_SYNC_STATE, layerIndex: i });
+    }
+  });
+}
 
 onMounted(() => {
   const id = chart.addSeries('bar', {
@@ -21,12 +33,9 @@ onMounted(() => {
     id: props.id,
   });
   seriesId.value = id;
+  prevSync = props.data.map(() => EMPTY_SYNC_STATE);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
-  chart.batch(() => {
-    for (let i = 0; i < props.data.length; i++) {
-      chart.setSeriesData(id, props.data[i], i);
-    }
-  });
+  applyData(id, props.data);
 });
 
 onUnmounted(() => {
@@ -36,12 +45,10 @@ onUnmounted(() => {
 watch(
   () => props.data,
   (data) => {
-    if (!seriesId.value) return;
-    chart.batch(() => {
-      for (let i = 0; i < data.length; i++) {
-        chart.setSeriesData(seriesId.value!, data[i], i);
-      }
-    });
+    const id = seriesId.value;
+    if (!id) return;
+
+    applyData(id, data);
   },
 );
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
+import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
+import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -12,7 +13,11 @@ export let id: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
-let prevLen = 0;
+// Sync state in a non-reactive container — mutating the `const` object's
+// property keeps the reactive block free of a self-dependency cycle while still
+// driving the shared append/keepLast/update/replace reconciliation (rolling
+// windows ease instead of snapping; 6–20 candle bursts take the append path).
+const sync: { state: SeriesSyncState } = { state: EMPTY_SYNC_STATE };
 
 onMount(() => {
   const chart = get(chartStore);
@@ -24,27 +29,14 @@ onDestroy(() => {
   const chart = get(chartStore);
   if (seriesId && chart) chart.removeSeries(seriesId);
   seriesId = null;
-  prevLen = 0;
+  sync.state = EMPTY_SYNC_STATE;
 });
 
 $: {
   const chart = $chartStore;
-  const id = seriesId;
-  if (id && chart) {
-    if (data.length === 0) {
-      chart.setSeriesData(id, []);
-      prevLen = 0;
-    } else if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {
-      chart.setSeriesData(id, data);
-      prevLen = data.length;
-    } else if (data.length === prevLen) {
-      chart.updateData(id, data[data.length - 1]);
-    } else {
-      for (let i = prevLen; i < data.length; i++) {
-        chart.appendData(id, data[i]);
-      }
-      prevLen = data.length;
-    }
+  const sid = seriesId;
+  if (sid && chart) {
+    sync.state = syncSeriesLayer({ chart, id: sid, data, prev: sync.state });
   }
 }
 

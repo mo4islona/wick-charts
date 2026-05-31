@@ -7,14 +7,20 @@ export function renderCrosshair(
   bitmapY: number,
   theme: ChartTheme,
 ): void {
-  const { context, bitmapSize, horizontalPixelRatio } = scope;
+  const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
+  // Match device-pixel stroke width to the series so the crosshair reads as
+  // crisp as the candles instead of a faint 0.5 CSS-px hairline on HiDPI.
+  const vLineWidth = Math.max(1, Math.round(verticalPixelRatio));
+  const hLineWidth = Math.max(1, Math.round(horizontalPixelRatio));
   context.strokeStyle = theme.crosshair.color;
-  context.lineWidth = 1;
+  context.lineWidth = Math.max(vLineWidth, hLineWidth);
   context.setLineDash([4 * horizontalPixelRatio, 4 * horizontalPixelRatio]);
 
-  const x = Math.round(bitmapX) + 0.5;
-  const y = Math.round(bitmapY) + 0.5;
+  // Half-pixel center snap only for odd widths (even widths sit on an integer
+  // device boundary already).
+  const x = Math.round(bitmapX) + (hLineWidth % 2 === 1 ? 0.5 : 0);
+  const y = Math.round(bitmapY) + (vLineWidth % 2 === 1 ? 0.5 : 0);
 
   context.beginPath();
   context.moveTo(x, 0);

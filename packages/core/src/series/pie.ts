@@ -333,7 +333,7 @@ export class PieRenderer implements PieSeriesRenderer {
   hitTest(bx: number, by: number, bitmapWidth: number, bitmapHeight: number, padding?: RenderPadding): number {
     if (this.#data.length === 0) return -1;
 
-    const total = this.#data.reduce((sum, d) => sum + d.value, 0);
+    const total = this.#total();
     if (total <= 0) return -1;
 
     // Fall back to the cached reserve if `render` has run at least once.
@@ -362,7 +362,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
     let angle = 0;
     for (let i = 0; i < this.#data.length; i++) {
-      const sliceAngle = (this.#data[i].value / total) * TWO_PI;
+      const sliceAngle = (this.#sliceValue(this.#data[i].value) / total) * TWO_PI;
       if (mouseAngle >= angle && mouseAngle < angle + sliceAngle) return i;
 
       angle += sliceAngle;
@@ -389,13 +389,13 @@ export class PieRenderer implements PieSeriesRenderer {
     const slice = this.#data[this.#hoverIndex];
     if (!slice) return null;
 
-    const total = this.#data.reduce((sum, d) => sum + d.value, 0);
+    const total = this.#total();
     const palette = this.#options.colors ?? theme.seriesColors;
 
     return {
       label: slice.label,
       value: slice.value,
-      percent: total > 0 ? (slice.value / total) * 100 : 0,
+      percent: total > 0 ? (this.#sliceValue(slice.value) / total) * 100 : 0,
       color: slice.color ?? palette[this.#hoverIndex % palette.length],
     };
   }
@@ -403,13 +403,13 @@ export class PieRenderer implements PieSeriesRenderer {
   getSliceInfo(theme: ChartTheme): SliceInfo[] | null {
     if (this.#data.length === 0) return null;
 
-    const total = this.#data.reduce((sum, d) => sum + d.value, 0);
+    const total = this.#total();
     const palette = this.#options.colors ?? theme.seriesColors;
 
     return this.#data.map((d, i) => ({
       label: d.label,
       value: d.value,
-      percent: total > 0 ? (d.value / total) * 100 : 0,
+      percent: total > 0 ? (this.#sliceValue(d.value) / total) * 100 : 0,
       color: d.color ?? palette[i % palette.length],
     }));
   }
@@ -444,9 +444,32 @@ export class PieRenderer implements PieSeriesRenderer {
     return this.#sliceOffsets;
   }
 
+  /**
+   * Layout-only sanitized slice value: finite and positive, else 0. Negative
+   * and non-finite values would corrupt the arc sweep (a negative slice drags
+   * the running angle backwards, desyncing fills / labels / hit-test, and a
+   * `NaN` slips past the `total <= 0` guard since `NaN <= 0` is false), so they
+   * contribute nothing to the geometry. The original value is still surfaced
+   * verbatim in reported SliceInfo / HoverInfo.
+   */
+  #sliceValue(value: number): number {
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
+
+  /** Sum of layout-sanitized slice values — the denominator for every arc
+   *  sweep and percentage. Always finite and ≥ 0. */
+  #total(): number {
+    let sum = 0;
+    for (const d of this.#data) {
+      sum += this.#sliceValue(d.value);
+    }
+
+    return sum;
+  }
+
   /** Build the text shown for one slice given the resolved content mode. */
   #formatSliceLabel(slice: PieSliceData, total: number, content: Required<PieLabelsOptions>['content']): string {
-    const percent = total > 0 ? (slice.value / total) * 100 : 0;
+    const percent = total > 0 ? (this.#sliceValue(slice.value) / total) * 100 : 0;
     const pctText = `${percent.toFixed(percent >= 10 ? 0 : 1)}%`;
 
     if (content === 'percent') return pctText;
@@ -624,7 +647,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
     for (let i = 0; i < this.#data.length; i++) {
       const slice = this.#data[i];
-      const sliceAngle = (slice.value / total) * TWO_PI;
+      const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
 
       if (sliceAngle >= minSliceRad) {
         const midAngle = angle + sliceAngle / 2;
@@ -831,7 +854,7 @@ export class PieRenderer implements PieSeriesRenderer {
     const dt = this.#lastRenderTime ? Math.min(0.05, (now - this.#lastRenderTime) / 1000) : 0;
     this.#lastRenderTime = now;
 
-    const total = this.#data.reduce((sum, d) => sum + d.value, 0);
+    const total = this.#total();
     if (total <= 0) return;
 
     // Hovered-slice explode offset. When `animate` is off (the default) the
@@ -885,7 +908,7 @@ export class PieRenderer implements PieSeriesRenderer {
     // Draw slices
     for (let i = 0; i < this.#data.length; i++) {
       const slice = this.#data[i];
-      const sliceAngle = (slice.value / total) * TWO_PI;
+      const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
       const startAngle = angle + pad / 2;
       const endAngle = angle + sliceAngle - pad / 2;
       const midAngle = angle + sliceAngle / 2;
@@ -1007,7 +1030,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
     for (let i = 0; i < this.#data.length; i++) {
       const slice = this.#data[i];
-      const sliceAngle = (slice.value / total) * TWO_PI;
+      const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
       if (sliceAngle >= minSliceRad) {
         const midAngle = angle + sliceAngle / 2;
         const offset = this.#sliceOffsets[i] * explodeDistance;

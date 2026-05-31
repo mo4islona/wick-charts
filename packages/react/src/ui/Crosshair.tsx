@@ -11,6 +11,10 @@ export function Crosshair() {
 
   const theme = chart.getTheme();
   const dataInterval = chart.getDataInterval();
+  // Format the time pill at the axis's *resolved* tick granularity, not the raw
+  // data interval — otherwise a time-of-day badge floats among date labels when
+  // zoomed out. Falls back to dataInterval on a degenerate range.
+  const tickInterval = chart.timeScale.niceTickValues(dataInterval).tickInterval || dataInterval;
 
   const labelStyle = {
     // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -54,7 +58,7 @@ export function Crosshair() {
           ...labelStyle,
         }}
       >
-        {formatTime(position.time, dataInterval)}
+        {formatTime(position.time, tickInterval)}
       </div>
     </>
   );

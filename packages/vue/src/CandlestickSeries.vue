@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { CandlestickSeriesOptions, OHLCInput } from '@wick-charts/core';
+import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
+import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
@@ -13,7 +14,10 @@ const props = defineProps<{
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
-let prevLen = 0;
+// Sync state — drives the shared append/keepLast/update/replace reconciliation
+// so a rolling-window stream eases instead of snapping Y (and a 6–20 candle
+// burst takes the smooth append path, matching React's 20-candle threshold).
+let prevSync: SeriesSyncState = EMPTY_SYNC_STATE;
 
 onMounted(() => {
   const id = chart.addSeries('candlestick', { ...props.options, id: props.id });
@@ -21,10 +25,7 @@ onMounted(() => {
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply
   // the first value here so components with static data render immediately.
-  if (props.data.length > 0) {
-    chart.setSeriesData(id, props.data);
-    prevLen = props.data.length;
-  }
+  prevSync = syncSeriesLayer({ chart, id, data: props.data, prev: prevSync });
 });
 
 onUnmounted(() => {
@@ -37,23 +38,7 @@ watch(
     const id = seriesId.value;
     if (!id) return;
 
-    if (data.length === 0) {
-      chart.setSeriesData(id, []);
-      prevLen = 0;
-      return;
-    }
-
-    if (prevLen === 0 || data.length < prevLen || data.length - prevLen > 5) {
-      chart.setSeriesData(id, data);
-    } else if (data.length === prevLen) {
-      chart.updateData(id, data[data.length - 1]);
-    } else {
-      for (let i = prevLen; i < data.length; i++) {
-        chart.appendData(id, data[i]);
-      }
-    }
-
-    prevLen = data.length;
+    prevSync = syncSeriesLayer({ chart, id, data, prev: prevSync });
   },
 );
 
