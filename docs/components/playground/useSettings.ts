@@ -94,7 +94,7 @@ export function useSettings<T extends object>({ id, defaults }: UseSettingsOpts<
 
 // ── Panel width persistence (orthogonal to settings) ─────────
 
-const DEFAULT_PANEL_PCT = 30;
+const DEFAULT_PANEL_PCT = 35;
 const MIN_PANEL_PCT = 30;
 const MAX_PANEL_PCT = 70;
 

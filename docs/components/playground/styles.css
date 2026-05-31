@@ -336,7 +336,7 @@
 .wick-playground .row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 20px;
   padding: 7px 14px 7px 32px;
   min-height: 30px;
   min-width: 0;
