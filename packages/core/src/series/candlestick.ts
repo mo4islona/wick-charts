@@ -24,6 +24,20 @@ interface EntryState {
   startTime: number;
 }
 
+/**
+ * Per-frame EMA factor for the volume scale (`maxVol`). Volume bars are scaled
+ * to the tallest bar in the *visible window*, so a zoom that changes the window
+ * changes that max — without smoothing the whole volume band snaps in a single
+ * frame while the candles ease via the engine's sticky-Y baseline, reading as a
+ * jump. Easing `maxVol` toward the raw window max lets volume re-scale in
+ * lockstep with the price axis. 0.15 ≈ 4.3-frame half-life (~72 ms @ 60 fps):
+ * snappy enough to track a zoom gesture, slow enough to kill the snap.
+ */
+const VOL_SCALE_ALPHA = 0.15;
+
+/** Relative gap below which the volume scale counts as settled (stops requesting frames). */
+const VOL_SCALE_SETTLE_EPS = 0.005;
+
 /** Component-wise lerp for an OHLC quadruple; lerps `volume` too when either side carries one. */
 function ohlcLerp(a: OHLCData, b: OHLCData, t: number): OHLCData {
   const r: OHLCData = {
@@ -81,6 +95,12 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   /** Per-candle entrance registry. Single-layer, so no per-layer split. */
   protected readonly entries: Map<number, EntryState> = new Map();
   #liveAnimator: Animator<OHLCData> | null = null;
+  /** EMA-smoothed volume scale (tallest visible bar). `null` re-seeds (snaps)
+   *  on the next frame — set on construction and bulk data replacement. */
+  #displayedMaxVol: number | null = null;
+  /** False while {@link #displayedMaxVol} is still chasing the raw window max —
+   *  feeds {@link needsAnimation} so frames keep flowing until it converges. */
+  #volScaleSettled = true;
   /** Series-level alpha for visibility cross-fade. Chart calls {@link setAlpha} on hide. */
   readonly #alphaAnimator: Animator<number> = new Animator<number>({
     initial: 1,
@@ -122,6 +142,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     this.displayedLast = last ?? null;
     this.#liveAnimator = null;
     this.entries.clear();
+    // Fresh dataset — re-seed the volume scale so it snaps to the new data's
+    // max instead of easing from the previous dataset's (which would read as a
+    // spurious volume animation on a plain `setData`).
+    this.#displayedMaxVol = null;
   }
 
   appendPoint(point: unknown): void {
@@ -237,9 +261,12 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     }
   }
 
-  /** True while OHLC chase, any per-candle entrance, or alpha fade is unsettled. */
+  /** True while OHLC chase, any per-candle entrance, alpha fade, or the volume
+   *  scale is unsettled. */
   get needsAnimation(): boolean {
-    return this.#alphaAnimator.animating || this.#liveAnimator !== null || this.entries.size > 0;
+    return (
+      this.#alphaAnimator.animating || this.#liveAnimator !== null || this.entries.size > 0 || !this.#volScaleSettled
+    );
   }
 
   /** Abort in-flight per-candle entrance animations. Live-OHLC chase is left intact. */
@@ -466,14 +493,33 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     entranceByTime: Map<number, number> | null;
   }): void {
     // Find max volume for scaling. Filter non-finite values — `Infinity`
-    // would poison `maxVol` (collapsing every real bar to ~1 px), `NaN`
+    // would poison `rawMax` (collapsing every real bar to ~1 px), `NaN`
     // slips past `>` comparisons silently, and `null` coerces to 0 but can
     // still reach the draw loop below.
-    let maxVol = 0;
+    let rawMax = 0;
     for (const c of data) {
-      if (Number.isFinite(c.volume) && (c.volume as number) > maxVol) maxVol = c.volume as number;
+      if (Number.isFinite(c.volume) && (c.volume as number) > rawMax) rawMax = c.volume as number;
     }
-    if (maxVol === 0) return;
+    if (rawMax === 0) {
+      // Nothing to scale — the scale is trivially settled. Drop the seed so
+      // volume re-entering the window later snaps instead of easing up from 0.
+      this.#displayedMaxVol = null;
+      this.#volScaleSettled = true;
+
+      return;
+    }
+
+    // Ease the scale toward `rawMax` so a zoom that changes the visible window
+    // re-scales the volume band smoothly in lockstep with the sticky-Y price
+    // axis instead of snapping in one frame. First frame (or post-`setData`)
+    // seeds directly — no ease from a stale/zero baseline.
+    if (this.#displayedMaxVol === null) {
+      this.#displayedMaxVol = rawMax;
+    } else {
+      this.#displayedMaxVol += (rawMax - this.#displayedMaxVol) * VOL_SCALE_ALPHA;
+    }
+    this.#volScaleSettled = Math.abs(rawMax - this.#displayedMaxVol) <= rawMax * VOL_SCALE_SETTLE_EPS;
+    const maxVol = this.#displayedMaxVol;
 
     // Volume occupies bottom 20% of chart. Match the wick's parity so volume
     // bars and candles share a vertical axis of symmetry — same rationale as
@@ -497,7 +543,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
       const vol = c.volume as number;
       const cx = timeScale.timeToBitmapX(c.time);
-      const h = Math.max(1, (vol / maxVol) * volumeMaxHeight);
+      // Clamp to the band: while `maxVol` eases up toward a larger `rawMax`,
+      // the bar that owns `rawMax` would otherwise scale past `volumeMaxHeight`.
+      const h = Math.min(volumeMaxHeight, Math.max(1, (vol / maxVol) * volumeMaxHeight));
       const isUp = c.close >= c.open;
 
       ctx.fillStyle = isUp ? upVolumeColor : downVolumeColor;
