@@ -52,6 +52,15 @@ export default defineConfig({
         'packages/*/src/**/*.test.{ts,tsx}',
         'packages/*/src/**/*.bench.ts',
         'packages/*/src/**/types.ts',
+        // Ambient declarations carry no runtime code.
+        'packages/*/src/**/*.d.ts',
+        // Type-only modules: only `export interface` / `export type`, erased
+        // at runtime, so v8 reports them as 0% and pollutes patch/project
+        // coverage. Same intent as the `types.ts` exclusion above — these
+        // just predate that convention and keep their public import paths.
+        'packages/core/src/legend.ts',
+        'packages/core/src/animation/transition.ts',
+        'packages/core/src/interactions/pan-zoom-target.ts',
         'packages/*/dist/**',
       ],
     },
