@@ -20,6 +20,14 @@ export interface ChartCodeConfig {
   components: ChartCodeChild[];
   theme?: string;
   containerProps?: Record<string, PropValue>;
+  /**
+   * When `false`, components render at the top level without a
+   * `<ChartContainer>` wrapper — for self-contained components like
+   * `Sparkline` that manage their own container internally. `theme` (if set)
+   * is then emitted as a prop on each component instead of on the container.
+   * Default `true`.
+   */
+  container?: boolean;
 }
 
 type Framework = 'react' | 'svelte' | 'vue';
@@ -107,9 +115,9 @@ function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent
   return parts;
 }
 
-function renderChild(child: ChartCodeChild, fw: Framework, indent: number): string {
+function renderChild(child: ChartCodeChild, fw: Framework, indent: number, leadingPairs: string[] = []): string {
   const pad = '  '.repeat(indent);
-  const pairs = child.props ? renderPropPairs(child.props, fw, indent) : [];
+  const pairs = [...leadingPairs, ...(child.props ? renderPropPairs(child.props, fw, indent) : [])];
   const body = child.childrenSnippet?.[fw];
 
   if (body) {
@@ -158,7 +166,10 @@ function openChartContainer(themeAttr: string, containerPairs: string[]): string
 }
 
 export function generateCode(config: ChartCodeConfig, fw: Framework): string {
-  const imports = new Set<string>(['ChartContainer']);
+  const useContainer = config.container !== false;
+
+  const imports = new Set<string>();
+  if (useContainer) imports.add('ChartContainer');
   for (const child of config.components) imports.add(child.component);
   // Theme expressions can be a bare identifier (`catppuccin`) or a dotted
   // accessor (`catppuccin.theme` — what {@link createTheme} presets need to
@@ -169,9 +180,28 @@ export function generateCode(config: ChartCodeConfig, fw: Framework): string {
   const importList = Array.from(imports).sort();
   const pkg = PACKAGES[fw];
 
-  const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 0) : [];
   const themeAttr = config.theme ? (fw === 'vue' ? `:theme="${config.theme}"` : `theme={${config.theme}}`) : '';
 
+  // Self-contained components (e.g. Sparkline) render at the top level with no
+  // ChartContainer wrapper. `theme` rides along as a prop on each component.
+  if (!useContainer) {
+    const themeLeading = themeAttr ? [themeAttr] : [];
+    const children = config.components.map((c) => renderChild(c, fw, 0, themeLeading)).join('\n');
+
+    if (fw === 'react') {
+      const imp = wrapImport(importList, pkg, '');
+      return `${imp}\n\n${children}`;
+    }
+    if (fw === 'svelte') {
+      const imp = wrapImport(importList, pkg, '  ');
+      return `<script>\n${imp}\n</script>\n\n${children}`;
+    }
+    const imp = wrapImport(importList, pkg, '');
+    const tmplChildren = children.replace(/^/gm, '  ');
+    return `<script setup>\n${imp}\n</script>\n\n<template>\n${tmplChildren}\n</template>`;
+  }
+
+  const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 0) : [];
   const openTag = openChartContainer(themeAttr, containerPairs);
   const children = config.components.map((c) => renderChild(c, fw, 1)).join('\n');
 

@@ -94,6 +94,23 @@ describe('generateCode', () => {
     }
   });
 
+  it('renders top-level string props as plain attributes (Legend position / InfoBar sort)', () => {
+    const config: ChartCodeConfig = {
+      components: [
+        { component: 'InfoBar', props: { sort: 'desc' } },
+        { component: 'Legend', props: { position: 'right', mode: 'isolate' } },
+      ],
+    };
+
+    const react = generateCode(config, 'react');
+    expect(react).toContain('<InfoBar sort="desc" />');
+    expect(react).toContain('<Legend position="right" mode="isolate" />');
+
+    const vue = generateCode(config, 'vue');
+    expect(vue).toContain('sort="desc"');
+    expect(vue).toContain('position="right"');
+  });
+
   describe('childrenSnippet (slot / render-prop body)', () => {
     const SNIPPET_CONFIG: ChartCodeConfig = {
       components: [
@@ -154,6 +171,49 @@ describe('generateCode', () => {
       expect(generateCode(partial, 'react')).toMatch(/<Tooltip>[\s\S]*<\/Tooltip>/);
       expect(generateCode(partial, 'vue')).toContain('<Tooltip />');
       expect(generateCode(partial, 'svelte')).toContain('<Tooltip />');
+    });
+  });
+
+  describe('standalone (container: false)', () => {
+    // Self-contained components like Sparkline render with no <ChartContainer>
+    // wrapper; theme rides along as a prop on each component instead.
+    const STANDALONE_CONFIG: ChartCodeConfig = {
+      theme: 'catppuccin.theme',
+      container: false,
+      components: [
+        {
+          component: 'Sparkline',
+          props: { data: 'data', variant: 'bar', flow: { capacity: 80 } },
+        },
+      ],
+    };
+
+    it('omits the ChartContainer wrapper and passes theme as a prop in React', () => {
+      const code = generateCode(STANDALONE_CONFIG, 'react');
+
+      expect(code).not.toContain('ChartContainer');
+      expect(code).toContain("import { Sparkline, catppuccin } from '@wick-charts/react';");
+      expect(code).toContain('theme={catppuccin.theme}');
+      expect(code).toContain('data={data}');
+      expect(code).toContain('variant="bar"');
+      expect(code).toContain('flow={{ capacity: 80 }}');
+    });
+
+    it('passes theme as a :-prefixed prop and skips the container in Vue', () => {
+      const code = generateCode(STANDALONE_CONFIG, 'vue');
+
+      expect(code).not.toContain('ChartContainer');
+      expect(code).toContain('<template>');
+      expect(code).toContain(':theme="catppuccin.theme"');
+      expect(code).toContain('<Sparkline');
+    });
+
+    it('passes theme as a prop and skips the container in Svelte', () => {
+      const code = generateCode(STANDALONE_CONFIG, 'svelte');
+
+      expect(code).not.toContain('ChartContainer');
+      expect(code).toContain('<script>');
+      expect(code).toContain('theme={catppuccin.theme}');
     });
   });
 });

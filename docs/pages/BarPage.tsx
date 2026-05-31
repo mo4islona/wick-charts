@@ -27,19 +27,23 @@ import {
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Toggle, ToggleGroup } from '../components/playground/primitives';
+import { Select, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateBarData, generateLayerData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
 
 type BarWidth = 'thin' | 'normal' | 'wide';
+type LegendPos = 'off' | 'bottom' | 'right';
+type LegendMode = 'toggle' | 'isolate';
 const BAR_WIDTH_MAP: Record<BarWidth, number> = { thin: 0.3, normal: 0.6, wide: 0.85 };
 const LAYER_COUNT = 4;
 
 interface BarSettings {
   stacking: StackingMode;
   barWidth: BarWidth;
+  legendPos: LegendPos;
+  legendMode: LegendMode;
   infoBarVisible: boolean;
   tooltipVisible: boolean;
   crosshairVisible: boolean;
@@ -131,7 +135,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       {props.crosshairVisible && <Crosshair />}
       {props.axis?.y?.visible !== false && <YAxis />}
       {props.axis?.x?.visible !== false && <XAxis />}
-      <Legend />
+      {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
       {props.navigatorVisible && <Navigator data={{ type: 'bar', series: display }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
@@ -202,6 +206,44 @@ const DISPLAY_EXTRA: SectionSpec = {
   ] as RowSpec[],
 };
 
+const LEGEND_SECTION: SectionSpec = {
+  id: 'legend',
+  title: 'Legend',
+  icon: ICONS.legend,
+  rows: [
+    {
+      key: 'legendPos',
+      label: 'Position',
+      render: (v, onChange) => (
+        <Select<LegendPos>
+          value={v as LegendPos}
+          options={[
+            { value: 'off', label: 'Off' },
+            { value: 'bottom', label: 'Bottom' },
+            { value: 'right', label: 'Right' },
+          ]}
+          onChange={onChange as (v: LegendPos) => void}
+        />
+      ),
+    },
+    {
+      key: 'legendMode',
+      label: 'On click',
+      visible: (s) => s.legendPos !== 'off',
+      render: (v, onChange) => (
+        <ToggleGroup<LegendMode>
+          value={v as LegendMode}
+          options={[
+            { value: 'toggle', label: 'Show / Hide' },
+            { value: 'isolate', label: 'Focus' },
+          ]}
+          onChange={onChange as (v: LegendMode) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
 export function BarPage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<BarSettings>
@@ -210,12 +252,14 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
       extraDefaults={(mobile) => ({
         stacking: 'normal',
         barWidth: 'normal',
+        legendPos: 'bottom',
+        legendMode: 'toggle',
         infoBarVisible: !mobile,
         tooltipVisible: true,
         crosshairVisible: true,
       })}
       animationKinds={['bar']}
-      sections={[DISPLAY_EXTRA, SERIES_SECTION]}
+      sections={[DISPLAY_EXTRA, SERIES_SECTION, LEGEND_SECTION]}
       charts={(props) => {
         const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
 
@@ -260,6 +304,17 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
             ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
+            ...(s.legendPos !== 'off'
+              ? [
+                  {
+                    component: 'Legend',
+                    props: {
+                      ...(s.legendPos !== 'bottom' ? { position: s.legendPos } : {}),
+                      ...(s.legendMode !== 'toggle' ? { mode: s.legendMode } : {}),
+                    },
+                  },
+                ]
+              : []),
             ...buildNavigatorComponent(s, 'layers[0]', 'bar'),
           ],
         };

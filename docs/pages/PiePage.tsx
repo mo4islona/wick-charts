@@ -10,6 +10,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
+import type { PropValue } from '../components/CodePreview';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
@@ -40,6 +41,7 @@ interface PieSettings {
   labelGap: number;
   labelDistance: number;
   labelRailWidth: number;
+  minSliceAngle: number;
   cardinality: number;
   legendPosition: PieLegendPosition;
   legendMode: PieLegendMode;
@@ -106,6 +108,7 @@ function PieChart({
   labelGap,
   labelDistance,
   labelRailWidth,
+  minSliceAngle,
   legendPosition,
   legendMode,
   perfHudVisible,
@@ -147,6 +150,7 @@ function PieChart({
             labelGap,
             distance: labelDistance,
             railWidth: labelRailWidth,
+            minSliceAngle,
           },
         }}
       />
@@ -386,6 +390,14 @@ const LABELS_SECTION: SectionSpec = {
         <Slider value={v as number} min={0} max={60} step={2} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
+    {
+      key: 'minSliceAngle',
+      label: 'Min slice angle',
+      hint: 'Slices narrower than this (°) get no on-pie label — raise it when many tiny slices crowd.',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={15} step={0.5} suffix="°" onChange={onChange as (v: number) => void} />
+      ),
+    },
   ] as RowSpec[],
 };
 
@@ -467,6 +479,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         labelGap: 1.8,
         labelDistance: 14,
         labelRailWidth: 16,
+        minSliceAngle: 2.5,
         cardinality: 5,
         legendPosition: 'bottom',
         legendMode: 'both',
@@ -474,7 +487,10 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       gridTemplate="1fr 1fr"
       gridColumns="1fr 1fr"
       hideCartesian
-      animationKinds={['pie']}
+      // Pie's only animation control is the `animate` toggle (Display) — the
+      // per-kind entry/update sliders are no-op in core and the live chart
+      // doesn't pass `animations`, so suppress the built-in Animations section.
+      animationKinds={[]}
       sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, SHADOW_SECTION, LABELS_SECTION, STRESS_SECTION, LEGEND_SECTION]}
       charts={(props) => (
         <>
@@ -497,54 +513,65 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
           </Cell>
         </>
       )}
-      codeConfig={(s) => ({
-        theme: 'catppuccin.theme',
-        components: [
-          {
-            component: 'PieSeries',
-            props: {
-              id: 'sid',
-              data: 'data',
-              options: {
-                innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
-                padAngle: s.padAngle,
-                animate: s.animate,
-                shadow: s.shadow
-                  ? {
-                      color: `rgba(0, 0, 0, ${s.shadowAlpha})`,
-                      blur: s.shadowBlur,
-                      offsetX: s.shadowOffsetX,
-                      offsetY: s.shadowOffsetY,
-                    }
-                  : false,
-                innerShadow: s.innerShadow
-                  ? { color: `rgba(0, 0, 0, ${s.innerShadowAlpha})`, depth: s.innerShadowDepthPct / 100 }
-                  : false,
-                sliceLabels: {
-                  mode: s.labelMode,
-                  content: s.labelContent,
-                  fontSize: s.labelFontSize,
-                  labelGap: s.labelGap,
-                  distance: s.labelDistance,
-                  railWidth: s.labelRailWidth,
+      codeConfig={(s) => {
+        // Pie has no cartesian/animations props worth emitting, but the
+        // background gradient and Perf HUD are real ChartContainer props the
+        // panel drives — surface them so the snippet tracks the preview.
+        const containerProps: Record<string, PropValue> = {};
+        if (!s.gradient) containerProps.gradient = false;
+        if (s.perfHudVisible) containerProps.perf = true;
+
+        return {
+          theme: 'catppuccin.theme',
+          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+          components: [
+            {
+              component: 'PieSeries',
+              props: {
+                id: 'sid',
+                data: 'data',
+                options: {
+                  innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
+                  padAngle: s.padAngle,
+                  animate: s.animate,
+                  shadow: s.shadow
+                    ? {
+                        color: `rgba(0, 0, 0, ${s.shadowAlpha})`,
+                        blur: s.shadowBlur,
+                        offsetX: s.shadowOffsetX,
+                        offsetY: s.shadowOffsetY,
+                      }
+                    : false,
+                  innerShadow: s.innerShadow
+                    ? { color: `rgba(0, 0, 0, ${s.innerShadowAlpha})`, depth: s.innerShadowDepthPct / 100 }
+                    : false,
+                  sliceLabels: {
+                    mode: s.labelMode,
+                    content: s.labelContent,
+                    fontSize: s.labelFontSize,
+                    labelGap: s.labelGap,
+                    distance: s.labelDistance,
+                    railWidth: s.labelRailWidth,
+                    minSliceAngle: s.minSliceAngle,
+                  },
                 },
               },
             },
-          },
-          // PieTooltip / PieLegend auto-pick the first visible pie series
-          // when seriesId is omitted — there's only one in the playground,
-          // so emitting it would just be noise in the copied snippet.
-          ...(s.tooltipVisible ? [{ component: 'PieTooltip', props: {} }] : []),
-          ...(s.legendVisible
-            ? [
-                {
-                  component: 'PieLegend',
-                  props: { position: s.legendPosition, mode: s.legendMode },
-                },
-              ]
-            : []),
-        ],
-      })}
+            // PieTooltip / PieLegend auto-pick the first visible pie series
+            // when seriesId is omitted — there's only one in the playground,
+            // so emitting it would just be noise in the copied snippet.
+            ...(s.tooltipVisible ? [{ component: 'PieTooltip', props: {} }] : []),
+            ...(s.legendVisible
+              ? [
+                  {
+                    component: 'PieLegend',
+                    props: { position: s.legendPosition, mode: s.legendMode },
+                  },
+                ]
+              : []),
+          ],
+        };
+      }}
     />
   );
 }

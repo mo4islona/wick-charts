@@ -377,7 +377,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       animationKinds={['line']}
       extraDefaults={(mobile) => ({
         dataMode: 'wave',
-        areaVisible: false,
+        areaVisible: true,
         strokeWidth: 1,
         stacking: 'off',
         tooltipSort: 'desc',
@@ -439,17 +439,32 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
                 ...(Object.keys(options).length > 0 ? { options } : {}),
               },
             },
-            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
+            ...(s.infoBarVisible
+              ? [{ component: 'InfoBar', ...(s.tooltipSort !== 'none' ? { props: { sort: s.tooltipSort } } : {}) }]
+              : []),
             ...(s.tooltipVisible
               ? [
-                  s.tooltipCustom
-                    ? { component: 'Tooltip', childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS }
-                    : { component: 'Tooltip' },
+                  {
+                    component: 'Tooltip',
+                    ...(s.tooltipSort !== 'none' ? { props: { sort: s.tooltipSort } } : {}),
+                    ...(s.tooltipCustom ? { childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS } : {}),
+                  },
                 ]
               : []),
             ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
             ...(yVisible ? [{ component: 'YAxis' }] : []),
             ...(xVisible ? [{ component: 'XAxis' }] : []),
+            ...(s.legendPos !== 'off'
+              ? [
+                  {
+                    component: 'Legend',
+                    props: {
+                      ...(s.legendPos !== 'bottom' ? { position: s.legendPos } : {}),
+                      ...(s.legendMode !== 'toggle' ? { mode: s.legendMode } : {}),
+                    },
+                  },
+                ]
+              : []),
             ...buildNavigatorComponent(s, 'data[0]'),
           ],
         };
