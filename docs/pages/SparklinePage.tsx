@@ -8,9 +8,10 @@ import {
   type TimePoint,
 } from '@wick-charts/react';
 
+import type { PropValue } from '../components/CodePreview';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Select, Slider, ToggleGroup } from '../components/playground/primitives';
+import { BoundInput, Select, Slider, ToggleGroup, parseBound } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import {
   type LineStrategy,
@@ -40,6 +41,9 @@ const SPARK_SEED = 2;
 const SPARK_POINTS_MIN = 10;
 const SPARK_POINTS_MAX = SPARK_HISTORY;
 const SPARK_POINTS_DEFAULT = 80;
+
+// Line thickness in CSS px — mirrors the Sparkline component's strokeWidth default.
+const SPARK_STROKE_DEFAULT = 1.5;
 
 // Streaming cadence — sparklines look better moving at a brisk pace than the
 // canonical 5s bar interval. Faster speed = fresh bars every ~500ms.
@@ -131,13 +135,23 @@ type Preset = 'crypto' | 'servers' | 'metrics' | 'monotonic';
 //           from tick 1. Equivalent to the dashboard streaming pattern.
 type SparklineMode = 'static' | 'flow' | 'live';
 
+// Where the flow-mode seed sits at mount — drives the fly-in direction. Mirrors
+// the Sparkline `flow.align` prop.
+type SparklineFlowAlign = 'left' | 'right' | 'offscreen';
+
 interface SparklineSettings {
   variant: SparklineVariant;
   valuePos: SparklineValuePosition;
   areaVisible: boolean;
+  strokeWidth: number;
+  // BoundInput strings ('auto' | a number | a '+10%' offset) — parsed to the
+  // Sparkline `yRange` prop. 'auto' on a side leaves that edge auto-scaled.
+  yMin: string;
+  yMax: string;
   preset: Preset;
   mode: SparklineMode;
   points: number;
+  flowAlign: SparklineFlowAlign;
 }
 
 // ── Page ────────────────────────────────────────────────────
@@ -147,9 +161,13 @@ function SparklineGrid(
     SparklineSettings & {
       rows: MetricRow[];
       mobile: boolean;
-      flow?: { capacity: number };
+      flow?: { capacity: number; align?: SparklineFlowAlign };
     },
 ) {
+  const min = parseBound(props.yMin);
+  const max = parseBound(props.yMax);
+  const yRange = min !== undefined || max !== undefined ? { min, max } : undefined;
+
   return (
     <div
       style={{
@@ -170,6 +188,8 @@ function SparklineGrid(
           sublabel={row.sublabel}
           color={row.color}
           area={{ visible: props.areaVisible }}
+          strokeWidth={props.strokeWidth}
+          yRange={yRange}
           gradient={props.gradient}
           flow={props.flow}
           width={props.mobile ? 120 : 150}
@@ -214,6 +234,48 @@ const SERIES_SECTION: SectionSpec = {
         />
       ),
     },
+    {
+      key: 'strokeWidth',
+      label: 'Stroke width',
+      hint: 'Line thickness in CSS pixels — line variant only',
+      visible: (s) => s.variant === 'line',
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={0.5}
+          max={4}
+          step={0.5}
+          suffix="px"
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'points',
+      label: 'Points',
+      hint: 'Number of data points in the visible window',
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={SPARK_POINTS_MIN}
+          max={SPARK_POINTS_MAX}
+          step={1}
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'yMin',
+      label: 'Min Y',
+      hint: 'Fixed lower bound for the line/bar (or auto). Pin to 0 for a stable baseline.',
+      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
+    },
+    {
+      key: 'yMax',
+      label: 'Max Y',
+      hint: 'Fixed upper bound for the line/bar (or auto)',
+      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
+    },
   ] as RowSpec[],
 };
 
@@ -242,30 +304,26 @@ const DEMO_SECTION: SectionSpec = {
       ),
     },
     {
-      key: 'points',
-      label: 'Points',
-      hint: 'Number of data points in the visible window',
+      key: 'flowAlign',
+      label: 'Flow align',
+      hint: 'Where the seed sits at mount — drives the fly-in direction',
+      visible: (s) => s.mode === 'flow',
       render: (v, onChange) => (
-        <Slider
-          value={v as number}
-          min={SPARK_POINTS_MIN}
-          max={SPARK_POINTS_MAX}
-          step={1}
-          onChange={onChange as (v: number) => void}
+        <Select<SparklineFlowAlign>
+          value={v as SparklineFlowAlign}
+          options={[
+            { value: 'right', label: 'Right edge' },
+            { value: 'left', label: 'Left edge' },
+            { value: 'offscreen', label: 'Off-screen' },
+          ]}
+          onChange={onChange as (v: SparklineFlowAlign) => void}
         />
       ),
     },
-  ] as RowSpec[],
-};
-
-const VALUE_SECTION: SectionSpec = {
-  id: 'value',
-  title: 'Value',
-  icon: ICONS.display,
-  rows: [
     {
       key: 'valuePos',
-      label: 'Position',
+      label: 'Value position',
+      hint: 'Where the value block sits relative to the chart — a demo card concern, not a chart prop',
       render: (v, onChange) => (
         <ToggleGroup<SparklineValuePosition>
           value={v as SparklineValuePosition}
@@ -278,17 +336,13 @@ const VALUE_SECTION: SectionSpec = {
         />
       ),
     },
-  ] as RowSpec[],
-};
-
-const DATASET_SECTION: SectionSpec = {
-  id: 'dataset',
-  title: 'Dataset',
-  icon: ICONS.data,
-  rows: [
     {
+      // The dataset preset only swaps the mock data the cards render — a demo
+      // concern, not a Sparkline prop — so it lives in Demo, not the chart-prop
+      // "Sparkline" section.
       key: 'preset',
-      label: 'Preset',
+      label: 'Dataset',
+      hint: 'Which mock dataset the preview cards render',
       render: (v, onChange) => (
         <Select<Preset>
           value={v as Preset}
@@ -346,7 +400,13 @@ function AnimatedSparklineGrid({ seeds, flow, ...props }: AnimatedGridProps) {
     data: datasets[i]?.length ? datasets[i] : seriesHistory[i],
   }));
 
-  return <SparklineGrid {...props} rows={rows} flow={flow ? { capacity: props.points } : undefined} />;
+  return (
+    <SparklineGrid
+      {...props}
+      rows={rows}
+      flow={flow ? { capacity: props.points, align: props.flowAlign } : undefined}
+    />
+  );
 }
 
 export function SparklinePage({ theme }: { theme: ChartTheme }) {
@@ -371,15 +431,22 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
       theme={theme}
       hideCartesian
       showPerfHud={false}
+      // Sparkline owns its internal animations (fixed flow drive-in, no axes) —
+      // suppress the built-in candle/bar/line + X/Y Animations section entirely.
+      animationKinds={[]}
       extraDefaults={{
         variant: 'line',
         valuePos: 'right',
         areaVisible: true,
+        strokeWidth: SPARK_STROKE_DEFAULT,
+        yMin: 'auto',
+        yMax: 'auto',
         preset: 'crypto',
-        mode: 'flow',
+        mode: 'live',
         points: SPARK_POINTS_DEFAULT,
+        flowAlign: 'right',
       }}
-      sections={[DEMO_SECTION, SERIES_SECTION, VALUE_SECTION, DATASET_SECTION]}
+      sections={[DEMO_SECTION, SERIES_SECTION]}
       charts={(props) => {
         const presetSeeds = seedsByPreset[props.preset];
         const seeds: RowSeed[] = presetSeeds.map((seed, i) => ({
@@ -407,7 +474,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
         // mid-flight by a fresh seed or new viewport pinning.
         return (
           <AnimatedSparklineGrid
-            key={`${props.preset}-${props.points}-${props.mode}`}
+            key={`${props.preset}-${props.points}-${props.mode}-${props.flowAlign}`}
             {...props}
             seeds={seeds}
             mobile={mobile}
@@ -415,20 +482,44 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
           />
         );
       }}
-      codeConfig={(s) => ({
-        theme: 'catppuccin.theme',
-        components: [
-          {
-            component: 'Sparkline',
-            props: {
-              data: 'data',
-              variant: s.variant,
-              valuePosition: s.valuePos,
-              ...(s.areaVisible ? { area: { visible: true } } : {}),
-            },
-          },
-        ],
-      })}
+      codeConfig={(s) => {
+        // Mirror the live props, emitting only what differs from the Sparkline
+        // defaults so the snippet stays minimal and tracks every panel control.
+        const props: Record<string, PropValue> = { data: 'data' };
+
+        if (s.variant !== 'line') props.variant = s.variant;
+        if (s.valuePos !== 'right') props.valuePosition = s.valuePos;
+
+        // Streaming modes pin a fixed-width window via `flow`. Flow mode also
+        // exposes the drive-in alignment; live just rolls at the right edge.
+        if (s.mode !== 'static') {
+          const flowProp: Record<string, PropValue> = { capacity: s.points };
+          if (s.mode === 'flow' && s.flowAlign !== 'right') flowProp.align = s.flowAlign;
+          props.flow = flowProp;
+        }
+
+        if (s.variant === 'line' && s.strokeWidth !== SPARK_STROKE_DEFAULT) props.strokeWidth = s.strokeWidth;
+        if (!s.areaVisible) props.area = { visible: false };
+
+        // Emit `yRange` only for the sides the user pinned away from auto.
+        const yMin = parseBound(s.yMin);
+        const yMax = parseBound(s.yMax);
+        if (yMin !== undefined || yMax !== undefined) {
+          const range: Record<string, PropValue> = {};
+          if (yMin !== undefined) range.min = yMin as PropValue;
+          if (yMax !== undefined) range.max = yMax as PropValue;
+          props.yRange = range;
+        }
+
+        if (!s.gradient) props.gradient = false;
+
+        return {
+          theme: 'catppuccin.theme',
+          // Sparkline manages its own ChartContainer — render it standalone.
+          container: false,
+          components: [{ component: 'Sparkline', props }],
+        };
+      }}
     />
   );
 }

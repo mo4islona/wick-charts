@@ -25,13 +25,18 @@ import {
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Toggle } from '../components/playground/primitives';
+import { Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateOHLCData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useIsMobile, useOHLCStream } from '../hooks';
 
+type CandleBodyWidth = 'thin' | 'normal' | 'wide';
+// normal = 0.6 mirrors the core CandlestickSeries `bodyWidthRatio` default.
+const CANDLE_BODY_MAP: Record<CandleBodyWidth, number> = { thin: 0.4, normal: 0.6, wide: 0.85 };
+
 interface CandleSettings {
+  bodyWidth: CandleBodyWidth;
   yLabelVisible: boolean;
   tooltipVisible: boolean;
   infoBarVisible: boolean;
@@ -52,6 +57,7 @@ function CandleChart({
   streaming,
   gradient,
   data,
+  bodyWidth,
   yLabelVisible,
   tooltipVisible,
   infoBarVisible,
@@ -96,7 +102,11 @@ function CandleChart({
     >
       <Title sub={sub}>{title}</Title>
       {infoBarVisible && <InfoBar />}
-      <CandlestickSeries id={sid} data={display} options={{ entryAnimation: candleEntryAnimation }} />
+      <CandlestickSeries
+        id={sid}
+        data={display}
+        options={{ entryAnimation: candleEntryAnimation, bodyWidthRatio: CANDLE_BODY_MAP[bodyWidth] }}
+      />
       {yLabelVisible && <YLabel seriesId={sid} />}
       {tooltipVisible && <Tooltip />}
       {crosshairVisible && <Crosshair />}
@@ -147,6 +157,30 @@ const DISPLAY_EXTRA: SectionSpec = {
   ] as RowSpec[],
 };
 
+const SERIES_SECTION: SectionSpec = {
+  id: 'series',
+  title: 'Series',
+  icon: ICONS.series,
+  rows: [
+    {
+      key: 'bodyWidth',
+      label: 'Body width',
+      hint: 'Candle body width as a fraction of the available slot',
+      render: (v, onChange) => (
+        <ToggleGroup<CandleBodyWidth>
+          value={v as CandleBodyWidth}
+          options={[
+            { value: 'thin', label: 'Thin' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'wide', label: 'Wide' },
+          ]}
+          onChange={onChange as (v: CandleBodyWidth) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
 export function CandlestickPage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
   const { steadyData, volatileData, trendingData } = useMemo(() => {
@@ -166,6 +200,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       id="candlestick"
       theme={theme}
       extraDefaults={(m) => ({
+        bodyWidth: 'normal',
         yLabelVisible: true,
         tooltipVisible: false,
         infoBarVisible: !m,
@@ -173,7 +208,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       })}
       gridTemplate="1fr 1fr 1fr"
       animationKinds={['candle']}
-      sections={[{ ...DISPLAY_EXTRA, icon: ICONS.display }]}
+      sections={[{ ...DISPLAY_EXTRA, icon: ICONS.display }, SERIES_SECTION]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -211,6 +246,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       codeConfig={(s) => {
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'candle'),
+          bodyWidthRatio: CANDLE_BODY_MAP[s.bodyWidth],
         };
 
         const containerProps = buildCartesianContainerProps(s) ?? {};
