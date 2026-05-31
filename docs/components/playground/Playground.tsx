@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 
-import type { AxisBound, AxisConfig, ChartTheme } from '@wick-charts/react';
+import type { AxisConfig, ChartTheme } from '@wick-charts/react';
 import { SlidersHorizontal, X } from 'lucide-react';
 
 import { useIsMobile } from '../../hooks';
@@ -9,7 +9,7 @@ import { Splitter } from '../Splitter';
 import { CodeTabs } from './CodeTabs';
 import { ICONS } from './icons';
 import { Panel } from './Panel';
-import { BoundInput, Select, Slider, Toggle, ToggleGroup } from './primitives';
+import { BoundInput, Select, Slider, Toggle, ToggleGroup, parseBound } from './primitives';
 import {
   type AnimationKind,
   type AxisCurve,
@@ -103,17 +103,6 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
 }
 
 // ── Helpers ──────────────────────────────────────────────────
-
-function parseBound(raw: string): AxisBound | undefined {
-  const s = raw.trim().toLowerCase();
-  if (!s || s === 'auto') return undefined;
-  if (s.endsWith('%')) return s;
-
-  const n = Number.parseFloat(s);
-  if (!Number.isNaN(n)) return n;
-
-  return undefined;
-}
 
 /** Flat playground state → nested library props. */
 function stateToChartProps<TExtra extends object>(
