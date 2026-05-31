@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { AxisBound } from '@wick-charts/react';
+
 // ── Toggle (replaces old Switch) ─────────────────────────────
 
 export function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -124,6 +126,22 @@ export function Slider({
 }
 
 // ── BoundInput ───────────────────────────────────────────────
+
+/**
+ * Parse a {@link BoundInput} string into an {@link AxisBound}:
+ * - `'auto'` / blank → `undefined` (auto-scale that edge)
+ * - a percentage offset (`'+10%'`) stays a string
+ * - a bare number parses to a number; anything unparseable → `undefined`
+ */
+export function parseBound(raw: string): AxisBound | undefined {
+  const s = raw.trim().toLowerCase();
+  if (!s || s === 'auto') return undefined;
+  if (s.endsWith('%')) return s;
+
+  const n = Number.parseFloat(s);
+
+  return Number.isNaN(n) ? undefined : n;
+}
 
 export function BoundInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const presets = ['auto', '0', '+10%', '+20%'];
