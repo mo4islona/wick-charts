@@ -187,4 +187,30 @@ describe('BarRenderer.render', () => {
     const range = r.getValueRange(0, 100);
     expect(range).toEqual({ min: -2, max: 5 });
   });
+
+  it('anchor:"right" sits the bar body flush left of its time tick (rightmost bar fits with padding.right=0)', () => {
+    const time = 55;
+    // entryAnimation:'none' paints the settled bar directly, so fillRect.x is
+    // the final body position with no entrance transform in the way.
+    const center = new BarRenderer(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none' });
+    const right = new BarRenderer(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none', anchor: 'right' });
+    center.setData([{ time, value: 5 }]);
+    right.setData([{ time, value: 5 }]);
+
+    const a = buildRenderContext({ yRange: { min: 0, max: 10 } });
+    const b = buildRenderContext({ yRange: { min: 0, max: 10 } });
+    center.render(a.ctx);
+    right.render(b.ctx);
+
+    const cx = a.timeScale.timeToBitmapX(time);
+    const centerX = a.spy.callsOf('fillRect')[0].args[0] as number;
+    const rightFill = b.spy.callsOf('fillRect')[0];
+    const rightX = rightFill.args[0] as number;
+    const width = rightFill.args[2] as number;
+
+    // Right anchor lands the body's right edge exactly on the time tick...
+    expect(rightX + width).toBe(cx);
+    // ...so it's drawn further left than the centered body.
+    expect(rightX).toBeLessThan(centerX);
+  });
 });

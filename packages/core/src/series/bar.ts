@@ -16,6 +16,7 @@ const DEFAULT_OPTIONS: ResolvedBarOptions = {
   colors: ['#26a69a', '#ef5350'],
   barWidthRatio: 0.6,
   stacking: 'off',
+  anchor: 'center',
   entryMs: DEFAULT_BAR_ENTRY,
   smoothMs: DEFAULT_BAR_SMOOTH,
 };
@@ -26,6 +27,27 @@ function normalize(options: BarSeriesOptions): ResolvedBarOptions {
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_BAR_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_BAR_SMOOTH),
   };
+}
+
+/** One bar's draw spec for {@link BarRenderer.drawAnimatedBar} — grouped into
+ *  a single object so call sites read by name instead of eight positional
+ *  args. */
+interface AnimatedBar {
+  context: CanvasRenderingContext2D;
+  /** Entrance progress 0→1; `>= 1` paints the settled bar with no transform. */
+  progress: number;
+  /** Y the bar grows from during entrance — the zero line, or the segment's
+   *  own base for stacked bars. */
+  baselineY: number;
+  /** Top edge of the settled bar, in bitmap px. */
+  topY: number;
+  /** Settled bar height, in bitmap px. */
+  barHeight: number;
+  /** Left edge of the bar body, in bitmap px. */
+  x: number;
+  /** Bar body width, in bitmap px. */
+  barWidth: number;
+  color: string;
 }
 
 export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
@@ -139,6 +161,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
     const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
     const halfBody = Math.floor(bodyWidth / 2);
+    // anchor='right' draws the body so its right edge sits on the time tick,
+    // letting the rightmost bar fit on canvas with padding.right = 0.
+    const anchorOffset = this.options.anchor === 'right' ? bodyWidth : halfBody;
 
     const yRange = yScale.getRange();
     const hasNegative = yRange.min < 0;
@@ -164,20 +189,29 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         if (value >= 0) {
           const topY = yScale.valueToBitmapY(value);
           const barHeight = Math.max(1, zeroY - topY);
-          this.drawAnimatedBar(
+          this.drawAnimatedBar({
             context,
             progress,
-            zeroY,
+            baselineY: zeroY,
             topY,
             barHeight,
-            cx - halfBody,
-            bodyWidth,
-            value >= 0 ? posColor : negColor,
-          );
+            x: cx - anchorOffset,
+            barWidth: bodyWidth,
+            color: posColor,
+          });
         } else {
           const bottomY = yScale.valueToBitmapY(value);
           const barHeight = Math.max(1, bottomY - zeroY);
-          this.drawAnimatedBar(context, progress, zeroY, zeroY, barHeight, cx - halfBody, bodyWidth, negColor);
+          this.drawAnimatedBar({
+            context,
+            progress,
+            baselineY: zeroY,
+            topY: zeroY,
+            barHeight,
+            x: cx - anchorOffset,
+            barWidth: bodyWidth,
+            color: negColor,
+          });
         }
       }
     } else {
@@ -222,11 +256,29 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, zeroY - topY);
-            this.drawAnimatedBar(context, progress, zeroY, topY, barHeight, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: zeroY,
+              topY,
+              barHeight,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           } else {
             const bottomY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, bottomY - zeroY);
-            this.drawAnimatedBar(context, progress, zeroY, zeroY, barHeight, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: zeroY,
+              topY: zeroY,
+              barHeight,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           }
         }
       }
@@ -262,6 +314,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
     const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
     const halfBody = Math.floor(bodyWidth / 2);
+    // anchor='right' draws the body so its right edge sits on the time tick,
+    // letting the rightmost bar fit on canvas with padding.right = 0.
+    const anchorOffset = this.options.anchor === 'right' ? bodyWidth : halfBody;
 
     // Collect data per layer, gating on alpha (not the binary store flag) so
     // a layer mid-fade still contributes shrinking geometry to the stack
@@ -293,8 +348,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
 
     // Draw layer by layer, bottom to top. A fading layer shrinks via
-    // alpha-weighted cumulative (its slice height goes to zero as alpha → 0)
-    // — bars don't take an additional opacity fade because the geometry
+    // alpha-weighted cumulative (its slice height goes to zero as alpha → 0) —
+    // bars don't take an additional opacity fade because the geometry
     // collapse already reads cleanly as the layer leaving the stack.
     for (let li = 0; li < layers.length; li++) {
       const color = this.options.colors[li % this.options.colors.length];
@@ -331,26 +386,62 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const topY = yScale.valueToBitmapY(pctTop);
             const bottomY = yScale.valueToBitmapY(pctBase);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar(context, progress, bottomY, topY, h, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: bottomY,
+              topY,
+              barHeight: h,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           } else if (raw < 0 && totalNegative < 0) {
             const pctBase = (baseNegative / totalNegative) * -100;
             const pctTop = ((baseNegative + raw) / totalNegative) * -100;
             const topY = yScale.valueToBitmapY(pctBase);
             const bottomY = yScale.valueToBitmapY(pctTop);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar(context, progress, topY, topY, h, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: topY,
+              topY,
+              barHeight: h,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           }
         } else {
           if (raw > 0) {
             const topY = yScale.valueToBitmapY(basePositive + raw);
             const bottomY = yScale.valueToBitmapY(basePositive);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar(context, progress, bottomY, topY, h, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: bottomY,
+              topY,
+              barHeight: h,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           } else {
             const topY = yScale.valueToBitmapY(baseNegative);
             const bottomY = yScale.valueToBitmapY(baseNegative + raw);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar(context, progress, topY, topY, h, cx - halfBody, bodyWidth, color);
+            this.drawAnimatedBar({
+              context,
+              progress,
+              baselineY: topY,
+              topY,
+              barHeight: h,
+              x: cx - anchorOffset,
+              barWidth: bodyWidth,
+              color,
+            });
           }
         }
       }
@@ -367,16 +458,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
    * this is equivalent to {@link fillBar}. During entrance the transform shapes
    * geometry (grow from baseline, slide in from the right) and/or alpha.
    */
-  private drawAnimatedBar(
-    context: CanvasRenderingContext2D,
-    progress: number,
-    baselineY: number,
-    topY: number,
-    barHeight: number,
-    x: number,
-    barWidth: number,
-    color: string,
-  ): void {
+  private drawAnimatedBar(bar: AnimatedBar): void {
+    const { context, progress, baselineY, topY, barHeight, x, barWidth, color } = bar;
+
     const style = this.options.entryAnimation ?? 'fade-grow';
     if (progress >= 1 || style === 'none') {
       this.fillBar(context, x, topY, barWidth, barHeight, color);

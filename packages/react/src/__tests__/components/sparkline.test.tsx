@@ -133,4 +133,17 @@ describe('Sparkline', () => {
 
     expect(host.textContent).not.toContain('BTC');
   });
+
+  it.each([undefined, 'right', 'left', 'offscreen'] as const)('flow mode renders for align=%s', (align) => {
+    act(() => {
+      render(<Sparkline data={data} theme={catppuccin.theme} flow={{ capacity: 10, align }} />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    const canvas = host.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas).not.toBeNull();
+    canvas.getContext('2d');
+    // The seed line draws regardless of where the flow window anchors it.
+    expect(canvas.__spy!.countOf('lineTo')).toBeGreaterThan(0);
+  });
 });

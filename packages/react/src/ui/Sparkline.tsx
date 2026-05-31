@@ -13,13 +13,22 @@ export interface SparklineProps {
   /** Data points plotted by the sparkline. A flat `TimePoint[]` — the sparkline only ever shows one tiny line/bar. */
   data: TimePoint[];
   /**
-   * Streaming-window mode: viewport is fixed at `capacity` bars wide and
-   * stays anchored at the time of the first data point until the window
-   * fills. New ticks flow into the empty right side instead of expanding
-   * the visible range. Pass at least one seed point in `data` so the
-   * initial window has a time anchor.
+   * Streaming-window mode: viewport is fixed at `capacity` bars wide. Pass
+   * at least two seed points in `data` so the initial window can infer the
+   * tick interval.
+   *
+   * `align` controls where the seed sits at mount:
+   * - `'right'` *(default)* — seed flush with the right edge; each tick
+   *   shifts the viewport left by one interval and the new tick lands at
+   *   the right edge.
+   * - `'left'` — seed flush with the left edge; the viewport is held in
+   *   place until empty bars on the right are consumed, then normal
+   *   tail-scroll resumes.
+   * - `'offscreen'` — seed starts one interval past the right edge so the
+   *   first tick's tail-scroll animates it onto canvas (a brief "drive-in"
+   *   effect).
    */
-  flow?: { capacity: number };
+  flow?: { capacity: number; align?: 'left' | 'right' | 'offscreen' };
   /** Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block. */
   theme: ChartTheme;
   /** 'line' (default) or 'bar' */
@@ -115,23 +124,39 @@ export function Sparkline({
   // `viewportChange` emit on Y advance, so the chart handles streaming
   // stability itself — Sparkline can drop its local fix.
 
-  // Captured-at-mount viewport for flow mode. Pins the latest seed point near
-  // the RIGHT edge of the visible window (3-interval right pad, matching the
-  // viewport default) with empty space stretching to the LEFT. New ticks
-  // arrive at the right side and existing points slide LEFT — the "drive-in"
-  // effect. Requires at least 2 seed points so `interval` can be inferred;
-  // falls back to undefined otherwise (chart fits to data normally).
-  // Subsequent renders don't recompute because ChartContainer ignores viewport
-  // prop changes after mount.
+  // Captured-at-mount viewport for flow mode. Three layouts, see the
+  // `flow.align` docstring on SparklineProps for the user-facing summary.
+  //
+  // - 'left' uses the `{ from, bars }` form, which arms the viewport's
+  //   warm-up hold (#holdUntilFilled) so it stays put while empty bars on
+  //   the right are consumed, then releases to normal tail-scroll.
+  // - 'right' and 'offscreen' use `{ from, to }`, which leaves the hold off
+  //   so tail-scroll kicks in on the first tick. The only difference is
+  //   `to`: at `last` the seed sits flush right; at `last - interval` the
+  //   seed sits one interval past the right edge and the first tick's scroll
+  //   animates it into view.
+  //
+  // Requires at least 2 seed points so `interval` can be inferred; falls
+  // back to undefined otherwise (chart fits to data normally). Subsequent
+  // renders don't recompute because ChartContainer ignores viewport prop
+  // changes after mount.
   const viewport = useMemo(() => {
     if (!flow || data.length < 2) return undefined;
 
     const interval = data[1].time - data[0].time;
     if (interval <= 0) return undefined;
 
+    const align = flow.align ?? 'right';
+
+    if (align === 'left') {
+      return {
+        maxVisibleBars: flow.capacity,
+        initialRange: { from: data[0].time, bars: flow.capacity } as const,
+      };
+    }
+
     const last = data[data.length - 1].time;
-    const rightPad = 3 * interval;
-    const to = last + rightPad;
+    const to = align === 'offscreen' ? last - interval : last;
     const from = to - flow.capacity * interval;
 
     return {
@@ -238,6 +263,7 @@ export function Sparkline({
               colors: [resolvedColor, resolvedNegColor],
               barWidthRatio: 0.7,
               stacking: 'off',
+              anchor: 'right',
             }}
           />
         )}
