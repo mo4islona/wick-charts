@@ -63,9 +63,9 @@ Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, 
 
 | Scenario | Raw | Gzip | Brotli |
 |---|---:|---:|---:|
-| Candlestick only | 147 KB | 44 KB | 38 KB |
-| Line only        | 147 KB | 44 KB | 38 KB |
-| Full React       | 164 KB | 49 KB | 41 KB |
+| Candlestick only | 165.2 kB | 49.5 kB | 42.3 kB |
+| Line only        | 165.3 kB | 49.5 kB | 42.4 kB |
+| Full React       | 183.3 kB | 54.6 kB | 46.5 kB |
 
 ## Migration
 
