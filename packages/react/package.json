@@ -8,7 +8,7 @@
     "url": "git+https://github.com/mo4islona/wick-charts.git",
     "directory": "packages/react"
   },
-  "homepage": "https://mo4islona.github.io/wick-charts/",
+  "homepage": "https://wick-charts.eeff.io/",
   "bugs": "https://github.com/mo4islona/wick-charts/issues",
   "keywords": [
     "charts",
