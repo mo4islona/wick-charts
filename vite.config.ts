@@ -27,11 +27,13 @@ export default defineConfig(({ command, mode }) => {
     };
   }
 
-  // Docs build (GitHub Pages): npm run build:docs
+  // Docs build (Cloudflare Pages, custom domain): npm run build:docs.
+  // Served at the domain root, so base is '/' (assets resolve from any depth,
+  // which matters for prerendered nested routes like /charts/candlestick/).
   if (command === 'build' && mode === 'docs') {
     return {
       root: 'docs',
-      base: '/wick-charts/',
+      base: '/',
       build: {
         outDir: resolve(__dirname, 'docs-dist'),
         emptyOutDir: true,
