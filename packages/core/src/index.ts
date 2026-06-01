@@ -114,6 +114,7 @@ export type {
   VisibleRange,
   VisibleRangeSpec,
   XAxisConfig,
+  XRange,
   YAxisConfig,
   YRange,
 } from './types';
