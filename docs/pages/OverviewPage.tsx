@@ -43,17 +43,12 @@ const MAX_POINTS = 300;
 // out — the headline chart is meant to showcase candle rendering quality.
 const INITIAL_CANDLE_BARS = 35;
 
-// The speed slider is a developer-only escape hatch; hidden unless `debug`
-// appears in the URL. Docs uses hash routing, so the flag may live in
-// either `?debug` (before the hash) or `#/route?debug` (after it).
+// The speed slider is a developer-only escape hatch; hidden unless `?debug`
+// appears in the URL.
 function hasDebugFlag(): boolean {
   if (typeof window === 'undefined') return false;
-  const search = new URLSearchParams(window.location.search);
-  if (search.has('debug')) return true;
-  const hash = window.location.hash;
-  const hashQueryStart = hash.indexOf('?');
-  if (hashQueryStart === -1) return false;
-  return new URLSearchParams(hash.slice(hashQueryStart)).has('debug');
+
+  return new URLSearchParams(window.location.search).has('debug');
 }
 const DEBUG = hasDebugFlag();
 

@@ -201,6 +201,20 @@ export function getTitle(route: Route): string {
   return entry?.title ?? '';
 }
 
+/** Sidebar label for a route (e.g. `'api/bar-series'` → `'BarSeries'`). */
+export function labelForRoute(route: Route): string {
+  const entry = ALL_ENTRIES.find((e) => e.route === route);
+
+  return entry?.label ?? route;
+}
+
+/**
+ * Production routes that get prerendered to static HTML and listed in the
+ * sitemap. Excludes the dev-only `stress-test` page. Exposed to the prerender
+ * crawler via `window.__WICK_ROUTES__` (see docs/main.tsx).
+ */
+export const PRERENDER_ROUTES: Route[] = ALL_ENTRIES.filter((e) => e.route !== 'stress-test').map((e) => e.route);
+
 /**
  * Section heading for a given route — used by the breadcrumb on subcomponent
  * and chart pages. Walks one level into `subsections` so a route under

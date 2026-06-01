@@ -38,6 +38,9 @@ jobs:
           fail_ci_if_error: false
           use_oidc: true
       - run: pnpm build
+      # Smoke-check the docs SPA bundle (the full prerender + deploy runs in
+      # deploy-cloudflare.yml on push to main; this just catches build breakage).
+      - run: pnpm build:docs
       # Cross-framework prop-set parity guard. Kept as its own step (rather
       # than a `pretest` hook) so a local `pnpm test` doesn't fail on
       # unrelated drift; CI is the contract enforcer.

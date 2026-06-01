@@ -1,0 +1,58 @@
+name: Deploy docs to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Restore Puppeteer's Chromium before install so the postinstall download
+      # is a no-op on a cache hit. Keyed on the lockfile so a Puppeteer bump
+      # invalidates it.
+      - name: Cache Puppeteer Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm install --frozen-lockfile
+
+      # Explicit install guarantees a browser even if pnpm skipped the
+      # dependency's postinstall script.
+      - run: pnpm exec puppeteer browsers install chrome
+
+      # vite build (base '/') + headless-Chromium prerender → docs-dist with a
+      # static HTML page per route, plus sitemap.xml / robots.txt / 404.html.
+      - run: pnpm build:seo
+
+      # Call Wrangler directly via `pnpm dlx` rather than cloudflare/wrangler-action:
+      # the action auto-installs Wrangler with `pnpm add` (no -w flag), which fails
+      # in this pnpm workspace (ERR_PNPM_ADDING_TO_ROOT). `pnpm dlx` runs it from a
+      # temp dir, sidestepping the workspace entirely. The Pages project already
+      # exists, so we just deploy into it.
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4 pages deploy docs-dist --project-name=wick-charts --branch=main

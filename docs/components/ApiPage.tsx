@@ -23,6 +23,7 @@ import {
   isReactOnly,
   resolveBodyExample,
 } from '../pages/api/snippets';
+import { routeToPath } from '../router';
 import type { Route } from '../routes';
 import { hexToRgba } from '../utils';
 import { type ApiProp, ApiTable } from './ApiTable';
@@ -151,7 +152,7 @@ function DemoLink({ demoRoute, theme }: { demoRoute: Route; theme: ChartTheme })
 
   return (
     <a
-      href={`#${demoRoute}`}
+      href={routeToPath(demoRoute)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -221,9 +222,11 @@ function ReactOnlyNotice({ theme, component, fw }: { theme: ChartTheme; componen
       }}
     >
       <strong>{component}</strong> is currently only available in{' '}
-      <span className="md-inline-code" style={{ fontFamily: 'inherit' }}>@wick-charts/react</span>. The {FRAMEWORK_META[fw].label} package does not export
-      an equivalent component yet — the props reference below applies if you're using the React surface inside a mixed
-      app.
+      <span className="md-inline-code" style={{ fontFamily: 'inherit' }}>
+        @wick-charts/react
+      </span>
+      . The {FRAMEWORK_META[fw].label} package does not export an equivalent component yet — the props reference below
+      applies if you're using the React surface inside a mixed app.
     </div>
   );
 }

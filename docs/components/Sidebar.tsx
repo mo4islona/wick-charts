@@ -6,6 +6,7 @@ import { ChevronDown, X } from 'lucide-react';
 import { type Framework, useFramework } from '../context/framework';
 import { useLatestVersion } from '../hooks/useLatestVersion';
 import { HOOK_NAMES } from '../pages/api/frameworks';
+import { routeToPath } from '../router';
 import {
   type Route,
   type RouteEntry,
@@ -32,13 +33,11 @@ const SECTIONS: RouteSection[] = getSections(import.meta.env.DEV);
 
 export function Sidebar({
   route,
-  onNavigate,
   onClose,
   theme,
   mobile = false,
 }: {
   route: Route;
-  onNavigate: (r: Route) => void;
   /** Close handler — only used by the mobile overlay drawer. */
   onClose?: () => void;
   theme: ChartTheme;
@@ -109,9 +108,8 @@ export function Sidebar({
           boxSizing: 'border-box',
         }}
       >
-        <button
-          type="button"
-          onClick={() => onNavigate('overview')}
+        <a
+          href={routeToPath('overview')}
           aria-label="Go to overview"
           style={{
             display: 'flex',
@@ -122,6 +120,7 @@ export function Sidebar({
             padding: 0,
             cursor: 'pointer',
             color: 'inherit',
+            textDecoration: 'none',
             fontFamily: 'inherit',
             textAlign: 'left',
             minWidth: 0,
@@ -144,7 +143,7 @@ export function Sidebar({
               </span>
             )}
           </span>
-        </button>
+        </a>
         {mobile && onClose && (
           <button
             type="button"
@@ -175,12 +174,11 @@ export function Sidebar({
             return (
               <div key={`s-${sIdx}`} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {(section.items ?? []).map((item) => (
-                  <NavButton
+                  <NavLink
                     key={item.route}
                     item={item}
                     label={labelFor(item, fw)}
                     active={item.route === route}
-                    onNavigate={onNavigate}
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
@@ -207,12 +205,11 @@ export function Sidebar({
               />
               {open &&
                 (section.items ?? []).map((item) => (
-                  <NavButton
+                  <NavLink
                     key={item.route}
                     item={item}
                     label={labelFor(item, fw)}
                     active={item.route === route}
-                    onNavigate={onNavigate}
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
@@ -228,12 +225,11 @@ export function Sidebar({
                     <div key={sub.heading} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <SubsectionLabel heading={sub.heading} theme={theme} fontSize={fontSize} />
                       {(sub.items ?? []).map((item) => (
-                        <NavButton
+                        <NavLink
                           key={item.route}
                           item={item}
                           label={labelFor(item, fw)}
                           active={item.route === route}
-                          onNavigate={onNavigate}
                           theme={theme}
                           mobile={mobile}
                           fontSize={fontSize}
@@ -323,11 +319,10 @@ function SectionHeader({
   );
 }
 
-function NavButton({
+function NavLink({
   item,
   label,
   active,
-  onNavigate,
   theme,
   mobile,
   fontSize,
@@ -338,7 +333,6 @@ function NavButton({
   /** Display label override — defaults to `item.label`. Used for per-framework hook renames. */
   label?: string;
   active: boolean;
-  onNavigate: (r: Route) => void;
   theme: ChartTheme;
   mobile: boolean;
   fontSize: number;
@@ -348,10 +342,11 @@ function NavButton({
   const displayLabel = label ?? item.label;
   const padLeft = indent ? 18 : 10;
 
+  // A real <a href> (crawlable, supports cmd-click → new tab) — the App-level
+  // click interceptor turns plain left-clicks into SPA navigations.
   return (
-    <button
-      type="button"
-      onClick={() => onNavigate(item.route)}
+    <a
+      href={routeToPath(item.route)}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -366,6 +361,7 @@ function NavButton({
         fontSize,
         fontFamily: 'inherit',
         fontWeight: active ? 600 : 400,
+        textDecoration: 'none',
         cursor: 'pointer',
         transition: 'background 0.1s, color 0.1s',
         whiteSpace: 'nowrap',
@@ -379,6 +375,6 @@ function NavButton({
       }}
     >
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayLabel}</span>
-    </button>
+    </a>
   );
 }
