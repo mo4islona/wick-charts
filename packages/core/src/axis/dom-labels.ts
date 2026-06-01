@@ -15,6 +15,7 @@
 
 import type { ChartInstance } from '../chart';
 import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
+import type { ChartTheme } from '../theme/types';
 import { formatTime } from '../utils/time';
 
 export interface MountAxisLabelsOptions {
@@ -40,6 +41,9 @@ const VISIBLE_OPACITY_EPS = 0.01;
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis } = opts;
   const spans = new Map<number, HTMLSpanElement>();
+  // Last theme whose colors/fonts were written to the spans' inline styles.
+  // A reference change in `sync` triggers a one-shot restyle of reused spans.
+  let appliedTheme: ChartTheme | null = null;
   const tracker = axis === 'x' ? chart.timeScale.tickTracker : chart.yScale.tickTracker;
 
   function currentTicks(): { ticks: readonly number[]; tickInterval: number } {
@@ -66,15 +70,22 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     el.style.top = `${chart.yScale.valueToY(value)}px`;
   }
 
-  function createSpan(value: number, tickInterval: number): HTMLSpanElement {
-    const theme = chart.getTheme();
+  // Theme-derived styles are written to inline `style`, so they're effectively
+  // cached on the element. `sync` re-applies them whenever the theme changes —
+  // without that, a reused span keeps the previous palette's color/font after
+  // `setTheme` (the "axis text doesn't follow the theme" regression).
+  function applyThemeStyles(el: HTMLSpanElement, theme: ChartTheme): void {
+    el.style.color = resolveAxisTextColor(theme, axis);
+    el.style.fontSize = `${resolveAxisFontSize(theme, axis)}px`;
+    el.style.fontFamily = theme.typography.fontFamily;
+  }
+
+  function createSpan(value: number, tickInterval: number, theme: ChartTheme): HTMLSpanElement {
     const el = document.createElement('span');
     el.textContent = formatLabel(value, tickInterval);
     el.style.position = 'absolute';
     el.style.userSelect = 'none';
-    el.style.color = resolveAxisTextColor(theme, axis);
-    el.style.fontSize = `${resolveAxisFontSize(theme, axis)}px`;
-    el.style.fontFamily = theme.typography.fontFamily;
+    applyThemeStyles(el, theme);
     el.style.willChange = 'opacity';
 
     if (axis === 'x') {
@@ -92,6 +103,14 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   }
 
   function sync(): void {
+    const theme = chart.getTheme();
+    // `setTheme` swaps in a fresh theme object, so a reference change means the
+    // palette/typography moved and every reused span's inline styles are stale.
+    // Refresh them once per change rather than every frame — `sync` also fires
+    // on tickFrame / viewportChange, where the theme is unchanged.
+    const themeChanged = theme !== appliedTheme;
+    appliedTheme = theme;
+
     const { ticks, tickInterval } = currentTicks();
     tracker.setCurrentTicks(ticks);
     const { entries } = tracker.snapshot();
@@ -103,11 +122,12 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       seen.add(value);
       let el = spans.get(value);
       if (el === undefined) {
-        el = createSpan(value, tickInterval);
+        el = createSpan(value, tickInterval, theme);
         spans.set(value, el);
       } else {
         const next = formatLabel(value, tickInterval);
         if (el.textContent !== next) el.textContent = next;
+        if (themeChanged) applyThemeStyles(el, theme);
       }
 
       positionSpan(el, value);
