@@ -4,7 +4,7 @@ export const andromeda = createTheme({
   name: 'Andromeda',
   description: 'Deep space purples and cosmic blues',
   background: '#23262e',
-  grid: { color: 'rgba(90,88,100,0.3)' },
+  grid: { color: 'rgba(90,88,100,0.2)' },
   candlestick: {
     up: { body: autoGradient('#96e072'), wick: '#96e072' },
     down: { body: autoGradient('#ee5d43'), wick: '#ee5d43' },

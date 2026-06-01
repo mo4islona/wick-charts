@@ -8,7 +8,7 @@ export const quietLight = createTheme({
   // from `lightenHex(bg, 0.06)` — that landed at `#ffffff`, which read as
   // a hard white seam against the rest of the chrome.
   chartGradient: ['#fdfdfd', '#f5f5f5'],
-  grid: { color: 'rgba(200,200,200,0.5)' },
+  grid: { color: 'rgba(200,200,200,0.4)' },
   candlestick: {
     up: { body: autoGradient('#448c27'), wick: '#448c27' },
     down: { body: autoGradient('#aa3731'), wick: '#aa3731' },

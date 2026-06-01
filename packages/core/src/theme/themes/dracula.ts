@@ -5,7 +5,7 @@ export const dracula = createTheme({
   description: 'Classic dark with vibrant highlights',
   background: '#282a36',
   grid: {
-    color: 'rgba(108,113,140,0.3)',
+    color: 'rgba(108,113,140,0.2)',
   },
   candlestick: {
     up: { body: autoGradient('#50fa7b'), wick: '#50fa7b' },

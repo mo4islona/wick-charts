@@ -4,7 +4,7 @@ export const catppuccin = createTheme({
   name: 'Catppuccin',
   description: 'Pastel tones on a mocha base',
   background: '#1e1e2e',
-  grid: { color: 'rgba(90,92,116,0.22)' },
+  grid: { color: 'rgba(90,92,116,0.2)' },
   candlestick: {
     up: { body: autoGradient('#a6e3a1'), wick: '#a6e3a1' },
     down: { body: autoGradient('#f38ba8'), wick: '#f38ba8' },

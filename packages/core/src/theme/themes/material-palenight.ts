@@ -4,7 +4,7 @@ export const materialPalenight = createTheme({
   name: 'Material Palenight',
   description: 'Material Design in moonlit hues',
   background: '#292d3e',
-  grid: { color: 'rgba(95,99,120,0.3)' },
+  grid: { color: 'rgba(95,99,120,0.2)' },
   candlestick: {
     up: { body: autoGradient('#c3e88d'), wick: '#c3e88d' },
     down: { body: autoGradient('#f07178'), wick: '#f07178' },

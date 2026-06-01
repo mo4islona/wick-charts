@@ -4,7 +4,7 @@ export const oneDarkPro = createTheme({
   name: 'One Dark Pro',
   description: "Atom editor's iconic dark palette",
   background: '#282c34',
-  grid: { color: 'rgba(99,104,116,0.3)' },
+  grid: { color: 'rgba(99,104,116,0.2)' },
   candlestick: {
     up: { body: autoGradient('#98c379'), wick: '#98c379' },
     down: { body: autoGradient('#e06c75'), wick: '#e06c75' },

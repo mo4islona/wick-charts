@@ -4,7 +4,7 @@ export const gruvbox = createTheme({
   name: 'Gruvbox',
   description: 'Retro warm with earthy tones',
   background: '#282828',
-  grid: { color: 'rgba(100,94,90,0.3)' },
+  grid: { color: 'rgba(100,94,90,0.2)' },
   candlestick: {
     up: { body: autoGradient('#b8bb26'), wick: '#b8bb26' },
     down: { body: autoGradient('#fb4934'), wick: '#fb4934' },

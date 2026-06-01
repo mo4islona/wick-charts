@@ -17,7 +17,7 @@ export const handwritten: ThemePreset = {
       fontSize: 15,
     },
     grid: {
-      color: 'rgba(180,170,150,0.3)',
+      color: 'rgba(180,170,150,0.2)',
       style: 'solid',
     },
     candlestick: {

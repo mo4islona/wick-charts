@@ -4,7 +4,7 @@ export const nightOwl = createTheme({
   name: 'Night Owl',
   description: 'Crafted for late-night coding',
   background: '#011627',
-  grid: { color: 'rgba(71,92,118,0.3)' },
+  grid: { color: 'rgba(71,92,118,0.2)' },
   candlestick: {
     up: { body: autoGradient('#7ec699'), wick: '#7ec699' },
     down: { body: autoGradient('#e06c75'), wick: '#e06c75' },

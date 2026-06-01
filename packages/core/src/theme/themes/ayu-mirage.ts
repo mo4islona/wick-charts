@@ -4,7 +4,7 @@ export const ayuMirage = createTheme({
   name: 'Ayu Mirage',
   description: 'Warm dark with amber accents',
   background: '#1f2430',
-  grid: { color: 'rgba(82,90,108,0.3)' },
+  grid: { color: 'rgba(82,90,108,0.2)' },
   candlestick: {
     up: { body: autoGradient('#bae67e'), wick: '#bae67e' },
     down: { body: autoGradient('#f27983'), wick: '#f27983' },

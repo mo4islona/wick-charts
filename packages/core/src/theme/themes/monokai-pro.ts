@@ -4,7 +4,7 @@ export const monokaiPro = createTheme({
   name: 'Monokai Pro',
   description: 'Bold syntax colors on dark gray',
   background: '#2d2a2e',
-  grid: { color: 'rgba(104,100,102,0.3)' },
+  grid: { color: 'rgba(104,100,102,0.2)' },
   candlestick: {
     up: { body: autoGradient('#8ab862'), wick: '#8ab862' },
     down: { body: autoGradient('#d05470'), wick: '#d05470' },

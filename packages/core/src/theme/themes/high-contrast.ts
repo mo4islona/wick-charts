@@ -24,7 +24,7 @@ export const highContrast = createTheme({
     '#00cc33',
   ],
   bands: { upper: '#33ff66', lower: '#00802a' },
-  grid: { color: 'rgba(0,255,65,0.06)' },
+  grid: { color: 'rgba(0,255,65,0.08)' },
   axis: { textColor: '#00cc33' },
   crosshair: { color: 'rgba(0,255,65,0.3)', labelBackground: '#0a1a0a' },
   tooltip: { background: 'rgba(0,10,0,0.95)', textColor: '#00ff41', borderColor: 'rgba(0,255,65,0.2)' },
