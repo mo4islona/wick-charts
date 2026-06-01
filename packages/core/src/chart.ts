@@ -784,8 +784,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *
    * Typical use: on mount, zoom to the last N bars while keeping the full
    * buffer available for pan-back history inspection.
+   *
+   * `opts.gesture` (explicit `{ from, to }` form only) eases X and Y on the
+   * same fast, velocity-matched profile a user pan/zoom uses instead of the
+   * default programmatic settle (snap X, sticky-Y ease). Use it for
+   * multi-chart sync so a synced pane tracks the originating gesture in
+   * lockstep rather than lagging behind on the long sticky contract.
    */
-  setVisibleRange(spec: VisibleRangeSpec): void {
+  setVisibleRange(spec: VisibleRangeSpec, opts?: { gesture?: boolean }): void {
     if (typeof spec === 'number') {
       // Integer check rejects NaN, Infinity, and non-integers in one call;
       // the floor of 2 matches Viewport's applyRange minimum-span contract.
@@ -825,7 +831,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const to = normalizeTime(spec.to);
     this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
     this.#holdUntilFilled = false;
-    this.#commitLogical({ from, to }, { emitChange: true });
+    const changed = this.#commitLogical({ from, to }, { emitChange: true });
+
+    if (opts?.gesture) {
+      // Gesture mode (multi-chart sync): ease X and Y on the same fast,
+      // velocity-matched profile a hand pan/zoom uses rather than the
+      // sticky-Y programmatic settle, so a synced pane tracks the
+      // originating gesture in lockstep. Skip the engine retarget on a
+      // no-op commit — the source re-emits `viewportChange` every animation
+      // frame with an unchanged logical X, and re-arming the Y curve each
+      // frame would reset its segment clock and stall the ease.
+      if (changed) this.#commitGestureZoom();
+
+      return;
+    }
+
     this.#commitProgrammaticZoom();
   }
 
@@ -1591,13 +1611,55 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const now = performance.now();
     if (!this.#xInited || !this.#yInited) {
-      const yTarget = this.#computeYTarget(target);
-      this.#xInited = true;
-      if (yTarget !== null) this.#yInited = true;
-      this.#engine.snap({ x: target, y: yTarget ?? undefined }, now);
-    } else {
-      this.#engine.onProgrammaticZoom({ xTarget: target, xEase: opts?.xEase }, now);
+      this.#snapToLogical(now);
+
+      return;
     }
+
+    this.#engine.onProgrammaticZoom({ xTarget: target, xEase: opts?.xEase }, now);
+    this.#applyEngineState(now);
+  }
+
+  /**
+   * Commit the current logical X to the engine on the *gesture* profile:
+   * X and Y both ease over `animations.axis.{x,y}.gesture` via `onPanZoom`,
+   * exactly the path a user pan/zoom takes. Contrast {@link
+   * #commitProgrammaticZoom}, which snaps X and eases Y on the slower
+   * sticky-Y baseline.
+   *
+   * Used by `setVisibleRange(..., { gesture: true })` for multi-chart sync,
+   * so a synced pane re-fits its Y in lockstep with the originating gesture
+   * instead of lagging on the long sticky contract. First paint still snaps
+   * (same as the programmatic path) so synchronous readers see final values.
+   */
+  #commitGestureZoom(): void {
+    const target = this.#logical;
+    if (target.to <= target.from) return;
+
+    const now = performance.now();
+    if (!this.#xInited || !this.#yInited) {
+      this.#snapToLogical(now);
+
+      return;
+    }
+
+    this.#engine.onPanZoom({ xTarget: target, yAuto: true }, now);
+    this.#applyEngineState(now);
+  }
+
+  /**
+   * First-paint snap: land both axes on the current logical X immediately
+   * (Y via {@link #computeYTarget}) and flip the init flags so later commits
+   * ease instead of snapping. Shared by the programmatic and gesture zoom
+   * commits — both must snap before the chart has painted once so a
+   * synchronous `getYRange()` / `getVisibleRange()` read sees final values.
+   */
+  #snapToLogical(now: number): void {
+    const target = this.#logical;
+    const yTarget = this.#computeYTarget(target);
+    this.#xInited = true;
+    if (yTarget !== null) this.#yInited = true;
+    this.#engine.snap({ x: target, y: yTarget ?? undefined }, now);
     this.#applyEngineState(now);
   }
 
@@ -1612,17 +1674,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * drives the animation: `engine.onWake` already markedDirty, and the
    * follow-up `renderMain` syncs scales — a redundant `viewportChange`
    * emit here would just trigger a wasted React re-render per stream tick.
+   *
+   * Returns `true` when the range actually changed (passed validation and
+   * differed from the current logical), `false` on a no-op. Callers that
+   * drive the engine afterwards can skip a redundant retarget on `false` —
+   * see `setVisibleRange`'s gesture path, where a per-frame echo would
+   * otherwise re-arm and stall the in-flight Y ease.
    */
-  #commitLogical(range: XRange, opts: { emitChange: boolean; skipValidation?: boolean }): void {
+  #commitLogical(range: XRange, opts: { emitChange: boolean; skipValidation?: boolean }): boolean {
     const { from, to } = range;
-    if (!Number.isFinite(from) || !Number.isFinite(to)) return;
-    if (to <= from) return;
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return false;
+    if (to <= from) return false;
     // Streaming-target paths preserve the current visible range width verbatim;
     // skip the 2-bar minimum guard (it's user-input validation, not an
     // internal invariant). User-driven setRange / setVisibleRange leave it on.
-    if (!opts.skipValidation && (to - from) / this.#dataInterval < 2) return;
+    if (!opts.skipValidation && (to - from) / this.#dataInterval < 2) return false;
 
-    if (this.#logical.from === from && this.#logical.to === to) return;
+    if (this.#logical.from === from && this.#logical.to === to) return false;
 
     this.#logical = { from, to };
     if (opts.emitChange) {
@@ -1630,6 +1698,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#mainScheduler?.markDirty();
       this.emit('viewportChange');
     }
+
+    return true;
   }
 
   /**

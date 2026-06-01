@@ -59,7 +59,11 @@ type Apply = (source: ChartInstance, target: ChartInstance) => void;
 // array without useCallback. Both functions only use their src/dst args,
 // no closure over render-scope state.
 const applyViewport: Apply = (src, dst) => {
-  dst.setVisibleRange(src.getVisibleRange());
+  // `{ gesture: true }` eases the synced pane on the same fast, velocity-
+  // matched profile a hand pan/zoom uses instead of the slower programmatic
+  // settle — its Y axis tracks the originating gesture in lockstep rather
+  // than crawling behind on the sticky-Y contract.
+  dst.setVisibleRange(src.getVisibleRange(), { gesture: true });
 };
 
 const applyCrosshair: Apply = (src, dst) => {

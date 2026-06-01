@@ -88,10 +88,12 @@ const STEPS: Step[] = [
         Two thin wrappers around <code>useBroadcast</code>. <code>apply</code> functions live as module-level constants
         — stable identity, no <code>useCallback</code> dance, no listener re-binds on parent re-renders. Pan/zoom any
         chart and the rest follow; hover any pane and every pane's native <code>&lt;Crosshair&gt;</code> +{' '}
-        <code>&lt;Tooltip&gt;</code> tracks the same time x.
+        <code>&lt;Tooltip&gt;</code> tracks the same time x. The <code>{'{ gesture: true }'}</code> flag on{' '}
+        <code>setVisibleRange</code> eases the synced panes on the same fast profile as a hand pan/zoom, so their Y axes
+        re-fit in lockstep instead of crawling behind on the slower programmatic settle.
       </>
     ),
-    code: `// Module scope:\nconst applyViewport = (src, dst) => {\n  dst.setVisibleRange(src.getVisibleRange());\n};\n\nconst applyCrosshair = (src, dst) => {\n  const pos = src.getCrosshairPosition();\n  dst.setCrosshair(pos ? { time: pos.time } : null);\n};\n\nfunction useSyncViewport(charts) {\n  useBroadcast(charts, 'viewportChange', applyViewport);\n}\n\nfunction useSyncCrosshair(charts) {\n  useBroadcast(charts, 'crosshairMove', applyCrosshair);\n}\n\n// Parent:\nuseSyncViewport(charts);\nuseSyncCrosshair(charts);`,
+    code: `// Module scope:\nconst applyViewport = (src, dst) => {\n  // gesture: true — ease in lockstep with the driving pan/zoom\n  // instead of the slower programmatic (sticky-Y) settle.\n  dst.setVisibleRange(src.getVisibleRange(), { gesture: true });\n};\n\nconst applyCrosshair = (src, dst) => {\n  const pos = src.getCrosshairPosition();\n  dst.setCrosshair(pos ? { time: pos.time } : null);\n};\n\nfunction useSyncViewport(charts) {\n  useBroadcast(charts, 'viewportChange', applyViewport);\n}\n\nfunction useSyncCrosshair(charts) {\n  useBroadcast(charts, 'crosshairMove', applyCrosshair);\n}\n\n// Parent:\nuseSyncViewport(charts);\nuseSyncCrosshair(charts);`,
   },
 ];
 

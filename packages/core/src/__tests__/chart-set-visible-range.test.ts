@@ -4,13 +4,64 @@
  *
  * Covers both forms: explicit `{ from, to }` and shorthand bar-count.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ChartInstance } from '../chart';
+import { ChartInstance, type ChartOptions } from '../chart';
 
 const INTERVAL = 60_000;
 
-function makeChart(): { chart: ChartInstance; container: HTMLElement } {
+// Deterministic RAF + clock so animator ticks advance under our control —
+// the same stub pattern the streaming/zoom animation tests use. Gesture-mode
+// tests need this to observe the X spring easing and the Y re-fit settling.
+function installRaf(): {
+  flush: (frames?: number) => void;
+  advance: (ms: number) => void;
+  uninstall: () => void;
+} {
+  let nextId = 1;
+  let now = 0;
+  let queue: Array<{ id: number; cb: FrameRequestCallback }> = [];
+  const origRaf = globalThis.requestAnimationFrame;
+  const origCancel = globalThis.cancelAnimationFrame;
+
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+    const id = nextId++;
+    queue.push({ id, cb });
+
+    return id;
+  };
+  globalThis.cancelAnimationFrame = (id: number) => {
+    queue = queue.filter((f) => f.id !== id);
+  };
+
+  const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+  return {
+    flush: (frames = 20) => {
+      for (let i = 0; i < frames; i++) {
+        if (queue.length === 0) return;
+
+        const pending = queue;
+        queue = [];
+        now += 16;
+        for (const f of pending) {
+          f.cb(now);
+        }
+      }
+    },
+    advance: (ms: number) => {
+      now += ms;
+    },
+    uninstall: () => {
+      globalThis.requestAnimationFrame = origRaf;
+      globalThis.cancelAnimationFrame = origCancel;
+      spy.mockRestore();
+      queue = [];
+    },
+  };
+}
+
+function makeChart(extra: Partial<ChartOptions> = {}): { chart: ChartInstance; container: HTMLElement } {
   const container = document.createElement('div');
   const rect: DOMRect = {
     x: 0,
@@ -28,7 +79,7 @@ function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
   document.body.appendChild(container);
 
-  return { chart: new ChartInstance(container, { interactive: false }), container };
+  return { chart: new ChartInstance(container, { interactive: false, ...extra }), container };
 }
 
 function seedCandles(chart: ChartInstance, count: number, startTime = 1_000_000): string {
@@ -37,6 +88,22 @@ function seedCandles(chart: ChartInstance, count: number, startTime = 1_000_000)
     time: startTime + i * INTERVAL,
     open: 100,
     high: 105,
+    low: 95,
+    close: 101,
+  }));
+  chart.setSeriesData(id, data);
+
+  return id;
+}
+
+function seedSpikeCandles(chart: ChartInstance, count: number, startTime = 1_000_000): string {
+  const id = chart.addSeries('candlestick');
+  const data = Array.from({ length: count }, (_, i) => ({
+    time: startTime + i * INTERVAL,
+    open: 100,
+    // First ten bars spike high, so a window past them forces the Y axis to
+    // contract — the slow path that exposes a re-armed (stalled) Y ease.
+    high: i < 10 ? 300 : 105,
     low: 95,
     close: 101,
   }));
@@ -211,5 +278,135 @@ describe('ChartInstance.setVisibleRange', () => {
     expect(emitsA).toBe(1);
     expect(emitsB).toBe(1);
     expect(chart.getVisibleRange()).toEqual(chartB.getVisibleRange());
+  });
+});
+
+describe('ChartInstance.setVisibleRange — gesture mode (multi-chart sync)', () => {
+  let raf: ReturnType<typeof installRaf>;
+
+  beforeEach(() => {
+    raf = installRaf();
+  });
+
+  afterEach(() => {
+    raf.uninstall();
+  });
+
+  it('eases X into the new window where the default form snaps it', () => {
+    // The default (programmatic) form snaps X — consumers read
+    // getVisibleRange() synchronously after and expect the new target. Gesture
+    // mode eases X on the spring like a real pan/zoom, so a synced pane glides
+    // in lockstep with the gesture that drives it instead of jumping ahead.
+    const prog = makeChart();
+    const gesture = makeChart();
+    seedCandles(prog.chart, 200);
+    seedCandles(gesture.chart, 200);
+    raf.flush(40); // settle both initial fits — now post-init, so X eases
+
+    const start = 1_000_000;
+    const window = { from: start + 60 * INTERVAL, to: start + 80 * INTERVAL };
+    const oldVisualTo = gesture.chart.getAnimationState().xRange.to;
+
+    prog.chart.setVisibleRange(window);
+    gesture.chart.setVisibleRange(window, { gesture: true });
+
+    // Logical target is identical and synchronously readable in both forms.
+    expect(prog.chart.getVisibleRange()).toEqual(window);
+    expect(gesture.chart.getVisibleRange()).toEqual(window);
+
+    // Visual X right after the call: programmatic is already at the target
+    // (snapped); gesture is still back at the old edge (spring just armed).
+    expect(prog.chart.getAnimationState().xRange.to).toBeCloseTo(window.to, -2);
+
+    const gestureVisualTo = gesture.chart.getAnimationState().xRange.to;
+    expect(gestureVisualTo).toBeCloseTo(oldVisualTo, -2);
+    expect(Math.abs(gestureVisualTo - oldVisualTo)).toBeLessThan(Math.abs(gestureVisualTo - window.to));
+
+    // Both converge on the logical target once the spring settles.
+    raf.flush(60);
+    expect(gesture.chart.getAnimationState().xRange.to).toBeCloseTo(window.to, -2);
+
+    prog.chart.destroy();
+    gesture.chart.destroy();
+    prog.container.remove();
+    gesture.container.remove();
+  });
+
+  it('re-setting the current range emits no viewportChange', () => {
+    const { chart, container } = makeChart();
+    seedCandles(chart, 50);
+    raf.flush(40);
+    const start = 1_000_000;
+    const window = { from: start + 10 * INTERVAL, to: start + 30 * INTERVAL };
+
+    chart.setVisibleRange(window, { gesture: true });
+
+    let emits = 0;
+    const onChange = () => {
+      emits += 1;
+    };
+    chart.on('viewportChange', onChange);
+
+    chart.setVisibleRange({ ...window }, { gesture: true });
+    chart.setVisibleRange(window, { gesture: true });
+
+    chart.off('viewportChange', onChange);
+
+    expect(emits).toBe(0);
+    expect(chart.getVisibleRange()).toEqual(window);
+
+    chart.destroy();
+    container.remove();
+  });
+
+  it('a per-frame echo of the same range does not stall the Y re-fit', () => {
+    // Regression: the source pane re-emits viewportChange on every animation
+    // frame, so the sync handler calls setVisibleRange with an unchanged
+    // logical X each frame. Without the no-op guard, each call re-armed the Y
+    // curve — resetting its segment clock — and the re-fit never converged.
+    // X is pinned to snap here so the assertion isolates the Y ease.
+    const cfg: Partial<ChartOptions> = { animations: { axis: { x: false } } };
+    const reference = makeChart(cfg);
+    const subject = makeChart(cfg);
+    seedSpikeCandles(reference.chart, 200);
+    seedSpikeCandles(subject.chart, 200);
+    raf.flush(60);
+
+    const start = 1_000_000;
+    // Pin both to the full span first so Y covers the left-edge spike — that
+    // way the upcoming zoom is a genuine contraction, not a no-op.
+    const full = { from: start, to: start + 199 * INTERVAL };
+    reference.chart.setVisibleRange(full);
+    subject.chart.setVisibleRange(full);
+    raf.flush(60);
+    const preMax = reference.chart.getYRange().max;
+
+    // Window past the spike: zooming in forces the Y axis to contract.
+    const window = { from: start + 60 * INTERVAL, to: start + 80 * INTERVAL };
+
+    // Reference: ease once and settle fully — this is where Y should land.
+    reference.chart.setVisibleRange(window, { gesture: true });
+    raf.flush(60);
+    const settledMax = reference.chart.getYRange().max;
+
+    // Subject: arm the same gesture, then echo the identical range on every
+    // frame, exactly as the sync handler does while the source animates.
+    subject.chart.setVisibleRange(window, { gesture: true });
+    for (let i = 0; i < 10; i++) {
+      raf.flush(1);
+      subject.chart.setVisibleRange(window, { gesture: true });
+    }
+
+    // 10 frames (~160 ms) is well past the 100 ms gesture budget, so with the
+    // guard the contraction has converged on the reference fit. A re-armed
+    // (buggy) curve would still sit near the pre-zoom spike, ~3x higher.
+    const subjectMax = subject.chart.getYRange().max;
+    expect(preMax).toBeGreaterThan(settledMax + 100); // sanity: real contraction
+    expect(subjectMax).toBeCloseTo(settledMax, -1);
+
+    reference.chart.destroy();
+    subject.chart.destroy();
+    reference.container.remove();
+    subject.container.remove();
   });
 });
