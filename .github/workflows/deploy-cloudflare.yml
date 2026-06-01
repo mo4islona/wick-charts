@@ -1,0 +1,54 @@
+name: Deploy docs to Cloudflare Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Restore Puppeteer's Chromium before install so the postinstall download
+      # is a no-op on a cache hit. Keyed on the lockfile so a Puppeteer bump
+      # invalidates it.
+      - name: Cache Puppeteer Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - run: pnpm install --frozen-lockfile
+
+      # Explicit install guarantees a browser even if pnpm skipped the
+      # dependency's postinstall script.
+      - run: pnpm exec puppeteer browsers install chrome
+
+      # vite build (base '/') + headless-Chromium prerender → docs-dist with a
+      # static HTML page per route, plus sitemap.xml / robots.txt / 404.html.
+      - run: pnpm build:seo
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy docs-dist --project-name=wick-charts --branch=main

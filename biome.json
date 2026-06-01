@@ -2,11 +2,12 @@
   "files": {
     "includes": [
       "**",
-      "!.claude/worktrees/**",
-      "!test/**",
-      "!node_modules/**",
-      "!**/dist/**",
-      "!coverage/**",
+      "!.claude/worktrees",
+      "!test",
+      "!node_modules",
+      "!**/dist",
+      "!docs-dist",
+      "!coverage",
       "!docs/data/api-manifest.json"
     ]
   },

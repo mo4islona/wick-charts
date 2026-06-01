@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
 import { type JsonValue, normalizeThemeConfig, themeToJson } from './components/theme-editor/themeJson';
 import { FrameworkProvider } from './context/framework';
+import { applyRouteMeta } from './head';
 import { useFrameworkState } from './hooks/useFramework';
 import { useIsMobile } from './hooks/useIsMobile';
 import { AdvancedRoutePage } from './pages/advanced';
@@ -16,7 +17,8 @@ import { MigrationPage } from './pages/MigrationPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
-import { ROUTE_ALIASES, type Route, getTitle, hookKeyForRoute, isRoute } from './routes';
+import { resolveInternalPath, usePathRoute } from './router';
+import { type Route, getTitle, hookKeyForRoute } from './routes';
 import { themes } from './themes';
 
 interface RenderArgs {
@@ -54,39 +56,6 @@ function luminance(hex: string): number {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
-function readHash(): Route {
-  const raw = window.location.hash.slice(1);
-  // Strip leading slash so both `#overview` and `#/overview` work.
-  const stripped = raw.replace(/^\//, '');
-  // Migrate old single-key URLs (`#dashboard`, `#line`, …) → new path form.
-  const aliased = ROUTE_ALIASES[stripped];
-  if (aliased) {
-    window.location.hash = aliased;
-
-    return aliased;
-  }
-  if (isRoute(stripped)) return stripped;
-
-  return 'overview';
-}
-
-function useHashRoute(): [Route, (r: Route) => void] {
-  const [route, setRoute] = useState<Route>(readHash);
-
-  useEffect(() => {
-    const handler = () => setRoute(readHash());
-    window.addEventListener('hashchange', handler);
-
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
-
-  const navigate = (r: Route) => {
-    window.location.hash = r;
-  };
-
-  return [route, navigate];
-}
-
 export default function App() {
   const [themeName, setThemeName] = useState(() => {
     const saved = localStorage.getItem('chart-theme');
@@ -98,7 +67,7 @@ export default function App() {
     return prefersDark ? 'Catppuccin' : 'Quiet Light';
   });
 
-  const [route, navigate] = useHashRoute();
+  const [route, navigate] = usePathRoute();
 
   const mobile = useIsMobile();
   const [framework, setFramework] = useFrameworkState();
@@ -107,6 +76,51 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('chart-theme', themeName);
   }, [themeName]);
+
+  // Keep <title>, meta description, canonical and social tags in sync with the
+  // route — both for live navigation and for what the prerender crawler freezes.
+  // The data attribute is a route-tagged readiness signal for the crawler: it
+  // waits for the value to equal the route it requested, which guarantees the
+  // head + content have switched even when the SPA-fallback shell it was served
+  // happened to be a different prerendered page.
+  useEffect(() => {
+    applyRouteMeta(route);
+    document.documentElement.setAttribute('data-prerender-route', route);
+  }, [route]);
+
+  // Turn same-origin <a href="/route"> clicks into SPA navigations so the
+  // sidebar, logo and cross-links stay real (crawlable) links while behaving
+  // like a router. Modified clicks (new tab, etc.) keep the browser default.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      const anchor = target.closest('a');
+      if (!anchor || anchor.getAttribute('target') === '_blank') return;
+
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+
+      const next = resolveInternalPath(href);
+      if (!next) return;
+
+      e.preventDefault();
+      navigate(next);
+    };
+
+    document.addEventListener('click', onClick);
+
+    return () => document.removeEventListener('click', onClick);
+  }, [navigate]);
+
+  // Close the mobile drawer after any navigation (links no longer call a
+  // close handler directly — navigation flows through the click interceptor).
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [route]);
 
   const preset = themes[themeName];
   const baseTheme = preset.theme;
@@ -232,7 +246,7 @@ export default function App() {
           }}
         >
           {/* Sidebar — hidden on mobile, shown on desktop */}
-          {!mobile && <Sidebar route={route} onNavigate={navigate} theme={theme} />}
+          {!mobile && <Sidebar route={route} theme={theme} />}
 
           {/* Mobile overlay sidebar */}
           {mobile && mobileMenuOpen && (
@@ -254,16 +268,7 @@ export default function App() {
                 }}
               />
               <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 201 }}>
-                <Sidebar
-                  route={route}
-                  onNavigate={(r) => {
-                    navigate(r);
-                    setMobileMenuOpen(false);
-                  }}
-                  onClose={() => setMobileMenuOpen(false)}
-                  theme={theme}
-                  mobile
-                />
+                <Sidebar route={route} onClose={() => setMobileMenuOpen(false)} theme={theme} mobile />
               </div>
             </>
           )}
