@@ -9,7 +9,6 @@ import { FrameworkProvider } from './context/framework';
 import { applyRouteMeta } from './head';
 import { useFrameworkState } from './hooks/useFramework';
 import { useIsMobile } from './hooks/useIsMobile';
-import { AdvancedRoutePage } from './pages/advanced';
 import { ApiRoutePage } from './pages/api';
 import { ChartRoutePage } from './pages/charts';
 import { HookPage } from './pages/HookPage';
@@ -17,6 +16,7 @@ import { MigrationPage } from './pages/MigrationPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
+import { UseCasesRoutePage } from './pages/use-cases';
 import { resolveInternalPath, usePathRoute } from './router';
 import { type Route, getTitle, hookKeyForRoute } from './routes';
 import { themes } from './themes';
@@ -32,12 +32,12 @@ interface RenderArgs {
 function renderRoute({ route, theme, baseTheme, editorValue, onEditorChange }: RenderArgs) {
   if (route === 'overview') return <OverviewPage theme={theme} />;
   if (route === 'migration') return <MigrationPage theme={theme} />;
-  if (route === 'customization/theme') {
+  if (route === 'use-cases/theme') {
     return <ThemePage theme={baseTheme} value={editorValue} onChange={onEditorChange} />;
   }
   if (route === 'stress-test') return <StressTestPage theme={theme} />;
   if (route.startsWith('charts/')) return <ChartRoutePage route={route} theme={theme} />;
-  if (route.startsWith('advanced/')) return <AdvancedRoutePage route={route} theme={theme} />;
+  if (route.startsWith('use-cases/')) return <UseCasesRoutePage route={route} theme={theme} />;
   if (route.startsWith('api/')) return <ApiRoutePage route={route} theme={theme} />;
 
   const hookKey = hookKeyForRoute(route);

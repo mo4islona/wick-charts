@@ -9,13 +9,15 @@ export type Route =
   | 'charts/bar'
   | 'charts/pie'
   | 'charts/sparkline'
-  // TODO(advanced): only multi-chart-sync ships in this PR. Page files for
-  // 'advanced/load-on-scroll' and 'advanced/custom-overlay' live on disk
-  // (docs/pages/advanced/{load-on-scroll,custom-overlay}.tsx) and stay
-  // unwired here intentionally — they need polish before going live.
-  // Re-enable by adding the two route literals below and re-registering
-  // them in docs/pages/advanced/index.tsx.
-  | 'advanced/multi-chart-sync'
+  // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
+  // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
+  // disk (docs/pages/use-cases/{load-on-scroll,custom-overlay}.tsx) and stay
+  // unwired here intentionally — they need polish before going live. Re-enable
+  // by adding the two route literals below and re-registering them in
+  // docs/pages/use-cases/index.tsx.
+  | 'use-cases/realtime-data'
+  | 'use-cases/multi-chart-sync'
+  | 'use-cases/theme'
   | 'api/line-series'
   | 'api/bar-series'
   | 'api/candlestick-series'
@@ -41,7 +43,6 @@ export type Route =
   | 'hooks/use-previous-close'
   | 'hooks/use-visible-range'
   | 'hooks/use-y-range'
-  | 'customization/theme'
   | 'stress-test';
 
 export interface RouteEntry {
@@ -83,7 +84,7 @@ export const ROUTE_ALIASES: Record<string, Route> = {
   bar: 'charts/bar',
   pie: 'charts/pie',
   sparkline: 'charts/sparkline',
-  theme: 'customization/theme',
+  theme: 'use-cases/theme',
   // pre-rename (Components → Charts)
   'components/candlestick': 'charts/candlestick',
   'components/line': 'charts/line',
@@ -100,8 +101,10 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
-const ADVANCED: RouteEntry[] = [
-  { route: 'advanced/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
+const USE_CASES: RouteEntry[] = [
+  { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
+  { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
+  { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level
@@ -149,8 +152,6 @@ const HOOKS: RouteEntry[] = [
   { route: 'hooks/use-y-range', label: 'useYRange', title: '' },
 ];
 
-const CUSTOMIZATION: RouteEntry[] = [{ route: 'customization/theme', label: 'Theme', title: 'Custom Theme' }];
-
 const OVERVIEW: RouteEntry = { route: 'overview', label: 'Overview', title: '' };
 // Title left blank — the markdown page already renders its own H1 ("Migration
 // guide"), so showing it again in the topbar would duplicate.
@@ -160,7 +161,7 @@ const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress', title: 'Stre
 const BASE_SECTIONS: RouteSection[] = [
   { heading: null, items: [OVERVIEW, MIGRATION] },
   { heading: 'Charts', items: CHARTS },
-  { heading: 'Advanced', items: ADVANCED },
+  { heading: 'Use Cases', items: USE_CASES },
   {
     heading: 'API',
     subsections: [
@@ -169,7 +170,6 @@ const BASE_SECTIONS: RouteSection[] = [
       { heading: 'Hooks', items: HOOKS },
     ],
   },
-  { heading: 'Customization', items: CUSTOMIZATION },
 ];
 
 export function getSections(dev: boolean): RouteSection[] {
@@ -178,16 +178,7 @@ export function getSections(dev: boolean): RouteSection[] {
   return [...BASE_SECTIONS, { heading: 'Internal', items: [STRESS] }];
 }
 
-const ALL_ENTRIES: RouteEntry[] = [
-  OVERVIEW,
-  MIGRATION,
-  ...CHARTS,
-  ...ADVANCED,
-  ...API,
-  ...HOOKS,
-  ...CUSTOMIZATION,
-  STRESS,
-];
+const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...USE_CASES, ...API, ...HOOKS, STRESS];
 
 const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
 

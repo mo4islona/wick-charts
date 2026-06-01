@@ -45,26 +45,25 @@ export interface AdvancedLayoutProps {
 
 type RailMode = 'walkthrough' | 'source';
 
-const DEFAULT_RAIL_WIDTH = 560;
 const MIN_RAIL_WIDTH = 320;
 /** Minimum chart width — the splitter clamps so the chart stays usable. */
 const MIN_CHART_WIDTH = 360;
-const STORAGE_KEY = 'advanced-rail-width';
+const STORAGE_KEY = 'use-cases-rail-width';
 
-function readStoredWidth(): number {
+function readStoredWidth(): number | null {
   // localStorage `getItem` can throw in privacy mode / sandboxed iframes /
-  // blocked-storage contexts even when the global itself is defined.
-  // Swallow and fall back to the default — losing the persisted width is
-  // a much better outcome than crashing the whole page render.
-  if (typeof localStorage === 'undefined') return DEFAULT_RAIL_WIDTH;
+  // blocked-storage contexts even when the global itself is defined. Swallow
+  // and fall back to `null` (the even 50/50 default) — losing the persisted
+  // width is a much better outcome than crashing the whole page render.
+  if (typeof localStorage === 'undefined') return null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_RAIL_WIDTH;
+    if (!raw) return null;
     const parsed = Number.parseInt(raw, 10);
 
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_RAIL_WIDTH;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   } catch {
-    return DEFAULT_RAIL_WIDTH;
+    return null;
   }
 }
 
@@ -83,15 +82,18 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
   // so the surface stays subtle.
   const railBgAlpha = isDarkBg(theme.background) ? 0.04 : 0.02;
   const [mode, setMode] = useState<RailMode>('walkthrough');
-  const [railWidth, setRailWidth] = useState<number>(readStoredWidth);
+  // `null` until the reader drags the splitter — that's the even 50/50 default
+  // (chart and rail both `flex: 1`). A drag switches it to an explicit px width.
+  const [railWidth, setRailWidth] = useState<number | null>(readStoredWidth);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const showSource = source !== undefined && mode === 'source';
 
   useEffect(() => {
-    if (typeof localStorage === 'undefined') return;
-    // Same swallow as readStoredWidth — the persisted width is a nicety,
-    // not load-bearing, so a write failure mustn't bubble up.
+    // Nothing to persist until the reader drags (railWidth === null is the
+    // default 50/50 split). Same swallow as readStoredWidth — the persisted
+    // width is a nicety, not load-bearing, so a write failure mustn't bubble up.
+    if (typeof localStorage === 'undefined' || railWidth === null) return;
     try {
       localStorage.setItem(STORAGE_KEY, String(Math.round(railWidth)));
     } catch {
@@ -139,6 +141,13 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
   };
+
+  // Default: an even 50/50 split — the rail rides `flex: 1` next to the chart's
+  // own `flex: 1`. Once the reader drags the splitter it pins to an explicit px
+  // width. On mobile the panels stack, so the rail is always full-width.
+  const desktopRail: CSSProperties =
+    railWidth === null ? { flex: 1, minWidth: 0 } : { width: railWidth, flexShrink: 0 };
+  const railSizing: CSSProperties = mobile ? { width: '100%' } : desktopRail;
 
   return (
     <div
@@ -200,8 +209,7 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
             gap: 12,
             overflow: 'hidden',
             minHeight: 0,
-            width: mobile ? '100%' : railWidth,
-            flexShrink: 0,
+            ...railSizing,
             // Bordered card around the rail — matches the chart's `<Cell>`
             // and the playground's `pg-right` panel so chart + walkthrough
             // sit on equally-weighted surfaces.

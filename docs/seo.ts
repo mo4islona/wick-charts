@@ -33,7 +33,7 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Upgrade to Wick Charts: breaking changes, renamed props and step-by-step notes for moving from earlier versions or other charting libraries.',
   },
-  'customization/theme': {
+  'use-cases/theme': {
     title: 'Theming & Custom Themes — Wick Charts',
     description:
       'Customize colors, typography, grid and axes with 22 built-in themes or your own. Live theme editor for Wick Charts in React, Vue and Svelte.',
@@ -63,7 +63,12 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Tiny inline sparkline charts for dashboards and tables. Streaming-ready, canvas-rendered, with near-zero overhead.',
   },
-  'advanced/multi-chart-sync': {
+  'use-cases/realtime-data': {
+    title: 'Realtime Data Streaming — Wick Charts',
+    description:
+      'Stream live data into Wick Charts two ways: declaratively via the series data prop, or imperatively with appendData / updateData / keepLast. 60fps canvas updates in React, Vue and Svelte.',
+  },
+  'use-cases/multi-chart-sync': {
     title: 'Multi-chart Sync — Wick Charts',
     description:
       'Synchronize crosshair, zoom and pan across multiple charts to build linked trading dashboards with Wick Charts in React, Vue or Svelte.',

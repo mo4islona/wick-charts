@@ -192,7 +192,7 @@ function SpeedControl({
 
 // ── Feature pills ─────────────────────────────────────────────
 
-const FEATURES = ['AI-first', 'React · Svelte · Vue', 'Realtime', 'Themeable', 'MIT'];
+const FEATURES = ['React · Svelte · Vue', 'Realtime', 'Themeable', 'MIT'];
 
 function FeaturePill({ text, theme }: { text: string; theme: ChartTheme }) {
   return (
