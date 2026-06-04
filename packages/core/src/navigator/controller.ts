@@ -99,6 +99,7 @@ export class NavigatorController {
   // Bound listeners so we can remove the same references on destroy.
   readonly #onViewportChange: () => void;
   readonly #onOverlayChange: () => void;
+  readonly #onTickFrame: () => void;
   readonly #onPointerDown: (e: PointerEvent) => void;
   readonly #onPointerMove: (e: PointerEvent) => void;
   readonly #onPointerUp: (e: PointerEvent) => void;
@@ -151,8 +152,13 @@ export class NavigatorController {
 
     this.#onViewportChange = () => this.#markDirty();
     this.#onOverlayChange = () => this.#markDirty();
+    // tickFrame fires every animation frame (the same per-frame signal the DOM
+    // axis labels ride); subscribing lets the brush window glide with the eased
+    // canvas instead of only updating on discrete viewport/overlay commits.
+    this.#onTickFrame = () => this.#markDirty();
     this.#chart.on('viewportChange', this.#onViewportChange);
     this.#chart.on('overlayChange', this.#onOverlayChange);
+    this.#chart.on('tickFrame', this.#onTickFrame);
 
     this.#onPointerDown = (e) => this.#handlePointerDown(e);
     this.#onPointerMove = (e) => this.#handlePointerMove(e);
@@ -225,6 +231,7 @@ export class NavigatorController {
   destroy(): void {
     this.#chart.off('viewportChange', this.#onViewportChange);
     this.#chart.off('overlayChange', this.#onOverlayChange);
+    this.#chart.off('tickFrame', this.#onTickFrame);
     this.#canvas.removeEventListener('pointerdown', this.#onPointerDown);
     this.#canvas.removeEventListener('pointermove', this.#onPointerMove);
     this.#canvas.removeEventListener('pointerup', this.#onPointerUp);
@@ -309,10 +316,22 @@ export class NavigatorController {
     return { xRange, yRange };
   }
 
+  /**
+   * X range for the brush window. While the user drags the brush we track the
+   * committed logical target so the window follows the cursor 1:1; otherwise we
+   * follow the engine's eased visual so the window glides with the canvas
+   * instead of snapping to a wheel-zoom / pan destination while the chart eases.
+   */
+  #windowRange(): XRange {
+    if (this.#drag !== null) return this.#chart.getVisibleRange();
+
+    return this.#chart.getAnimationState().xRange;
+  }
+
   #currentWindowGeometry(): WindowGeometry {
     this.#updateScales();
 
-    return computeWindowGeometry(this.#timeScale, this.#chart.getVisibleRange(), this.#resolveXRange());
+    return computeWindowGeometry(this.#timeScale, this.#windowRange(), this.#resolveXRange());
   }
 
   #pixelsPerTime(): number {
@@ -495,7 +514,7 @@ export class NavigatorController {
   #updateOverlayDom(theme: ReturnType<ChartInstance['getTheme']>['navigator'], xRange: XRange): void {
     if (xRange.to <= xRange.from) return;
 
-    const visible = this.#chart.getVisibleRange();
+    const visible = this.#windowRange();
     const fromClamped = Math.max(xRange.from, Math.min(xRange.to, visible.from));
     const toClamped = Math.max(xRange.from, Math.min(xRange.to, visible.to));
     const x1 = this.#timeScale.timeToX(fromClamped);
