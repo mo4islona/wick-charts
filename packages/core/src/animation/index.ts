@@ -1,5 +1,6 @@
 export { Animator, type AnimatorOptions } from './animator';
 export { type Easing, easeLinear, easeOutCubic } from './easing';
+export { ScalarSpring } from './scalar-spring';
 export { spring } from './spring';
 export { type AnimationTime, type Milliseconds, parseAnimationTime, resolveAnimationTime } from './time';
 export type { RetargetOptions, Transition, TransitionContext, TransitionFactory } from './transition';

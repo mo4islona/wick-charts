@@ -1,9 +1,10 @@
 import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../animation/config';
+import { easeOutCubic } from '../animation/easing';
 import { decimateLineData } from '../data/decimation';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
-import { easeOutCubic, lerp } from '../utils/math';
+import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
