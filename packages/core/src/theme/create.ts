@@ -1,3 +1,4 @@
+import { lighten } from '../utils/color';
 import { resolveCandlestickBodyColor } from './resolve';
 import type { ChartTheme } from './types';
 
@@ -294,11 +295,11 @@ export function hexToRgba(hex: string, alpha: number): string {
 
 export function lightenHex(hex: string, amount: number): string {
   if (!hex.startsWith('#')) return hex;
-  const h = expandHex(hex);
-  const r = Math.min(255, Math.round(parseInt(h.slice(1, 3), 16) + 255 * amount));
-  const g = Math.min(255, Math.round(parseInt(h.slice(3, 5), 16) + 255 * amount));
-  const b = Math.min(255, Math.round(parseInt(h.slice(5, 7), 16) + 255 * amount));
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+
+  // Delegate to the single blend-toward-white in utils/color. The previous
+  // additive form (`channel + 255*amount`) hue-shifted saturated colors — most
+  // visibly the candle auto-gradient top stop.
+  return lighten(expandHex(hex), amount);
 }
 
 export function darkenHex(hex: string, amount: number): string {
