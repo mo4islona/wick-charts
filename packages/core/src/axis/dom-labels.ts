@@ -141,15 +141,28 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     }
   }
 
+  // Avoid syncing the labels twice per animating frame. `renderMain` emits both
+  // `viewportChange` (the eased Y moved) and `tickFrame` (any animating frame)
+  // in the same frame. While the viewport is animating, `tickFrame` already
+  // drives the per-frame sync, so the redundant per-frame `viewportChange` is
+  // skipped; when the viewport is idle (a discrete / snapped commit or a data
+  // re-fit, where `tickFrame` doesn't fire) it syncs. `overlayChange` (theme /
+  // data swaps) always syncs.
+  function onViewportChange(): void {
+    if (chart.getAnimationState().animating) return;
+
+    sync();
+  }
+
   sync();
 
   chart.on('tickFrame', sync);
-  chart.on('viewportChange', sync);
+  chart.on('viewportChange', onViewportChange);
   chart.on('overlayChange', sync);
 
   return () => {
     chart.off('tickFrame', sync);
-    chart.off('viewportChange', sync);
+    chart.off('viewportChange', onViewportChange);
     chart.off('overlayChange', sync);
     for (const el of spans.values()) el.remove();
     spans.clear();
