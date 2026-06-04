@@ -7,7 +7,6 @@ import {
   renderMiniBar,
   renderMiniCandlestick,
   renderMiniLine,
-  renderWindow,
 } from '../../navigator/render';
 import { resolveCandlestickBodyColor } from '../../theme/resolve';
 import type { ChartTheme } from '../../theme/types';
@@ -238,83 +237,6 @@ describe('renderMiniCandlestick', () => {
     const fills = spy.callsOf('fillRect');
     expect(fills[0].globalAlpha).toBe(1);
     expect(fills[1].globalAlpha).toBeCloseTo(0.25, 5);
-  });
-});
-
-describe('renderWindow', () => {
-  const dataRange = { from: 0, to: 100 };
-
-  it('returns without drawing when dataRange is empty', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: 10, to: 20 }, { from: 5, to: 5 });
-
-    expect(spy.calls.length).toBe(0);
-  });
-
-  it('paints both side masks, the window body, and two handle bars', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: 25, to: 75 }, dataRange);
-
-    const fills = spy.callsOf('fillRect');
-    // 2 mask side-rects + 1 window body + 2 handle bars = 5.
-    expect(fills.length).toBe(5);
-    expect(fills[0].fillStyle).toBe(NAV_THEME.mask.fill);
-    expect(fills[1].fillStyle).toBe(NAV_THEME.mask.fill);
-    expect(fills[2].fillStyle).toBe(NAV_THEME.window.fill);
-    expect(fills[3].fillStyle).toBe(NAV_THEME.handle.color);
-    expect(fills[4].fillStyle).toBe(NAV_THEME.handle.color);
-  });
-
-  it('strokes the window border when borderWidth > 0', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: 25, to: 75 }, dataRange);
-
-    expect(spy.countOf('strokeRect')).toBe(1);
-    const stroke = spy.callsOf('strokeRect')[0];
-    expect(stroke.strokeStyle).toBe(NAV_THEME.window.border);
-    expect(stroke.lineWidth).toBe(NAV_THEME.window.borderWidth);
-  });
-
-  it('skips the border when theme.window.borderWidth is 0', () => {
-    const { rc, spy } = makeRc();
-    rc.theme = { ...NAV_THEME, window: { ...NAV_THEME.window, borderWidth: 0 } };
-    renderWindow(rc, { from: 25, to: 75 }, dataRange);
-
-    expect(spy.countOf('strokeRect')).toBe(0);
-  });
-
-  it('omits the left mask when the window is flush against the left edge', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: 0, to: 50 }, dataRange);
-
-    // Left mask (left > 0) must not exist, but right mask still does.
-    const masks = spy.callsOf('fillRect').filter((c) => c.fillStyle === NAV_THEME.mask.fill);
-    expect(masks.length).toBe(1);
-    const [x] = masks[0].args as [number, number, number, number];
-    expect(x).toBeGreaterThan(0);
-  });
-
-  it('omits the right mask when the window extends to the right edge', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: 50, to: 100 }, dataRange);
-
-    const masks = spy.callsOf('fillRect').filter((c) => c.fillStyle === NAV_THEME.mask.fill);
-    expect(masks.length).toBe(1);
-    const [x] = masks[0].args as [number, number, number, number];
-    expect(x).toBe(0);
-  });
-
-  it('clamps a visible range that overshoots the data into the data span', () => {
-    const { rc, spy } = makeRc();
-    renderWindow(rc, { from: -100, to: 200 }, dataRange);
-
-    // Overshoot collapses both sides to dataRange — no side masks at all,
-    // window covers full canvas.
-    const masks = spy.callsOf('fillRect').filter((c) => c.fillStyle === NAV_THEME.mask.fill);
-    expect(masks.length).toBe(0);
-    const window = spy.callsOf('fillRect').find((c) => c.fillStyle === NAV_THEME.window.fill)!;
-    const [, , w] = window.args as [number, number, number, number];
-    expect(w).toBe(MEDIA_W);
   });
 });
 

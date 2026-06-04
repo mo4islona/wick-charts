@@ -147,8 +147,6 @@ interface XState {
   readonly transition: Transition<XRange>;
   settleMs: Milliseconds;
   gestureMs: Milliseconds;
-  /** Sub-threshold filter — emitted retargets ignore deltas below this. */
-  threshold: number | null;
   /** Most recently committed X target. Autoscroll consults this to see the
    *  logical destination, not the in-flight visual. */
   lastTarget: XRange | null;
@@ -187,7 +185,6 @@ export class ViewportEngine {
       transition: opts.x.curve({ initial: opts.initial.xRange }),
       settleMs: opts.x.settleMs,
       gestureMs: opts.x.gestureMs,
-      threshold: null,
       lastTarget: null,
       gestureUntil: 0,
     };
@@ -199,21 +196,14 @@ export class ViewportEngine {
   // --- Helpers -------------------------------------------------------------
 
   /**
-   * Retarget X. Honors `#x.threshold` (filters sub-threshold drift) and
-   * updates `#x.lastTarget` only when the retarget actually fires —
-   * autoscroll consults that field, so we must not advertise an X destination
-   * the spring didn't accept.
+   * Retarget X and record `#x.lastTarget` — autoscroll consults that field for
+   * the logical destination, not the in-flight visual.
    *
    * `settleMs` is the per-call settle time. Gestures pass `#x.gestureMs`
    * (fast — responsive feel) while stream ticks pass `#x.settleMs` (the
    * cadence-tuned baseline).
    */
   #retargetX(target: XRange, now: number, settleMs: Milliseconds): void {
-    if (this.#x.threshold !== null && this.#x.threshold > 0 && this.#x.lastTarget !== null) {
-      const delta = Math.abs(target.to - this.#x.lastTarget.to);
-      if (delta < this.#x.threshold) return;
-    }
-
     this.#x.transition.retarget(target, { now, expandMs: settleMs });
     this.#x.lastTarget = { from: target.from, to: target.to };
   }
@@ -431,10 +421,6 @@ export class ViewportEngine {
 
   get lastXTarget(): XRange | null {
     return this.#x.lastTarget;
-  }
-
-  setXThreshold(threshold: number | null): void {
-    this.#x.threshold = threshold;
   }
 
   setXSettleMs(settleMs: number): void {

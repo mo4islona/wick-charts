@@ -197,42 +197,6 @@ export function renderMiniCandlestick(
   }
 }
 
-export function renderWindow(rc: NavigatorRenderContext, visible: VisibleRange, dataRange: VisibleRange): void {
-  const { ctx, timeScale, mediaWidth, mediaHeight, theme } = rc;
-  if (dataRange.to <= dataRange.from) return;
-
-  const fromClamped = Math.max(dataRange.from, Math.min(dataRange.to, visible.from));
-  const toClamped = Math.max(dataRange.from, Math.min(dataRange.to, visible.to));
-  const x1 = timeScale.timeToX(fromClamped);
-  const x2 = timeScale.timeToX(toClamped);
-  const left = Math.min(x1, x2);
-  const width = Math.max(1, Math.abs(x2 - x1));
-
-  // Mask outside the window.
-  ctx.fillStyle = theme.mask.fill;
-  if (left > 0) ctx.fillRect(0, 0, left, mediaHeight);
-  if (left + width < mediaWidth) {
-    ctx.fillRect(left + width, 0, mediaWidth - (left + width), mediaHeight);
-  }
-
-  // Window body.
-  ctx.fillStyle = theme.window.fill;
-  ctx.fillRect(left, 0, width, mediaHeight);
-
-  // Border.
-  if (theme.window.borderWidth > 0) {
-    ctx.strokeStyle = theme.window.border;
-    ctx.lineWidth = theme.window.borderWidth;
-    ctx.strokeRect(left + 0.5, 0.5, width - 1, mediaHeight - 1);
-  }
-
-  // Handles — left and right vertical bars on the edges.
-  ctx.fillStyle = theme.handle.color;
-  const hw = theme.handle.width;
-  ctx.fillRect(left - hw / 2, 0, hw, mediaHeight);
-  ctx.fillRect(left + width - hw / 2, 0, hw, mediaHeight);
-}
-
 /** Geometry of the window rect in media pixels — returned for hit-testing. */
 export interface WindowGeometry {
   left: number;
