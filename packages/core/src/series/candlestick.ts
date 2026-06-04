@@ -1,12 +1,14 @@
 import { Animator } from '../animation/animator';
 import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
+import { easeOutCubic } from '../animation/easing';
+import { ScalarSpring } from '../animation/scalar-spring';
 import { decimateOHLCData } from '../data/decimation';
 import type { TimeSeriesStore } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { hexToRgba } from '../utils/color';
-import { easeOutCubic, lerp } from '../utils/math';
+import { lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
 import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
@@ -38,33 +40,67 @@ const VOL_SCALE_ALPHA = 0.15;
 /** Relative gap below which the volume scale counts as settled (stops requesting frames). */
 const VOL_SCALE_SETTLE_EPS = 0.005;
 
-/** Component-wise lerp for an OHLC quadruple; lerps `volume` too when either side carries one. */
-function ohlcLerp(a: OHLCData, b: OHLCData, t: number): OHLCData {
-  const r: OHLCData = {
-    time: b.time,
-    open: a.open + (b.open - a.open) * t,
-    high: a.high + (b.high - a.high) * t,
-    low: a.low + (b.low - a.low) * t,
-    close: a.close + (b.close - a.close) * t,
-  };
-  if (a.volume !== undefined || b.volume !== undefined) {
-    const va = a.volume ?? 0;
-    const vb = b.volume ?? 0;
-    r.volume = va + (vb - va) * t;
+/**
+ * Velocity-continuous chase for the live candle's OHLC (and volume) — one
+ * {@link ScalarSpring} per field. Replaces the easing `Animator<OHLCData>` so
+ * rapid intra-bar `updateLastPoint` ticks don't restart the curve (the
+ * easeOutCubic "kick") on every retarget.
+ */
+class OHLCSpring {
+  readonly #open: ScalarSpring;
+  readonly #high: ScalarSpring;
+  readonly #low: ScalarSpring;
+  readonly #close: ScalarSpring;
+  readonly #volume: ScalarSpring;
+  #time: number;
+  // Sticky once any seen candle carries volume — mirrors the old lerp, which
+  // only emitted `volume` when a side had it, so a volume-less candle stays
+  // volume-less and the histogram keeps skipping it.
+  #hasVolume: boolean;
+
+  constructor(initial: OHLCData) {
+    this.#open = new ScalarSpring(initial.open);
+    this.#high = new ScalarSpring(initial.high);
+    this.#low = new ScalarSpring(initial.low);
+    this.#close = new ScalarSpring(initial.close);
+    this.#volume = new ScalarSpring(initial.volume ?? 0);
+    this.#time = initial.time;
+    this.#hasVolume = initial.volume !== undefined;
   }
 
-  return r;
-}
+  retarget(target: OHLCData, opts: { now?: number; settleMs?: number } = {}): void {
+    this.#time = target.time;
+    if (target.volume !== undefined) this.#hasVolume = true;
+    this.#open.retarget(target.open, opts);
+    this.#high.retarget(target.high, opts);
+    this.#low.retarget(target.low, opts);
+    this.#close.retarget(target.close, opts);
+    this.#volume.retarget(target.volume ?? 0, opts);
+  }
 
-function ohlcEquals(a: OHLCData, b: OHLCData): boolean {
-  return (
-    a.time === b.time &&
-    a.open === b.open &&
-    a.high === b.high &&
-    a.low === b.low &&
-    a.close === b.close &&
-    (a.volume ?? 0) === (b.volume ?? 0)
-  );
+  tick(now: number): boolean {
+    // Tick every side (no short-circuit — all must advance), then OR.
+    const o = this.#open.tick(now);
+    const h = this.#high.tick(now);
+    const l = this.#low.tick(now);
+    const c = this.#close.tick(now);
+    const v = this.#volume.tick(now);
+
+    return o || h || l || c || v;
+  }
+
+  get current(): OHLCData {
+    const r: OHLCData = {
+      time: this.#time,
+      open: this.#open.current,
+      high: this.#high.current,
+      low: this.#low.current,
+      close: this.#close.current,
+    };
+    if (this.#hasVolume) r.volume = this.#volume.current;
+
+    return r;
+  }
 }
 
 const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
@@ -94,7 +130,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   protected displayedLast: OHLCData | null = null;
   /** Per-candle entrance registry. Single-layer, so no per-layer split. */
   protected readonly entries: Map<number, EntryState> = new Map();
-  #liveAnimator: Animator<OHLCData> | null = null;
+  #liveAnimator: OHLCSpring | null = null;
   /** EMA-smoothed volume scale (tallest visible bar). `null` re-seeds (snaps)
    *  on the next frame — set on construction and bulk data replacement. */
   #displayedMaxVol: number | null = null;
@@ -186,16 +222,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     let anim = this.#liveAnimator;
     if (anim === null) {
       const initial = this.displayedLast ?? target;
-      anim = new Animator<OHLCData>({
-        initial,
-        duration: smoothMs,
-        lerp: ohlcLerp,
-        equals: ohlcEquals,
-      });
+      anim = new OHLCSpring(initial);
       this.#liveAnimator = anim;
     }
 
-    anim.setTarget(target);
+    anim.retarget(target, { settleMs: smoothMs });
   }
 
   keepLast(count: number): void {

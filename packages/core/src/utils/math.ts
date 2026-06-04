@@ -18,11 +18,6 @@ export function smoothToward(current: number, target: number, rate: number, dt: 
   return target + (current - target) * decay;
 }
 
-/** Cubic ease-out curve: starts fast, decelerates to a stop. t in [0, 1]. */
-export function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3;
-}
-
 /**
  * Rubber-band resistance curve. Maps a raw overshoot distance to a damped
  * display distance that asymptotically approaches `maxOvershoot` but never

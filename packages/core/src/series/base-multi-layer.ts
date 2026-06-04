@@ -1,4 +1,5 @@
 import { Animator } from '../animation/animator';
+import { ScalarSpring } from '../animation/scalar-spring';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { TimePoint, TimePointInput } from '../types';
@@ -74,8 +75,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * `updateLastPoint`. `null` while the store is empty.
    */
   protected readonly displayedLastValues: Array<number | null>;
-  /** Per-layer chase animator. `null` when settled or when smoothing is off. */
-  readonly #liveAnimators: Array<Animator<number> | null>;
+  /** Per-layer chase spring. `null` when settled or when smoothing is off. */
+  readonly #liveAnimators: Array<ScalarSpring | null>;
   /**
    * Per-layer alpha for the visibility cross-fade. `setAlpha` (whole series)
    * fans out across the array; `setLayerAlpha` targets a single index. Render
@@ -176,15 +177,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     let anim = this.#liveAnimators[layerIndex];
     if (anim === null) {
       const initial = this.displayedLastValues[layerIndex] ?? target;
-      anim = new Animator<number>({
-        initial,
-        duration: smoothMs,
-        lerp: scalarLerp,
-      });
+      anim = new ScalarSpring(initial);
       this.#liveAnimators[layerIndex] = anim;
     }
 
-    anim.setTarget(target);
+    anim.retarget(target, { settleMs: smoothMs });
   }
 
   keepLast(count: number, layerIndex = 0): void {

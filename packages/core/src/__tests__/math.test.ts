@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { binarySearch, clamp, easeOutCubic, lerp, rubberBand, smoothToward } from '../utils/math';
+import { binarySearch, clamp, lerp, rubberBand, smoothToward } from '../utils/math';
 
 describe('clamp', () => {
   it('clamps below min', () => expect(clamp(-5, 0, 10)).toBe(0));
@@ -36,26 +36,6 @@ describe('binarySearch', () => {
 
   it('works with empty array', () => {
     expect(binarySearch([], 10, getKey)).toBe(0);
-  });
-});
-
-describe('easeOutCubic', () => {
-  it('returns 0 at t=0', () => expect(easeOutCubic(0)).toBe(0));
-  it('returns 1 at t=1', () => expect(easeOutCubic(1)).toBe(1));
-
-  it('is strictly monotonic over [0, 1]', () => {
-    let prev = easeOutCubic(0);
-    for (let i = 1; i <= 20; i++) {
-      const cur = easeOutCubic(i / 20);
-      expect(cur).toBeGreaterThan(prev);
-      prev = cur;
-    }
-  });
-
-  it('has ease-out shape (above linear for t in (0, 1))', () => {
-    // Cubic ease-out decelerates — mid-curve it's ahead of linear.
-    expect(easeOutCubic(0.5)).toBeGreaterThan(0.5);
-    expect(easeOutCubic(0.25)).toBeGreaterThan(0.25);
   });
 });
 
