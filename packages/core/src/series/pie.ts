@@ -164,12 +164,15 @@ interface OutsideLabelLayout {
   color: string;
 }
 
-// Thin wrapper over the shared blend-toward-white — keeps the non-hex guard
-// (pie slice colors may be any CSS color) while reusing the one lighten impl.
+// Thin wrapper over the shared blend-toward-white: guards non-hex (pie slice
+// colors may be any CSS color) and expands shorthand `#rgb` so the 6-digit-only
+// `lighten` doesn't read NaN channels, while reusing the one lighten impl.
 function lightenColor(hex: string, amount: number): string {
   if (!hex.startsWith('#')) return hex;
 
-  return lighten(hex, amount);
+  const full = hex.length === 4 ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}` : hex;
+
+  return lighten(full, amount);
 }
 
 /**

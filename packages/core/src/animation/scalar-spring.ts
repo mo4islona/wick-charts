@@ -48,12 +48,6 @@ export class ScalarSpring {
     return this.#target;
   }
 
-  get animating(): boolean {
-    const eps = this.#eps();
-
-    return Math.abs(this.#cached - this.#target) > eps || Math.abs(this.#v0) > eps * this.#omega;
-  }
-
   /**
    * Begin a fresh spring toward `value`. Carries the current velocity over so
    * mid-flight retargets stay continuous. `settleMs <= 0` is left to the
