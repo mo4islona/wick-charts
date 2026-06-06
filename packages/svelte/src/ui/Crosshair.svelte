@@ -10,6 +10,12 @@
   let position: CrosshairPosition | null = null;
   let unsubscribe: (() => void) | null = null;
 
+  // `setTheme` fires `overlayChange`; reading `bump` in the theme reactive
+  // keeps label colors live across runtime theme swaps instead of freezing on
+  // the first-render snapshot (matches Tooltip/PieTooltip).
+  let bump = 0;
+  let overlayUnsub: (() => void) | null = null;
+
   $: {
     const chart = $chartStore;
     if (chart && !unsubscribe) {
@@ -18,15 +24,27 @@
         position = v;
       });
     }
+    if (chart && !overlayUnsub) {
+      const handler = () => {
+        bump++;
+      };
+      chart.on('overlayChange', handler);
+      overlayUnsub = () => chart.off('overlayChange', handler);
+    }
   }
 
   onDestroy(() => {
     unsubscribe?.();
+    overlayUnsub?.();
   });
 
   $: chart = $chartStore;
-  $: theme = chart?.getTheme();
+  $: theme = chart && bump >= 0 ? chart.getTheme() : null;
   $: dataInterval = chart?.getDataInterval() ?? 86400;
+  // Format the time pill at the axis's *resolved* tick granularity, not the
+  // raw data interval — otherwise a time-of-day badge floats among date labels
+  // when zoomed out. Falls back to dataInterval on a degenerate range.
+  $: tickInterval = chart ? chart.timeScale.niceTickValues(dataInterval).tickInterval || dataInterval : dataInterval;
 
   // `zIndex:2` sits above axis ticks (z:0) but below the YLabel badge
   // (z:3), so the live last-value stays visible when the crosshair crosses
@@ -44,6 +62,6 @@
   </div>
   <!-- Time label on bottom axis -->
   <div style="position:absolute;bottom:0;left:{position.mediaX}px;transform:translateX(-50%);{labelStyle}">
-    {formatTime(position.time, dataInterval)}
+    {formatTime(position.time, tickInterval)}
   </div>
 {/if}

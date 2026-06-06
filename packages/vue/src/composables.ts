@@ -22,10 +22,20 @@ export function useYRange(chart: ChartInstance): Ref<YRange> {
 }
 
 export function useLastYValue(chart: ChartInstance, seriesId: string): Ref<{ value: number; isLive: boolean } | null> {
-  const val = ref<{ value: number; isLive: boolean } | null>(chart.getLastValue(seriesId));
+  let snapshot = chart.getLastValue(seriesId);
+  // Track the pixel Y the snapshot maps to so a pan/zoom/resize that leaves the
+  // value unchanged but shifts the badge still re-emits — a consumer-positioned
+  // badge reads `yScale.valueToY` off this ref. Comparing prev/next against the
+  // live yScale alone would always be equal.
+  let lastY = snapshot ? chart.yScale.valueToY(snapshot.value) : null;
+  const val = ref<{ value: number; isLive: boolean } | null>(snapshot);
   const handler = () => {
     const next = chart.getLastValue(seriesId);
-    if (val.value?.value === next?.value && val.value?.isLive === next?.isLive) return;
+    const nextY = next ? chart.yScale.valueToY(next.value) : null;
+    if (snapshot?.value === next?.value && snapshot?.isLive === next?.isLive && lastY === nextY) return;
+
+    snapshot = next;
+    lastY = nextY;
     val.value = next;
   };
   onMounted(() => {

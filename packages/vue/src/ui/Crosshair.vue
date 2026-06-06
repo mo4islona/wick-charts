@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatTime } from '@wick-charts/core';
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
@@ -8,8 +8,28 @@ import { useChartInstance } from '../context';
 const chart = useChartInstance();
 const position = useCrosshairPosition(chart);
 
-const theme = computed(() => chart.getTheme());
+// `setTheme` fires `overlayChange`; bump re-runs the theme computed so the
+// label colors track a runtime theme swap instead of freezing on the
+// first-render snapshot (matches Tooltip/PieTooltip).
+const bump = ref(0);
+const onOverlayChange = () => {
+  bump.value++;
+};
+onMounted(() => chart.on('overlayChange', onOverlayChange));
+onUnmounted(() => chart.off('overlayChange', onOverlayChange));
+
+const theme = computed(() => {
+  void bump.value;
+
+  return chart.getTheme();
+});
 const dataInterval = computed(() => chart.getDataInterval());
+// Format the time pill at the axis's *resolved* tick granularity, not the raw
+// data interval — otherwise a time-of-day badge floats among date labels when
+// zoomed out. Falls back to dataInterval on a degenerate range.
+const tickInterval = computed(
+  () => chart.timeScale.niceTickValues(dataInterval.value).tickInterval || dataInterval.value,
+);
 
 const labelStyle = computed(() => ({
   // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -54,7 +74,7 @@ const labelStyle = computed(() => ({
         ...labelStyle,
       }"
     >
-      {{ formatTime(position.time, dataInterval) }}
+      {{ formatTime(position.time, tickInterval) }}
     </div>
   </template>
 </template>

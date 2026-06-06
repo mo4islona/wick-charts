@@ -48,6 +48,12 @@ async function settle(): Promise<void> {
   }
 }
 
+// `emit` is protected; reach it via cast to drive a `viewportChange` without
+// the side effects of a real pan (the core suite uses this same escape hatch).
+function emit(chart: ChartInstance, event: string): void {
+  (chart as unknown as { emit: (e: string) => void }).emit(event);
+}
+
 function sizeDescendants(host: HTMLElement, width = 800, height = 400): () => void {
   Object.defineProperty(host, 'clientWidth', { value: width, configurable: true });
   Object.defineProperty(host, 'clientHeight', { value: height, configurable: true });
@@ -111,7 +117,8 @@ describe('Vue composables', () => {
     // chart-event listeners before the series's `onMounted` fires `setSeriesData`
     // — otherwise the initial `dataUpdate` event happens before subscription.
     const App = defineComponent({
-      setup: () => () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
     });
 
     const wrapper = mount(App, { attachTo: host });
@@ -147,7 +154,8 @@ describe('Vue composables', () => {
     // chart-event listeners before the series's `onMounted` fires `setSeriesData`
     // — otherwise the initial `dataUpdate` event happens before subscription.
     const App = defineComponent({
-      setup: () => () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
     });
 
     const wrapper = mount(App, { attachTo: host });
@@ -173,7 +181,10 @@ describe('Vue composables', () => {
     });
     const App = defineComponent({
       setup: () => () =>
-        h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { id: 'line-id', data: lineData })]),
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(LineSeries, { id: 'line-id', data: lineData }),
+        ]),
     });
 
     const wrapper = mount(App, { attachTo: host });
@@ -194,6 +205,56 @@ describe('Vue composables', () => {
     captured.chart.updateData('line-id', { time: 100, value: 99 });
     await settle();
     expect(captured.last.value).toBe(beforeRef);
+
+    wrapper.unmount();
+  });
+
+  it('useLastYValue re-emits when the pixel Y drifts even though the value is unchanged', async () => {
+    let captured: { chart: ChartInstance; last: Ref<{ value: number; isLive: boolean } | null> } | undefined;
+    const Probe = defineComponent({
+      setup() {
+        const chart = useChartInstance();
+        const last = useLastYValue(chart, 'line-id');
+        captured = { chart, last };
+
+        return () => null;
+      },
+    });
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(LineSeries, { id: 'line-id', data: lineData }),
+        ]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+    if (!captured) throw new Error('probe did not run');
+
+    // Freeze the reported value/isLive so only the pixel Y can change, and
+    // drive `valueToY` so a `viewportChange` reads a drifted pixel.
+    vi.spyOn(captured.chart, 'getLastValue').mockImplementation(() => ({ value: 295, isLive: true }));
+    let pixelY = 100;
+    vi.spyOn(captured.chart.yScale, 'valueToY').mockImplementation(() => pixelY);
+
+    // Sync onto the frozen baseline, then capture identity.
+    emit(captured.chart, 'viewportChange');
+    await settle();
+    const baseline = captured.last.value;
+
+    // Pixel Y moves; value/isLive identical — the ref must take a new identity
+    // so a consumer-positioned badge re-reads valueToY.
+    pixelY = 260;
+    emit(captured.chart, 'viewportChange');
+    await settle();
+    expect(captured.last.value).not.toBe(baseline);
+
+    // Pixel Y unchanged — the early-return guard holds, identity is stable.
+    const settled = captured.last.value;
+    emit(captured.chart, 'viewportChange');
+    await settle();
+    expect(captured.last.value).toBe(settled);
 
     wrapper.unmount();
   });
@@ -244,7 +305,8 @@ describe('Vue composables', () => {
       },
     });
     const App = defineComponent({
-      setup: () => () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { data: lineData })]),
     });
 
     const wrapper = mount(App, { attachTo: host });
@@ -279,7 +341,10 @@ describe('Vue composables', () => {
     });
     const App = defineComponent({
       setup: () => () =>
-        h(ChartContainer, { theme: catppuccin.theme }, () => [h(Probe), h(LineSeries, { id: 'line-id', data: lineData })]),
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(LineSeries, { id: 'line-id', data: lineData }),
+        ]),
     });
 
     const wrapper = mount(App, { attachTo: host });

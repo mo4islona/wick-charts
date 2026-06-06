@@ -19,12 +19,20 @@ export function createYRange(chart: ChartInstance) {
 
 export function createLastYValue(chart: ChartInstance, seriesId: string) {
   let currentValue = chart.getLastValue(seriesId);
+  // Track the pixel Y the snapshot maps to so a pan/zoom/resize that leaves the
+  // value unchanged but shifts the badge still re-emits — a consumer-positioned
+  // badge reads `yScale.valueToY` off this store. Comparing prev/next against
+  // the live yScale alone would always be equal.
+  let lastY = currentValue ? chart.yScale.valueToY(currentValue.value) : null;
   return readable<{ value: number; isLive: boolean } | null>(currentValue, (set) => {
     const handler = () => {
       const next = chart.getLastValue(seriesId);
       const prev = currentValue;
-      if (prev?.value === next?.value && prev?.isLive === next?.isLive) return;
+      const nextY = next ? chart.yScale.valueToY(next.value) : null;
+      if (prev?.value === next?.value && prev?.isLive === next?.isLive && lastY === nextY) return;
+
       currentValue = next;
+      lastY = nextY;
       set(next);
     };
     chart.on('dataUpdate', handler);
