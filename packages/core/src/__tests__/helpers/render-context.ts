@@ -16,6 +16,13 @@ export interface BuildContextOptions {
   mediaHeight?: number;
   /** Device pixel ratio. Defaults to 1 (keeps assertions in a single coordinate space). */
   pixelRatio?: number;
+  /** Override the scope's horizontal device-pixel ratio independently of
+   *  `pixelRatio` — lets a test pin which axis a renderer scales by. Defaults
+   *  to `pixelRatio`. */
+  horizontalPixelRatio?: number;
+  /** Override the scope's vertical device-pixel ratio independently. Defaults
+   *  to `pixelRatio`. */
+  verticalPixelRatio?: number;
   /** Spacing between data points (ms-equivalent units). Defaults to 1. */
   dataInterval?: number;
   /** Theme override. Defaults to catppuccin.theme. */
@@ -45,6 +52,8 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
     mediaWidth = 800,
     mediaHeight = 400,
     pixelRatio = 1,
+    horizontalPixelRatio = pixelRatio,
+    verticalPixelRatio = pixelRatio,
     dataInterval = 1,
     theme = catppuccin.theme,
     padding = { top: 0, bottom: 0 },
@@ -58,8 +67,8 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
     context: recordingCtx,
     bitmapSize,
     mediaSize,
-    horizontalPixelRatio: pixelRatio,
-    verticalPixelRatio: pixelRatio,
+    horizontalPixelRatio,
+    verticalPixelRatio,
   };
 
   const timeScale = new XScale();

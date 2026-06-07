@@ -67,6 +67,9 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.curve,
+    // A registry-name string diffs by value; a raw painter diffs by reference.
+    options?.linePainter,
   ]);
 
   return null;

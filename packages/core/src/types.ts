@@ -1,3 +1,5 @@
+import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
+
 /**
  * Accepted time input: a timestamp in **milliseconds** (like `Date.now()`) or a `Date` object.
  * `Date` values are converted to milliseconds internally via `Date.getTime()`.
@@ -193,6 +195,24 @@ export interface CandlestickSeriesOptions {
    * a hard disable that wins over this field.
    */
   smoothMs?: number | false;
+  /**
+   * Body corner radius in CSS pixels, applied to all four corners (a candle
+   * body has no baseline). Default: `3`. `0` is byte-identical to the prior
+   * square output. Clamped to half the smaller body dimension, so dojis and
+   * ≤2px bodies degrade to flat. The `[top, bottom]` gradient is preserved —
+   * the painter fills with the engine-resolved gradient and never rebuilds it.
+   */
+  cornerRadius?: number;
+  /**
+   * Custom candle-body painter — a raw `CandlePainter` function that owns the
+   * body fill. Leave unset for the built-in rounded fill (driven by
+   * `cornerRadius`). Read fresh each frame; a new reference is honored on the
+   * next render regardless of wrapper change-detection. Keep it a stable
+   * reference (module scope or `useCallback`) so the wrapper diffs it cleanly.
+   * A throw falls back to the default fill. The wick and volume histogram are
+   * unaffected.
+   */
+  candlePainter?: CandlePainter;
 }
 
 /**
@@ -289,6 +309,26 @@ export interface LineSeriesOptions {
    * disable that wins over this field.
    */
   smoothMs?: number | false;
+  /**
+   * Declarative line smoothing. Default: `'straight'` (zero visual change —
+   * the prior polyline). Resolves to a shipped built-in path builder inside the
+   * renderer and drives the stroke, the area fill, and stacked slices from one
+   * path:
+   * - `'straight'` — plain polyline.
+   * - `'smooth'` — Fritsch–Carlson monotone cubic (non-overshooting, so it stays
+   *   inside an area fill that closes to a baseline).
+   * - `'stepped'` — horizontal-then-vertical step at each sample.
+   */
+  curve?: 'straight' | 'smooth' | 'stepped';
+  /**
+   * Custom line path builder — a raw `LinePainter` function. Overrides `curve`,
+   * applied per finite run to both the stroke and the area-fill top edge. Read
+   * fresh each frame; keep it a stable reference so the wrapper diffs it cleanly.
+   * A throw falls back to the straight builder. Stacked mode uses the `curve`
+   * kind for gap-free interior tiling, so a custom `linePainter` there falls back
+   * to `'straight'`.
+   */
+  linePainter?: LinePainter;
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */
@@ -375,6 +415,33 @@ export interface BarSeriesOptions {
    * @internal
    */
   anchor?: 'center' | 'right';
+  /**
+   * Free-end corner radius in CSS pixels. Default: `4`. `0` is byte-identical to
+   * the pre-rounding square output. The radius is clamped to half the smaller
+   * bar dimension, so thin bars / sub-radius segments degrade to flat.
+   *
+   * The renderer decides which edge is "free" per draw mode — a positive bar
+   * rounds its top, a negative bar its bottom, and in a stack only the topmost
+   * (or bottommost) segment per column rounds, interior segments stay square.
+   * `anchor` is orthogonal: rounding operates on the already-offset rect.
+   */
+  cornerRadius?: number;
+  /**
+   * Custom bar painter — a raw `BarPainter` function that owns the bar fill.
+   * Leave unset for the built-in rounded fill (driven by `cornerRadius`). Read
+   * fresh each frame; a new function reference is honored on the next render
+   * regardless of wrapper change-detection. Keep it a stable reference (module
+   * scope or `useCallback`) so the wrapper diffs it cleanly. A throw falls back
+   * to the default fill.
+   */
+  barPainter?: BarPainter;
+  /**
+   * Time (epoch ms) at/after which bars are flagged as projected / forecast
+   * "ghost" bars. The default painter fills those with a translucent derivative
+   * of their color; projected bars also skip the entrance transform so the ghost
+   * never double-fades. Omitted: no projected bars.
+   */
+  projectedFrom?: number;
 }
 
 /**

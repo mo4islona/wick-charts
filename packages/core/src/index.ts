@@ -51,6 +51,32 @@ export { PerfMonitor } from './perf';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
+export {
+  roundedBarFill,
+  roundedCandleFill,
+  smoothCurve,
+  steppedCurve,
+  straightCurve,
+} from './series/painters/builtins';
+export type { CurveKind, RoundedRectArgs, TracePathArgs } from './series/painters/canvas-path';
+// Painters — optional custom per-element drawing for bar / candle / line series,
+// the shipped built-ins (rounded corners, line smoothing), and reusable canvas
+// primitives. A custom painter is a plain function passed to the series option;
+// there is no name registry.
+export { fillRoundedRect, tracePath } from './series/painters/canvas-path';
+export type {
+  BarGeometry,
+  BarPaintArgs,
+  BarPainter,
+  CandleGeometry,
+  CandlePaintArgs,
+  CandlePainter,
+  CornerMask,
+  LinePaintArgs,
+  LinePainter,
+  LinePoint,
+  PaintEnv,
+} from './series/painters/types';
 export type { HoverInfo, SliceInfo } from './series/types';
 export type {
   BuildHoverSnapshotsArgs,

@@ -13,8 +13,14 @@ import { TimeSeriesStore } from '../../data/store';
 import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { LineRenderer } from '../../series/line';
-import type { OHLCData, TimePoint } from '../../types';
+import type { BarSeriesOptions, OHLCData, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
+
+// Bars round their free end by default; this fade-grow test asserts on fillRect,
+// so pin it to cornerRadius:0 (the byte-identical square path).
+function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+  return new BarRenderer(layers, { cornerRadius: 0, ...opts });
+}
 
 function mkOhlcStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
   const s = new TimeSeriesStore<OHLCData>();
@@ -68,7 +74,7 @@ describe('entrance animation — frame-by-frame progression', () => {
   });
 
   it('bar fade-grow: bar height on the new bar strictly increases while alpha rises', () => {
-    const r = new BarRenderer(1, { entryAnimation: 'fade-grow', entryMs: 250 });
+    const r = makeBar(1, { entryAnimation: 'fade-grow', entryMs: 250 });
     r.setData([{ time: 10, value: 5 }]);
     const { ctx: priming } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
     r.render(priming);

@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { BarRenderer } from '../../series/bar';
-import type { TimePoint } from '../../types';
+import type { BarSeriesOptions, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
+
+// Bars round their free end by default; these geometry tests predate that and
+// assert on fillRect, so pin them to cornerRadius:0 (the byte-identical square
+// path). Rounding has dedicated coverage in bar-rounded.test.ts.
+function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+  return new BarRenderer(layers, { cornerRadius: 0, ...opts });
+}
 
 function ts(n: number, seed: (i: number) => number): TimePoint[] {
   return Array.from({ length: n }, (_, i) => ({ time: i * 10 + 5, value: seed(i) }));
@@ -10,14 +17,14 @@ function ts(n: number, seed: (i: number) => number): TimePoint[] {
 
 describe('BarRenderer.render', () => {
   it('empty stores → zero draw calls', () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
     expect(spy.calls).toHaveLength(0);
   });
 
   it('single-layer positive values: one fillRect per bar with the positive color', () => {
-    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
     r.setData(ts(4, (i) => i + 1));
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 10 } });
     r.render(ctx);
@@ -29,7 +36,7 @@ describe('BarRenderer.render', () => {
   });
 
   it('single-layer with negative values uses colors[1], draws a zero line, and heights go downward', () => {
-    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
     r.setData([
       { time: 10, value: 3 },
       { time: 30, value: -2 },
@@ -47,8 +54,8 @@ describe('BarRenderer.render', () => {
   });
 
   it('bar width respects barWidthRatio (smaller ratio → smaller bars)', () => {
-    const wide = new BarRenderer(1, { colors: ['#000'], barWidthRatio: 0.9, stacking: 'off' });
-    const narrow = new BarRenderer(1, { colors: ['#000'], barWidthRatio: 0.2, stacking: 'off' });
+    const wide = makeBar(1, { colors: ['#000'], barWidthRatio: 0.9, stacking: 'off' });
+    const narrow = makeBar(1, { colors: ['#000'], barWidthRatio: 0.2, stacking: 'off' });
     wide.setData(ts(3, () => 5));
     narrow.setData(ts(3, () => 5));
 
@@ -64,7 +71,7 @@ describe('BarRenderer.render', () => {
   });
 
   it('multi-layer stacking=off: all layers overlap at the same X, tallest first', () => {
-    const r = new BarRenderer(2, { colors: ['#111', '#222'], stacking: 'off' });
+    const r = makeBar(2, { colors: ['#111', '#222'], stacking: 'off' });
     r.setData([{ time: 50, value: 10 }], 0);
     r.setData([{ time: 50, value: 3 }], 1);
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 15 } });
@@ -80,7 +87,7 @@ describe('BarRenderer.render', () => {
   });
 
   it('multi-layer stacking=normal: layers drawn bottom-to-top with cumulative Y offsets', () => {
-    const r = new BarRenderer(2, { colors: ['#111', '#222'], stacking: 'normal' });
+    const r = makeBar(2, { colors: ['#111', '#222'], stacking: 'normal' });
     r.setData([{ time: 50, value: 4 }], 0);
     r.setData([{ time: 50, value: 6 }], 1);
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 20 } });
@@ -97,7 +104,7 @@ describe('BarRenderer.render', () => {
   });
 
   it('hidden layer skipped in multi-layer off (still draws the visible one)', () => {
-    const r = new BarRenderer(2, { colors: ['#111', '#222'], stacking: 'off' });
+    const r = makeBar(2, { colors: ['#111', '#222'], stacking: 'off' });
     r.setData([{ time: 50, value: 5 }], 0);
     r.setData([{ time: 50, value: 8 }], 1);
     // Renderer's `setLayerVisible` flips the store flag (drives Y-range
@@ -114,14 +121,14 @@ describe('BarRenderer.render', () => {
   });
 
   it('stacking=percent: getValueRange returns fixed [0, 100]', () => {
-    const r = new BarRenderer(2, { stacking: 'percent' });
+    const r = makeBar(2, { stacking: 'percent' });
     r.setData([{ time: 1, value: 2 }], 0);
     r.setData([{ time: 1, value: 3 }], 1);
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 100 });
   });
 
   it('skips non-finite values in the draw loop (single-layer)', () => {
-    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
     r.setData([
       { time: 10, value: 3 },
       { time: 20, value: Number.NaN },
@@ -147,7 +154,7 @@ describe('BarRenderer.render', () => {
     // Same pathology as the single-candle case on CandlestickRenderer: very
     // few points in the visible range → raw `barWidthBitmap` claims a huge
     // fraction of the chart. The renderer caps it.
-    const r = new BarRenderer(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
     r.setData([{ time: 5, value: 3 }]);
     const { ctx, spy } = buildRenderContext({
       timeRange: { from: 0, to: 10 },
@@ -167,7 +174,7 @@ describe('BarRenderer.render', () => {
   });
 
   it('getValueRange filters non-finite values (no Infinity leak into min/max)', () => {
-    const r = new BarRenderer(2, { colors: ['#a', '#b'], stacking: 'off' });
+    const r = makeBar(2, { colors: ['#a', '#b'], stacking: 'off' });
     r.setData(
       [
         { time: 10, value: 3 },
@@ -192,8 +199,8 @@ describe('BarRenderer.render', () => {
     const time = 55;
     // entryAnimation:'none' paints the settled bar directly, so fillRect.x is
     // the final body position with no entrance transform in the way.
-    const center = new BarRenderer(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none' });
-    const right = new BarRenderer(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none', anchor: 'right' });
+    const center = makeBar(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none' });
+    const right = makeBar(1, { colors: ['#000'], stacking: 'off', entryAnimation: 'none', anchor: 'right' });
     center.setData([{ time, value: 5 }]);
     right.setData([{ time, value: 5 }]);
 

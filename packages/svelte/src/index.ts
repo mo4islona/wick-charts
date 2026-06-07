@@ -11,17 +11,25 @@
 export type {
   AxisBound,
   AxisConfig,
+  BarPaintArgs,
+  BarPainter,
   BarSeriesOptions,
   /** @deprecated Use {@link StackingMode} instead. */
   BuildHoverSnapshotsArgs,
   BuildLastSnapshotsArgs,
+  CandlePaintArgs,
+  CandlePainter,
   CandlestickSeriesOptions,
   ChartLayout,
   ChartOptions,
   ChartTheme,
+  CornerMask,
   CrosshairPosition,
+  CurveKind,
   HoverInfo,
   LegendItem,
+  LinePaintArgs,
+  LinePainter,
   /** @deprecated Use {@link TimePoint} instead. */
   LineSeriesOptions,
   NavigatorCandlePoint,
@@ -32,8 +40,10 @@ export type {
   NavigatorSeriesType,
   OHLCData,
   OHLCInput,
+  PaintEnv,
   PieSeriesOptions,
   PieSliceData,
+  RoundedRectArgs,
   SeriesSnapshot,
   SeriesType,
   SliceInfo,
@@ -48,6 +58,7 @@ export type {
   TooltipFormatter,
   TooltipPosition,
   TooltipPositionArgs,
+  TracePathArgs,
   Typography,
   ValueFormatter,
   VisibleRange,
@@ -55,6 +66,7 @@ export type {
   YAxisConfig,
   YRange,
 } from '@wick-charts/core';
+// Painters — custom per-element drawing for bar / candle / line series.
 export {
   ChartInstance,
   NavigatorController,
@@ -68,6 +80,7 @@ export {
   createTheme,
   detectInterval,
   dracula,
+  fillRoundedRect,
   formatCompact,
   formatDate,
   formatPriceAdaptive,
@@ -92,8 +105,14 @@ export {
   resolveAxisTextColor,
   resolveCandlestickBodyColor,
   rosePineDawn,
+  roundedBarFill,
+  roundedCandleFill,
   sandDune,
+  smoothCurve,
   solarizedLight,
+  steppedCurve,
+  straightCurve,
+  tracePath,
 } from '@wick-charts/core';
 
 export { default as BarSeries } from './BarSeries.svelte';

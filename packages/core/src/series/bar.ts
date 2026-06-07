@@ -2,6 +2,8 @@ import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint } from '../types';
 import { BaseMultiLayerSeries } from './base-multi-layer';
+import { resolveBarPainter } from './painters/resolve';
+import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import type { SeriesRenderContext } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -12,11 +14,16 @@ type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs'> & {
   smoothMs: number;
 };
 
+/** Default free-end corner radius in CSS px. `0` is byte-identical to the
+ *  pre-rounding `fillRect` output (see {@link fillRoundedRect}). */
+const DEFAULT_CORNER_RADIUS = 2;
+
 const DEFAULT_OPTIONS: ResolvedBarOptions = {
   colors: ['#26a69a', '#ef5350'],
   barWidthRatio: 0.6,
   stacking: 'off',
   anchor: 'center',
+  cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_BAR_ENTRY,
   smoothMs: DEFAULT_BAR_SMOOTH,
 };
@@ -29,8 +36,34 @@ function normalize(options: BarSeriesOptions): ResolvedBarOptions {
   };
 }
 
+/** The free end the renderer decided to round for a given bar / segment. The
+ *  renderer owns this — only it knows the draw mode (single / overlap / stacked /
+ *  percent) — so a painter never infers sign from geometry. */
+type RoundEdge = 'top' | 'bottom' | 'none';
+
+/** Shared corner masks per free end. Reused across bars in a pass; painters must
+ *  treat the mask as read-only (documented in {@link BarPaintArgs}). */
+const CORNER_MASKS: Record<RoundEdge, CornerMask> = {
+  top: { tl: true, tr: true, br: false, bl: false },
+  bottom: { tl: false, tr: false, br: true, bl: true },
+  none: { tl: false, tr: false, br: false, bl: false },
+};
+
+/** Per-render drawing context, resolved once in {@link BarRenderer.render} so
+ *  the per-bar `drawAnimatedBar` doesn't re-resolve the painter or rebuild the
+ *  env on every element. */
+interface BarPass {
+  painter: BarPainter;
+  env: PaintEnv;
+  /** Corner radius in bitmap px (CSS px × horizontalPixelRatio, matching the
+   *  candlestick renderer), before the per-element clamp.
+   *  {@link BarRenderer.drawAnimatedBar} clamps it to each bar's geometry so the
+   *  value handed to a painter honors the pre-clamped `radius` contract. */
+  radius: number;
+}
+
 /** One bar's draw spec for {@link BarRenderer.drawAnimatedBar} — grouped into
- *  a single object so call sites read by name instead of eight positional
+ *  a single object so call sites read by name instead of many positional
  *  args. */
 interface AnimatedBar {
   context: CanvasRenderingContext2D;
@@ -48,11 +81,20 @@ interface AnimatedBar {
   /** Bar body width, in bitmap px. */
   barWidth: number;
   color: string;
+  /** Which edge to round — the renderer's per-mode free-end decision. */
+  roundEdge: RoundEdge;
+  /** Ghost / forecast bar (`time >= options.projectedFrom`). Skips the entrance
+   *  transform so its only alpha source is the painter's translucent fill. */
+  isProjected: boolean;
 }
 
 export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   readonly kind = 'bar' as const;
   protected declare options: ResolvedBarOptions;
+
+  /** Resolved drawing context for the in-flight render pass. Set at the top of
+   *  {@link render}, read by {@link drawAnimatedBar}. */
+  #pass: BarPass | null = null;
 
   constructor(layerCount: number, options?: Partial<BarSeriesOptions>) {
     super(layerCount);
@@ -77,6 +119,13 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const next = current.map((c, i) => (c === prevDefaults[i] ? (theme.seriesColors[i] ?? c) : c));
 
     this.updateOptions({ colors: next });
+  }
+
+  /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
+  private isProjectedTime(time: number): boolean {
+    const from = this.options.projectedFrom;
+
+    return from !== undefined && time >= from;
   }
 
   /**
@@ -126,6 +175,18 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
+
+    const { scope } = ctx;
+    this.#pass = {
+      painter: resolveBarPainter(this.options.barPainter),
+      env: {
+        ctx: scope.context,
+        theme: ctx.theme,
+        horizontalPixelRatio: scope.horizontalPixelRatio,
+        verticalPixelRatio: scope.verticalPixelRatio,
+      },
+      radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * scope.horizontalPixelRatio,
+    };
 
     switch (this.options.stacking) {
       case 'normal':
@@ -185,6 +246,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         if (!Number.isFinite(d.value)) continue;
         const value = this.effectiveValue(ctx, 0, d.time, d.value);
         const progress = this.entranceProgress(ctx, 0, d.time);
+        const isProjected = this.isProjectedTime(d.time);
         const cx = timeScale.timeToBitmapX(d.time);
         if (value >= 0) {
           const topY = yScale.valueToBitmapY(value);
@@ -198,6 +260,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             x: cx - anchorOffset,
             barWidth: bodyWidth,
             color: posColor,
+            roundEdge: 'top',
+            isProjected,
           });
         } else {
           const bottomY = yScale.valueToBitmapY(value);
@@ -211,6 +275,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             x: cx - anchorOffset,
             barWidth: bodyWidth,
             color: negColor,
+            roundEdge: 'bottom',
+            isProjected,
           });
         }
       }
@@ -249,10 +315,16 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             Math.abs(b.value) - Math.abs(a.value),
         );
         const cx = timeScale.timeToBitmapX(time);
+        const isProjected = this.isProjectedTime(time);
 
-        for (const { layer, value } of entries) {
+        // Overlap mode: only the front-most (last-drawn, shortest) bar per time
+        // rounds its free end; taller bars behind it stay square so no rounded
+        // notch shows where a front bar overlaps a back one.
+        for (let i = 0; i < entries.length; i++) {
+          const { layer, value } = entries[i];
           const color = this.options.colors[layer % this.options.colors.length];
           const progress = this.entranceProgress(ctx, layer, time);
+          const isFront = i === entries.length - 1;
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, zeroY - topY);
@@ -265,6 +337,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge: isFront ? 'top' : 'none',
+              isProjected,
             });
           } else {
             const bottomY = yScale.valueToBitmapY(value);
@@ -278,6 +352,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge: isFront ? 'bottom' : 'none',
+              isProjected,
             });
           }
         }
@@ -347,6 +423,22 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
     }
 
+    // Per-column free-end layer: only the topmost positive segment rounds its
+    // top, and only the bottommost negative segment rounds its bottom; interior
+    // segments stay square where the next slice sits on them.
+    const topPositiveLi = new Map<number, number>();
+    const bottomNegativeLi = new Map<number, number>();
+    for (const [time, values] of timeMap) {
+      let topPos = -1;
+      let botNeg = -1;
+      for (let li = 0; li < values.length; li++) {
+        if (values[li] > 0) topPos = li;
+        if (values[li] < 0) botNeg = li;
+      }
+      if (topPos >= 0) topPositiveLi.set(time, topPos);
+      if (botNeg >= 0) bottomNegativeLi.set(time, botNeg);
+    }
+
     // Draw layer by layer, bottom to top. A fading layer shrinks via
     // alpha-weighted cumulative (its slice height goes to zero as alpha → 0) —
     // bars don't take an additional opacity fade because the geometry
@@ -370,6 +462,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
 
         const progress = this.entranceProgress(ctx, li, time);
+        const isProjected = this.isProjectedTime(time);
+        const roundEdge: RoundEdge =
+          raw > 0
+            ? topPositiveLi.get(time) === li
+              ? 'top'
+              : 'none'
+            : bottomNegativeLi.get(time) === li
+              ? 'bottom'
+              : 'none';
 
         if (percent) {
           // Normalize to 0–100%
@@ -395,6 +496,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge,
+              isProjected,
             });
           } else if (raw < 0 && totalNegative < 0) {
             const pctBase = (baseNegative / totalNegative) * -100;
@@ -411,6 +514,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge,
+              isProjected,
             });
           }
         } else {
@@ -427,6 +532,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge,
+              isProjected,
             });
           } else {
             const topY = yScale.valueToBitmapY(baseNegative);
@@ -441,6 +548,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
+              roundEdge,
+              isProjected,
             });
           }
         }
@@ -448,30 +557,46 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
   }
 
-  private fillBar(context: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string): void {
-    context.fillStyle = color;
-    context.fillRect(x, y, w, h);
-  }
-
   /**
-   * Fill a bar with an optional entrance transform applied. When `progress >= 1`
-   * this is equivalent to {@link fillBar}. During entrance the transform shapes
-   * geometry (grow from baseline, slide in from the right) and/or alpha.
+   * Paint one bar through the resolved painter, applying any entrance transform
+   * and per-bar alpha first. The painter owns the fill (and the rounded-corner
+   * geometry); a projected bar is forced settled so its only alpha source is the
+   * painter's translucent fill rather than a `globalAlpha` fade.
    */
   private drawAnimatedBar(bar: AnimatedBar): void {
-    const { context, progress, baselineY, topY, barHeight, x, barWidth, color } = bar;
+    const pass = this.#pass;
+    if (pass === null) return;
+
+    const { context, baselineY, topY, barHeight, x, barWidth, color, roundEdge } = bar;
+    const progress = bar.isProjected ? 1 : bar.progress;
 
     const style = this.options.entryAnimation ?? 'fade-grow';
-    if (progress >= 1 || style === 'none') {
-      this.fillBar(context, x, topY, barWidth, barHeight, color);
+    const t =
+      progress >= 1 || style === 'none'
+        ? { x, topY, barWidth, barHeight, alpha: 1 }
+        : this.applyBarTransform(progress, baselineY, topY, barHeight, x, barWidth);
+
+    const args: BarPaintArgs = {
+      geom: { x: t.x, y: t.topY, width: t.barWidth, height: t.barHeight, baselineY },
+      color,
+      corners: CORNER_MASKS[roundEdge],
+      // Clamp to this bar's geometry so `radius` honors its pre-clamped contract
+      // for custom painters; `fillRoundedRect` re-clamps to the same bound, so
+      // the built-in output is unchanged.
+      radius: Math.min(pass.radius, t.barWidth / 2, t.barHeight / 2),
+      progress,
+      isProjected: bar.isProjected,
+    };
+
+    if (t.alpha < 1) {
+      context.save();
+      context.globalAlpha = t.alpha;
+      pass.painter(pass.env, args);
+      context.restore();
+
       return;
     }
 
-    const t = this.applyBarTransform(progress, baselineY, topY, barHeight, x, barWidth);
-    context.save();
-    context.globalAlpha = t.alpha;
-    context.fillStyle = color;
-    context.fillRect(t.x, t.topY, t.barWidth, t.barHeight);
-    context.restore();
+    pass.painter(pass.env, args);
   }
 }

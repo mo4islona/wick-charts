@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
 import { CandlestickRenderer } from '../../series/candlestick';
-import type { OHLCData } from '../../types';
+import type { CandlestickSeriesOptions, OHLCData } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
 function mkStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
@@ -11,13 +11,22 @@ function mkStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
   return s;
 }
 
+/** Pin cornerRadius:0 so the square-geometry assertions here (body fillRect
+ *  counts / colors) stay valid; rounding is covered in candlestick-rounded.test.ts. */
+function mkRenderer(
+  store: TimeSeriesStore<OHLCData>,
+  options: Partial<CandlestickSeriesOptions> = {},
+): CandlestickRenderer {
+  return new CandlestickRenderer(store, { cornerRadius: 0, ...options });
+}
+
 const BULL = { open: 10, high: 12, low: 9, close: 11 };
 const BEAR = { open: 12, high: 13, low: 8, close: 9 };
 
 describe('CandlestickRenderer.render', () => {
   it('empty data → zero draw calls', () => {
     const { ctx, spy } = buildRenderContext();
-    const r = new CandlestickRenderer(mkStore([]));
+    const r = mkRenderer(mkStore([]));
     r.render(ctx);
     expect(spy.calls).toHaveLength(0);
   });
@@ -29,7 +38,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 50, ...BULL },
     ];
     // Default body is a single string → flat fillStyle (distinguishable in the spy).
-    const r = new CandlestickRenderer(mkStore(data), {});
+    const r = mkRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -42,7 +51,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 10, ...BULL },
       { time: 50, ...BEAR },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: '#00ff00', wick: '#005500' },
       down: { body: '#ff0000', wick: '#550000' },
       bodyWidthRatio: 0.6,
@@ -64,7 +73,7 @@ describe('CandlestickRenderer.render', () => {
 
   it('wick uses up.wick (separate from body), rendered as a thin fillRect', () => {
     const data: OHLCData[] = [{ time: 50, ...BULL }];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: '#00ff00', wick: '#112233' },
       down: { body: '#ff0000', wick: '#332211' },
       bodyWidthRatio: 0.6,
@@ -82,7 +91,7 @@ describe('CandlestickRenderer.render', () => {
 
   it('applies a gradient to candle bodies when body is a [top, bottom] tuple', () => {
     const data: OHLCData[] = [{ time: 50, ...BULL }];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: ['#aaff00', '#008800'], wick: '#00ff00' },
       down: { body: '#ff0000', wick: '#ff0000' },
       bodyWidthRatio: 0.6,
@@ -98,7 +107,7 @@ describe('CandlestickRenderer.render', () => {
 
   it('draws a flat body when `body` is a single string', () => {
     const data: OHLCData[] = [{ time: 50, ...BULL }];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: '#00ff00', wick: '#00ff00' },
       down: { body: '#ff0000', wick: '#ff0000' },
       bodyWidthRatio: 0.6,
@@ -117,7 +126,7 @@ describe('CandlestickRenderer.render', () => {
     // wick's fillStyle.
     const FLAT_BULL = { open: 10.0, high: 10.2, low: 9.8, close: 10.0001 };
     const data: OHLCData[] = [{ time: 50, ...FLAT_BULL }];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: ['#aaff00', '#008800'], wick: '#112233' },
       down: { body: '#ff0000', wick: '#ff0000' },
       bodyWidthRatio: 0.6,
@@ -136,7 +145,7 @@ describe('CandlestickRenderer.render', () => {
     // would claim ~50% of the chart. The cap inside the renderer keeps both
     // the body fillRect and the volume fillRect at a sane fraction of the
     // chart width.
-    const r = new CandlestickRenderer(mkStore([{ time: 5, ...BULL, volume: 100 }]));
+    const r = mkRenderer(mkStore([{ time: 5, ...BULL, volume: 100 }]));
     const { ctx, spy } = buildRenderContext({
       timeRange: { from: 0, to: 10 },
       yRange: { min: 0, max: 20 },
@@ -163,7 +172,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 20, ...BEAR },
       { time: 30, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data));
+    const r = mkRenderer(mkStore(data));
     // 3 candles visible on a chart ≈ 800 px wide, dataInterval=10, range=30
     // → naturalBarWidth ≈ 800 / 3 = 266. With the cap disabled on n=3, the
     // rendered body/volume should be much wider than the 30-CSS cap.
@@ -190,7 +199,7 @@ describe('CandlestickRenderer.render', () => {
     // offset. Fix: bump bodyWidth up to 2 so both widths are even.
     // Force the condition: pixelRatio=2 (wickWidth=2, even), barWidth so
     // small that bodyWidth hits the `Math.max(1, ...)` floor.
-    const r = new CandlestickRenderer(mkStore([{ time: 50, ...BULL }]));
+    const r = mkRenderer(mkStore([{ time: 50, ...BULL }]));
     const { ctx, spy } = buildRenderContext({
       // Engineered so that naturalBarWidth ≤ ~4 bitmap px → bodyWidth floors to 1.
       timeRange: { from: 0, to: 10_000 },
@@ -227,7 +236,7 @@ describe('CandlestickRenderer.render', () => {
     ];
 
     for (const { pixelRatio, dataInterval } of cases) {
-      const r = new CandlestickRenderer(mkStore([{ time: 50, ...BULL, volume: 100 }]));
+      const r = mkRenderer(mkStore([{ time: 50, ...BULL, volume: 100 }]));
       const { ctx, spy } = buildRenderContext({
         timeRange: { from: 0, to: 100 },
         yRange: { min: 0, max: 20 },
@@ -280,7 +289,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 50, ...BULL },
       { time: 70, ...BEAR },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {
+    const r = mkRenderer(mkStore(data), {
       up: { body: [UP_TOP, UP_BOTTOM], wick: UP_WICK },
       down: { body: [DOWN_TOP, DOWN_BOTTOM], wick: DOWN_WICK },
       bodyWidthRatio: 0.6,
@@ -315,7 +324,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 10, ...BULL, volume: 100 },
       { time: 50, ...BULL, volume: 200 },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {});
+    const r = mkRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -335,7 +344,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 40, ...BULL, volume: null as unknown as number },
       { time: 50, ...BULL, volume: 200 },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {});
+    const r = mkRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 60 }, yRange: { min: 0, max: 20 } });
     expect(() => r.render(ctx)).not.toThrow();
 
@@ -355,7 +364,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 10, ...BULL, volume: 0 },
       { time: 50, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {});
+    const r = mkRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
 
@@ -393,7 +402,7 @@ describe('CandlestickRenderer.render', () => {
     };
 
     it('seeds the scale on the first frame — a settled render needs no animation', () => {
-      const r = new CandlestickRenderer(mkStore(data), {});
+      const r = mkRenderer(mkStore(data), {});
       const { ctx } = buildRenderContext({ timeRange: fullWindow, yRange });
       r.render(ctx);
 
@@ -403,14 +412,14 @@ describe('CandlestickRenderer.render', () => {
     it('zoom-out does not snap the band — it eases and requests frames until settled', () => {
       // Reference: a fresh renderer painted directly on the zoom window seeds
       // its scale to 100, so its in-window bars fill the band (the snapped height).
-      const ref = new CandlestickRenderer(mkStore(data), {});
+      const ref = mkRenderer(mkStore(data), {});
       const { ctx: refCtx, spy: refSpy } = buildRenderContext({ timeRange: zoomWindow, yRange });
       ref.render(refCtx);
       const snappedHeight = maxVolBarHeight(refSpy);
       expect(snappedHeight).toBeGreaterThan(0);
 
       // Subject: seed on the full window (scale → 1000), then zoom in one frame.
-      const r = new CandlestickRenderer(mkStore(data), {});
+      const r = mkRenderer(mkStore(data), {});
       r.render(buildRenderContext({ timeRange: fullWindow, yRange }).ctx);
 
       const { spy: zoomSpy } = (() => {
@@ -439,11 +448,11 @@ describe('CandlestickRenderer.render', () => {
       // Seed on a small-volume window, then zoom so a tall bar enters: the scale
       // lags below the new max, so the tall bar would exceed the 20% band
       // without the height clamp.
-      const r = new CandlestickRenderer(mkStore(data), {});
+      const r = mkRenderer(mkStore(data), {});
       r.render(buildRenderContext({ timeRange: zoomWindow, yRange }).ctx);
 
       // The band height equals the snapped (fully-scaled) bar — capture it.
-      const ref = new CandlestickRenderer(mkStore(data), {});
+      const ref = mkRenderer(mkStore(data), {});
       const refBuilt = buildRenderContext({ timeRange: zoomWindow, yRange });
       ref.render(refBuilt.ctx);
       const bandHeight = maxVolBarHeight(refBuilt.spy);
@@ -467,7 +476,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 500, ...BULL },
       { time: 600, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data), {});
+    const r = mkRenderer(mkStore(data), {});
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 50, to: 100 } });
     r.render(ctx);
 
@@ -477,7 +486,7 @@ describe('CandlestickRenderer.render', () => {
   });
 
   it('setData with mixed Date/number times normalizes all entries (regression #4)', () => {
-    const r = new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {});
+    const r = mkRenderer(new TimeSeriesStore<OHLCData>(), {});
     // Date only in the middle — old buggy code kept it as Date, rendering at NaN.
     r.setData([
       { time: 10, ...BULL },
@@ -508,7 +517,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 70, open: 12, high: 13, low: Number.NEGATIVE_INFINITY, close: 9 },
       { time: 90, ...BEAR },
     ];
-    const r = new CandlestickRenderer(mkStore(data));
+    const r = mkRenderer(mkStore(data));
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
 
     expect(() => r.render(ctx)).not.toThrow();
@@ -536,7 +545,7 @@ describe('CandlestickRenderer.render', () => {
       // biome-ignore lint/suspicious/noExplicitAny: simulate poisoned upstream JSON
       { time: 50, open: 12, high: undefined as any, low: 8, close: 9 },
     ];
-    const r = new CandlestickRenderer(mkStore(data));
+    const r = mkRenderer(mkStore(data));
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 60 }, yRange: { min: 0, max: 20 } });
     r.render(ctx);
 
@@ -555,7 +564,7 @@ describe('CandlestickRenderer.render', () => {
       { time: 70, open: NaN, high: 13, low: 8, close: 9 },
       { time: 90, ...BULL },
     ];
-    const r = new CandlestickRenderer(mkStore(data));
+    const r = mkRenderer(mkStore(data));
     const { ctx } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
 
     const warns: unknown[][] = [];
@@ -585,8 +594,8 @@ describe('CandlestickRenderer.render', () => {
       { time: 10, ...BULL },
       { time: 30, open: 10, high: NaN, low: 9, close: 11 },
     ];
-    const r1 = new CandlestickRenderer(mkStore(data));
-    const r2 = new CandlestickRenderer(mkStore(data));
+    const r1 = mkRenderer(mkStore(data));
+    const r2 = mkRenderer(mkStore(data));
     const { ctx } = buildRenderContext({ timeRange: { from: 0, to: 40 }, yRange: { min: 0, max: 20 } });
 
     const warns: unknown[][] = [];
@@ -607,12 +616,12 @@ describe('CandlestickRenderer.render', () => {
 
 describe('CandlestickRenderer.getValueRange', () => {
   it('empty range → null', () => {
-    const r = new CandlestickRenderer(mkStore([]));
+    const r = mkRenderer(mkStore([]));
     expect(r.getValueRange(0, 100)).toBeNull();
   });
 
   it('returns lowest low / highest high across visible candles', () => {
-    const r = new CandlestickRenderer(
+    const r = mkRenderer(
       mkStore([
         { time: 10, ...BULL }, // low 9, high 12
         { time: 30, ...BEAR }, // low 8, high 13
@@ -622,7 +631,7 @@ describe('CandlestickRenderer.getValueRange', () => {
   });
 
   it('skips a poisoned candle (NaN high/low) instead of corrupting the range', () => {
-    const r = new CandlestickRenderer(
+    const r = mkRenderer(
       mkStore([
         { time: 10, ...BULL }, // low 9, high 12
         { time: 30, open: Number.NaN, high: Number.NaN, low: Number.NaN, close: Number.NaN },

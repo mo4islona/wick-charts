@@ -89,7 +89,7 @@ describe('Sparkline', () => {
     expect(spy.countOf('strokeText')).toBe(0);
   });
 
-  it('renders bar variant with fillRect calls', () => {
+  it('renders bar variant with one fill per bar', () => {
     act(() => {
       render(<Sparkline data={data} theme={catppuccin.theme} variant="bar" />, { container: host });
     });
@@ -98,7 +98,10 @@ describe('Sparkline', () => {
     const canvas = host.querySelector('canvas') as HTMLCanvasElement;
     canvas.getContext('2d');
     const spy = canvas.__spy!;
-    expect(spy.countOf('fillRect')).toBeGreaterThanOrEqual(data.length);
+    // Bars round their free end by default — a rounded bar paints a `fill`, a
+    // sub-radius bar collapses to `fillRect`; count both so the assertion is
+    // independent of which path each bar took.
+    expect(spy.countOf('fill') + spy.countOf('fillRect')).toBeGreaterThanOrEqual(data.length);
   });
 
   it('applies custom color to the stroked line', () => {

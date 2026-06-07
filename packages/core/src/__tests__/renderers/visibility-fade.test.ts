@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BarRenderer } from '../../series/bar';
 import { LineRenderer } from '../../series/line';
+import type { BarSeriesOptions } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
+
+// Bars round their free end by default; these fade/geometry tests assert on
+// fillRect, so pin them to cornerRadius:0 (the byte-identical square path).
+function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+  return new BarRenderer(layers, { cornerRadius: 0, ...opts });
+}
 
 describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
   let now = 0;
@@ -22,7 +29,7 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
 
   describe('bar non-stacked', () => {
     it('layer fading out shrinks bar height proportionally to alpha (no off-canvas fly)', () => {
-      const r = new BarRenderer(2, {
+      const r = makeBar(2, {
         colors: ['#00aa00', '#aa0000'],
         stacking: 'off',
         entryAnimation: 'none',
@@ -65,7 +72,7 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
     });
 
     it('fully faded layer (alpha=0) is excluded from rendering', () => {
-      const r = new BarRenderer(2, {
+      const r = makeBar(2, {
         colors: ['#00aa00', '#aa0000'],
         stacking: 'off',
         entryAnimation: 'none',
@@ -91,7 +98,7 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
 
   describe('bar stacked percent', () => {
     it("fading layer's share smoothly redistributes during fade (not binary)", () => {
-      const r = new BarRenderer(2, {
+      const r = makeBar(2, {
         colors: ['#00aa00', '#0000aa'],
         stacking: 'percent',
         entryAnimation: 'none',
@@ -126,7 +133,6 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
       expect(layer0Fill).toBeDefined();
       expect(layer0Fill?.args[3] as number).toBeCloseTo(expectedLayer0Height, 0);
     });
-
   });
 
   describe('line stacked normal', () => {
@@ -214,9 +220,7 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
       // Stroke for the fading layer must record reduced globalAlpha — fill
       // (with its gradient) is left at full alpha so the slice shape still
       // reads while the stroke fades away in lockstep with the collapse.
-      const stroke = spy
-        .callsOf('stroke')
-        .find((c) => c.strokeStyle === '#0000aa');
+      const stroke = spy.callsOf('stroke').find((c) => c.strokeStyle === '#0000aa');
       expect(stroke).toBeDefined();
       expect(stroke?.globalAlpha).toBeCloseTo(alpha, 3);
     });

@@ -17,6 +17,7 @@ export type Route =
   // docs/pages/use-cases/index.tsx.
   | 'use-cases/realtime-data'
   | 'use-cases/multi-chart-sync'
+  | 'use-cases/custom-renders'
   | 'use-cases/theme'
   | 'api/line-series'
   | 'api/bar-series'
@@ -104,6 +105,7 @@ const CHARTS: RouteEntry[] = [
 const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
   { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
+  { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
   { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' },
 ];
 

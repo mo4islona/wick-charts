@@ -26,10 +26,15 @@ const theme = computed(() => {
 const dataInterval = computed(() => chart.getDataInterval());
 // Format the time pill at the axis's *resolved* tick granularity, not the raw
 // data interval — otherwise a time-of-day badge floats among date labels when
-// zoomed out. Falls back to dataInterval on a degenerate range.
-const tickInterval = computed(
-  () => chart.timeScale.niceTickValues(dataInterval.value).tickInterval || dataInterval.value,
-);
+// zoomed out. `niceTickValues` reads the live visible range, which Vue can't
+// track reactively, so depend on `position` (a wheel-zoom re-emits the
+// crosshair) to re-resolve on zoom — matching React, which recomputes this on
+// every render. Falls back to dataInterval on a degenerate range.
+const tickInterval = computed(() => {
+  void position.value;
+
+  return chart.timeScale.niceTickValues(dataInterval.value).tickInterval || dataInterval.value;
+});
 
 const labelStyle = computed(() => ({
   // Blend the theme's labelBackground at 80% opacity so the axis grid

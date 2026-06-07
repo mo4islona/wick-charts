@@ -64,6 +64,11 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.cornerRadius,
+    options?.projectedFrom,
+    // A registry-name string diffs by value; a raw painter function diffs by
+    // reference (a new inline function re-applies next commit — documented).
+    options?.barPainter,
   ]);
 
   return null;

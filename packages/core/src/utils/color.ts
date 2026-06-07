@@ -7,6 +7,15 @@ function parseHex(hex: string): [number, number, number] {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
 
+/** Expand a `#rgb` shorthand to `#rrggbb`. Any other input passes through. The
+ *  fixed-slice {@link parseHex} reads NaN channels on a 4-char shorthand, so it
+ *  must be expanded before parsing. */
+function expandShorthandHex(hex: string): string {
+  if (!hex.startsWith('#') || hex.length !== 4) return hex;
+
+  return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+}
+
 function toHex(r: number, g: number, b: number): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
@@ -15,11 +24,16 @@ export function hexToRgba(hex: string, alpha: number): string {
   if (hex.startsWith('rgba')) return hex.replace(/[\d.]+\)\s*$/, `${alpha})`);
   if (hex.startsWith('rgb(')) return hex.replace(/^rgb\((.*)\)$/i, `rgba($1, ${alpha})`);
   const key = hex + alpha;
-  let result = rgbaCache.get(key);
-  if (result) return result;
-  const [r, g, b] = parseHex(hex);
-  result = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  const cached = rgbaCache.get(key);
+  if (cached) return cached;
+
+  const [r, g, b] = parseHex(expandShorthandHex(hex));
+  // A non-hex color (named, hsl(), oklch(), malformed) parses to NaN channels —
+  // canvas silently rejects `rgba(NaN, …)` and keeps the previous fillStyle. Fall
+  // back to the solid color so the caller still gets the right hue (no alpha blend).
+  const result = Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b) ? hex : `rgba(${r}, ${g}, ${b}, ${alpha})`;
   rgbaCache.set(key, result);
+
   return result;
 }
 

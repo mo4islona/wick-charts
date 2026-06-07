@@ -8,9 +8,12 @@ import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { hexToRgba } from '../utils/color';
-import { lerp } from '../utils/math';
+import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
+import { fillRoundedRect } from './painters/canvas-path';
+import { resolveCandlePainter } from './painters/resolve';
+import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
 import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -103,13 +106,35 @@ class OHLCSpring {
   }
 }
 
+/** Default body corner radius in CSS px. `0` is byte-identical to the prior
+ *  square `fillRect` output (see {@link fillRoundedRect}). Kept subtle — bodies
+ *  are narrow, so even a small radius reads clearly; clamps to flat on dojis. */
+const DEFAULT_CORNER_RADIUS = 2;
+
+/** Candle bodies have no baseline, so every corner rounds. */
+const ALL_CORNERS: CornerMask = { tl: true, tr: true, br: true, bl: true };
+
+/** Volume bars grow up from the baseline, so only the free (top) end rounds. */
+const VOLUME_TOP_CORNERS: CornerMask = { tl: true, tr: true, br: false, bl: false };
+
 const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   up: { body: '#26a69a', wick: '#26a69a' },
   down: { body: '#ef5350', wick: '#ef5350' },
   bodyWidthRatio: 0.6,
+  cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_CANDLESTICK_ENTRY,
   smoothMs: DEFAULT_CANDLESTICK_SMOOTH,
 };
+
+/** Per-render drawing context, resolved once in {@link CandlestickRenderer.render}
+ *  so the per-candle body loop doesn't re-resolve the painter or rebuild the env. */
+interface CandlePass {
+  painter: CandlePainter;
+  env: PaintEnv;
+  /** Corner radius in bitmap px (CSS px × horizontalPixelRatio), before the
+   *  per-body clamp applied at the fill site. */
+  radius: number;
+}
 
 function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOptions {
   return {
@@ -463,6 +488,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       wickWidth,
       entranceByTime,
       snapVolScale: volScaleSnap,
+      radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * horizontalPixelRatio,
     });
 
     // Then candles on top
@@ -498,6 +524,17 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       reportPoisonedData(this, 'candlestick', poisonedIndices, `time ${firstPoisonedBar.time}`);
     }
 
+    const candlePass: CandlePass = {
+      painter: resolveCandlePainter(this.options.candlePainter),
+      env: {
+        ctx: context,
+        theme: ctx.theme,
+        horizontalPixelRatio,
+        verticalPixelRatio: scope.verticalPixelRatio,
+      },
+      radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * horizontalPixelRatio,
+    };
+
     const baseCandleArgs = {
       ctx: context,
       timeScale,
@@ -506,6 +543,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       bodyWidth,
       wickWidth,
       entranceByTime,
+      candlePass,
     };
     this.drawCandles({
       ...baseCandleArgs,
@@ -530,6 +568,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     wickWidth,
     entranceByTime,
     snapVolScale,
+    radius,
   }: {
     ctx: CanvasRenderingContext2D;
     data: OHLCData[];
@@ -541,6 +580,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     /** Snap (not ease) the volume scale this frame — set when the decimation
      *  boundary was just crossed and `volume` semantics changed. */
     snapVolScale: boolean;
+    /** Free-end (top) corner radius in bitmap px; reuses the candle
+     *  `cornerRadius`. `fillRoundedRect` clamps it per bar and falls back to a
+     *  square `fillRect` on short bars / `0`, so volume stays crisp when tiny. */
+    radius: number;
   }): void {
     // Find max volume for scaling. Filter non-finite values — `Infinity`
     // would poison `rawMax` (collapsing every real bar to ~1 px), `NaN`
@@ -602,7 +645,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
       const progress = entranceByTime?.get(c.time) ?? 1;
       if (progress >= 1 || style === 'none') {
-        ctx.fillRect(cx - halfBar, chartHeight - h, volBarWidth, h);
+        fillRoundedRect(ctx, {
+          x: cx - halfBar,
+          y: chartHeight - h,
+          width: volBarWidth,
+          height: h,
+          radius,
+          corners: VOLUME_TOP_CORNERS,
+        });
         continue;
       }
 
@@ -618,7 +668,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       });
       ctx.save();
       ctx.globalAlpha = t.alpha;
-      ctx.fillRect(t.x, t.topY, volBarWidth, Math.max(1, t.bottomY - t.topY));
+      fillRoundedRect(ctx, {
+        x: t.x,
+        y: t.topY,
+        width: volBarWidth,
+        height: Math.max(1, t.bottomY - t.topY),
+        radius,
+        corners: VOLUME_TOP_CORNERS,
+      });
       ctx.restore();
     }
   }
@@ -634,6 +691,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     body,
     wickColor,
     entranceByTime,
+    candlePass,
   }: {
     ctx: CanvasRenderingContext2D;
     candles: OHLCData[];
@@ -645,6 +703,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     body: string | [string, string];
     wickColor: string;
     entranceByTime: Map<number, number> | null;
+    candlePass: CandlePass;
   }): void {
     if (candles.length === 0) return;
 
@@ -718,18 +777,38 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       // Body fill. A ≤2px-tall candle can't show a gradient meaningfully, so
       // collapse both the tuple and single-color paths to a flat top-stop fill
       // — otherwise fillStyle would leak from the prior wick batch and the
-      // body would render in the wick color.
+      // body would render in the wick color. The painter receives this resolved
+      // fillStyle and MUST NOT rebuild the gradient (the engine built it once).
+      const bodyColor = Array.isArray(body) ? body[0] : body;
+      let fillStyle: string | CanvasGradient;
       if (drawsGradient && drawHeight > 2) {
         const grad = ctx.createLinearGradient(0, drawTop, 0, drawTop + drawHeight);
         grad.addColorStop(0, body[0]);
         grad.addColorStop(1, body[1]);
-        ctx.fillStyle = grad;
+        fillStyle = grad;
       } else {
-        ctx.fillStyle = drawsGradient ? body[0] : body;
+        fillStyle = bodyColor;
       }
+      ctx.fillStyle = fillStyle;
 
       if (needsTransform) ctx.globalAlpha = alpha;
-      ctx.fillRect(drawX, drawTop, bodyWidth, drawHeight);
+
+      // Round the body via the resolved painter. radius<1 (after clamp) with no
+      // custom painter routes back through the byte-identical fillRect path.
+      const radius = clamp(candlePass.radius, 0, Math.min(bodyWidth, drawHeight) / 2);
+      if (radius < 1 && !this.options.candlePainter) {
+        ctx.fillRect(drawX, drawTop, bodyWidth, drawHeight);
+      } else {
+        candlePass.painter(candlePass.env, {
+          geom: { x: drawX, y: drawTop, width: bodyWidth, height: drawHeight },
+          fillStyle,
+          color: bodyColor,
+          corners: ALL_CORNERS,
+          radius,
+          progress,
+          isBullish: c.close >= c.open,
+        });
+      }
       if (needsTransform) ctx.restore();
     }
   }

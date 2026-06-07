@@ -20,6 +20,19 @@ describe('hexToRgba', () => {
   it('promotes an rgb(...) string to rgba with the supplied alpha', () => {
     expect(hexToRgba('rgb(10, 20, 30)', 0.4)).toBe('rgba(10, 20, 30, 0.4)');
   });
+
+  it('expands a #rgb shorthand before parsing instead of emitting NaN channels', () => {
+    expect(hexToRgba('#abc', 0.5)).toBe('rgba(170, 187, 204, 0.5)');
+  });
+
+  it('falls back to the solid color for a non-hex input — never rgba(NaN, …)', () => {
+    // Named colors / hsl() / oklch() can't be alpha-blended by slicing; canvas
+    // rejects rgba(NaN,…) and would keep the previous fillStyle, so return the
+    // color verbatim (right hue, no alpha blend).
+    expect(hexToRgba('red', 0.25)).toBe('red');
+    expect(hexToRgba('hsl(200, 50%, 50%)', 0.25)).toBe('hsl(200, 50%, 50%)');
+    expect(hexToRgba('red', 0.25)).not.toContain('NaN');
+  });
 });
 
 describe('lighten', () => {

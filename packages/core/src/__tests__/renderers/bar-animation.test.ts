@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BarRenderer } from '../../series/bar';
-import type { TimePoint } from '../../types';
+import type { BarSeriesOptions, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
+
+// Bars round their free end by default; these animation tests assert on fillRect,
+// so pin them to cornerRadius:0 (the byte-identical square path). Rounding has
+// dedicated coverage in bar-rounded.test.ts.
+function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+  return new BarRenderer(layers, { cornerRadius: 0, ...opts });
+}
 
 const DATA: TimePoint[] = [{ time: 10, value: 5 }];
 
@@ -35,7 +42,7 @@ describe('BarRenderer — animation', () => {
   }
 
   it('setData seeds displayedLast to the real last (no animation on bulk load)', () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     r.setData(DATA);
     renderFrame(r);
     expect(displayed(r)[0]).toBe(5);
@@ -43,7 +50,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('updateLastPoint smoothly chases target, does not snap', () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     r.setData(DATA);
     renderFrame(r);
 
@@ -58,7 +65,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('converges and clears needsAnimation after enough frames', () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     r.setData(DATA);
     renderFrame(r);
 
@@ -73,7 +80,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('smoothMs: 0 disables smoothing', () => {
-    const r = new BarRenderer(1, { smoothMs: 0 });
+    const r = makeBar(1, { smoothMs: 0 });
     r.setData(DATA);
     renderFrame(r);
 
@@ -86,7 +93,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('appendPoint registers an entrance entry and needsAnimation picks up', () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     r.setData(DATA);
     renderFrame(r);
     expect(r.needsAnimation).toBe(false);
@@ -97,7 +104,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it("entryAnimation: 'none' skips entry registration", () => {
-    const r = new BarRenderer(1, { entryAnimation: 'none' });
+    const r = makeBar(1, { entryAnimation: 'none' });
     r.setData(DATA);
     renderFrame(r);
 
@@ -106,7 +113,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('cancelEntranceAnimations clears entries on every layer; preserves displayedLast', () => {
-    const r = new BarRenderer(2);
+    const r = makeBar(2);
     r.setData(DATA, 0);
     r.setData(DATA, 1);
     renderFrame(r);
@@ -125,7 +132,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it("default 'fade-grow' renders the new bar with alpha < 1 and reduced height", () => {
-    const r = new BarRenderer(1);
+    const r = makeBar(1);
     r.setData(DATA);
     renderFrame(r);
 
@@ -140,7 +147,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it("'slide' entrance offsets X and fades the entering bar", () => {
-    const r = new BarRenderer(1, { entryAnimation: 'slide' });
+    const r = makeBar(1, { entryAnimation: 'slide' });
     r.setData(DATA);
     renderFrame(r);
 
@@ -155,7 +162,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it("'grow' alone (no fade) keeps alpha=1 but shrinks height", () => {
-    const r = new BarRenderer(1, { entryAnimation: 'grow' });
+    const r = makeBar(1, { entryAnimation: 'grow' });
     r.setData(DATA);
     renderFrame(r);
 
@@ -170,7 +177,7 @@ describe('BarRenderer — animation', () => {
   });
 
   it('reaches full state after entryMs and clears entries', () => {
-    const r = new BarRenderer(1, { entryMs: 250 });
+    const r = makeBar(1, { entryMs: 250 });
     r.setData(DATA);
     renderFrame(r);
 
@@ -189,7 +196,7 @@ describe('BarRenderer — animation', () => {
       // Regression guard for the review comment that live-tracking (effectiveValue)
       // was not applied to values fed into renderStacked's time map — so stacked
       // bars would jump on updateLastPoint even with smoothing enabled.
-      const r = new BarRenderer(2, { stacking: 'normal' });
+      const r = makeBar(2, { stacking: 'normal' });
       r.setData([{ time: 10, value: 5 }], 0);
       r.setData([{ time: 10, value: 5 }], 1);
       renderFrame(r);
@@ -220,7 +227,7 @@ describe('BarRenderer — animation', () => {
     });
 
     it('percent stacking: the live last value participates in the percentage normalization', () => {
-      const r = new BarRenderer(2, { stacking: 'percent' });
+      const r = makeBar(2, { stacking: 'percent' });
       r.setData([{ time: 10, value: 4 }], 0);
       r.setData([{ time: 10, value: 6 }], 1);
       renderFrame(r);

@@ -133,6 +133,28 @@ describe('Vue <Crosshair>', () => {
     wrapper.unmount();
   });
 
+  it('re-resolves the tick interval on every crosshair move (matches React; not frozen on zoom)', async () => {
+    const { getChart, wrapper } = mountCrosshair(host);
+    await settle();
+    const chart = getChart();
+
+    const niceSpy = vi.spyOn(chart.timeScale, 'niceTickValues');
+
+    chart.setCrosshair({ time: 10, y: 100 });
+    await settle();
+    const afterFirst = niceSpy.mock.calls.length;
+    expect(afterFirst).toBeGreaterThan(0);
+
+    // A wheel-zoom re-emits the crosshair; the resolved interval must be
+    // recomputed against the live range. The pre-fix computed cached the
+    // first-render granularity and never consulted niceTickValues again.
+    chart.setCrosshair({ time: 20, y: 100 });
+    await settle();
+    expect(niceSpy.mock.calls.length).toBeGreaterThan(afterFirst);
+
+    wrapper.unmount();
+  });
+
   it('updates label colors when the theme is swapped at runtime', async () => {
     const { getChart, wrapper } = mountCrosshair(host);
     await settle();

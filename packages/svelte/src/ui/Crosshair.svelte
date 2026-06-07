@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { CrosshairPosition } from '@wick-charts/core';
+  import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
   import { formatTime } from '@wick-charts/core';
   import { onDestroy } from 'svelte';
 
@@ -15,6 +15,16 @@
   // the first-render snapshot (matches Tooltip/PieTooltip).
   let bump = 0;
   let overlayUnsub: (() => void) | null = null;
+
+  // `_position` is referenced only so the `$:` statement re-runs on crosshair
+  // move (a wheel-zoom re-emits it), re-reading the live data interval + range.
+  function resolveTickInterval(c: ChartInstance | null, _position: CrosshairPosition | null): number {
+    if (!c) return 86400;
+
+    const di = c.getDataInterval();
+
+    return c.timeScale.niceTickValues(di).tickInterval || di;
+  }
 
   $: {
     const chart = $chartStore;
@@ -40,11 +50,14 @@
 
   $: chart = $chartStore;
   $: theme = chart && bump >= 0 ? chart.getTheme() : null;
-  $: dataInterval = chart?.getDataInterval() ?? 86400;
-  // Format the time pill at the axis's *resolved* tick granularity, not the
-  // raw data interval — otherwise a time-of-day badge floats among date labels
-  // when zoomed out. Falls back to dataInterval on a degenerate range.
-  $: tickInterval = chart ? chart.timeScale.niceTickValues(dataInterval).tickInterval || dataInterval : dataInterval;
+  // Format the time pill at the axis's *resolved* tick granularity, not the raw
+  // data interval — otherwise a time-of-day badge floats among date labels when
+  // zoomed out. Resolve fresh on each crosshair move: the raw data interval
+  // isn't known until data loads (the chart ref doesn't change then, so an eager
+  // `$:` would freeze the pre-data default), and `niceTickValues` reads the live
+  // visible range (which a wheel-zoom re-emits the crosshair for) — matching
+  // React, which recomputes this on every render.
+  $: tickInterval = resolveTickInterval(chart, position);
 
   // `zIndex:2` sits above axis ticks (z:0) but below the YLabel badge
   // (z:3), so the live last-value stays visible when the crosshair crosses

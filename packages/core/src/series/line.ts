@@ -6,6 +6,10 @@ import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
+import type { CurveKind, PathSegment } from './painters/canvas-path';
+import { buildCurveSegments } from './painters/canvas-path';
+import { resolveLinePainter } from './painters/resolve';
+import type { LinePoint, PaintEnv } from './painters/types';
 import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` / `pulseMs` are concrete
@@ -23,6 +27,7 @@ const DEFAULT_OPTIONS: ResolvedLineOptions = {
   area: { visible: true },
   pulse: true,
   stacking: 'off',
+  curve: 'straight',
   entryMs: DEFAULT_LINE_ENTRY,
   smoothMs: DEFAULT_LINE_SMOOTH,
   pulseMs: DEFAULT_LINE_PULSE,
@@ -46,6 +51,47 @@ function normalize(input: LineSeriesOptions): ResolvedLineOptions {
     smoothMs: input.smoothMs === false ? 0 : (input.smoothMs ?? DEFAULT_LINE_SMOOTH),
     pulseMs: input.pulseMs === false ? 0 : (input.pulseMs ?? DEFAULT_LINE_PULSE),
   };
+}
+
+/** Convert the stacked renderer's `[x, y]` tuples to {@link LinePoint}s. */
+function toPoints(xy: readonly [number, number][]): LinePoint[] {
+  return xy.map(([x, y]) => ({ x, y }));
+}
+
+/** Emit a pre-built segment list onto `ctx` left-to-right. The caller has
+ *  already issued `moveTo(points[0])`. */
+function replaySegmentsForward(ctx: CanvasRenderingContext2D, segments: readonly PathSegment[]): void {
+  for (const seg of segments) {
+    if (seg.kind === 'line') {
+      ctx.lineTo(seg.x, seg.y);
+    } else {
+      ctx.bezierCurveTo(seg.cp1x, seg.cp1y, seg.cp2x, seg.cp2y, seg.x, seg.y);
+    }
+  }
+}
+
+/** Emit a segment list right-to-left; the caller is already at the last
+ *  segment's endpoint. Each reversed step ends at the *start* of its segment —
+ *  the previous segment's endpoint, or `points[0]` for the first segment — so
+ *  this is correct for any segment count (`stepped` emits two segments per
+ *  point, so it must NOT be indexed by point). A reversed cubic swaps its two
+ *  control points, tracing the identical geometric curve the forward replay
+ *  would — that is what lets an interior stacked boundary tile pixel-exactly
+ *  with the slice below. Ends at `points[0]`. */
+function replaySegmentsReversed(
+  ctx: CanvasRenderingContext2D,
+  points: readonly LinePoint[],
+  segments: readonly PathSegment[],
+): void {
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    const start = i > 0 ? segments[i - 1] : points[0];
+    if (seg.kind === 'line') {
+      ctx.lineTo(start.x, start.y);
+    } else {
+      ctx.bezierCurveTo(seg.cp2x, seg.cp2y, seg.cp1x, seg.cp1y, start.x, start.y);
+    }
+  }
 }
 
 export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
@@ -190,6 +236,15 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const hasStroke = this.options.strokeWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
     const style = this.options.entryAnimation ?? 'grow';
+    // Resolve the path builder once. A custom `linePainter` overrides `curve`;
+    // both fall back to the straight polyline (zero visual change by default).
+    const builder = resolveLinePainter(this.options.linePainter ?? this.options.curve ?? 'straight');
+    const paintEnv: PaintEnv = {
+      ctx: context,
+      theme: ctx.theme,
+      horizontalPixelRatio: scope.horizontalPixelRatio,
+      verticalPixelRatio,
+    };
 
     for (let li = 0; li < this.stores.length; li++) {
       const layerAlpha = this.getLayerAlpha(li);
@@ -255,9 +310,15 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // endpoint; skip it instead of contaminating the polygon.
       const lastValue = data[bodyEnd]?.value;
       const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && Number.isFinite(lastValue);
+      // The trailing endpoint moves every frame only during a 'grow' entrance;
+      // a smooth builder keeps that run's last segment straight (grew=true) so
+      // the head can't wobble. Other runs / styles are fully settled.
+      const growing = style === 'grow' && progress < 1;
+      let growingRun: { x: number; y: number }[] | null = null;
       if (trailingFinite) {
         if (current) {
           current.push({ x: trailingX, y: trailingY });
+          growingRun = current;
         } else {
           runs.push([{ x: trailingX, y: trailingY }]);
         }
@@ -272,8 +333,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         context.beginPath();
         for (const run of runs) {
           if (run.length < 2) continue;
-          context.moveTo(run[0].x, run[0].y);
-          for (let j = 1; j < run.length; j++) context.lineTo(run[j].x, run[j].y);
+          builder(paintEnv, { points: run, color, lineWidth, closing: false, grew: growing && run === growingRun });
         }
         context.strokeStyle = color;
         context.lineWidth = lineWidth;
@@ -323,8 +383,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         for (const run of runs) {
           if (run.length < 2) continue;
           context.beginPath();
-          context.moveTo(run[0].x, run[0].y);
-          for (let j = 1; j < run.length; j++) context.lineTo(run[j].x, run[j].y);
+          // Same builder as the stroke → the area's curved top edge is identical
+          // to the stroked line above it.
+          builder(paintEnv, { points: run, color, lineWidth, closing: true, grew: growing && run === growingRun });
           // Close the polygon: drop from the last point to the baseline, run
           // back to the first point's x on the baseline, and closePath snaps
           // the final edge back up to (first.x, first.y).
@@ -346,6 +407,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const { verticalPixelRatio } = scope;
     const hasStroke = this.options.strokeWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
+    // Stacked tiling needs segment-level access (to replay a shared boundary
+    // forward then reversed), so it uses the built-in `curve` kind directly; a
+    // custom `linePainter` isn't applied here and falls back to 'straight'.
+    const curveKind: CurveKind = this.options.curve ?? 'straight';
 
     // Collect per-layer data, gating on alpha so a layer mid-fade still
     // contributes shrinking geometry to the stack instead of disappearing the
@@ -485,10 +550,20 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       const color = this.options.colors[li % this.options.colors.length];
       const upperProg = layerProgress[li];
-      // Lower edge mirrors the below layer's entrance progress only when that
-      // layer is contributing geometry — alpha=0 layers contribute 0 to
-      // cumulative, so their entrance must not shift this layer's boundary.
-      const lowerProg = li > 0 && this.getLayerAlpha(li - 1) > 0 ? layerProgress[li - 1] : 1;
+      // The lower edge is the shared boundary with the nearest VISIBLE layer
+      // below — whichever slice draws this same boundary as its upper edge.
+      // Mirror that layer's entrance progress (not `layerProgress[li - 1]`,
+      // which belongs to a hidden intermediate layer) so the two edges
+      // grow-lerp identically and tile pixel-exactly. Hidden layers contribute
+      // 0 to cumulative, so the boundary's data position is unchanged either way.
+      let belowVisibleLi = -1;
+      for (let bl = li - 1; bl >= 0; bl--) {
+        if (this.getLayerAlpha(bl) > 0) {
+          belowVisibleLi = bl;
+          break;
+        }
+      }
+      const lowerProg = belowVisibleLi >= 0 ? layerProgress[belowVisibleLi] : 1;
 
       const isBottomVisible = li === bottomVisibleLi;
       // The next visible slice above the bottom-most smoothly hands off
@@ -530,6 +605,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
       if (style === 'grow') applyGrowLerp(upperXY, easeOutCubic(upperProg));
 
+      // Upper-edge curve segments, shared by the area fill and the stroke so the
+      // stroked line sits exactly on the filled slice's top edge.
+      const upperPoints = toPoints(upperXY);
+      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && upperProg < 1);
+
       const useFade = style === 'fade' && upperProg < 1;
       if (useFade) {
         context.save();
@@ -563,12 +643,23 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           fillStyle = grad;
         }
         context.beginPath();
-        context.moveTo(upperXY[0][0], upperXY[0][1]);
-        for (let i = 1; i < upperXY.length; i++) {
-          context.lineTo(upperXY[i][0], upperXY[i][1]);
-        }
-        for (let i = lowerXY.length - 1; i >= 0; i--) {
-          context.lineTo(lowerXY[i][0], lowerXY[i][1]);
+        context.moveTo(upperPoints[0].x, upperPoints[0].y);
+        replaySegmentsForward(context, upperSegs);
+        if (isBottomVisible) {
+          // True canvas baseline — a straight drop and run-back, not a shared
+          // data boundary, so nothing to curve or tile.
+          for (let i = lowerXY.length - 1; i >= 0; i--) {
+            context.lineTo(lowerXY[i][0], lowerXY[i][1]);
+          }
+        } else {
+          // Interior boundary: trace the lower edge as the reversed curve so it
+          // shares the exact path with the slice below's upper edge (no sliver
+          // gap between adjacent fills).
+          const lowerPoints = toPoints(lowerXY);
+          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && lowerProg < 1);
+          const lowerLast = lowerPoints[lowerPoints.length - 1];
+          context.lineTo(lowerLast.x, lowerLast.y);
+          replaySegmentsReversed(context, lowerPoints, lowerSegs);
         }
         context.closePath();
         context.fillStyle = fillStyle;
@@ -589,10 +680,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
       if (hasStroke) {
         context.beginPath();
-        context.moveTo(upperXY[0][0], upperXY[0][1]);
-        for (let i = 1; i < upperXY.length; i++) {
-          context.lineTo(upperXY[i][0], upperXY[i][1]);
-        }
+        context.moveTo(upperPoints[0].x, upperPoints[0].y);
+        replaySegmentsForward(context, upperSegs);
         context.strokeStyle = color;
         context.lineWidth = lineWidth;
         context.lineJoin = 'round';

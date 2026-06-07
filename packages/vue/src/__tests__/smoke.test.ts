@@ -1,12 +1,5 @@
 import { mount } from '@vue/test-utils';
-import {
-  BarSeries,
-  CandlestickSeries,
-  ChartContainer,
-  LineSeries,
-  PieSeries,
-  catppuccin,
-} from '@wick-charts/vue';
+import { BarSeries, CandlestickSeries, ChartContainer, LineSeries, PieSeries, catppuccin } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
 
@@ -28,11 +21,13 @@ const candlestickData = [
   { time: 3, open: 3, high: 4, low: 3, close: 4 },
 ];
 
-const lineData = [[
-  { time: 1, value: 10 },
-  { time: 2, value: 20 },
-  { time: 3, value: 30 },
-]];
+const lineData = [
+  [
+    { time: 1, value: 10 },
+    { time: 2, value: 20 },
+    { time: 3, value: 30 },
+  ],
+];
 
 const pieData = [
   { label: 'A', value: 30 },
@@ -103,9 +98,7 @@ describe('Vue wrapper smoke', () => {
       components: { ChartContainer, CandlestickSeries },
       setup() {
         return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [
-            h(CandlestickSeries, { data: candlestickData }),
-          ]);
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: candlestickData })]);
       },
     });
 
@@ -125,8 +118,7 @@ describe('Vue wrapper smoke', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: lineData })]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: lineData })]);
       },
     });
 
@@ -141,14 +133,19 @@ describe('Vue wrapper smoke', () => {
 
   it('mounts BarSeries (multi-layer) and draws bars per layer', async () => {
     const twoLayers = [
-      [{ time: 1, value: 10 }, { time: 2, value: 20 }],
-      [{ time: 1, value: 5 }, { time: 2, value: 15 }],
+      [
+        { time: 1, value: 10 },
+        { time: 2, value: 20 },
+      ],
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: 15 },
+      ],
     ];
     const App = defineComponent({
       components: { ChartContainer, BarSeries },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(BarSeries, { data: twoLayers })]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(BarSeries, { data: twoLayers })]);
       },
     });
 
@@ -157,7 +154,8 @@ describe('Vue wrapper smoke', () => {
 
     const main = host.querySelectorAll('canvas')[0] as HTMLCanvasElement;
     main.getContext('2d');
-    expect(main.__spy!.countOf('fillRect')).toBeGreaterThanOrEqual(2);
+    // Rounded bars paint via `fill`; sub-radius bars collapse to `fillRect`.
+    expect(main.__spy!.countOf('fill') + main.__spy!.countOf('fillRect')).toBeGreaterThanOrEqual(2);
     wrapper.unmount();
   });
 
@@ -165,8 +163,7 @@ describe('Vue wrapper smoke', () => {
     const App = defineComponent({
       components: { ChartContainer, PieSeries },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(PieSeries, { data: pieData })]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(PieSeries, { data: pieData })]);
       },
     });
 
@@ -184,8 +181,7 @@ describe('Vue wrapper smoke', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: data.value })]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: data.value })]);
       },
     });
 
@@ -195,12 +191,14 @@ describe('Vue wrapper smoke', () => {
     main.getContext('2d');
     const before = main.__spy!.countOf('lineTo');
 
-    data.value = [[
-      { time: 1, value: 100 },
-      { time: 2, value: 200 },
-      { time: 3, value: 300 },
-      { time: 4, value: 400 },
-    ]];
+    data.value = [
+      [
+        { time: 1, value: 100 },
+        { time: 2, value: 200 },
+        { time: 3, value: 300 },
+        { time: 4, value: 400 },
+      ],
+    ];
     await settle();
 
     // Swap produces additional draws on top of the initial mount draw.
@@ -213,10 +211,7 @@ describe('Vue wrapper smoke', () => {
     const App = defineComponent({
       components: { ChartContainer, CandlestickSeries },
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [
-            h(CandlestickSeries, { data: data.value }),
-          ]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: data.value })]);
       },
     });
 

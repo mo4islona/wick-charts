@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
 import { CandlestickRenderer } from '../../series/candlestick';
-import type { OHLCData } from '../../types';
+import type { CandlestickSeriesOptions, OHLCData } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
 const BULL = { open: 10, high: 12, low: 9, close: 11 };
@@ -11,6 +11,15 @@ function mkStore(data: OHLCData[] = []): TimeSeriesStore<OHLCData> {
   const s = new TimeSeriesStore<OHLCData>();
   s.setData(data);
   return s;
+}
+
+/** Pin cornerRadius:0 so the entrance assertions here inspect square body
+ *  fillRects; rounding is covered separately in candlestick-rounded.test.ts. */
+function mkRenderer(
+  store: TimeSeriesStore<OHLCData>,
+  options: Partial<CandlestickSeriesOptions> = {},
+): CandlestickRenderer {
+  return new CandlestickRenderer(store, { cornerRadius: 0, ...options });
 }
 
 /** Read the smoothed OHLC values the renderer uses for the live last candle. */
@@ -44,7 +53,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('re-seeds displayedLast on setData (no animation for bulk loads)', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store);
+    const r = mkRenderer(store);
 
     renderFrame(r);
     expect(displayedLast(r)).toMatchObject(BULL);
@@ -53,7 +62,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('updateLastPoint does NOT snap displayedLast — it chases toward the new target', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store);
+    const r = mkRenderer(store);
     renderFrame(r); // prime lastRenderTime, seed displayedLast = BULL
 
     // Live tick: close jumps from 11 to 18.
@@ -74,7 +83,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('converges to the target after enough frames', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store);
+    const r = mkRenderer(store);
     renderFrame(r);
 
     r.updateLastPoint({ time: 10, open: 10, high: 18, low: 9, close: 18 });
@@ -92,7 +101,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('does not snap when a new updateLastPoint arrives after a long idle gap', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store);
+    const r = mkRenderer(store);
     renderFrame(r);
 
     // Long idle — the user had the tab backgrounded.
@@ -111,7 +120,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('appendPoint re-seeds displayedLast to the new candle (no cross-candle interpolation)', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store);
+    const r = mkRenderer(store);
     renderFrame(r);
 
     // New candle begins with radically different O/H/L/C.
@@ -129,7 +138,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('smoothMs: 0 disables smoothing — displayedLast equals target immediately', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store, { smoothMs: 0 });
+    const r = mkRenderer(store, { smoothMs: 0 });
     renderFrame(r);
 
     r.updateLastPoint({ time: 10, open: 10, high: 18, low: 9, close: 18 });
@@ -145,7 +154,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
   describe('entrance animation', () => {
     it('appendPoint starts an entrance entry that needsAnimation picks up', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store);
+      const r = mkRenderer(store);
       renderFrame(r);
       expect(r.needsAnimation).toBe(false);
 
@@ -156,7 +165,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it("'fade-unfold' style: first frame after append uses globalAlpha < 1 for the new candle", () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { entryAnimation: 'fade-unfold' });
+      const r = mkRenderer(store, { entryAnimation: 'fade-unfold' });
       renderFrame(r); // prime
 
       r.appendPoint({ time: 30, ...BULL });
@@ -171,7 +180,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it('reaches full opacity after entryMs and clears needsAnimation', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { entryMs: 250 });
+      const r = mkRenderer(store, { entryMs: 250 });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -186,7 +195,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it('mid-duration render returns partial progress, not fully-complete', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { entryMs: 250 });
+      const r = mkRenderer(store, { entryMs: 250 });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -200,7 +209,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it('cancelEntranceAnimations clears all active entries without touching displayedLast', () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store);
+      const r = mkRenderer(store);
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -216,7 +225,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
     it("entryAnimation: 'none' never registers an entry", () => {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { entryAnimation: 'none' });
+      const r = mkRenderer(store, { entryAnimation: 'none' });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -236,7 +245,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
   describe('entrance styles', () => {
     function firstBodyRectWhileEntering(style: 'fade' | 'unfold' | 'slide' | 'fade-unfold') {
       const store = mkStore([{ time: 10, ...BULL }]);
-      const r = new CandlestickRenderer(store, { entryAnimation: style });
+      const r = mkRenderer(store, { entryAnimation: style });
       renderFrame(r);
 
       r.appendPoint({ time: 30, ...BULL });
@@ -290,7 +299,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
 
   it('rendered body fillRect for the last candle moves smoothly between frames', () => {
     const store = mkStore([{ time: 10, ...BULL }]);
-    const r = new CandlestickRenderer(store, {});
+    const r = mkRenderer(store, {});
 
     // Prime.
     renderFrame(r);
@@ -319,7 +328,7 @@ describe('CandlestickRenderer — live-tracking animation', () => {
   describe('volume live-tracking participates in needsAnimation', () => {
     it('updateLastPoint that only changes volume keeps needsAnimation true until convergence', () => {
       const store = mkStore([{ time: 10, open: 10, high: 12, low: 9, close: 11, volume: 5 }]);
-      const r = new CandlestickRenderer(store);
+      const r = mkRenderer(store);
       renderFrame(r); // seed displayedLast
 
       // Same O/H/L/C — only volume jumps. Without volume in needsAnimation the

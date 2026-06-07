@@ -2,6 +2,7 @@ import {
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  type CurveKind,
   InfoBar,
   Legend,
   LineSeries,
@@ -38,6 +39,7 @@ type LegendMode = 'toggle' | 'isolate';
 interface LineSettings {
   dataMode: DataMode;
   areaVisible: boolean;
+  curve: CurveKind;
   strokeWidth: number;
   stacking: StackingMode;
   tooltipSort: TooltipSort;
@@ -108,6 +110,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
         data={data}
         options={{
           area: { visible: props.areaVisible },
+          curve: props.curve,
           strokeWidth: props.strokeWidth,
           pulse: props.streaming,
           entryAnimation: props.lineEntryAnimation,
@@ -171,6 +174,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
         options={{
           colors: props.theme.seriesColors.slice(0, display.length),
           area: { visible: props.areaVisible },
+          curve: props.curve,
           strokeWidth: props.strokeWidth,
           pulse: props.streaming,
           stacking: props.stacking,
@@ -248,6 +252,22 @@ const SERIES_SECTION: SectionSpec = {
   title: 'Series',
   icon: ICONS.series,
   rows: [
+    {
+      key: 'curve',
+      label: 'Curve',
+      hint: 'Stroke + area share one path',
+      render: (v, onChange) => (
+        <ToggleGroup<CurveKind>
+          value={v as CurveKind}
+          options={[
+            { value: 'straight', label: 'Straight' },
+            { value: 'smooth', label: 'Smooth' },
+            { value: 'stepped', label: 'Stepped' },
+          ]}
+          onChange={onChange as (v: CurveKind) => void}
+        />
+      ),
+    },
     {
       key: 'stacking',
       label: 'Stack',
@@ -378,6 +398,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       extraDefaults={(mobile) => ({
         dataMode: 'wave',
         areaVisible: true,
+        curve: 'straight',
         strokeWidth: 1,
         stacking: 'off',
         tooltipSort: 'desc',
@@ -421,6 +442,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'line'),
           ...(s.areaVisible ? { area: { visible: true } } : {}),
+          ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
           ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
           ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
         };

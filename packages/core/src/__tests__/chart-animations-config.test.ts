@@ -340,3 +340,42 @@ describe('ChartInstance.animations propagation', () => {
     expect(opts.smoothMs).toBe(0);
   });
 });
+
+describe('overrides() never emits non-animation visual fields', () => {
+  // `updateSeriesOptions` merges `{ ...userOptions, ...overrides(kind) }` with
+  // overrides last. If overrides ever leaked a non-animation field, a parent
+  // re-render would clobber the user's cornerRadius / painter / projectedFrom.
+  // Pin the emitted key set to the entry/smooth/pulse family only.
+  const ANIMATION_KEYS = ['entryMs', 'smoothMs', 'pulseMs'];
+  const VISUAL_FIELDS = ['cornerRadius', 'barPainter', 'candlePainter', 'linePainter', 'curve', 'projectedFrom'];
+
+  for (const kind of ['bar', 'candlestick', 'line'] as const) {
+    it(`overrides('${kind}') with animations off emits only animation keys`, () => {
+      const overrides = resolveAnimationsConfig(false).overrides(kind);
+
+      for (const field of VISUAL_FIELDS) {
+        expect(overrides).not.toHaveProperty(field);
+      }
+      for (const key of Object.keys(overrides)) {
+        expect(ANIMATION_KEYS).toContain(key);
+      }
+    });
+
+    // `addSeries` also spreads `defaults(kind)` into the merged options (before
+    // user options). It can't clobber a user value, but a leaked visual field
+    // would inject an unwanted default, so pin its key set too (plan §8 #21
+    // names both overrides() AND defaults()).
+    it(`defaults('${kind}') emits only animation keys`, () => {
+      for (const cfg of [resolveAnimationsConfig(undefined), resolveAnimationsConfig(false)]) {
+        const defaults = cfg.defaults(kind);
+
+        for (const field of VISUAL_FIELDS) {
+          expect(defaults).not.toHaveProperty(field);
+        }
+        for (const key of Object.keys(defaults)) {
+          expect(ANIMATION_KEYS).toContain(key);
+        }
+      }
+    });
+  }
+});

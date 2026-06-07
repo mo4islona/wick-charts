@@ -73,6 +73,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Synchronize crosshair, zoom and pan across multiple charts to build linked trading dashboards with Wick Charts in React, Vue or Svelte.',
   },
+  'use-cases/custom-renders': {
+    title: 'Custom Renders — Wick Charts',
+    description:
+      'Render chart types the library doesn’t ship by combining a data transform with a custom painter. A worked Renko example built on the candlePainter escape hatch in Wick Charts.',
+  },
 };
 
 function templatedMeta(route: Route): RouteMeta {

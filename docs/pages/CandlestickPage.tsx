@@ -25,7 +25,7 @@ import {
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Toggle, ToggleGroup } from '../components/playground/primitives';
+import { Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateOHLCData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
@@ -35,8 +35,13 @@ type CandleBodyWidth = 'thin' | 'normal' | 'wide';
 // normal = 0.6 mirrors the core CandlestickSeries `bodyWidthRatio` default.
 const CANDLE_BODY_MAP: Record<CandleBodyWidth, number> = { thin: 0.4, normal: 0.6, wide: 0.85 };
 
+// Mirror the core CandlestickSeries cornerRadius default so the code preview
+// only emits the prop when the slider diverges from it.
+const CANDLE_DEFAULT_RADIUS = 2;
+
 interface CandleSettings {
   bodyWidth: CandleBodyWidth;
+  cornerRadius: number;
   yLabelVisible: boolean;
   tooltipVisible: boolean;
   infoBarVisible: boolean;
@@ -58,6 +63,7 @@ function CandleChart({
   gradient,
   data,
   bodyWidth,
+  cornerRadius,
   yLabelVisible,
   tooltipVisible,
   infoBarVisible,
@@ -105,7 +111,7 @@ function CandleChart({
       <CandlestickSeries
         id={sid}
         data={display}
-        options={{ entryAnimation: candleEntryAnimation, bodyWidthRatio: CANDLE_BODY_MAP[bodyWidth] }}
+        options={{ entryAnimation: candleEntryAnimation, bodyWidthRatio: CANDLE_BODY_MAP[bodyWidth], cornerRadius }}
       />
       {yLabelVisible && <YLabel seriesId={sid} />}
       {tooltipVisible && <Tooltip />}
@@ -178,6 +184,14 @@ const SERIES_SECTION: SectionSpec = {
         />
       ),
     },
+    {
+      key: 'cornerRadius',
+      label: 'Corner radius',
+      hint: 'Body corners; 0 = square',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={8} step={1} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
   ] as RowSpec[],
 };
 
@@ -201,6 +215,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
       theme={theme}
       extraDefaults={(m) => ({
         bodyWidth: 'normal',
+        cornerRadius: CANDLE_DEFAULT_RADIUS,
         yLabelVisible: true,
         tooltipVisible: false,
         infoBarVisible: !m,
@@ -247,6 +262,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'candle'),
           bodyWidthRatio: CANDLE_BODY_MAP[s.bodyWidth],
+          ...(s.cornerRadius !== CANDLE_DEFAULT_RADIUS ? { cornerRadius: s.cornerRadius } : {}),
         };
 
         const containerProps = buildCartesianContainerProps(s) ?? {};

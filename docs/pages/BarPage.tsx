@@ -27,7 +27,7 @@ import {
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Select, Toggle, ToggleGroup } from '../components/playground/primitives';
+import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateBarData, generateLayerData } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
@@ -39,9 +39,14 @@ type LegendMode = 'toggle' | 'isolate';
 const BAR_WIDTH_MAP: Record<BarWidth, number> = { thin: 0.3, normal: 0.6, wide: 0.85 };
 const LAYER_COUNT = 4;
 
+// Mirror the core BarSeries cornerRadius default so the code preview only emits
+// the prop when the slider diverges from it.
+const BAR_DEFAULT_RADIUS = 2;
+
 interface BarSettings {
   stacking: StackingMode;
   barWidth: BarWidth;
+  cornerRadius: number;
   legendPos: LegendPos;
   legendMode: LegendMode;
   infoBarVisible: boolean;
@@ -84,6 +89,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
           ],
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
+          cornerRadius: props.cornerRadius,
           entryAnimation: props.barEntryAnimation,
         }}
       />
@@ -128,6 +134,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
           colors: props.theme.seriesColors.slice(0, display.length),
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: props.stacking,
+          cornerRadius: props.cornerRadius,
           entryAnimation: props.barEntryAnimation,
         }}
       />
@@ -174,6 +181,14 @@ const SERIES_SECTION: SectionSpec = {
           ]}
           onChange={onChange as (v: StackingMode) => void}
         />
+      ),
+    },
+    {
+      key: 'cornerRadius',
+      label: 'Corner radius',
+      hint: 'Free end only; 0 = square',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={12} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
   ] as RowSpec[],
@@ -252,6 +267,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
       extraDefaults={(mobile) => ({
         stacking: 'normal',
         barWidth: 'normal',
+        cornerRadius: 4,
         legendPos: 'bottom',
         legendMode: 'toggle',
         infoBarVisible: !mobile,
@@ -286,6 +302,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
           ...buildCommonSeriesOptions(s, 'bar'),
           barWidthRatio: BAR_WIDTH_MAP[s.barWidth],
           stacking: s.stacking,
+          ...(s.cornerRadius !== BAR_DEFAULT_RADIUS ? { cornerRadius: s.cornerRadius } : {}),
         };
 
         const yVisible = s.axis?.y?.visible !== false;
