@@ -12,6 +12,7 @@
  *  - ceiling clamp (SETTLE_MS_MAX)
  *  - slack multiplier applied above floor
  *  - `pause()` resets the inter-arrival tracker without dropping the EMA
+ *  - `seed()` primes the baseline so the first observed tick folds a real gap
  */
 import { describe, expect, it } from 'vitest';
 
@@ -173,5 +174,41 @@ describe('StreamingCadence', () => {
     now += 40;
     cadence.observe(now);
     expect(cadence.emaMs).toBeCloseTo(40, 0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // seed()
+  // ---------------------------------------------------------------------------
+
+  it('seed() lets the next observe fold a real gap, unlike a cold start', () => {
+    // Cold start: the first observe has no baseline, so it folds nothing —
+    // the first streaming tick would settle on the bare floor.
+    const cold = new StreamingCadence();
+    cold.observe(1000);
+    expect(cold.emaMs).toBe(0);
+    expect(cold.pickSettleMs(200)).toBe(200);
+
+    // Seeded at paint time: the next observe measures (1800 - 1000) = 800 and
+    // folds it, so the very first tick is already cadence-tuned.
+    const seeded = new StreamingCadence();
+    seeded.seed(1000);
+    seeded.observe(1800);
+    expect(seeded.emaMs).toBeCloseTo(800, 0);
+    expect(seeded.pickSettleMs(200)).toBeCloseTo(2400, 0);
+  });
+
+  it('seed() never folds a sample — back-to-back seeds cannot poison the EMA', () => {
+    const cadence = new StreamingCadence();
+
+    cadence.seed(1000);
+    cadence.seed(5000);
+    cadence.seed(9000);
+    expect(cadence.emaMs).toBe(0);
+
+    // A huge paint->tick gap is still gated by STREAM_IDLE_RESET, so a stale
+    // seed can't translate into a bogus EMA.
+    cadence.observe(20_000);
+    expect(cadence.emaMs).toBe(0);
+    expect(cadence.pickSettleMs(200)).toBe(200);
   });
 });

@@ -1393,6 +1393,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#pendingFitToData = replaceSnap;
     const now = performance.now();
     if (replaceSnap || isFirstDataPaint) {
+      // Seed the cadence baseline at paint/replace time so the first streaming
+      // append measures a real wall-clock gap and rides the cadence-tuned
+      // settle. Without this the first append eases on the bare floor and
+      // settles before the next tick (a bell curve that stops) while every
+      // later tick slides continuously — the visible first-point stutter.
+      this.#cadence.seed(now);
       this.#engine.onDataReplaced(now);
     } else {
       this.#engine.onPointAppended(now);

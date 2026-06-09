@@ -62,6 +62,26 @@ export class StreamingCadence {
   }
 
   /**
+   * Seed the inter-arrival baseline to a known wall-clock time so the *next*
+   * `observe()` folds a real gap into the EMA. Without this, the first
+   * streaming append after an initial load (or a bulk replace) has no prior
+   * arrival to measure against: `observe` sets the baseline but folds nothing,
+   * the EMA stays 0, and `pickSettleMs` returns the bare `floor`. That makes
+   * the first X slide settle in `floor` ms — a bell curve that accelerates,
+   * peaks, then stops — while every later tick rides the cadence-tuned settle
+   * and slides continuously. The visible artifact is "stutter on the first
+   * point, smooth from the second". Seeding at paint time lets the first
+   * append pick up the producer cadence immediately.
+   *
+   * Unlike `pause()` (which clears the baseline to 0 so the next gap is
+   * suppressed), this SETS a fresh baseline. It never folds a sample, so
+   * calling it on back-to-back replaces can't poison the EMA.
+   */
+  seed(now: number): void {
+    this.#lastWall = now;
+  }
+
+  /**
    * Pick a settle time for the X spring sized to the current cadence. The
    * spring should still be mid-flight when the next data tick arrives —
    * otherwise its velocity decays toward zero between ticks and the slide
