@@ -29,7 +29,7 @@ function labelFor(item: RouteEntry, fw: Framework): string {
 
 export type { Route } from '../routes';
 
-const SECTIONS: RouteSection[] = getSections(import.meta.env.DEV);
+const SECTIONS: RouteSection[] = getSections();
 
 export function Sidebar({
   route,
@@ -59,7 +59,7 @@ export function Sidebar({
   // (API → Components, API → Hooks) render as static groupings inside an
   // open parent. "Charts" and "Use Cases" start expanded; the useEffect below
   // expands the top-level section that contains the current route on deep-link.
-  const DEFAULT_OPEN = new Set(['Charts', 'Use Cases']);
+  const DEFAULT_OPEN = new Set(['Charts', 'Use Cases', 'Resources']);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const s of SECTIONS) {

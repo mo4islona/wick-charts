@@ -106,7 +106,6 @@ const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
   { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
   { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
-  { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level
@@ -158,12 +157,21 @@ const OVERVIEW: RouteEntry = { route: 'overview', label: 'Overview', title: '' }
 // Title left blank — the markdown page already renders its own H1 ("Migration
 // guide"), so showing it again in the topbar would duplicate.
 const MIGRATION: RouteEntry = { route: 'migration', label: 'Migration Guide', title: '' };
-const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress', title: 'Stress Tests' };
+// Theme editor lives at the bottom of the menu (a reference, not part of the main
+// learning flow). Route stays `use-cases/theme` — only its menu slot moved.
+const THEME: RouteEntry = { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' };
+// Title blank — StressTestPage renders its own header (like Api/Hook/Migration),
+// so a topbar title would double it up.
+const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress Tests', title: '' };
 
 const BASE_SECTIONS: RouteSection[] = [
-  { heading: null, items: [OVERVIEW, MIGRATION] },
+  { heading: null, items: [OVERVIEW] },
   { heading: 'Charts', items: CHARTS },
   { heading: 'Use Cases', items: USE_CASES },
+  // Resources — references / tools (theme editor, migration guide, stress tests).
+  // Sits above API and is expanded by default (see Sidebar's DEFAULT_OPEN). Stress
+  // is no longer dev-gated.
+  { heading: 'Resources', items: [THEME, MIGRATION, STRESS] },
   {
     heading: 'API',
     subsections: [
@@ -174,13 +182,11 @@ const BASE_SECTIONS: RouteSection[] = [
   },
 ];
 
-export function getSections(dev: boolean): RouteSection[] {
-  if (!dev) return BASE_SECTIONS;
-
-  return [...BASE_SECTIONS, { heading: 'Internal', items: [STRESS] }];
+export function getSections(): RouteSection[] {
+  return BASE_SECTIONS;
 }
 
-const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...USE_CASES, ...API, ...HOOKS, STRESS];
+const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...USE_CASES, ...API, ...HOOKS, THEME, STRESS];
 
 const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
 
@@ -203,8 +209,9 @@ export function labelForRoute(route: Route): string {
 
 /**
  * Production routes that get prerendered to static HTML and listed in the
- * sitemap. Excludes the dev-only `stress-test` page. Exposed to the prerender
- * crawler via `window.__WICK_ROUTES__` (see docs/main.tsx).
+ * sitemap. Excludes the internal `stress-test` page (in the menu, but no SEO
+ * value). Exposed to the prerender crawler via `window.__WICK_ROUTES__`
+ * (see docs/main.tsx).
  */
 export const PRERENDER_ROUTES: Route[] = ALL_ENTRIES.filter((e) => e.route !== 'stress-test').map((e) => e.route);
 
