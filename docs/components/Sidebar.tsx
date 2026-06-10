@@ -15,7 +15,7 @@ import {
   getSections,
   hookKeyForRoute,
 } from '../routes';
-import { hexToRgba } from '../utils';
+import { gridBackgroundImage, hexToRgba, isDarkColor } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
 import { WickLogo } from './WickLogo';
 import { WickWordmark } from './WickWordmark';
@@ -46,6 +46,7 @@ export function Sidebar({
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
   const accent = theme.line.color;
+  const dark = isDarkColor(theme.background);
 
   const [fw] = useFramework();
   // Same source the OverviewPage hero uses — npm registry, not the local
@@ -85,6 +86,7 @@ export function Sidebar({
     // scripts/prerender.mjs removes it by tag to shoot a menu-free card.
     <aside
       style={{
+        position: 'relative',
         width: mobile ? 'min(280px, 80vw)' : 220,
         height: '100%',
         background: bg,
@@ -93,13 +95,31 @@ export function Sidebar({
         flexDirection: 'column',
         flexShrink: 0,
         overflow: 'hidden',
+        // Matches the page container's theme-switch ease in App.tsx.
+        transition: 'background 0.3s ease',
       }}
     >
+      {/* Same blueprint grid as the page background, masked to fade out from
+          the content edge leftwards so the menu reads as part of the canvas.
+          Positioned overlay → the in-flow children below need position:
+          relative to paint above it. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: gridBackgroundImage(dark),
+          WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1), rgba(0,0,0,0))',
+          maskImage: 'linear-gradient(to left, rgba(0,0,0,1), rgba(0,0,0,0))',
+          pointerEvents: 'none',
+        }}
+      />
       {/* Header — logo + name + version, also the home affordance. Padding
           mirrors the main topbar in App.tsx so the two bars align horizontally
           across the sidebar/content boundary. */}
       <div
         style={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -170,7 +190,17 @@ export function Sidebar({
         )}
       </div>
 
-      <nav style={{ flex: 1, padding: '8px 6px', display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto' }}>
+      <nav
+        style={{
+          position: 'relative',
+          flex: 1,
+          padding: '8px 6px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          overflowY: 'auto',
+        }}
+      >
         {SECTIONS.map((section, sIdx) => {
           // Sections with no heading render as a flat list (Overview).
           if (section.heading === null) {
@@ -250,6 +280,7 @@ export function Sidebar({
 
       <div
         style={{
+          position: 'relative',
           padding: mobile ? '10px 14px' : '6px 10px',
           borderTop: `1px solid ${border}`,
           display: 'flex',

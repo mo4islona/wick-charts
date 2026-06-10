@@ -15,6 +15,34 @@ export function hexToRgba(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/** BT.601 luma — matches createTheme's isDarkBg but works on runtime hex
+ *  colors. Non-hex values read as dark (the safer default for overlays). */
+export function isDarkColor(hex: string): boolean {
+  if (!hex.startsWith('#') || hex.length < 7) return true;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+}
+
+/**
+ * The blueprint grid drawn behind the page — a coarse 130px lattice with a
+ * fine 26px one inside it. Shared by the App page background and the Sidebar
+ * (which fades it out with a mask) so the two stay on the same grid.
+ */
+export function gridBackgroundImage(dark: boolean): string {
+  const major = dark ? 0.06 : 0.12;
+  const minor = dark ? 0.03 : 0.06;
+
+  return [
+    `repeating-linear-gradient(0deg, transparent, transparent 129px, rgba(150,150,150,${major}) 129px, rgba(150,150,150,${major}) 130px)`,
+    `repeating-linear-gradient(90deg, transparent, transparent 129px, rgba(150,150,150,${major}) 129px, rgba(150,150,150,${major}) 130px)`,
+    `repeating-linear-gradient(0deg, transparent, transparent 25px, rgba(150,150,150,${minor}) 25px, rgba(150,150,150,${minor}) 26px)`,
+    `repeating-linear-gradient(90deg, transparent, transparent 25px, rgba(150,150,150,${minor}) 25px, rgba(150,150,150,${minor}) 26px)`,
+  ].join(', ');
+}
+
 /**
  * Per-theme font-size override for docs UI surfaces only (sidebar, markdown,
  * ApiTable, etc.). Charts read `theme.typography.fontSize` directly and stay
