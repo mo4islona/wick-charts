@@ -97,6 +97,40 @@ async function readAppGlobals(browser) {
   return { routes, siteUrl, llmsTxt };
 }
 
+// og.png — the social card behind every page's og:image / twitter:image.
+// Scrapers reject SVG, so a real PNG is required; screenshotting the live
+// overview hero (dark theme, charts streaming) keeps it zero-maintenance.
+async function captureOgImage(browser) {
+  const page = await browser.newPage();
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+  // Exactly the 1200×630 the og:image:width/height meta declares.
+  await page.setViewport({ width: 1200, height: 630, deviceScaleFactor: 1 });
+  await page.setRequestInterception(true);
+  page.on('request', (req) => {
+    if (req.url().includes('registry.npmjs.org')) return req.abort();
+
+    return req.continue();
+  });
+
+  await page.goto(`${ORIGIN}/`, { waitUntil: 'networkidle0', timeout: 60000 });
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-prerender-route') === 'overview', {
+    timeout: 30000,
+  });
+  // Drop the sidebar (the Sidebar root is the page's only <aside>) so the
+  // card is hero + charts only; the charts re-layout to the freed width.
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll('aside')) {
+      el.remove();
+    }
+  });
+  // Let the charts re-layout and stream a few frames so the card shows real
+  // candles at the full card width.
+  await delay(1500);
+
+  await page.screenshot({ path: join(DIST, 'og.png'), type: 'png' });
+  await page.close();
+}
+
 function buildSitemap(routes, siteUrl) {
   const urls = routes.map((r) => `  <url>\n    <loc>${siteUrl}${routePath(r)}</loc>\n  </url>`).join('\n');
 
@@ -181,6 +215,8 @@ async function main() {
       console.log(`  ✓ ${routePath(route)}`);
     }
 
+    await captureOgImage(browser);
+
     await writeFile(join(DIST, 'sitemap.xml'), buildSitemap(routes, siteUrl), 'utf8');
     await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, 'utf8');
     await writeFile(join(DIST, 'llms.txt'), llmsTxt, 'utf8');
@@ -190,7 +226,7 @@ async function main() {
     // client router resolves (Cloudflare serves it with a 404 status).
     await copyFile(join(DIST, 'index.html'), join(DIST, '404.html'));
 
-    console.log('Wrote sitemap.xml, robots.txt, llms.txt, llms-full.txt, 404.html');
+    console.log('Wrote sitemap.xml, robots.txt, llms.txt, llms-full.txt, og.png, 404.html');
   } finally {
     await browser.close();
     server.close();

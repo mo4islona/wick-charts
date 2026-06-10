@@ -34,7 +34,9 @@ export function applyRouteMeta(route: Route): void {
   if (typeof document === 'undefined') return;
 
   const { title, description, canonical } = metaForRoute(route);
-  const image = `${SITE_URL}/favicon.svg`;
+  // PNG screenshot baked by the prerender script (scripts/prerender.mjs) —
+  // social scrapers reject SVG images, so the favicon can't be the card.
+  const image = `${SITE_URL}/og.png`;
 
   document.title = title;
   upsertMeta('name', 'description', description);
@@ -46,8 +48,11 @@ export function applyRouteMeta(route: Route): void {
   upsertMeta('property', 'og:description', description);
   upsertMeta('property', 'og:url', canonical);
   upsertMeta('property', 'og:image', image);
+  upsertMeta('property', 'og:image:width', '1200');
+  upsertMeta('property', 'og:image:height', '630');
+  upsertMeta('property', 'og:image:type', 'image/png');
 
-  upsertMeta('name', 'twitter:card', 'summary');
+  upsertMeta('name', 'twitter:card', 'summary_large_image');
   upsertMeta('name', 'twitter:title', title);
   upsertMeta('name', 'twitter:description', description);
   upsertMeta('name', 'twitter:image', image);

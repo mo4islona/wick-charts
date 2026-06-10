@@ -81,7 +81,9 @@ export function Sidebar({
   };
 
   return (
-    <div
+    // <aside> (not a div) — semantic, and the og-image capture in
+    // scripts/prerender.mjs removes it by tag to shoot a menu-free card.
+    <aside
       style={{
         width: mobile ? 'min(280px, 80vw)' : 220,
         height: '100%',
@@ -256,7 +258,7 @@ export function Sidebar({
       >
         <FrameworkSelect theme={theme} compact />
       </div>
-    </div>
+    </aside>
   );
 }
 

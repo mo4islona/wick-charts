@@ -211,9 +211,15 @@ export default function App() {
     document.body.style.setProperty('--page-glow', glow);
 
     // Keep the pre-paint theme guard (inline script in index.html) in sync:
-    // persist the resolved background so the next load paints it before first
-    // paint, and reveal the body now that the correct theme is rendered.
+    // persist the resolved background + font URL so the next load paints the
+    // right background and starts the font download before React boots, and
+    // reveal the body now that the correct theme is rendered.
     localStorage.setItem('chart-theme-bg', theme.background);
+    if (preset.fontUrl) {
+      localStorage.setItem('chart-theme-font', preset.fontUrl);
+    } else {
+      localStorage.removeItem('chart-theme-font');
+    }
     document.documentElement.style.background = theme.background;
     document.documentElement.classList.remove('theme-boot');
   }, [themeName, theme, preset.fontUrl, isDarkActive]);
