@@ -209,6 +209,13 @@ export default function App() {
     document.body.style.backgroundColor = theme.background;
     const glow = isDarkActive ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)';
     document.body.style.setProperty('--page-glow', glow);
+
+    // Keep the pre-paint theme guard (inline script in index.html) in sync:
+    // persist the resolved background so the next load paints it before first
+    // paint, and reveal the body now that the correct theme is rendered.
+    localStorage.setItem('chart-theme-bg', theme.background);
+    document.documentElement.style.background = theme.background;
+    document.documentElement.classList.remove('theme-boot');
   }, [themeName, theme, preset.fontUrl, isDarkActive]);
 
   const pageTitle = getTitle(route);
@@ -396,8 +403,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Page content. <main> (not a div) so the prerender crawler can
-                scope its llms-full.txt text extraction to page content only. */}
+            {/* Page content */}
             <main style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>
               {renderRoute({
                 route,
