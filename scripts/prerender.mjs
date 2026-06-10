@@ -11,7 +11,7 @@
 // (window.__WICK_ROUTES__ / __WICK_SITE_URL__, set in docs/main.tsx), so
 // routes.ts / seo.ts stay the single source of truth — no duplicated list here.
 
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,11 +41,13 @@ function startServer() {
   return new Promise((res) => server.listen(PORT, () => res(server)));
 }
 
-// One Chromium tab → fully-rendered HTML for a route, plus the page's <main>
-// text + head metadata for llms-full.txt. Aborts the npm-registry version
-// probe (slow, irrelevant) so the page reaches network-idle quickly.
+// One Chromium tab → fully-rendered HTML for a route. Aborts the npm-registry
+// version probe (slow, irrelevant) so the page reaches network-idle quickly.
+// Dark color scheme is emulated so every frozen page matches the dark default
+// theme — the pre-paint guard in index.html handles light-preference visitors.
 async function snapshot(browser, route) {
   const page = await browser.newPage();
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     if (req.url().includes('registry.npmjs.org')) return req.abort();
@@ -67,18 +69,14 @@ async function snapshot(browser, route) {
   await delay(200);
 
   const body = await page.evaluate(() => document.documentElement.outerHTML);
-  const meta = await page.evaluate(() => ({
-    title: document.title,
-    description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? '',
-    text: document.querySelector('main')?.innerText ?? '',
-  }));
   await page.close();
 
-  return { html: `<!DOCTYPE html>\n${body}\n`, ...meta };
+  return `<!DOCTYPE html>\n${body}\n`;
 }
 
 async function readAppGlobals(browser) {
   const page = await browser.newPage();
+  await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
   await page.setRequestInterception(true);
   page.on('request', (req) => {
     if (req.url().includes('registry.npmjs.org')) return req.abort();
@@ -105,18 +103,54 @@ function buildSitemap(routes, siteUrl) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
-// llms-full.txt — the full-content companion to llms.txt: every page's
-// rendered text concatenated in route order, one section per page.
-function buildLlmsFull(routes, siteUrl, snapshots) {
-  const sections = routes.map((route) => {
-    const snap = snapshots.get(route);
-    const header = [`# ${snap.title}`, '', `URL: ${siteUrl}${routePath(route)}`];
-    if (snap.description) header.push(`Description: ${snap.description}`);
+// llms-full.txt — the full-content companion to llms.txt. Not a site scrape:
+// it concatenates the curated LLM-oriented docs (the wick-charts skill,
+// checked into .agents/skills/ — .claude/skills is a symlink to it) with the
+// runnable use-case example sources the docs pages render, so an LLM gets
+// API knowledge + working code.
+const SKILL_DIR = resolve(here, '..', '.agents', 'skills', 'wick-charts');
+const EXAMPLES_DIR = resolve(here, '..', 'docs', 'pages', 'use-cases');
+const SKILL_FILES = ['SKILL.md', 'candlestick.md', 'line.md', 'bar.md', 'pie.md', 'sparkline.md', 'context.md'];
 
-    return [...header, '', snap.text.trim()].join('\n');
-  });
+const stripFrontmatter = (md) => md.replace(/^---\n[\s\S]*?\n---\n/, '');
 
-  return `${sections.join('\n\n---\n\n')}\n`;
+const exampleTitle = (slug) =>
+  slug
+    .split('-')
+    .map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+
+async function buildLlmsFull(siteUrl) {
+  const sections = [];
+  for (const name of SKILL_FILES) {
+    const md = await readFile(join(SKILL_DIR, name), 'utf8');
+    sections.push(stripFrontmatter(md).trim());
+  }
+
+  const exampleFiles = (await readdir(EXAMPLES_DIR)).filter((f) => f.endsWith('.example.tsx')).sort();
+  for (const file of exampleFiles) {
+    const slug = file.replace('.example.tsx', '');
+    const src = await readFile(join(EXAMPLES_DIR, file), 'utf8');
+    sections.push(
+      [
+        `# Use case: ${exampleTitle(slug)} (React)`,
+        '',
+        `Live demo: ${siteUrl}/use-cases/${slug}`,
+        '',
+        '```tsx',
+        src.trim(),
+        '```',
+      ].join('\n'),
+    );
+  }
+
+  const intro = [
+    '# Wick Charts — full documentation for LLMs',
+    '',
+    `> Canvas-rendered candlestick, line, bar, pie and sparkline charts for React, Vue and Svelte. Page index: ${siteUrl}/llms.txt`,
+  ].join('\n');
+
+  return `${[intro, ...sections].join('\n\n---\n\n')}\n`;
 }
 
 async function main() {
@@ -139,21 +173,18 @@ async function main() {
     // route is crawled against a clean shell.
     const ordered = [...routes.filter((r) => r !== 'overview'), ...routes.filter((r) => r === 'overview')];
 
-    const snapshots = new Map();
     for (const route of ordered) {
-      const snap = await snapshot(browser, route);
-      snapshots.set(route, snap);
+      const html = await snapshot(browser, route);
       const outDir = route === 'overview' ? DIST : join(DIST, route);
       await mkdir(outDir, { recursive: true });
-      await writeFile(join(outDir, 'index.html'), snap.html, 'utf8');
+      await writeFile(join(outDir, 'index.html'), html, 'utf8');
       console.log(`  ✓ ${routePath(route)}`);
     }
 
     await writeFile(join(DIST, 'sitemap.xml'), buildSitemap(routes, siteUrl), 'utf8');
     await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, 'utf8');
     await writeFile(join(DIST, 'llms.txt'), llmsTxt, 'utf8');
-    // Emit in `routes` order (overview first), not crawl order (overview last).
-    await writeFile(join(DIST, 'llms-full.txt'), buildLlmsFull(routes, siteUrl, snapshots), 'utf8');
+    await writeFile(join(DIST, 'llms-full.txt'), await buildLlmsFull(siteUrl), 'utf8');
 
     // SPA-style fallback: unknown paths boot the prerendered shell, which the
     // client router resolves (Cloudflare serves it with a 404 status).

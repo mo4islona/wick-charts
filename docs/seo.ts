@@ -80,20 +80,64 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
   },
 };
 
+// One-line summaries of what each component / hook actually does — shared by
+// the per-page meta description and llms.txt so neither degrades into
+// repeated boilerplate. Titles stay templated from the sidebar label.
+const API_SUMMARIES: Partial<Record<Route, string>> = {
+  'api/bar-series':
+    'Bar and histogram series with multi-layer data, stacking, per-layer colors, rounded corners and entry animations.',
+  'api/candlestick-series':
+    'OHLC candlestick series with volume bars, body width and corner radius options, entry animations and custom painters.',
+  'api/line-series':
+    'Line and area series with multiple layers, stacking, curve interpolation, gradient fills and a live pulse effect.',
+  'api/pie-series': 'Pie and donut series with inner radius control, hover animation and animated slice updates.',
+  'api/sparkline':
+    'Self-contained inline mini chart with an optional value label — renders without a ChartContainer (React only).',
+  'api/chart-container':
+    'Root chart component — theme, axes, padding, viewport, grid, gradient, animations and interactivity for the series inside.',
+  'api/crosshair': 'Cursor-tracking crosshair that pins axis labels to the hovered time and value.',
+  'api/info-bar':
+    'Top info bar showing OHLC or values for the hovered (or last) bar across every visible series, with sorting and number formatting.',
+  'api/legend':
+    'Series legend below or beside the chart with toggle / isolate visibility modes and a custom render slot.',
+  'api/navigator': 'Overview mini-chart with a draggable window for panning and zooming the visible range.',
+  'api/number-flow': 'Standalone animated number that rolls digits on change, with format and spin-duration props.',
+  'api/pie-legend':
+    'Slice list for pie charts showing value or percent per slice, with formatting and a custom render slot.',
+  'api/pie-tooltip': 'Hover tooltip for pie slices with formatting and a custom render slot.',
+  'api/title': 'Chart title bar with optional subtitle, hoisted above the canvas.',
+  'api/tooltip':
+    'Floating tooltip near the cursor with per-series value snapshots, sorting, formatting and a custom render slot.',
+  'api/x-axis': 'Horizontal time axis with automatic tick density and label formatting.',
+  'api/y-axis': 'Vertical value axis with auto, fixed, percent-padded or computed bounds and tick formatting.',
+  'api/y-label': 'Floating last-price badge with a dashed line pinned to the Y axis, tracking live updates per series.',
+  'hooks/use-chart-instance':
+    'Access the underlying chart instance for imperative calls like appendData, updateData and setVisibleRange.',
+  'hooks/use-theme': 'Read the resolved chart theme from context inside custom overlays and slots.',
+  'hooks/use-crosshair-position':
+    'Reactive crosshair position — media coordinates, time and value under the cursor, or null when inactive.',
+  'hooks/use-last-y-value':
+    'Live last Y value of a series, with an isLive flag — drives badges and streaming readouts.',
+  'hooks/use-previous-close': 'Previous bar close value of a series, for change and delta readouts.',
+  'hooks/use-visible-range': 'Reactive visible X range of the viewport as { from, to }.',
+  'hooks/use-y-range': 'Reactive Y bounds of the viewport as { min, max }.',
+};
+
 function templatedMeta(route: Route): RouteMeta {
   const label = labelForRoute(route);
+  const summary = API_SUMMARIES[route];
 
   if (route.startsWith('api/')) {
     return {
       title: `${label} API reference — Wick Charts`,
-      description: `Props, types, defaults and live examples for the ${label} component in Wick Charts — canvas charts for React, Vue and Svelte.`,
+      description: summary ?? `Props, types, defaults and live examples for the ${label} component in Wick Charts.`,
     };
   }
 
   if (route.startsWith('hooks/')) {
     return {
       title: `${label} hook — Wick Charts`,
-      description: `Signature, return value and usage for the ${label} hook in Wick Charts — high-performance canvas charts for React, Vue and Svelte.`,
+      description: summary ?? `Signature, return value and usage for the ${label} hook in Wick Charts.`,
     };
   }
 
