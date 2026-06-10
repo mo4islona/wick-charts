@@ -16,6 +16,7 @@ import {
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 import { useTheme } from '../ThemeContext';
+import { markSlot } from './slot';
 import type { TooltipSort } from './Tooltip';
 
 /** Context passed to the {@link InfoBar} render-prop. */
@@ -227,3 +228,5 @@ function LegendItem({ label, display, color, dim }: { label: string; display: st
     </>
   );
 }
+
+markSlot(InfoBar, 'infoBar');

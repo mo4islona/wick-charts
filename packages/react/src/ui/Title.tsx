@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode, memo } from 'react';
 
 import { useTheme } from '../ThemeContext';
+import { markSlot } from './slot';
 
 /** Props for the {@link Title} component. */
 export interface TitleProps {
@@ -64,3 +65,5 @@ export const Title = memo(
   // facebook/react#19778).
   (prev, next) => prev.children === next.children && prev.sub === next.sub && prev.style === next.style,
 );
+
+markSlot(Title, 'title');

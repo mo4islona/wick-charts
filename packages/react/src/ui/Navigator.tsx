@@ -4,6 +4,7 @@ import { NavigatorController, type NavigatorData } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useTheme } from '../ThemeContext';
+import { markSlot } from './slot';
 
 export interface NavigatorProps {
   /**
@@ -82,3 +83,5 @@ export function Navigator({ data, height, style, className }: NavigatorProps) {
     />
   );
 }
+
+markSlot(Navigator, 'navigator');

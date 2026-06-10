@@ -3,6 +3,7 @@ import { type ReactNode, useLayoutEffect, useState } from 'react';
 import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
+import { markSlot } from './slot';
 
 /**
  * Legend row content.
@@ -150,3 +151,5 @@ export function PieLegend({ seriesId, mode: modeProp, format, position, children
     </div>
   );
 }
+
+markSlot(PieLegend, 'pieLegend');

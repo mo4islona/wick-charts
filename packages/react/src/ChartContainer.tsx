@@ -25,11 +25,13 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 
 import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
-import { InfoBar } from './ui/InfoBar';
-import { Legend, type LegendProps } from './ui/Legend';
-import { Navigator } from './ui/Navigator';
-import { PieLegend, type PieLegendProps } from './ui/PieLegend';
-import { Title } from './ui/Title';
+// Slot components (Title, Legend, PieLegend, InfoBar, Navigator) are matched
+// via their static slot marker, NOT imported here — a value import would pull
+// every slot component (and the core navigator stack behind <Navigator>) into
+// any bundle that uses <ChartContainer>. Type-only imports are free.
+import type { LegendProps } from './ui/Legend';
+import type { PieLegendProps } from './ui/PieLegend';
+import { slotOf } from './ui/slot';
 
 /** Props for the {@link ChartContainer} component. */
 export interface ChartContainerProps {
@@ -183,15 +185,16 @@ export function siftContainerChildren(children: ReactNode): {
       return;
     }
     if (isValidElement(child)) {
-      if (child.type === Title) {
+      const slot = slotOf(child.type);
+      if (slot === 'title') {
         titleEl = child;
         return;
       }
-      if (child.type === Legend) {
+      if (slot === 'legend') {
         legendEl = child as ReactElement<LegendProps>;
         return;
       }
-      if (child.type === PieLegend) {
+      if (slot === 'pieLegend') {
         // `position='overlay'` opts back into the old absolute-positioned
         // layout, so we leave it in the overlay array for that path only.
         const typed = child as ReactElement<PieLegendProps>;
@@ -202,11 +205,11 @@ export function siftContainerChildren(children: ReactNode): {
         }
         return;
       }
-      if (child.type === InfoBar) {
+      if (slot === 'infoBar') {
         tooltipLegendEl = child;
         return;
       }
-      if (child.type === Navigator) {
+      if (slot === 'navigator') {
         navigatorEl = child;
         return;
       }

@@ -4,6 +4,7 @@ import type { ChartInstance, LegendItem } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useTheme } from '../ThemeContext';
+import { markSlot } from './slot';
 
 /**
  * Minimal visual shape the {@link LegendProps.items} override accepts — just
@@ -272,3 +273,5 @@ export function Legend({ items, position = 'bottom', mode = 'toggle', children }
     </div>
   );
 }
+
+markSlot(Legend, 'legend');
