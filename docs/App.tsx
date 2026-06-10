@@ -396,8 +396,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* Page content */}
-            <div style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>
+            {/* Page content. <main> (not a div) so the prerender crawler can
+                scope its llms-full.txt text extraction to page content only. */}
+            <main style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>
               {renderRoute({
                 route,
                 theme,
@@ -405,7 +406,7 @@ export default function App() {
                 editorValue,
                 onEditorChange,
               })}
-            </div>
+            </main>
           </div>
         </div>
       </FrameworkProvider>

@@ -38,5 +38,11 @@ export function buildLlmsTxt(): string {
     }
   }
 
+  lines.push(
+    '## Optional',
+    '',
+    `- [Full documentation](${SITE_URL}/llms-full.txt): Every docs page as plain text in a single file`,
+  );
+
   return `${lines.join('\n').trimEnd()}\n`;
 }

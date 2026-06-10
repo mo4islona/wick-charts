@@ -41,8 +41,9 @@ function startServer() {
   return new Promise((res) => server.listen(PORT, () => res(server)));
 }
 
-// One Chromium tab → fully-rendered HTML for a route. Aborts the npm-registry
-// version probe (slow, irrelevant) so the page reaches network-idle quickly.
+// One Chromium tab → fully-rendered HTML for a route, plus the page's <main>
+// text + head metadata for llms-full.txt. Aborts the npm-registry version
+// probe (slow, irrelevant) so the page reaches network-idle quickly.
 async function snapshot(browser, route) {
   const page = await browser.newPage();
   await page.setRequestInterception(true);
@@ -66,9 +67,14 @@ async function snapshot(browser, route) {
   await delay(200);
 
   const body = await page.evaluate(() => document.documentElement.outerHTML);
+  const meta = await page.evaluate(() => ({
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute('content') ?? '',
+    text: document.querySelector('main')?.innerText ?? '',
+  }));
   await page.close();
 
-  return `<!DOCTYPE html>\n${body}\n`;
+  return { html: `<!DOCTYPE html>\n${body}\n`, ...meta };
 }
 
 async function readAppGlobals(browser) {
@@ -99,6 +105,20 @@ function buildSitemap(routes, siteUrl) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
 
+// llms-full.txt — the full-content companion to llms.txt: every page's
+// rendered text concatenated in route order, one section per page.
+function buildLlmsFull(routes, siteUrl, snapshots) {
+  const sections = routes.map((route) => {
+    const snap = snapshots.get(route);
+    const header = [`# ${snap.title}`, '', `URL: ${siteUrl}${routePath(route)}`];
+    if (snap.description) header.push(`Description: ${snap.description}`);
+
+    return [...header, '', snap.text.trim()].join('\n');
+  });
+
+  return `${sections.join('\n\n---\n\n')}\n`;
+}
+
 async function main() {
   const server = await startServer();
   const browser = await puppeteer.launch({
@@ -119,23 +139,27 @@ async function main() {
     // route is crawled against a clean shell.
     const ordered = [...routes.filter((r) => r !== 'overview'), ...routes.filter((r) => r === 'overview')];
 
+    const snapshots = new Map();
     for (const route of ordered) {
-      const html = await snapshot(browser, route);
+      const snap = await snapshot(browser, route);
+      snapshots.set(route, snap);
       const outDir = route === 'overview' ? DIST : join(DIST, route);
       await mkdir(outDir, { recursive: true });
-      await writeFile(join(outDir, 'index.html'), html, 'utf8');
+      await writeFile(join(outDir, 'index.html'), snap.html, 'utf8');
       console.log(`  ✓ ${routePath(route)}`);
     }
 
     await writeFile(join(DIST, 'sitemap.xml'), buildSitemap(routes, siteUrl), 'utf8');
     await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, 'utf8');
     await writeFile(join(DIST, 'llms.txt'), llmsTxt, 'utf8');
+    // Emit in `routes` order (overview first), not crawl order (overview last).
+    await writeFile(join(DIST, 'llms-full.txt'), buildLlmsFull(routes, siteUrl, snapshots), 'utf8');
 
     // SPA-style fallback: unknown paths boot the prerendered shell, which the
     // client router resolves (Cloudflare serves it with a 404 status).
     await copyFile(join(DIST, 'index.html'), join(DIST, '404.html'));
 
-    console.log('Wrote sitemap.xml, robots.txt, llms.txt, 404.html');
+    console.log('Wrote sitemap.xml, robots.txt, llms.txt, llms-full.txt, 404.html');
   } finally {
     await browser.close();
     server.close();
