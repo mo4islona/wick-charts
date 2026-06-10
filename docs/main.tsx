@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
 import App from './App';
+import { buildLlmsTxt } from './llms';
 import { migrateLegacyHash } from './router';
 import { PRERENDER_ROUTES } from './routes';
 import { SITE_URL } from './seo';
@@ -14,6 +15,7 @@ migrateLegacyHash();
 // routes.ts/seo.ts the single source of truth.
 window.__WICK_ROUTES__ = PRERENDER_ROUTES;
 window.__WICK_SITE_URL__ = SITE_URL;
+window.__WICK_LLMS_TXT__ = buildLlmsTxt();
 
 // StrictMode is intentionally off. Its dev-only mount→unmount→remount re-seeds
 // streaming charts (a second `setSeriesData` of the same seed), which collapses

@@ -4,8 +4,8 @@
 // which is invisible to crawlers and social scrapers. This script boots the
 // built app in headless Chromium, walks every production route, and freezes the
 // fully-rendered DOM (real content + the per-route <head> that App applies) into
-// a static `index.html` per route. It then writes sitemap.xml, robots.txt and a
-// 404 fallback.
+// a static `index.html` per route. It then writes sitemap.xml, robots.txt,
+// llms.txt and a 404 fallback.
 //
 // The route list and canonical origin come from the booted app
 // (window.__WICK_ROUTES__ / __WICK_SITE_URL__, set in docs/main.tsx), so
@@ -87,9 +87,10 @@ async function readAppGlobals(browser) {
 
   const routes = await page.evaluate(() => window.__WICK_ROUTES__ ?? []);
   const siteUrl = await page.evaluate(() => window.__WICK_SITE_URL__ ?? '');
+  const llmsTxt = await page.evaluate(() => window.__WICK_LLMS_TXT__ ?? '');
   await page.close();
 
-  return { routes, siteUrl };
+  return { routes, siteUrl, llmsTxt };
 }
 
 function buildSitemap(routes, siteUrl) {
@@ -107,8 +108,9 @@ async function main() {
   });
 
   try {
-    const { routes, siteUrl } = await readAppGlobals(browser);
+    const { routes, siteUrl, llmsTxt } = await readAppGlobals(browser);
     if (routes.length === 0) throw new Error('window.__WICK_ROUTES__ was empty — is docs/main.tsx exposing it?');
+    if (llmsTxt.length === 0) throw new Error('window.__WICK_LLMS_TXT__ was empty — is docs/main.tsx exposing it?');
 
     console.log(`Prerendering ${routes.length} routes from ${siteUrl}`);
 
@@ -127,12 +129,13 @@ async function main() {
 
     await writeFile(join(DIST, 'sitemap.xml'), buildSitemap(routes, siteUrl), 'utf8');
     await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, 'utf8');
+    await writeFile(join(DIST, 'llms.txt'), llmsTxt, 'utf8');
 
     // SPA-style fallback: unknown paths boot the prerendered shell, which the
     // client router resolves (Cloudflare serves it with a 404 status).
     await copyFile(join(DIST, 'index.html'), join(DIST, '404.html'));
 
-    console.log('Wrote sitemap.xml, robots.txt, 404.html');
+    console.log('Wrote sitemap.xml, robots.txt, llms.txt, 404.html');
   } finally {
     await browser.close();
     server.close();
