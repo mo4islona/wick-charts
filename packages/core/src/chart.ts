@@ -25,7 +25,8 @@ import { renderGrid } from './components/grid';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
-import { PerfHud, type PerfMonitor } from './perf';
+import type { PerfMonitor } from './perf';
+import type { PerfHud } from './perf/perf-hud';
 import { RenderScheduler } from './render-scheduler';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
@@ -306,7 +307,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
     );
     if (this.#perfMonitor && resolvedPerf.showHud) {
-      this.#perfHud = new PerfHud(container, this.#perfMonitor);
+      this.#attachPerfHud(container, this.#perfMonitor);
     }
 
     const interactive = options?.interactive !== false;
@@ -1263,6 +1264,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
     if (changed) this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * Mount the HUD overlay. The DOM-heavy HUD module is loaded via dynamic
+   * import so bundles that never enable instrumentation don't carry it; the
+   * guard covers a chart destroyed (or re-monitored) before the module
+   * resolves — `destroy()` nulls `#perfMonitor`, failing the identity check.
+   */
+  #attachPerfHud(container: HTMLElement, monitor: PerfMonitor): void {
+    void import('./perf/perf-hud').then(({ PerfHud }) => {
+      if (this.#perfMonitor !== monitor || this.#perfHud) return;
+
+      this.#perfHud = new PerfHud(container, monitor);
+    });
   }
 
   /** Tear down the chart: cancel animations, remove listeners, and detach the canvas. */

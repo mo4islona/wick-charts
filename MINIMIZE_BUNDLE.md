@@ -1,6 +1,6 @@
 # Bundle Size Minimization Plan
 
-> **Status (2026-06-11): Steps 1, 2, 3 and 5 are implemented.** Measured after
+> **Status (2026-06-11): all five steps are implemented.** Measured after
 > each step (`pnpm build && pnpm size`, candlestick-only scenario, raw/gzip):
 >
 > | After step                       | raw      | gzip    |
@@ -9,11 +9,16 @@
 > | 1 — `target: 'es2022'`           | 160.2 kB | 49.1 kB |
 > | 2 — `preserveModules`            | 146.0 kB | 45.0 kB |
 > | 3 — ChartContainer slot markers  | 122.4 kB | 38.1 kB |
-> | 5 — renderer injection           | **88.1 kB** | **27.5 kB** |
+> | 5 — renderer injection           | 88.1 kB  | 27.5 kB |
+> | 4 — PerfHud via dynamic import   | **86.1 kB** | **26.8 kB** |
 >
-> Net: **−50% raw / −48% gzip** for the minimal scenario; react-full went
-> 192.7 → 179.8 kB raw (57.9 → 55.2 gzip). Step 4 (perf decoupling, ~5 kB)
-> remains open.
+> Net: **−51% raw / −49% gzip** for the minimal scenario; react-full went
+> 192.7 → 177.8 kB raw (57.9 → 54.5 gzip). Step 4 shipped narrower than
+> planned: the HUD module loads through a dynamic import (the size script's
+> esbuild scenarios enable `splitting` and count only the entry chunk), but
+> `PerfMonitor` stays static — `resolvePerfOptions` must construct it
+> synchronously for `perf: true`, so its ~3 kB would only move behind an
+> API break.
 
 ## 1. Problem
 

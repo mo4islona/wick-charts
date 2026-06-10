@@ -153,14 +153,26 @@ describe('ChartInstance — perf instrumentation', () => {
     }
   });
 
-  it('renders the HUD element when perf: true (shorthand)', () => {
+  it('renders the HUD element when perf: true (shorthand)', async () => {
     const chart = new ChartInstance(container, { perf: true, interactive: false });
     try {
-      expect(container.querySelector('[data-chart-perf-hud]')).not.toBeNull();
+      // The HUD module mounts after a dynamic import — wait for it to land.
+      await vi.waitFor(() => {
+        expect(container.querySelector('[data-chart-perf-hud]')).not.toBeNull();
+      });
     } finally {
       chart.destroy();
       expect(container.querySelector('[data-chart-perf-hud]')).toBeNull();
     }
+  });
+
+  it('a chart destroyed before the HUD module resolves never mounts the HUD', async () => {
+    const chart = new ChartInstance(container, { perf: true, interactive: false });
+    chart.destroy();
+
+    // Give the dynamic import every chance to settle before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(container.querySelector('[data-chart-perf-hud]')).toBeNull();
   });
 
   it('does not destroy a caller-supplied monitor when the chart is destroyed', () => {

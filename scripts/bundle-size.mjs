@@ -80,6 +80,9 @@ async function measure(scenario) {
     bundle: true,
     minify: true,
     format: 'esm',
+    // Without splitting esbuild folds dynamic imports (the PerfHud overlay)
+    // into the entry, hiding the on-demand boundary real bundlers honour.
+    splitting: true,
     platform: 'browser',
     target: 'es2022',
     mainFields: ['module', 'main'],
@@ -89,12 +92,18 @@ async function measure(scenario) {
     alias: { '@wick-charts/react': DIST },
     external: ['react', 'react-dom', 'react/jsx-runtime'],
     write: false,
+    outdir: resolve(TMP, 'out'),
     absWorkingDir: ROOT,
     logLevel: 'error',
   });
 
-  const output = result.outputFiles[0].contents;
-  return measureBytes(output);
+  // Initial-load cost only: with a single entry every static dependency folds
+  // into the entry chunk; the remaining outputs are dynamic-import chunks
+  // that load on demand.
+  const entryOut = result.outputFiles.find((f) => f.path.endsWith(`${scenario.name}.js`));
+  if (!entryOut) throw new Error(`entry chunk for ${scenario.name} not found`);
+
+  return measureBytes(entryOut.contents);
 }
 
 function measureBytes(bytes) {
