@@ -143,12 +143,12 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
 
   // Avoid syncing the labels twice per animating frame. `renderMain` emits both
   // `viewportChange` (the eased Y moved) and `tickFrame` (any animating frame)
-  // in the same frame. While the viewport is animating, `tickFrame` already
-  // drives the per-frame sync, so the redundant per-frame `viewportChange` is
-  // skipped; when the viewport is idle (a discrete / snapped commit or a data
-  // re-fit, where `tickFrame` doesn't fire) it syncs. `overlayChange` (theme /
-  // data swaps) always syncs.
-  function onViewportChange(): void {
+  // in the same frame, and streaming emits `overlayChange` on every data tick.
+  // While the viewport is animating, `tickFrame` already drives the per-frame
+  // sync (re-reading theme + ticks), so both discrete signals are skipped;
+  // when the viewport is idle (a discrete / snapped commit, a data re-fit, or
+  // a theme swap at rest — where `tickFrame` doesn't fire) they sync.
+  function syncWhenIdle(): void {
     if (chart.getAnimationState().animating) return;
 
     sync();
@@ -157,13 +157,13 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   sync();
 
   chart.on('tickFrame', sync);
-  chart.on('viewportChange', onViewportChange);
-  chart.on('overlayChange', sync);
+  chart.on('viewportChange', syncWhenIdle);
+  chart.on('overlayChange', syncWhenIdle);
 
   return () => {
     chart.off('tickFrame', sync);
-    chart.off('viewportChange', onViewportChange);
-    chart.off('overlayChange', sync);
+    chart.off('viewportChange', syncWhenIdle);
+    chart.off('overlayChange', syncWhenIdle);
     for (const el of spans.values()) el.remove();
     spans.clear();
   };

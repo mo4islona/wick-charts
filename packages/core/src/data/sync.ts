@@ -72,17 +72,25 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
   if (shifted && added === 0 && hasNewLast) {
     // Rolling-window slide (maxPoints cap): oldest dropped, newest appended,
     // length unchanged. Append the new tail then trim the head — this path
-    // goes through `keepLast` (no Y snap) instead of `setSeriesData`.
-    chart.appendData(id, data[data.length - 1], layerIndex);
-    chart.keepLast(id, data.length, layerIndex);
+    // goes through `keepLast` (no Y snap) instead of `setSeriesData`. Batched
+    // so the append + trim run one `onDataChanged` pass, not two.
+    chart.batch(() => {
+      chart.appendData(id, data[data.length - 1], layerIndex);
+      chart.keepLast(id, data.length, layerIndex);
+    });
   } else if (prev.len === 0 || data.length < prev.len || added > BULK_THRESHOLD || shifted) {
     chart.setSeriesData(id, data, layerIndex);
   } else if (data.length === prev.len) {
     chart.updateData(id, data[data.length - 1], layerIndex);
   } else {
-    for (let i = prev.len; i < data.length; i++) {
-      chart.appendData(id, data[i], layerIndex);
-    }
+    // Tail growth — a burst of ≤ BULK_THRESHOLD points in one commit. Batched:
+    // every point still seeds its own entrance animator, but the engine
+    // retargets once for the whole burst instead of once per point.
+    chart.batch(() => {
+      for (let i = prev.len; i < data.length; i++) {
+        chart.appendData(id, data[i], layerIndex);
+      }
+    });
   }
 
   return { len: data.length, firstTime, lastTime };

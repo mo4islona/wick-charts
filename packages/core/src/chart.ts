@@ -121,6 +121,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
   #crosshairPos: CrosshairPosition | null = null;
+  /** Whether the last overlay pass painted anything — gates the full-bitmap
+   *  clear so an empty overlay isn't cleared again every main frame. */
+  #overlayHasContent = false;
   /** User-specified Y-axis bounds (auto, fixed, percentage). */
   #yBounds: { min?: AxisBound; max?: AxisBound } = {};
   /** Cached series ID list — invalidated on add/remove. */
@@ -302,26 +305,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.timeScale.tickTracker.setFadeMs(ticksMs);
     this.yScale.tickTracker.setFadeMs(ticksMs);
 
-    const monitor = this.#perfMonitor;
-    if (monitor) {
-      this.#mainScheduler = new RenderScheduler((t) => {
-        monitor.resetDrawCalls('main');
-        const t0 = performance.now();
-        this.renderMain(t);
-        monitor.recordFrame('main', performance.now() - t0, t);
-      });
-      this.#overlayScheduler = new RenderScheduler((t) => {
-        monitor.resetDrawCalls('overlay');
-        const t0 = performance.now();
-        this.renderOverlay(t);
-        monitor.recordFrame('overlay', performance.now() - t0, t);
-      });
-      if (resolvedPerf.showHud) {
-        this.#perfHud = new PerfHud(container, monitor);
-      }
-    } else {
-      this.#mainScheduler = new RenderScheduler((t) => this.renderMain(t));
-      this.#overlayScheduler = new RenderScheduler((t) => this.renderOverlay(t));
+    this.#mainScheduler = new RenderScheduler((t) => this.#renderFrame(t));
+    this.#overlayScheduler = new RenderScheduler((t) =>
+      this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
+    );
+    if (this.#perfMonitor && resolvedPerf.showHud) {
+      this.#perfHud = new PerfHud(container, this.#perfMonitor);
     }
 
     const interactive = options?.interactive !== false;
@@ -336,7 +325,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // height changed: the next setYRange call inside renderMain picks up
       // the new pixel padding so labels reposition without an explicit emit.
       this.syncScales();
-      this.renderMain();
+      this.#renderFrame();
       // Notify React components — yScale changed due to new canvas dimensions
       // (e.g. Legend appeared and shrank the chart area).
       this.emit('viewportChange');
@@ -1421,7 +1410,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // streaming ticks coalesce per RAF and Y-range easing gets at least
     // one frame to advance before painting.
     if (isFirstDataPaint) {
-      this.renderMain();
+      this.#renderFrame();
     } else {
       this.#mainScheduler.markDirty();
     }
@@ -2060,9 +2049,38 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.yScale.tickTracker.markArmed();
       this.timeScale.tickTracker.markArmed();
     }
+  }
 
-    // Main layer changed — overlay needs to redraw on top
-    this.renderOverlay();
+  /**
+   * Paint a full frame: the main layer, then the overlay synchronously on
+   * top so both land in the same browser paint. The overlay scheduler's
+   * queued frame (a crosshair move, the pulse re-arm from the previous
+   * frame) is consumed first — the synchronous paint below replaces it, so
+   * the overlay is no longer cleared + repainted twice in the same frame.
+   * `markDirty` calls made *during* `renderOverlay` (pulse, edge spinner)
+   * land after the consume and re-arm cleanly for the next frame.
+   */
+  #renderFrame(timestamp?: number): void {
+    this.#measuredRender('main', timestamp, () => this.renderMain(timestamp));
+
+    this.#overlayScheduler.consume();
+    this.#measuredRender('overlay', timestamp, () => this.renderOverlay(timestamp));
+  }
+
+  /** Run a layer's paint, booking duration + draw calls to the perf monitor
+   *  when one is attached — keeps overlay time out of the `main` samples. */
+  #measuredRender(layer: 'main' | 'overlay', timestamp: number | undefined, render: () => void): void {
+    const monitor = this.#perfMonitor;
+    if (!monitor) {
+      render();
+
+      return;
+    }
+
+    monitor.resetDrawCalls(layer);
+    const t0 = performance.now();
+    render();
+    monitor.recordFrame(layer, performance.now() - t0, timestamp ?? t0);
   }
 
   /** Cheap overlay: crosshair, nearest-point dots, pulse animation, edge indicator. */
@@ -2084,10 +2102,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Any non-idle edge needs a single redraw; only `loading` needs continuous frames.
     const edgeVisible = this.#edgeStates.left !== 'idle' || this.#edgeStates.right !== 'idle';
 
+    // Skip the full-bitmap clear when the overlay is empty AND was already
+    // empty last pass — only the painted→empty transition (e.g. mouseleave
+    // erasing a stale crosshair) needs one erasing clear.
+    const hasContent = Boolean(this.#crosshairPos) || overlayAnimates || edgeVisible;
+    if (!hasContent && !this.#overlayHasContent) return;
+
+    this.#overlayHasContent = hasContent;
+
     this.#canvasManager.useOverlayLayer((scope) => {
-      // Guard inside callback — useOverlayLayer clears the canvas first,
-      // so we must always enter it to erase stale crosshair/dots on mouseleave.
-      if (!this.#crosshairPos && !overlayAnimates && !edgeVisible) return;
+      // useOverlayLayer already cleared the bitmap — an empty overlay stops
+      // here with the stale content erased.
+      if (!hasContent) return;
 
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;

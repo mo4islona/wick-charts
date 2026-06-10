@@ -143,4 +143,25 @@ describe('axis DOM labels — per-frame sync coalescing', () => {
     emit(chart, 'viewportChange');
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('skips the per-tick overlayChange while animating (streaming emits one per data tick)', () => {
+    chart.zoomAt(1_000_000 + 25 * INTERVAL, 0.3);
+    expect(chart.getAnimationState().animating).toBe(true);
+
+    const spy = vi.spyOn(chart.yScale, 'niceTickValues');
+    spy.mockClear();
+
+    emit(chart, 'overlayChange'); // redundant during animation — tickFrame re-reads theme + ticks
+    expect(spy).toHaveBeenCalledTimes(0);
+  });
+
+  it('syncs on overlayChange at rest (theme / data swaps without a running animation)', () => {
+    expect(chart.getAnimationState().animating).toBe(false);
+
+    const spy = vi.spyOn(chart.yScale, 'niceTickValues');
+    spy.mockClear();
+
+    emit(chart, 'overlayChange');
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
 });

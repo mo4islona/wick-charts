@@ -35,9 +35,14 @@ export interface NavigatorControllerParams {
  * active zone aligns with the main chart's plot area (matches the TimeAxis).
  *
  * Event topology — navigator is a pure listener on the chart side, never emits:
- *   chart.viewportChange → reposition window DOM + redraw on next frame
+ *   chart.viewportChange → reposition window DOM on next frame (canvas untouched)
+ *   chart.tickFrame      → reposition window DOM on next frame (window glide)
  *   chart.overlayChange  → full redraw (catches data + theme swaps)
  *   ResizeObserver       → resize canvas + full redraw
+ *
+ * The canvas miniature depends only on data / theme / size, so per-frame
+ * viewport signals take the light DOM-only path — a wheel-zoom or pan never
+ * re-decimates the dataset or repaints the strip.
  */
 export class NavigatorController {
   readonly #container: HTMLElement;
@@ -65,7 +70,16 @@ export class NavigatorController {
   #pixelRatio = 1;
 
   #rafHandle: number | null = null;
+  /** A full canvas render is owed. A queued frame with `#dirty === false`
+   *  came from {@link #markWindowDirty} and only repositions the window DOM. */
   #dirty = true;
+
+  /**
+   * Memoized decimation results keyed by source array ref. Cleared on
+   * `setData` (guards in-place mutation of a re-passed array); a buckets
+   * mismatch (resize) recomputes per entry.
+   */
+  readonly #decimationCache = new Map<object, { buckets: number; result: unknown }>();
 
   /**
    * Eases the alpha of the trailing bar/candle/line-segment from 0 → 1 over
@@ -150,12 +164,14 @@ export class NavigatorController {
     this.#overlay.append(this.#maskLeft, this.#maskRight, this.#window, this.#handleLeft, this.#handleRight);
     this.#container.appendChild(this.#overlay);
 
-    this.#onViewportChange = () => this.#markDirty();
+    // Viewport moves only affect the window DOM — the miniature canvas keys
+    // off data/theme/size, so both per-frame signals take the light path.
+    this.#onViewportChange = () => this.#markWindowDirty();
     this.#onOverlayChange = () => this.#markDirty();
     // tickFrame fires every animation frame (the same per-frame signal the DOM
     // axis labels ride); subscribing lets the brush window glide with the eased
     // canvas instead of only updating on discrete viewport/overlay commits.
-    this.#onTickFrame = () => this.#markDirty();
+    this.#onTickFrame = () => this.#markWindowDirty();
     this.#chart.on('viewportChange', this.#onViewportChange);
     this.#chart.on('overlayChange', this.#onOverlayChange);
     this.#chart.on('tickFrame', this.#onTickFrame);
@@ -207,6 +223,7 @@ export class NavigatorController {
     this.#lastSeenTime = newLastTime;
     this.#tailSeriesIndex = tail?.seriesIndex ?? -1;
     this.#data = data;
+    this.#decimationCache.clear();
     this.#markDirty();
   }
 
@@ -271,27 +288,55 @@ export class NavigatorController {
   }
 
   #applySize(mediaWidth: number, mediaHeight: number): void {
-    const dpr = window.devicePixelRatio || 1;
     this.#mediaWidth = mediaWidth;
     this.#mediaHeight = mediaHeight;
-    this.#pixelRatio = dpr;
+    this.#pixelRatio = window.devicePixelRatio || 1;
 
-    const activeWidth = this.#activeWidth;
-    this.#canvas.width = Math.round(activeWidth * dpr);
-    this.#canvas.height = Math.round(mediaHeight * dpr);
-    this.#canvas.style.width = `${activeWidth}px`;
-    this.#overlay.style.width = `${activeWidth}px`;
+    this.#syncCanvasSize();
+  }
+
+  /**
+   * Write canvas backing-store / CSS sizes only when they actually changed —
+   * any assignment to `canvas.width`/`height`, even with the same value,
+   * resets the backing store (full clear + realloc), which is pure waste on
+   * a repaint where nothing resized.
+   */
+  #syncCanvasSize(): void {
+    const bitmapWidth = Math.round(this.#activeWidth * this.#pixelRatio);
+    const bitmapHeight = Math.round(this.#mediaHeight * this.#pixelRatio);
+    if (this.#canvas.width !== bitmapWidth) this.#canvas.width = bitmapWidth;
+    if (this.#canvas.height !== bitmapHeight) this.#canvas.height = bitmapHeight;
+
+    const cssWidth = `${this.#activeWidth}px`;
+    if (this.#canvas.style.width !== cssWidth) {
+      this.#canvas.style.width = cssWidth;
+      this.#overlay.style.width = cssWidth;
+    }
   }
 
   #markDirty(): void {
-    if (this.#dirty && this.#rafHandle !== null) return;
     this.#dirty = true;
+    this.#scheduleFrame();
+  }
 
+  /** Queue a window-DOM-only frame — a queued full render takes precedence. */
+  #markWindowDirty(): void {
+    this.#scheduleFrame();
+  }
+
+  #scheduleFrame(): void {
     if (this.#rafHandle !== null) return;
+
     this.#rafHandle = requestAnimationFrame(() => {
       this.#rafHandle = null;
+      const full = this.#dirty;
       this.#dirty = false;
-      this.#render();
+
+      if (full) {
+        this.#render();
+      } else {
+        this.#renderWindow();
+      }
     });
   }
 
@@ -435,10 +480,7 @@ export class NavigatorController {
     // Recompute canvas pixel size — yAxisWidth may have changed since the last
     // resize event (e.g. axis config update), and the canvas needs to shrink
     // accordingly before we draw.
-    this.#canvas.width = Math.round(this.#activeWidth * this.#pixelRatio);
-    this.#canvas.height = Math.round(this.#mediaHeight * this.#pixelRatio);
-    this.#canvas.style.width = `${this.#activeWidth}px`;
-    this.#overlay.style.width = `${this.#activeWidth}px`;
+    this.#syncCanvasSize();
 
     const ctx = this.#ctx;
     const bw = this.#canvas.width;
@@ -485,7 +527,7 @@ export class NavigatorController {
     const buckets = Math.max(1, Math.round(this.#activeWidth));
     const data = this.#data;
     if (data.type === 'candlestick') {
-      renderMiniCandlestick(rc, decimateCandles(data.points, buckets), tailAlpha);
+      renderMiniCandlestick(rc, this.#memoDecimate(data.points, buckets, decimateCandles), tailAlpha);
     } else {
       const seriesList = lineSeriesList(data);
       const drawArea = seriesList.length === 1; // multiple stacked area fills muddy the strip
@@ -495,7 +537,7 @@ export class NavigatorController {
       // an update, which is visually confusing on overlapping strokes.
       const tailIndex = this.#tailSeriesIndex >= 0 ? this.#tailSeriesIndex : seriesList.length - 1;
       for (let s = 0; s < seriesList.length; s++) {
-        const decimated = decimateLinear(seriesList[s], buckets);
+        const decimated = this.#memoDecimate(seriesList[s], buckets, decimateLinear);
         const alpha = s === tailIndex ? tailAlpha : 1;
         if (data.type === 'bar') {
           renderMiniBar(rc, decimated, alpha);
@@ -509,6 +551,45 @@ export class NavigatorController {
 
     // Window + mask + handles live in DOM, not on canvas.
     this.#updateOverlayDom(theme, xRange);
+  }
+
+  /**
+   * Light per-frame path — reposition the window / masks / handles against
+   * the eased viewport without touching the canvas. Escalates to a full
+   * render when the canvas size went stale (e.g. `yAxisWidth` changed without
+   * a resize event).
+   */
+  #renderWindow(): void {
+    if (this.#activeWidth <= 0 || this.#mediaHeight <= 0) return;
+
+    const bitmapWidth = Math.round(this.#activeWidth * this.#pixelRatio);
+    if (this.#canvas.width !== bitmapWidth) {
+      this.#render();
+
+      return;
+    }
+
+    const theme = this.#chart.getTheme().navigator;
+    const { xRange } = this.#updateScales();
+    this.#updateOverlayDom(theme, xRange);
+  }
+
+  /** Decimate `points` into `buckets`, reusing the cached result while the
+   *  source array ref and bucket count are unchanged. */
+  #memoDecimate<P extends object>(
+    points: readonly P[],
+    buckets: number,
+    decimate: (points: readonly P[], buckets: number) => readonly P[],
+  ): readonly P[] {
+    const cached = this.#decimationCache.get(points);
+    if (cached !== undefined && cached.buckets === buckets) {
+      return cached.result as readonly P[];
+    }
+
+    const result = decimate(points, buckets);
+    this.#decimationCache.set(points, { buckets, result });
+
+    return result;
   }
 
   #updateOverlayDom(theme: ReturnType<ChartInstance['getTheme']>['navigator'], xRange: XRange): void {

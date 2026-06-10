@@ -173,6 +173,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     duration: 0,
     lerp: (a, b, t) => a + (b - a) * t,
   });
+  /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
+   *  positioned per candle via `ctx.translate`, instead of a fresh
+   *  `createLinearGradient` for every body on every frame. */
+  readonly #bodyGradientCache = new Map<string, CanvasGradient>();
 
   constructor(store: TimeSeriesStore<OHLCData>, options?: Partial<CandlestickSeriesOptions>) {
     this.store = store;
@@ -779,28 +783,26 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       // — otherwise fillStyle would leak from the prior wick batch and the
       // body would render in the wick color. The painter receives this resolved
       // fillStyle and MUST NOT rebuild the gradient (the engine built it once).
+      // Gradients come from a per-(colors,height) cache anchored at y=0, so
+      // the body is drawn inside a `translate(0, drawTop)` frame — the painted
+      // pixels are identical, but N same-height candles share one gradient.
       const bodyColor = Array.isArray(body) ? body[0] : body;
-      let fillStyle: string | CanvasGradient;
-      if (drawsGradient && drawHeight > 2) {
-        const grad = ctx.createLinearGradient(0, drawTop, 0, drawTop + drawHeight);
-        grad.addColorStop(0, body[0]);
-        grad.addColorStop(1, body[1]);
-        fillStyle = grad;
-      } else {
-        fillStyle = bodyColor;
-      }
+      const useGradient = drawsGradient && drawHeight > 2;
+      const fillStyle: string | CanvasGradient = useGradient ? this.#bodyGradient(ctx, body, drawHeight) : bodyColor;
       ctx.fillStyle = fillStyle;
 
       if (needsTransform) ctx.globalAlpha = alpha;
+      if (useGradient) ctx.translate(0, drawTop);
+      const bodyY = useGradient ? 0 : drawTop;
 
       // Round the body via the resolved painter. radius<1 (after clamp) with no
       // custom painter routes back through the byte-identical fillRect path.
       const radius = clamp(candlePass.radius, 0, Math.min(bodyWidth, drawHeight) / 2);
       if (radius < 1 && !this.options.candlePainter) {
-        ctx.fillRect(drawX, drawTop, bodyWidth, drawHeight);
+        ctx.fillRect(drawX, bodyY, bodyWidth, drawHeight);
       } else {
         candlePass.painter(candlePass.env, {
-          geom: { x: drawX, y: drawTop, width: bodyWidth, height: drawHeight },
+          geom: { x: drawX, y: bodyY, width: bodyWidth, height: drawHeight },
           fillStyle,
           color: bodyColor,
           corners: ALL_CORNERS,
@@ -809,8 +811,32 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
           isBullish: c.close >= c.open,
         });
       }
+      if (useGradient) ctx.translate(0, -drawTop);
       if (needsTransform) ctx.restore();
     }
+  }
+
+  /**
+   * Cached 2-stop body gradient anchored at y = 0..height. Heights quantize
+   * to whole device px (sub-pixel ramp drift is invisible) so same-height
+   * bodies share one `CanvasGradient` instead of allocating per candle per
+   * frame. The map is hard-bounded — entrance animations sweep heights
+   * continuously, and a full clear is cheaper than an eviction policy.
+   */
+  #bodyGradient(ctx: CanvasRenderingContext2D, colors: [string, string], height: number): CanvasGradient {
+    const quantized = Math.max(3, Math.round(height));
+    const key = `${colors[0]}|${colors[1]}|${quantized}`;
+    const cached = this.#bodyGradientCache.get(key);
+    if (cached !== undefined) return cached;
+
+    if (this.#bodyGradientCache.size >= 512) this.#bodyGradientCache.clear();
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, quantized);
+    gradient.addColorStop(0, colors[0]);
+    gradient.addColorStop(1, colors[1]);
+    this.#bodyGradientCache.set(key, gradient);
+
+    return gradient;
   }
 }
 

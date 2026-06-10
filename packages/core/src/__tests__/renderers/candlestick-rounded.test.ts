@@ -53,10 +53,37 @@ describe('CandlestickRenderer — rounded bodies (default)', () => {
     const square = buildRenderContext(WIDE);
     new CandlestickRenderer(mkStore(tallBulls()), { cornerRadius: 0, ...grad }).render(square.ctx);
 
-    // The engine builds one gradient per candle in BOTH paths; the rounded
-    // painter reuses it rather than creating a second.
+    // The engine builds one gradient per distinct body height in BOTH paths;
+    // the rounded painter reuses it rather than creating a second.
     expect(rounded.spy.countOf('createLinearGradient')).toBe(3);
     expect(rounded.spy.countOf('createLinearGradient')).toBe(square.spy.countOf('createLinearGradient'));
+  });
+
+  it('reuses cached body gradients across frames and across same-height candles', () => {
+    const grad = { up: { body: ['#aaff00', '#008800'] as [string, string], wick: '#00ff00' } };
+    const r = new CandlestickRenderer(mkStore(tallBulls()), grad);
+    const { ctx, spy } = buildRenderContext(WIDE);
+
+    r.render(ctx);
+    const firstFrame = spy.countOf('createLinearGradient');
+    expect(firstFrame).toBe(3); // three distinct heights
+
+    // Second frame, identical geometry — every gradient comes from the cache.
+    r.render(ctx);
+    expect(spy.countOf('createLinearGradient')).toBe(firstFrame);
+
+    // Same-height candles share one gradient within a frame.
+    const sameHeight: OHLCData[] = [1, 2, 3].map((i) => ({
+      time: 25 * i,
+      open: 20,
+      high: 95,
+      low: 10,
+      close: 80,
+    }));
+    const r2 = new CandlestickRenderer(mkStore(sameHeight), grad);
+    const fresh = buildRenderContext(WIDE);
+    r2.render(fresh.ctx);
+    expect(fresh.spy.countOf('createLinearGradient')).toBe(1);
   });
 
   it('a ≤2px doji body degrades to a flat fillRect without throwing (#11)', () => {

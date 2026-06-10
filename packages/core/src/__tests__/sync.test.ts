@@ -10,6 +10,7 @@ function mockChart() {
     updateData: vi.fn(),
     appendData: vi.fn(),
     keepLast: vi.fn(),
+    batch: vi.fn((fn: () => void) => fn()),
   } as unknown as ChartInstance;
 }
 
@@ -72,6 +73,30 @@ describe('syncSeriesLayer', () => {
     expect(chart.keepLast).toHaveBeenCalledWith('a', 3, undefined);
     expect(chart.setSeriesData).not.toHaveBeenCalled();
     expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4 });
+  });
+
+  it('wraps the rolling-window append + trim in one chart.batch (single onDataChanged pass)', () => {
+    const chart = mockChart();
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3 };
+
+    syncSeriesLayer({ chart, id: 'a', data: [point(2), point(3), point(4)], prev });
+
+    expect(chart.batch).toHaveBeenCalledTimes(1);
+    // Both mutations ran inside the batch callback (the mock executes it
+    // synchronously, so call order proves containment).
+    const batchOrder = vi.mocked(chart.batch).mock.invocationCallOrder[0];
+    expect(vi.mocked(chart.appendData).mock.invocationCallOrder[0]).toBeGreaterThan(batchOrder);
+    expect(vi.mocked(chart.keepLast).mock.invocationCallOrder[0]).toBeGreaterThan(batchOrder);
+  });
+
+  it('wraps a multi-point tail burst in one chart.batch (one engine retarget per commit)', () => {
+    const chart = mockChart();
+    const prev: SeriesSyncState = { len: 1, firstTime: 1, lastTime: 1 };
+
+    syncSeriesLayer({ chart, id: 'a', data: [point(1), point(2), point(3), point(4)], prev });
+
+    expect(chart.batch).toHaveBeenCalledTimes(1);
+    expect(chart.appendData).toHaveBeenCalledTimes(3);
   });
 
   it('clears the series and resets state on empty data', () => {
