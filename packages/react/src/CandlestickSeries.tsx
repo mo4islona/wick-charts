@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import {
+  CandlestickSeriesDef,
   type CandlestickSeriesOptions,
   EMPTY_SYNC_STATE,
   type OHLCInput,
@@ -25,7 +26,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   const prevSyncRef = useRef<SeriesSyncState>(EMPTY_SYNC_STATE);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries('candlestick', { ...options, id: idProp });
+    const id = chart.addSeries(CandlestickSeriesDef, { ...options, id: idProp });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);

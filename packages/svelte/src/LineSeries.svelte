@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { LineSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
-import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import { EMPTY_SYNC_STATE, LineSeriesDef, syncSeriesLayer } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -22,7 +22,7 @@ const sync: { state: SeriesSyncState[] } = { state: [] };
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries('line', { ...options, layers: data.length, id });
+  seriesId = chart.addSeries(LineSeriesDef, { ...options, layers: data.length, id });
 });
 
 onDestroy(() => {

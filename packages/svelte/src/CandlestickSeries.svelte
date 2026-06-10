@@ -1,6 +1,6 @@
 <script lang="ts">
 import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
-import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -22,7 +22,7 @@ const sync: { state: SeriesSyncState } = { state: EMPTY_SYNC_STATE };
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries('candlestick', { ...options, id });
+  seriesId = chart.addSeries(CandlestickSeriesDef, { ...options, id });
 });
 
 onDestroy(() => {

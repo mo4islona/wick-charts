@@ -7,6 +7,16 @@
 //      so resize-driven regressions can be replayed from tests.
 
 import { type CanvasRecorder, createRecordingContext } from '../core/src/__tests__/helpers/recording-context';
+// Deep import on purpose — pulling the `@wick-charts/core` barrel here would
+// pre-load (and cache) the whole core module graph before a test file's
+// `vi.mock` of a core-internal module (e.g. navigator/decimate) can take
+// effect. register-builtins only touches the series modules.
+import { registerBuiltinSeries } from '../core/src/series/register-builtins';
+
+// Tests use the string form `chart.addSeries('line', ...)` throughout; since
+// the renderer-injection refactor that form resolves through the series
+// registry, populate it once for every test file.
+registerBuiltinSeries();
 
 type ResizeObserverCb = (entries: ResizeObserverEntry[], observer: ResizeObserver) => void;
 

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
+import { PieSeriesDef } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
@@ -19,7 +20,7 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
   const seriesRef = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries('pie', { ...options, id: idProp });
+    const id = chart.addSeries(PieSeriesDef, { ...options, id: idProp });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);

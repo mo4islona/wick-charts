@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import {
+  BarSeriesDef,
   type BarSeriesOptions,
   EMPTY_SYNC_STATE,
   type SeriesSyncState,
@@ -25,7 +26,7 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries('bar', { ...options, layers: data.length, id: idProp });
+    const id = chart.addSeries(BarSeriesDef, { ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevSyncRef.current = new Array(data.length).fill(EMPTY_SYNC_STATE);
     return () => {

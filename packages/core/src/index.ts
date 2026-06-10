@@ -51,6 +51,18 @@ export { PerfMonitor } from './perf';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
+// Series definitions — pass one to `chart.addSeries(def, options)` so the
+// chart stays renderer-agnostic and unused series types tree-shake out. The
+// string form (`addSeries('line', ...)`) requires a one-time
+// `registerBuiltinSeries()` call at startup.
+export { BarSeriesDef } from './series/bar';
+export { CandlestickSeriesDef } from './series/candlestick';
+export {
+  type SeriesCreateEnv,
+  type SeriesDefinition,
+  registerSeriesDefinition,
+} from './series/definition';
+export { LineSeriesDef } from './series/line';
 export {
   roundedBarFill,
   roundedCandleFill,
@@ -77,6 +89,8 @@ export type {
   LinePoint,
   PaintEnv,
 } from './series/painters/types';
+export { PieSeriesDef } from './series/pie';
+export { registerBuiltinSeries } from './series/register-builtins';
 export type { HoverInfo, SliceInfo } from './series/types';
 export type {
   BuildHoverSnapshotsArgs,

@@ -22,7 +22,6 @@ import { resolvePaddingTime } from './chart/viewport-padding';
 import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
-import { TimeSeriesStore } from './data/store';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
@@ -30,10 +29,7 @@ import { PerfHud, type PerfMonitor } from './perf';
 import { RenderScheduler } from './render-scheduler';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
-import { BarRenderer } from './series/bar';
-import { CandlestickRenderer } from './series/candlestick';
-import { LineRenderer } from './series/line';
-import { PieRenderer } from './series/pie';
+import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
 import type { HoverInfo, SeriesRenderer, SliceInfo } from './series/types';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
@@ -404,15 +400,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Add a series of the given `type` and return its unique ID. `options` is
-   * typed per `type` via the overloads. `layers` (line/bar) and `id` are
-   * consumed here; everything else is forwarded to the renderer.
+   * Add a series and return its unique ID. `options` is typed per series via
+   * the overloads. `layers` (line/bar) and `id` are consumed here; everything
+   * else is forwarded to the renderer.
+   *
+   * Preferred form: pass a {@link SeriesDefinition}
+   * (`chart.addSeries(LineSeriesDef, …)`) — the chart stays renderer-agnostic
+   * and bundlers drop the series types a host never imports. The string form
+   * resolves through the registry and requires a one-time
+   * `registerBuiltinSeries()` call at startup.
    */
   addSeries(type: 'candlestick', options?: Partial<CandlestickSeriesOptions & { id?: string }>): string;
   addSeries(type: 'line', options?: Partial<LineSeriesOptions & { layers?: number; id?: string }>): string;
   addSeries(type: 'bar', options?: Partial<BarSeriesOptions & { layers?: number; id?: string }>): string;
   addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string }>): string;
-  addSeries(type: SeriesType, options: Record<string, unknown> = {}): string {
+  addSeries<O>(
+    def: SeriesDefinition<O>,
+    options?: Partial<O> & { layers?: number; id?: string; label?: string },
+  ): string;
+  addSeries(type: SeriesType | SeriesDefinition, options: Record<string, unknown> = {}): string {
+    const def = typeof type === 'string' ? resolveSeriesDefinition(type) : type;
+    if (!def) {
+      throw new Error(
+        `[wick-charts] Unknown series type '${String(type)}'. The string form of addSeries resolves ` +
+          `through the series registry — call registerBuiltinSeries() once at startup, or pass the ` +
+          `definition directly: chart.addSeries(LineSeriesDef, options).`,
+      );
+    }
+
     const { layers, id, ...rest } = options as {
       layers?: number;
       id?: string;
@@ -421,14 +436,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     };
     const layerCount = layers ?? 1;
 
-    // Merge order matches the old per-type adders: theme defaults (injected in
-    // #createRenderer) -> animation defaults -> user options -> forced-off overrides.
+    // Merge order matches the old per-type adders: theme defaults (injected by
+    // the definition) -> animation defaults -> user options -> forced-off overrides.
     const merged = {
-      ...this.#animationsConfig.defaults(type),
+      ...this.#animationsConfig.defaults(def.type),
       ...rest,
-      ...this.#animationsConfig.overrides(type),
+      ...this.#animationsConfig.overrides(def.type),
     };
-    const renderer = this.#createRenderer(type, layerCount, merged);
+    const renderer = def.create({ theme: this.#theme, layerCount }, merged);
 
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
@@ -438,35 +453,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#bumpOverlayVersion();
 
     return seriesId;
-  }
-
-  /**
-   * Construct the renderer for a series `type`, injecting the active theme's
-   * colors. Non-theme defaults (bodyWidthRatio, area, barWidthRatio) live in
-   * each renderer's own `DEFAULT_OPTIONS`, so they aren't repeated here.
-   */
-  #createRenderer(type: SeriesType, layerCount: number, opts: Record<string, unknown>): SeriesRenderer {
-    switch (type) {
-      case 'candlestick':
-        return new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {
-          up: { ...this.#theme.candlestick.up },
-          down: { ...this.#theme.candlestick.down },
-          ...opts,
-        });
-      case 'line':
-        return new LineRenderer(layerCount, {
-          colors: layerCount === 1 ? [this.#theme.line.color] : this.#theme.seriesColors.slice(0, layerCount),
-          strokeWidth: this.#theme.line.width,
-          ...opts,
-        });
-      case 'bar':
-        return new BarRenderer(layerCount, {
-          colors: this.#theme.seriesColors.slice(0, layerCount),
-          ...opts,
-        });
-      case 'pie':
-        return new PieRenderer({ ...opts });
-    }
   }
 
   /** Remove a series by ID and clean up its resources. */

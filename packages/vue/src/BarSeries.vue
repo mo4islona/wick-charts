@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { BarSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
-import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import { BarSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
@@ -27,7 +27,7 @@ function applyData(id: string, data: TimePoint[][]): void {
 }
 
 onMounted(() => {
-  const id = chart.addSeries('bar', {
+  const id = chart.addSeries(BarSeriesDef, {
     ...props.options,
     layers: props.data.length,
     id: props.id,

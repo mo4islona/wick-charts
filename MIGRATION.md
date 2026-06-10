@@ -1,5 +1,32 @@
 # Migration guide
 
+## 0.4 → 0.5
+
+### Breaking: string `chart.addSeries('line', …)` requires registration
+
+The chart no longer hard-imports the four series renderers — that made every
+bundle carry candlestick + line + bar + pie even when the app rendered one
+series type. `addSeries` now takes a *series definition*, and the framework
+components (`<CandlestickSeries>`, `<LineSeries>`, …) pass theirs automatically,
+so **component-based apps need no changes** and now bundle only the series they
+import.
+
+Imperative (vanilla) callers have two options:
+
+```ts
+// Option A — pass the definition (tree-shakeable, preferred)
+import { CandlestickSeriesDef } from '@wick-charts/react';
+const id = chart.addSeries(CandlestickSeriesDef, { bodyWidthRatio: 0.8 });
+
+// Option B — keep the string form, register the built-ins once at startup
+import { registerBuiltinSeries } from '@wick-charts/react';
+registerBuiltinSeries(); // pulls all four renderers into the bundle
+const id = chart.addSeries('candlestick', { bodyWidthRatio: 0.8 });
+```
+
+An unregistered string now throws
+`Unknown series type 'candlestick'…` with the same guidance.
+
 ## 0.2 → 0.3
 
 Version 0.3 restructures `ChartTheme` so every key lives where it semantically belongs. Confusing flat keys like `typography.axisFontSize` (shared across axes, legend, tooltips) and `candlestick.upColor` / `wickUpColor` (direction and part mixed at one level) are gone. Font sizes move into their owning sections; candlestick nests by direction first. Series renderer options (`CandlestickSeriesOptions`) follow the same restructure so instance overrides stay consistent with the theme.

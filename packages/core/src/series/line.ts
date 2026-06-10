@@ -6,6 +6,7 @@ import type { LineSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
+import type { SeriesDefinition } from './definition';
 import type { CurveKind, PathSegment } from './painters/canvas-path';
 import { buildCurveSegments } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
@@ -936,3 +937,15 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     if (faded) ctx.restore();
   }
 }
+
+/** Series definition for `chart.addSeries` — keeps the chart renderer-agnostic
+ *  so hosts that never render lines don't bundle this module. */
+export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
+  type: 'line',
+  create: ({ theme, layerCount }, options) =>
+    new LineRenderer(layerCount, {
+      colors: layerCount === 1 ? [theme.line.color] : theme.seriesColors.slice(0, layerCount),
+      strokeWidth: theme.line.width,
+      ...options,
+    }),
+};

@@ -2,6 +2,7 @@ import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint } from '../types';
 import { BaseMultiLayerSeries } from './base-multi-layer';
+import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import type { SeriesRenderContext } from './types';
@@ -600,3 +601,14 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     pass.painter(pass.env, args);
   }
 }
+
+/** Series definition for `chart.addSeries` — keeps the chart renderer-agnostic
+ *  so hosts that never render bars don't bundle this module. */
+export const BarSeriesDef: SeriesDefinition<BarSeriesOptions> = {
+  type: 'bar',
+  create: ({ theme, layerCount }, options) =>
+    new BarRenderer(layerCount, {
+      colors: theme.seriesColors.slice(0, layerCount),
+      ...options,
+    }),
+};

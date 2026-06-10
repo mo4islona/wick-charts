@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import {
   EMPTY_SYNC_STATE,
+  LineSeriesDef,
   type LineSeriesOptions,
   type SeriesSyncState,
   type TimePoint,
@@ -25,7 +26,7 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries('line', { ...options, layers: data.length, id: idProp });
+    const id = chart.addSeries(LineSeriesDef, { ...options, layers: data.length, id: idProp });
     seriesRef.current = id;
     prevSyncRef.current = new Array(data.length).fill(EMPTY_SYNC_STATE);
     return () => {

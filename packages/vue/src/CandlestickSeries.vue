@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
-import { EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
@@ -20,7 +20,7 @@ const seriesId = ref<string | null>(null);
 let prevSync: SeriesSyncState = EMPTY_SYNC_STATE;
 
 onMounted(() => {
-  const id = chart.addSeries('candlestick', { ...props.options, id: props.id });
+  const id = chart.addSeries(CandlestickSeriesDef, { ...props.options, id: props.id });
   seriesId.value = id;
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply

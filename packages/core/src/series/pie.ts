@@ -2,6 +2,7 @@ import type { ChartTheme } from '../theme/types';
 import type { PieLabelsOptions, PieSeriesOptions, PieSliceData } from '../types';
 import { lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
+import type { SeriesDefinition } from './definition';
 import type { HoverInfo, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
 
 const DEFAULT_LABELS: Required<PieLabelsOptions> = {
@@ -1065,3 +1066,10 @@ export class PieRenderer implements PieSeriesRenderer {
     }
   }
 }
+
+/** Series definition for `chart.addSeries` — keeps the chart renderer-agnostic
+ *  so hosts that never render pies don't bundle this module. */
+export const PieSeriesDef: SeriesDefinition<PieSeriesOptions> = {
+  type: 'pie',
+  create: (_env, options) => new PieRenderer({ ...options }),
+};

@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
+import { PieSeriesDef } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -16,7 +17,7 @@ let seriesId: string | null = null;
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries('pie', { ...options, id });
+  seriesId = chart.addSeries(PieSeriesDef, { ...options, id });
 });
 
 onDestroy(() => {

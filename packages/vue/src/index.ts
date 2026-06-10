@@ -44,6 +44,8 @@ export type {
   PieSeriesOptions,
   PieSliceData,
   RoundedRectArgs,
+  SeriesCreateEnv,
+  SeriesDefinition,
   SeriesSnapshot,
   SeriesType,
   SliceInfo,
@@ -68,8 +70,12 @@ export type {
 } from '@wick-charts/core';
 // Painters — custom per-element drawing for bar / candle / line series.
 export {
+  BarSeriesDef,
+  CandlestickSeriesDef,
   ChartInstance,
+  LineSeriesDef,
   NavigatorController,
+  PieSeriesDef,
   andromeda,
   autoGradient,
   ayuMirage,
@@ -101,6 +107,8 @@ export {
   panda,
   peachCream,
   quietLight,
+  registerBuiltinSeries,
+  registerSeriesDefinition,
   resolveAxisFontSize,
   resolveAxisTextColor,
   resolveCandlestickBodyColor,

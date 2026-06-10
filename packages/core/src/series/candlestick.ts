@@ -3,7 +3,7 @@ import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_SMOOTH } from '../animat
 import { easeOutCubic } from '../animation/easing';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { decimateOHLCData } from '../data/decimation';
-import type { TimeSeriesStore } from '../data/store';
+import { TimeSeriesStore } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
@@ -11,6 +11,7 @@ import { hexToRgba } from '../utils/color';
 import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
+import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
 import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
@@ -896,3 +897,15 @@ function applyCandleTransform(
       };
   }
 }
+
+/** Series definition for `chart.addSeries` — keeps the chart renderer-agnostic
+ *  so hosts that never render candles don't bundle this module. */
+export const CandlestickSeriesDef: SeriesDefinition<CandlestickSeriesOptions> = {
+  type: 'candlestick',
+  create: ({ theme }, options) =>
+    new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {
+      up: { ...theme.candlestick.up },
+      down: { ...theme.candlestick.down },
+      ...options,
+    }),
+};
