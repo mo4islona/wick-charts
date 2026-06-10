@@ -61,7 +61,6 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   // speed=5 matches the other playground pages (see CandlestickPage) so new
   // bars append about once per second and the entry animations stay visible.
   const { datasets } = useLineStreams([singleData], {
-    startDelay: 300,
     interval: DEMO_INTERVAL,
     speed: 5,
     kind: 'bar',
@@ -104,7 +103,6 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
 
 function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: string }) {
   const { datasets } = useLineStreams(layers, {
-    startDelay: 500,
     interval: DEMO_INTERVAL,
     speed: 5,
     kind: 'layer',

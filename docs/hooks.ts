@@ -25,9 +25,6 @@ export { useLatestVersion } from './hooks/useLatestVersion';
 export type LineStreamKind = 'line' | 'bar' | 'layer';
 
 interface BaseStreamOpts {
-  /** Delay in ms before historical data is initially revealed. Lets grids
-   *  stagger which chart starts drawing first. NOT the bar interval. */
-  startDelay?: number;
   interval?: number;
   /** 1 = realtime; 2 = 2× faster new bars; 0.5 = half speed. Read live from a ref. */
   speed?: number;
@@ -95,7 +92,6 @@ export function runWhileVisible(sources: Array<{ start(): void; stop(): void }>)
 }
 
 export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
-  const startDelay = opts.startDelay ?? 50;
   const streamInterval = opts.interval ?? DEMO_INTERVAL;
   const { maxPoints } = opts;
   const speedRef = useLiveRef(opts.speed ?? 1);
@@ -107,29 +103,20 @@ export function useOHLCStream(allData: OHLCData[], opts: OHLCStreamOpts = {}) {
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
   const dataRef = useLiveRef(data);
 
-  // Load full history in one shot after `startDelay`. Earlier versions revealed
-  // in 50-point batches, but with the canonical bar interval each batch
-  // stretched the x-axis by ~50s and produced a visible "jump" per batch.
-  // The reducer only grows the array (never truncates) so a StrictMode double-
-  // mount or an already-started stream can't clobber in-flight live points.
+  // Load full history in one shot, immediately on mount. Earlier versions
+  // revealed in 50-point batches behind a `startDelay`, but the batches
+  // stretched the x-axis with a visible "jump" each, and the delay just made
+  // charts appear empty for a beat. The reducer only grows the array (never
+  // truncates) so a StrictMode double-mount or an already-started stream
+  // can't clobber in-flight live points.
   useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      // Read the ref inside the timeout so a same-length replacement of
-      // `allData` during the delay still reveals the latest array.
-      const history = allDataRef.current;
-      setData((prev) => {
-        const target = capArray(history, maxPointsRef.current);
-        return prev.length >= target.length ? prev : target;
-      });
-      setPhase('live');
-    }, startDelay);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [startDelay, seriesLength, allDataRef, maxPointsRef]);
+    const history = allDataRef.current;
+    setData((prev) => {
+      const target = capArray(history, maxPointsRef.current);
+      return prev.length >= target.length ? prev : target;
+    });
+    setPhase('live');
+  }, [seriesLength, allDataRef, maxPointsRef]);
 
   useEffect(() => {
     if (phase !== 'live') return;
@@ -187,7 +174,6 @@ function pickLineStrategy(kind: LineStreamKind, series: TimePoint[]): LineStrate
 }
 
 export function useLineStreams(allData: TimePoint[][], opts: LineStreamOpts = {}) {
-  const startDelay = opts.startDelay ?? 50;
   const dataInterval = opts.interval ?? DEMO_INTERVAL;
   const kind: LineStreamKind = opts.kind ?? 'line';
   const { maxPoints } = opts;
@@ -202,30 +188,21 @@ export function useLineStreams(allData: TimePoint[][], opts: LineStreamOpts = {}
   const [phase, setPhase] = useState<'loading' | 'live'>('loading');
   const datasetsRef = useLiveRef(datasets);
 
-  // Load full history for every series in one shot after `startDelay`. See
-  // `useOHLCStream` above for why the batch-reveal was removed. The reducer
-  // still guards against truncation so StrictMode / live-stream races are safe.
+  // Load full history for every series in one shot, immediately on mount. See
+  // `useOHLCStream` above for why the delayed batch-reveal was removed. The
+  // reducer still guards against truncation so StrictMode / live-stream races
+  // are safe.
   useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (cancelled) return;
-      // Same rationale as `useOHLCStream`: pull from the ref at fire time
-      // so a same-shape replacement of `allData` during the delay isn't lost.
-      const history = allDataRef.current;
-      setDatasets((prev) =>
-        history.map((line, i) => {
-          const existing = prev[i] ?? [];
-          const target = capArray(line, maxPointsRef.current);
-          return existing.length >= target.length ? existing : target;
-        }),
-      );
-      setPhase('live');
-    }, startDelay);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [startDelay, seriesCount, historyLength, allDataRef, maxPointsRef]);
+    const history = allDataRef.current;
+    setDatasets((prev) =>
+      history.map((line, i) => {
+        const existing = prev[i] ?? [];
+        const target = capArray(line, maxPointsRef.current);
+        return existing.length >= target.length ? existing : target;
+      }),
+    );
+    setPhase('live');
+  }, [seriesCount, historyLength, allDataRef, maxPointsRef]);
 
   useEffect(() => {
     if (phase !== 'live') return;

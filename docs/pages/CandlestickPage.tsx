@@ -73,15 +73,14 @@ function CandleChart({
   perfHudVisible,
   candleEntryAnimation,
   headerLayout,
-  startDelay,
   title,
   sub,
   ...rest
-}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; startDelay: number; title: string; sub: string }) {
+}: PlaygroundChartProps & CandleSettings & { data: OHLCData[]; title: string; sub: string }) {
   // speed=5: virtual interval is 5s so each candle forms with visible intra
   // wobble, but wall-clock gives us one new bar per second — dense enough
   // for entrance animations to feel continuous, like the dashboard.
-  const { data: d } = useOHLCStream(data, { startDelay, interval: DEMO_INTERVAL, speed: 5 });
+  const { data: d } = useOHLCStream(data, { interval: DEMO_INTERVAL, speed: 5 });
   const display = streaming ? d : data;
   const sid = 'candle';
   const animations = useAnimationsProp({
@@ -231,7 +230,6 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`s-${props.streaming}-${props.perfHudVisible}-${mobile}`}
               {...props}
               data={steadyData}
-              startDelay={300}
               title="BTC/USD"
               sub="Standard · 1m"
             />
@@ -241,7 +239,6 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`v-${props.streaming}-${props.perfHudVisible}-${mobile}`}
               {...props}
               data={volatileData}
-              startDelay={400}
               title="DOGE/USD"
               sub="High volatility · 1m"
             />
@@ -251,7 +248,6 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
               key={`t-${props.streaming}-${props.perfHudVisible}-${mobile}`}
               {...props}
               data={trendingData}
-              startDelay={500}
               title="ETH/USD"
               sub="Trending · 1m"
             />

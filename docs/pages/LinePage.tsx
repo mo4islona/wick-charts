@@ -85,7 +85,6 @@ function strategyFor(mode: DataMode) {
 
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][] }) {
   const { datasets } = useLineStreams(props.allData, {
-    startDelay: 300,
     interval: DEMO_INTERVAL,
     speed: 5,
     strategy: strategyFor(props.dataMode),
@@ -150,7 +149,6 @@ function renderTooltip({ tooltipCustom, tooltipSort }: LineSettings) {
 
 function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][]; title: string }) {
   const { datasets } = useLineStreams(props.allData, {
-    startDelay: 500,
     interval: DEMO_INTERVAL,
     speed: 5,
     strategy: strategyFor(props.dataMode),
