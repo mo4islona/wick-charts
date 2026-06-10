@@ -390,7 +390,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
         >
           Candlesticks, lines, areas, bars &mdash; streaming in realtime.
           <br />
-          AI&#8209;first, tiny bundle, zero deps, 20+ themes, fully open source.
+          Tiny bundle, zero deps, 20+ themes, fully open source.
         </p>
       </div>
 
