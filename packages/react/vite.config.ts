@@ -25,6 +25,20 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],
+      output: [
+        {
+          // Per-module ESM so consumer bundlers tree-shake series/navigator/
+          // perf they don't import; a flat file defeats sideEffects: false.
+          format: 'es',
+          preserveModules: true,
+          preserveModulesRoot: resolve(__dirname, 'src'),
+          entryFileNames: '[name].js',
+        },
+        {
+          format: 'cjs',
+          entryFileNames: 'index.cjs',
+        },
+      ],
     },
   },
 });

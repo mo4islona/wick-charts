@@ -27,6 +27,13 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ['svelte', 'svelte/store', 'svelte/internal', /^svelte\//],
+      output: {
+        // Per-module ESM so consumer bundlers tree-shake series/navigator/
+        // perf they don't import; a flat file defeats sideEffects: false.
+        preserveModules: true,
+        preserveModulesRoot: resolve(__dirname, 'src'),
+        entryFileNames: '[name].js',
+      },
     },
   },
 });

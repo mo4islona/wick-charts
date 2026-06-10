@@ -27,6 +27,13 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ['vue', /^vue\//],
+      output: {
+        // Per-module ESM so consumer bundlers tree-shake series/navigator/
+        // perf they don't import; a flat file defeats sideEffects: false.
+        preserveModules: true,
+        preserveModulesRoot: resolve(__dirname, 'src'),
+        entryFileNames: '[name].js',
+      },
     },
   },
 });

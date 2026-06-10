@@ -5,7 +5,7 @@
 //   1. React tree-shake scenarios — synthetic ESM entrypoints consumed by
 //      esbuild (minify, tree-shake, browser target). Reports what a real
 //      consumer pays after bundling. React/ReactDOM external.
-//   2. Per-package dist — raw size of every framework's built `index.js`
+//   2. Per-package dist — combined size of every framework's built ES modules
 //      (core / react / vue / svelte). The Vue and Svelte ports can't be
 //      tree-shaken via esbuild scenarios because their components are
 //      compiled SFCs — measuring the shipped dist is the honest comparison.
@@ -13,7 +13,7 @@
 // All sizes are reported raw + gzip (level 9) + brotli (default quality).
 
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, gzipSync } from 'node:zlib';
@@ -107,11 +107,24 @@ function measureBytes(bytes) {
 }
 
 const PACKAGES = [
-  { name: '@wick-charts/core', file: resolve(ROOT, 'packages/core/dist/index.js') },
-  { name: '@wick-charts/react', file: resolve(ROOT, 'packages/react/dist/index.js') },
-  { name: '@wick-charts/vue', file: resolve(ROOT, 'packages/vue/dist/index.js') },
-  { name: '@wick-charts/svelte', file: resolve(ROOT, 'packages/svelte/dist/index.js') },
+  { name: '@wick-charts/core', dir: resolve(ROOT, 'packages/core/dist') },
+  { name: '@wick-charts/react', dir: resolve(ROOT, 'packages/react/dist') },
+  { name: '@wick-charts/vue', dir: resolve(ROOT, 'packages/vue/dist') },
+  { name: '@wick-charts/svelte', dir: resolve(ROOT, 'packages/svelte/dist') },
 ];
+
+/** Concatenate every ES module under `dir` (dist is per-module since the
+ *  preserveModules switch) — the sum is the "import everything" upper bound. */
+function readDistModules(dir) {
+  const chunks = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    if (entry.isFile() && entry.name.endsWith('.js')) {
+      chunks.push(readFileSync(resolve(entry.parentPath, entry.name)));
+    }
+  }
+
+  return Buffer.concat(chunks);
+}
 
 function fmt(bytes) {
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} kB`;
@@ -155,9 +168,8 @@ async function main() {
 
   const packageRows = [];
   for (const pkg of PACKAGES) {
-    if (!existsSync(pkg.file)) continue;
-    const bytes = readFileSync(pkg.file);
-    packageRows.push({ name: pkg.name, ...measureBytes(bytes) });
+    if (!existsSync(pkg.dir)) continue;
+    packageRows.push({ name: pkg.name, ...measureBytes(readDistModules(pkg.dir)) });
   }
 
   printTable('react scenario', reactRows);
