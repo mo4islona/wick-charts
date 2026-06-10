@@ -15,6 +15,9 @@ export default defineConfig({
     }),
   ],
   build: {
+    // Keep native #private fields — Vite's default target lowers them to
+    // WeakMap helpers, costing ~10% raw size and a call on every access.
+    target: 'es2022',
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
       formats: ['es', 'cjs'],

@@ -9,6 +9,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [dts({ rollupTypes: true })],
   build: {
+    // Keep native #private fields — Vite's default target lowers them to
+    // WeakMap helpers, costing ~10% raw size and a call on every access.
+    target: 'es2022',
     emptyOutDir: true,
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
