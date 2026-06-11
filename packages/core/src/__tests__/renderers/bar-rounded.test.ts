@@ -87,21 +87,20 @@ describe('BarRenderer — rounded corners (default)', () => {
     expect(spy.callsOf('fillRect').some((f) => f.fillStyle === '#8250df')).toBe(true);
   });
 
-  it('overlap (stacking off): only the front-most bar rounds; the taller back bar is square', () => {
+  it('overlap (stacking off): every bar rounds its free end — back bars too', () => {
+    // The taller back bar's top is fully visible above the front bar, so a
+    // square edge there reads as a glitch next to the rounded front bar.
     const r = new BarRenderer(2, { colors: ['#111111', '#222222'], stacking: 'off' });
     r.setData([{ time: 50, value: 80 }], 0); // tall → drawn first (behind)
     r.setData([{ time: 50, value: 30 }], 1); // short → drawn last (front)
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 100 }, dataInterval: 25 });
     r.render(ctx);
 
-    const arcs = spy.callsOf('arcTo');
-    expect(arcs.length).toBeGreaterThan(0);
-    // Only the front (shorter, layer 1) bar rounds.
-    for (const arc of arcs) {
-      expect(arc.fillStyle).toBe('#222222');
-    }
-    // The back (taller, layer 0) bar is square → a fillRect in its color.
-    expect(spy.callsOf('fillRect').some((f) => f.fillStyle === '#111111')).toBe(true);
+    const arcStyles = new Set(spy.callsOf('arcTo').map((a) => a.fillStyle));
+    expect(arcStyles.has('#111111')).toBe(true);
+    expect(arcStyles.has('#222222')).toBe(true);
+    // Neither bar fell back to the square fillRect path.
+    expect(spy.countOf('fillRect')).toBe(0);
   });
 
   it('a projected bar fills translucent with globalAlpha left at 1 (single alpha source)', () => {
