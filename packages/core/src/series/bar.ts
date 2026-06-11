@@ -87,6 +87,10 @@ interface AnimatedBar {
   /** Ghost / forecast bar (`time >= options.projectedFrom`). Skips the entrance
    *  transform so its only alpha source is the painter's translucent fill. */
   isProjected: boolean;
+  /** Entrance growth is already baked into the geometry (stacked paths scale
+   *  layer values by progress before stacking). The transform must skip its own
+   *  grow so the segment isn't scaled twice; fade still applies. */
+  growBaked?: boolean;
 }
 
 export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
@@ -135,13 +139,11 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
    * each render path.
    */
   private applyBarTransform(
+    bar: AnimatedBar,
     progress: number,
-    baselineY: number,
-    topY: number,
-    barHeight: number,
-    x: number,
-    barWidth: number,
   ): { topY: number; barHeight: number; x: number; barWidth: number; alpha: number } {
+    const { baselineY, topY, barHeight, x, barWidth } = bar;
+
     const style = this.options.entryAnimation ?? 'fade-grow';
     if (progress >= 1 || style === 'none') {
       return { topY, barHeight, x, barWidth, alpha: 1 };
@@ -153,7 +155,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     let alpha = 1;
 
     if (style === 'fade' || style === 'fade-grow') alpha = progress;
-    if (style === 'grow' || style === 'fade-grow') {
+    if ((style === 'grow' || style === 'fade-grow') && !bar.growBaked) {
       // Anchor at baseline: bar grows from zeroY upward/downward.
       const scaled = barHeight * progress;
       if (topY < baselineY) {
@@ -318,14 +320,13 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         const cx = timeScale.timeToBitmapX(time);
         const isProjected = this.isProjectedTime(time);
 
-        // Overlap mode: only the front-most (last-drawn, shortest) bar per time
-        // rounds its free end; taller bars behind it stay square so no rounded
-        // notch shows where a front bar overlaps a back one.
+        // Overlap mode: every bar rounds its free end — each bar's top (or
+        // bottom, for negatives) pokes out above the shorter bars in front of
+        // it, so a square edge on a back bar reads as a rendering glitch.
         for (let i = 0; i < entries.length; i++) {
           const { layer, value } = entries[i];
           const color = this.options.colors[layer % this.options.colors.length];
           const progress = this.entranceProgress(ctx, layer, time);
-          const isFront = i === entries.length - 1;
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, zeroY - topY);
@@ -338,7 +339,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
-              roundEdge: isFront ? 'top' : 'none',
+              roundEdge: 'top',
               isProjected,
             });
           } else {
@@ -353,7 +354,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               x: cx - anchorOffset,
               barWidth: bodyWidth,
               color,
-              roundEdge: isFront ? 'bottom' : 'none',
+              roundEdge: 'bottom',
               isProjected,
             });
           }
@@ -409,6 +410,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     // the same final bounds over `toggleMs`, so geometry and axis converge on
     // the same frame instead of the binary `isVisible()` jump that produced
     // the visible "stack collapses instantly" artifact in stacked modes.
+    // Entrance growth is baked into the stacked values themselves: scaling each
+    // layer's contribution by its entrance progress makes every segment's base
+    // ride on the *animated* top of the layers below it, so the column rises
+    // from the zero line as one attached stack. Growing each segment from its
+    // settled base instead leaves it floating mid-air while the layers under it
+    // are still rising.
+    const style = this.options.entryAnimation ?? 'fade-grow';
+    const growEntrance = style === 'grow' || style === 'fade-grow';
+
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
       const alpha = this.getLayerAlpha(li);
@@ -420,7 +430,12 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         // Non-finite → 0 in the stack so one gap doesn't NaN-out the column.
         const raw = Number.isFinite(d.value) ? d.value : 0;
-        arr[li] = this.effectiveValue(ctx, li, d.time, raw) * alpha;
+        let value = this.effectiveValue(ctx, li, d.time, raw) * alpha;
+        if (growEntrance && !this.isProjectedTime(d.time)) {
+          value *= this.entranceProgress(ctx, li, d.time);
+        }
+
+        arr[li] = value;
       }
     }
 
@@ -499,6 +514,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               color,
               roundEdge,
               isProjected,
+              growBaked: true,
             });
           } else if (raw < 0 && totalNegative < 0) {
             const pctBase = (baseNegative / totalNegative) * -100;
@@ -517,6 +533,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               color,
               roundEdge,
               isProjected,
+              growBaked: true,
             });
           }
         } else {
@@ -535,6 +552,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               color,
               roundEdge,
               isProjected,
+              growBaked: true,
             });
           } else {
             const topY = yScale.valueToBitmapY(baseNegative);
@@ -551,6 +569,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               color,
               roundEdge,
               isProjected,
+              growBaked: true,
             });
           }
         }
@@ -575,7 +594,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const t =
       progress >= 1 || style === 'none'
         ? { x, topY, barWidth, barHeight, alpha: 1 }
-        : this.applyBarTransform(progress, baselineY, topY, barHeight, x, barWidth);
+        : this.applyBarTransform(bar, progress);
 
     const args: BarPaintArgs = {
       geom: { x: t.x, y: t.topY, width: t.barWidth, height: t.barHeight, baselineY },

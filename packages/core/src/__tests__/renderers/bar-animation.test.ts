@@ -270,4 +270,37 @@ describe('BarRenderer — animation', () => {
       void upperEdge;
     });
   });
+
+  describe('stacked entrance', () => {
+    it('segments stay attached mid-entrance — each base rides the animated top of the layer below', () => {
+      // Regression guard: entrance growth used to anchor every segment at its
+      // SETTLED base, so an upper segment floated mid-air above the still-rising
+      // layer below it. Growth is now baked into the stacked values, keeping the
+      // column attached while it rises from the zero line.
+      const r = makeBar(2, { stacking: 'normal' });
+      r.setData([{ time: 10, value: 5 }], 0);
+      r.setData([{ time: 10, value: 5 }], 1);
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 5 }, 0);
+      r.appendPoint({ time: 30, value: 8 }, 1);
+      advance(16);
+
+      const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
+      r.render(ctx);
+
+      // The entering column is the alpha < 1 pair (default fade-grow); the
+      // settled time-10 column paints at alpha = 1.
+      const entering = spy
+        .callsOf('fillRect')
+        .filter((c) => c.globalAlpha < 1)
+        .map((c) => ({ y: c.args[1] as number, h: c.args[3] as number }))
+        .sort((a, b) => a.y - b.y);
+      expect(entering.length).toBe(2);
+
+      // No air gap: the upper segment's bottom edge sits on the lower segment's top.
+      const [upper, lower] = entering;
+      expect(upper.y + upper.h).toBeCloseTo(lower.y, 0);
+    });
+  });
 });
