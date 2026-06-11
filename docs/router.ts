@@ -7,9 +7,14 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ROUTE_ALIASES, type Route, isRoute } from './routes';
 
-/** Route → URL pathname. Overview is the site root (`/`). */
+/**
+ * Route → URL pathname. Overview is the site root (`/`); every other route
+ * keeps a trailing slash because the prerender emits `route/index.html` and
+ * Cloudflare Pages 308-redirects the slashless form — canonicals, sitemap
+ * entries and internal links must point at the URL that answers 200 directly.
+ */
 export function routeToPath(route: Route): string {
-  return route === 'overview' ? '/' : `/${route}`;
+  return route === 'overview' ? '/' : `/${route}/`;
 }
 
 function normalize(pathname: string): string {

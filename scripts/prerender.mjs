@@ -25,6 +25,9 @@ const PORT = 4317;
 const ORIGIN = `http://localhost:${PORT}`;
 
 const routePath = (route) => (route === 'overview' ? '/' : `/${route}`);
+// Public URL form: trailing slash, matching what Cloudflare Pages serves for
+// `route/index.html` (the slashless form is a 308 redirect).
+const routeLoc = (route) => (route === 'overview' ? '/' : `/${route}/`);
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 // Serve the build with SPA fallback so any not-yet-written route still loads the
@@ -132,7 +135,7 @@ async function captureOgImage(browser) {
 }
 
 function buildSitemap(routes, siteUrl) {
-  const urls = routes.map((r) => `  <url>\n    <loc>${siteUrl}${routePath(r)}</loc>\n  </url>`).join('\n');
+  const urls = routes.map((r) => `  <url>\n    <loc>${siteUrl}${routeLoc(r)}</loc>\n  </url>`).join('\n');
 
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
 }
@@ -169,7 +172,7 @@ async function buildLlmsFull(siteUrl) {
       [
         `# Use case: ${exampleTitle(slug)} (React)`,
         '',
-        `Live demo: ${siteUrl}/use-cases/${slug}`,
+        `Live demo: ${siteUrl}/use-cases/${slug}/`,
         '',
         '```tsx',
         src.trim(),
