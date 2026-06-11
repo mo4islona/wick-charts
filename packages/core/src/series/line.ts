@@ -214,7 +214,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // Anchor to the raw last instead so the dot stays at the new point.
     if (!Number.isFinite(penultimate.value)) return { x: lastRawX, y: lastRawY };
     const penulX = timeScale.timeToBitmapX(penultimate.time);
-    const penulY = yScale.valueToBitmapY(penultimate.value);
+    // The grow lerp must start from where the penultimate is *displayed* —
+    // a pinned chase may still be settling it after the append — or the head
+    // would teleport to the raw value the frame the new point lands.
+    const penulY = yScale.valueToBitmapY(this.effectiveValue(ctx, layerIndex, penultimate.time, penultimate.value));
 
     // Ease the unfurl so the head decelerates into its resting spot instead of
     // travelling at constant velocity and hard-stopping at settle (a visible
@@ -265,10 +268,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // {@link trailingEndpoint}), 'fade' keeps geometry fixed and ramps stroke
       // alpha. Sharing `trailingEndpoint` with the overlay pulse keeps the dot
       // in sync with the line head instead of teleporting during entrance.
+      //
+      // All of it applies only when the visible slice actually ends at the
+      // store's live last point. Panned into history, `data`'s last is an
+      // interior sample — substituting the store-last endpoint there would
+      // draw a bogus segment shooting off toward the live edge.
       const last = data[data.length - 1];
-      const progress = this.entranceProgress(ctx, li, last.time);
-      const trailingFade = style === 'fade' && progress < 1;
-      const endpoint = this.trailingEndpoint(ctx, li) ?? {
+      const storeLast = this.stores[li].last();
+      const lastIsLive = storeLast !== undefined && last.time === storeLast.time;
+      const progress = lastIsLive ? this.entranceProgress(ctx, li, last.time) : 1;
+      const trailingFade = lastIsLive && style === 'fade' && progress < 1;
+      const endpoint = (lastIsLive ? this.trailingEndpoint(ctx, li) : null) ?? {
         x: timeScale.timeToBitmapX(last.time),
         y: yScale.valueToBitmapY(this.effectiveValue(ctx, li, last.time, last.value)),
       };
@@ -304,7 +314,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           current = [];
           runs.push(current);
         }
-        current.push({ x: timeScale.timeToBitmapX(data[i].time), y: yScale.valueToBitmapY(v) });
+        // effectiveValue picks up the pinned chase on the penultimate point —
+        // the vertex keeps gliding to its final stored value after an append
+        // instead of snapping there in one frame.
+        const y = yScale.valueToBitmapY(this.effectiveValue(ctx, li, data[i].time, v));
+        current.push({ x: timeScale.timeToBitmapX(data[i].time), y });
       }
       // Attach the trailing endpoint only if it's finite AND the last data
       // point is finite. A poisoned last value would produce a NaN trailing

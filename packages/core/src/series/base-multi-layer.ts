@@ -78,6 +78,14 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   /** Per-layer chase spring. `null` when settled or when smoothing is off. */
   readonly #liveAnimators: Array<ScalarSpring | null>;
   /**
+   * Chase displaced from the last slot by an append, still settling toward the
+   * (now-penultimate) point's stored value. Pinned to that point's `time` so
+   * {@link effectiveValue} keeps substituting the smoothed Y until it lands —
+   * killing the spring on append would snap the vertex to its raw value the
+   * very frame a new point arrives (a visible 1–2-frame kink at the line head).
+   */
+  readonly #pinnedChases: Array<{ time: number; anim: ScalarSpring } | null>;
+  /**
    * Per-layer alpha for the visibility cross-fade. `setAlpha` (whole series)
    * fans out across the array; `setLayerAlpha` targets a single index. Render
    * loops multiply the layer's alpha into `globalAlpha` per draw.
@@ -89,6 +97,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     this.entries = Array.from({ length: layerCount }, () => new Map<number, EntryState>());
     this.displayedLastValues = new Array(layerCount).fill(null);
     this.#liveAnimators = new Array(layerCount).fill(null);
+    this.#pinnedChases = new Array(layerCount).fill(null);
     this.#layerAlphaAnimators = Array.from(
       { length: layerCount },
       () => new Animator<number>({ initial: 1, duration: 0, lerp: scalarLerp }),
@@ -135,6 +144,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     const last = store.last();
     this.displayedLastValues[layerIndex] = last ? (last as unknown as { value: number }).value : null;
     this.#liveAnimators[layerIndex] = null;
+    this.#pinnedChases[layerIndex] = null;
     this.entries[layerIndex].clear();
   }
 
@@ -144,7 +154,23 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
     const p = point as TimePointInput;
     const time = normalizeTime(p.time);
+    const prevLast = store.last();
+    const lengthBefore = store.length;
     store.append({ ...p, time } as unknown as TData);
+
+    // Hand an in-flight live chase over to the point it was animating — now
+    // the penultimate. Killing the spring here would snap that vertex from
+    // its smoothed display Y to the raw stored value on the very frame the
+    // new point lands: a 1–2-frame kink at the line head on every append of
+    // a fast feed. The spring keeps settling toward the same target (the
+    // point's final stored value); `effectiveValue` substitutes it by time
+    // until it lands. Only pin when the store actually grew — a same-time
+    // append degrades to `updateLast` and the old chase no longer maps to a
+    // distinct point.
+    const inFlight = this.#liveAnimators[layerIndex];
+    if (inFlight !== null && prevLast !== undefined && store.length > lengthBefore) {
+      this.#pinnedChases[layerIndex] = { time: prevLast.time, anim: inFlight };
+    }
 
     // Snap `displayedLast` to the freshly-appended point. Live-chase across
     // distinct points would interpolate the trailing-segment Y between the
@@ -249,14 +275,21 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
   /**
    * Substitute the renderer-smoothed last value for `rawValue` when the
-   * query `time` matches the layer's current last point. Falls back to
-   * `rawValue` when the store is empty or no smoothing has happened yet.
+   * query `time` matches the layer's current last point, or the still-settling
+   * pinned chase (see {@link appendPoint}) when it matches the penultimate.
+   * Falls back to `rawValue` when the store is empty or no smoothing has
+   * happened yet.
    */
   protected effectiveValue(_ctx: SeriesRenderContext, layerIndex: number, time: number, rawValue: number): number {
     const lastT = this.stores[layerIndex]?.last()?.time;
-    if (lastT === undefined || time !== lastT) return rawValue;
+    if (lastT !== undefined && time === lastT) {
+      return this.displayedLastValues[layerIndex] ?? rawValue;
+    }
 
-    return this.displayedLastValues[layerIndex] ?? rawValue;
+    const pinned = this.#pinnedChases[layerIndex];
+    if (pinned !== null && pinned.time === time) return pinned.anim.current;
+
+    return rawValue;
   }
 
   // --- Animation lifecycle --------------------------------------------------
@@ -276,6 +309,14 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         const stillAnimating = anim.tick(now);
         this.displayedLastValues[li] = anim.current;
         if (!stillAnimating) this.#liveAnimators[li] = null;
+      }
+
+      // Pinned (displaced-by-append) chase: keep settling toward the
+      // penultimate's stored value; once landed, the raw value takes over
+      // seamlessly (the spring snaps to its exact target on settle).
+      const pinned = this.#pinnedChases[li];
+      if (pinned !== null && !pinned.anim.tick(now)) {
+        this.#pinnedChases[li] = null;
       }
 
       const entryMs = this.options.entryMs;
@@ -298,6 +339,9 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
     for (const anim of this.#liveAnimators) {
       if (anim !== null) return true;
+    }
+    for (const pinned of this.#pinnedChases) {
+      if (pinned !== null) return true;
     }
     for (const map of this.entries) {
       if (map.size > 0) return true;
