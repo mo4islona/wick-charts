@@ -16,10 +16,13 @@ export type PercentileSample = FrameTimingSample;
 
 export interface PerfStats {
   /**
-   * Main-layer renders per second, derived from the interval between recent main
-   * frames. Charts render on demand (data change, pan, zoom, resize, streaming
-   * tick), so `0` during an idle chart is normal — not a stutter. `0` until two
-   * frames have been recorded.
+   * Main-layer renders per second. During continuous rendering this is the
+   * rate of the trailing run of back-to-back frames (so it reflects the
+   * *current* rate immediately instead of ramping up as idle time ages out
+   * of the window); for sparse on-demand renders it is the window-wide
+   * average. Charts render on demand (data change, pan, zoom, resize,
+   * streaming tick), so `0` during an idle chart is normal — not a stutter.
+   * `0` until two frames have been recorded.
    */
   mainRendersPerSec: number;
   /** Same as {@link mainRendersPerSec} but for the overlay (crosshair + pulse) layer. */
@@ -96,8 +99,34 @@ function percentiles(samples: readonly number[]): FrameTimingSample {
   };
 }
 
+/** Inter-frame gap above which rendering is considered discrete (on-demand) rather than continuous. */
+const CONTINUOUS_GAP_MS = 300;
+
+/**
+ * Renders/sec from frame timestamps, in two regimes:
+ *
+ * - Continuous rendering (animation, panning, streaming at display rate):
+ *   the rate of the *trailing run* of back-to-back frames. Averaging the
+ *   whole window would blend in any idle stretch preceding the run, making
+ *   the readout crawl from a low number up to the true rate over `windowMs`
+ *   even though the chart was rendering at a steady rate the entire time.
+ * - Discrete renders (ticks slower than {@link CONTINUOUS_GAP_MS}): the
+ *   trailing run is a single frame, so fall back to the window-wide
+ *   average — the honest figure for sparse, on-demand rendering.
+ */
 function fpsFromStamps(stamps: readonly number[]): number {
   if (stamps.length < 2) return 0;
+
+  let runStart = stamps.length - 1;
+  while (runStart > 0 && stamps[runStart] - stamps[runStart - 1] <= CONTINUOUS_GAP_MS) {
+    runStart--;
+  }
+
+  const runFrames = stamps.length - 1 - runStart;
+  const runSpan = stamps[stamps.length - 1] - stamps[runStart];
+  if (runFrames > 0 && runSpan > 0) {
+    return (runFrames * 1000) / runSpan;
+  }
 
   const span = stamps[stamps.length - 1] - stamps[0];
   if (span <= 0) return 0;
@@ -150,6 +179,9 @@ export class PerfMonitor {
     this.windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
     this.maxSamples = options.maxSamples ?? DEFAULT_MAX_SAMPLES;
     this.heapInterval = options.heapSampleEveryNFrames ?? DEFAULT_HEAP_INTERVAL;
+    // Start at the threshold so the very first frame samples the heap —
+    // otherwise consumers stare at a placeholder for the first N frames.
+    this.heapCounter = this.heapInterval;
   }
 
   /** Clear the draw-call tally for the given layer. Call at the start of each frame. */

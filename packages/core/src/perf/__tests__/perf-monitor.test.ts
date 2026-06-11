@@ -48,6 +48,30 @@ describe('PerfMonitor', () => {
     expect(stats.mainRendersPerSec).toBeCloseTo(62.5, 2);
   });
 
+  it('reports the trailing continuous run rate, not the window average, after an idle stretch', () => {
+    const m = new PerfMonitor();
+    // A stray frame, two seconds of idle, then a 62.5fps burst. The window
+    // average (~1.3/s) would make the readout slowly ramp up to the true rate;
+    // the trailing run reports it immediately.
+    m.recordFrame('main', 1, 0);
+    m.recordFrame('main', 1, 2000);
+    m.recordFrame('main', 1, 2016);
+    m.recordFrame('main', 1, 2032);
+
+    expect(m.getStats().mainRendersPerSec).toBeCloseTo(62.5, 2);
+  });
+
+  it('falls back to the window-wide average for sparse on-demand renders', () => {
+    const m = new PerfMonitor();
+    // One render per second — slower than the continuous-run gap, so the
+    // trailing run is a single frame and the window average (1/s) applies.
+    m.recordFrame('main', 1, 0);
+    m.recordFrame('main', 1, 1000);
+    m.recordFrame('main', 1, 2000);
+
+    expect(m.getStats().mainRendersPerSec).toBeCloseTo(1, 2);
+  });
+
   it('tracks overlay renders/sec separately from main', () => {
     const m = new PerfMonitor();
     // Main: 2 frames across 100ms → 10/s. Overlay: 5 frames across 100ms → 40/s.
