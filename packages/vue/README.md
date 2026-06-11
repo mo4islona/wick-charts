@@ -59,13 +59,15 @@ Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container
 
 ## Bundle size
 
+Packages ship per-module ESM with `sideEffects: false`, and each series component carries its own renderer — your bundler only ships the chart types you import.
+
 Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, React/ReactDOM external):
 
 | Scenario | Raw | Gzip | Brotli |
 |---|---:|---:|---:|
-| Candlestick only | 174.1 kB | 52.4 kB | 44.8 kB |
-| Line only        | 174.1 kB | 52.5 kB | 44.8 kB |
-| Full React       | 191.2 kB | 57.4 kB | 49.0 kB |
+| Candlestick only | 86.1 kB  | 26.8 kB | 23.7 kB |
+| Line only        | 94.2 kB  | 29.3 kB | 25.8 kB |
+| Full React       | 177.8 kB | 54.5 kB | 46.3 kB |
 
 ## Migration
 
