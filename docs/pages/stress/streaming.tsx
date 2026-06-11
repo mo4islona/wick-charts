@@ -99,7 +99,7 @@ function WarmUpComparison({ theme, perfHud, yEngine }: PanelCtx) {
       <ChartContainer
         key={`${cap}-${runId}`}
         theme={theme}
-        perf={perfHud}
+        perf={perfHud?.()}
         animations={animations}
         interactive={false}
         viewport={{ initialRange: { from: seedRef.current[0].time, bars: cap } }}
@@ -185,7 +185,7 @@ function SharpJumps({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: VISIBLE_CAP } }}
@@ -230,7 +230,7 @@ function VariableJitter({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: 80 } }}
@@ -285,7 +285,7 @@ function BurstThenPause({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: 60 } }}
@@ -342,7 +342,7 @@ function MonotonicRamp({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: VISIBLE_CAP } }}
@@ -398,7 +398,7 @@ function OutlierRebound({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: VISIBLE_CAP } }}
@@ -462,7 +462,7 @@ function CadenceChart({
   label,
 }: {
   theme: PanelCtx['theme'];
-  perfHud: boolean;
+  perfHud: PanelCtx['perfHud'];
   yEngine: PanelCtx['yEngine'];
   startTime: number;
   intervalMs: number;
@@ -495,7 +495,7 @@ function CadenceChart({
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: 50 } }}
@@ -545,7 +545,7 @@ function ConcurrentEvents({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       viewport={{ initialRange: { from: seed[0].time, bars: 80 } }}
     >
@@ -594,7 +594,7 @@ function BackgroundTabRecovery({ theme, perfHud, yEngine }: PanelCtx) {
   return (
     <ChartContainer
       theme={theme}
-      perf={perfHud}
+      perf={perfHud?.()}
       animations={animations}
       interactive={false}
       viewport={{ initialRange: { from: seed[0].time, bars: 60 } }}

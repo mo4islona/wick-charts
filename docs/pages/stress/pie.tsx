@@ -1,5 +1,6 @@
-import { ChartContainer, PieLegend, PieSeries, type PieSliceData, PieTooltip, Title } from '@wick-charts/react';
 import { useMemo } from 'react';
+
+import { ChartContainer, PieLegend, PieSeries, type PieSliceData, PieTooltip, Title } from '@wick-charts/react';
 
 import { manyPieSlices, poisonedPieSlices } from '../../data/stress';
 import type { PanelCtx, StressPanel } from './panel';
@@ -14,7 +15,7 @@ function ZeroTotal({ theme, perfHud }: PanelCtx) {
     [],
   );
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="all values 0">Zero-total</Title>
       <PieSeries id="pie-zero" data={data} />
       <PieLegend seriesId="pie-zero" />
@@ -32,7 +33,7 @@ function SingleDominant({ theme, perfHud }: PanelCtx) {
     [],
   );
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="100% in one slice">Single dominant</Title>
       <PieSeries id="pie-single" data={data} />
       <PieLegend seriesId="pie-single" />
@@ -44,7 +45,7 @@ function SingleDominant({ theme, perfHud }: PanelCtx) {
 function ManySlices({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => manyPieSlices(100), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="100 tiny slices">Many slices</Title>
       <PieSeries id="pie-many" data={data} />
       <PieLegend seriesId="pie-many" position="right" />
@@ -55,7 +56,7 @@ function ManySlices({ theme, perfHud }: PanelCtx) {
 function Poisoned({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => poisonedPieSlices(), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="negative + NaN + Infinity">Poisoned values</Title>
       <PieSeries id="pie-bad" data={data} />
       <PieLegend seriesId="pie-bad" />
@@ -73,7 +74,7 @@ function NearlyFull({ theme, perfHud }: PanelCtx) {
     [],
   );
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="99.99% dominant">Dominant + residual</Title>
       <PieSeries id="pie-99" data={data} />
       <PieLegend seriesId="pie-99" />

@@ -10,15 +10,16 @@
 > | 2 — `preserveModules`            | 146.0 kB | 45.0 kB |
 > | 3 — ChartContainer slot markers  | 122.4 kB | 38.1 kB |
 > | 5 — renderer injection           | 88.1 kB  | 27.5 kB |
-> | 4 — PerfHud via dynamic import   | **86.1 kB** | **26.8 kB** |
+> | 4a — PerfHud via dynamic import  | 86.1 kB  | 26.8 kB |
+> | 4b — `perf: perfHud()` config    | **83.3 kB** | **25.9 kB** |
 >
-> Net: **−51% raw / −49% gzip** for the minimal scenario; react-full went
-> 192.7 → 177.8 kB raw (57.9 → 54.5 gzip). Step 4 shipped narrower than
-> planned: the HUD module loads through a dynamic import (the size script's
-> esbuild scenarios enable `splitting` and count only the entry chunk), but
-> `PerfMonitor` stays static — `resolvePerfOptions` must construct it
-> synchronously for `perf: true`, so its ~3 kB would only move behind an
-> API break.
+> Net: **−53% raw / −51% gzip** for the minimal scenario; react-full went
+> 192.7 → 180.3 kB raw (57.9 → 55.5 gzip). Step 4 landed in two passes:
+> first the HUD behind a dynamic import (4a), then the full inversion (4b) —
+> `perf: perfHud()` replaces `perf: true`, the option carries the monitor +
+> HUD mount, and the chart imports no perf code at all (the dynamic import
+> was reverted; `monitor.wrapContext` moved the counting Proxy out of
+> CanvasManager too). Breaking, documented in MIGRATION.md 0.4 → 0.5.
 
 ## 1. Problem
 

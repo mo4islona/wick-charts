@@ -46,8 +46,8 @@ export type {
 // Navigator
 export { NavigatorController } from './navigator';
 // Performance instrumentation
-export type { FrameKind, PercentileSample, PerfMonitorOptions, PerfStats } from './perf';
-export { PerfMonitor } from './perf';
+export type { FrameKind, PercentileSample, PerfConfig, PerfMonitorOptions, PerfStats } from './perf';
+export { PerfMonitor, perfHud } from './perf';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';

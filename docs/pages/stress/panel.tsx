@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
 
-import type { ChartTheme, TransitionFactory, YRange } from '@wick-charts/react';
+import type { ChartTheme, PerfConfig, TransitionFactory, YRange } from '@wick-charts/react';
 
 import { Cell } from '../../components/Cell';
 
 export interface PanelCtx {
   theme: ChartTheme;
   /** `perf={true}` passes through to the panel's ChartContainer. */
-  perfHud: boolean;
+  /** Per-chart perf config factory — call it per ChartContainer so each chart owns its monitor. */
+  perfHud: (() => PerfConfig) | undefined;
   /** Y-bound transition factory. Panels that exercise streaming Y motion
    *  forward this through `ChartContainer.animations.axis.y.curve`.
    *  The stress page swaps between built-ins (hermite / spring / snap)
@@ -40,7 +41,7 @@ export function StressPanels({
 }: {
   panels: readonly StressPanel[];
   theme: ChartTheme;
-  perfHud: boolean;
+  perfHud: (() => PerfConfig) | undefined;
   yEngine: TransitionFactory<YRange>;
   yEngineLabel: string;
 }) {

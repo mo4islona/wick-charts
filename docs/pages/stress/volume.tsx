@@ -9,7 +9,7 @@ import type { PanelCtx, StressPanel } from './panel';
 function Volume10k({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(10_000, 42_000), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="static">10k candles</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -21,7 +21,7 @@ function Volume10k({ theme, perfHud }: PanelCtx) {
 function Volume100k({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(100_000, 42_000), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="decimation path">100k candles</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -33,7 +33,7 @@ function Volume100k({ theme, perfHud }: PanelCtx) {
 function Line100k({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateLineData(100_000, 100), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="single series, no area">100k line points</Title>
       <LineSeries data={[data]} options={{ area: { visible: false }, pulse: false }} />
       <YAxis />
@@ -51,7 +51,7 @@ function BarsStacked({ theme, perfHud }: PanelCtx) {
     [],
   );
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="4 layers, stacked">50k bars × 4</Title>
       <BarSeries data={layers} options={{ stacking: 'normal' }} />
       <YAxis />
@@ -64,7 +64,7 @@ function Streaming({ theme, perfHud }: PanelCtx) {
   const seed = useMemo(() => generateOHLCData(300, 42_000), []);
   const { data } = useOHLCStream(seed, { interval: DEMO_INTERVAL, speed: 5 });
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="live appends">Streaming 5×</Title>
       <CandlestickSeries data={data} />
       <YAxis />

@@ -7,6 +7,7 @@ import {
   type PieSliceData,
   PieTooltip,
   Title,
+  perfHud,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -122,7 +123,7 @@ function PieChart({
       axis={{ y: { visible: false, width: 0 }, x: { visible: false, height: 0 } }}
       gradient={gradient}
       grid={{ visible: false }}
-      perf={perfHudVisible}
+      perf={perfHudVisible ? perfHud() : undefined}
     >
       <Title sub={donut ? 'donut' : 'pie'}>{title}</Title>
       <PieSeries
@@ -519,7 +520,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         // panel drives — surface them so the snippet tracks the preview.
         const containerProps: Record<string, PropValue> = {};
         if (!s.gradient) containerProps.gradient = false;
-        if (s.perfHudVisible) containerProps.perf = true;
+        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         return {
           theme: 'catppuccin.theme',

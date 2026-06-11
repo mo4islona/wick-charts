@@ -14,6 +14,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  perfHud,
   resolveCandlestickBodyColor,
 } from '@wick-charts/react';
 
@@ -74,7 +75,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       axis={props.axis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
-      perf={props.perfHudVisible}
+      perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
       <Title sub="Up/Down">Single</Title>
@@ -121,7 +122,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       axis={chartAxis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
-      perf={props.perfHudVisible}
+      perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
       <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
@@ -294,7 +295,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
       }}
       codeConfig={(s) => {
         const containerProps = buildCartesianContainerProps(s) ?? {};
-        if (s.perfHudVisible) containerProps.perf = true;
+        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'bar'),

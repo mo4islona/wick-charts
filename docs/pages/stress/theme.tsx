@@ -1,9 +1,10 @@
-import { CandlestickSeries, ChartContainer, TimeAxis, Title, Tooltip, YAxis, createTheme } from '@wick-charts/react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { themes } from '../../themes';
-import { generateThinCandles } from '../../data/stress';
+import { CandlestickSeries, ChartContainer, TimeAxis, Title, Tooltip, YAxis, createTheme } from '@wick-charts/react';
+
 import { generateOHLCData } from '../../data';
+import { generateThinCandles } from '../../data/stress';
+import { themes } from '../../themes';
 import type { PanelCtx, StressPanel } from './panel';
 
 function ThinCandles({ theme, perfHud }: PanelCtx) {
@@ -22,7 +23,7 @@ function ThinCandles({ theme, perfHud }: PanelCtx) {
   );
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="green/red body (≤ 2px) vs blue/brown wick — if bodies look blue/brown, the leak is back">
         Thin-candle gradient
       </Title>
@@ -46,7 +47,7 @@ function ThemeCycle({ perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(150, 42_000), []);
 
   return (
-    <ChartContainer theme={active.theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={active.theme} perf={perfHud?.()} interactive={false}>
       <Title sub={`swap every 500ms · ${active.name}`}>Rapid theme cycle</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -70,7 +71,7 @@ function HighContrastCheck({ perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(60, 100), []);
 
   return (
-    <ChartContainer theme={lowContrast} perf={perfHud} interactive={false}>
+    <ChartContainer theme={lowContrast} perf={perfHud?.()} interactive={false}>
       <Title sub="intentionally low contrast">Contrast regression</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -89,7 +90,7 @@ function HugeAxisFont({ theme, perfHud }: PanelCtx) {
     [theme],
   );
   return (
-    <ChartContainer theme={override} perf={perfHud} interactive={false}>
+    <ChartContainer theme={override} perf={perfHud?.()} interactive={false}>
       <Title sub="axis.y.fontSize: 36">Huge axis font</Title>
       <CandlestickSeries data={data} />
       <YAxis />

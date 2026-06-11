@@ -27,6 +27,32 @@ const id = chart.addSeries('candlestick', { bodyWidthRatio: 0.8 });
 An unregistered string now throws
 `Unknown series type 'candlestick'…` with the same guidance.
 
+### Breaking: `perf: true` becomes `perf: perfHud()`
+
+The chart no longer imports any perf code — the `perf` option now *carries*
+it, so charts without instrumentation bundle none of it. The boolean and
+option-object forms are gone:
+
+```ts
+// 0.4
+new ChartInstance(el, { perf: true });
+new ChartInstance(el, { perf: { hud: true, windowMs: 500 } });
+new ChartInstance(el, { perf: { hud: false } });
+
+// 0.5
+import { perfHud, PerfMonitor } from '@wick-charts/react';
+
+new ChartInstance(el, { perf: perfHud() });                  // monitor + HUD overlay
+new ChartInstance(el, { perf: perfHud({ windowMs: 500 }) }); // same, with monitor options
+new ChartInstance(el, { perf: new PerfMonitor() });          // instrument without a HUD
+new ChartInstance(el, { perf: perfHud(sharedMonitor) });     // HUD on an external monitor
+```
+
+The same applies to the framework components: `<ChartContainer perf={perfHud()} />`
+instead of `perf={true}`. Passing a bare `PerfMonitor` still works and still
+leaves its lifecycle to the caller; `perfHud()`-created monitors are owned and
+destroyed by the chart. The removed forms throw with this guidance.
+
 ## 0.2 → 0.3
 
 Version 0.3 restructures `ChartTheme` so every key lives where it semantically belongs. Confusing flat keys like `typography.axisFontSize` (shared across axes, legend, tooltips) and `candlestick.upColor` / `wickUpColor` (direction and part mixed at one level) are gone. Font sizes move into their owning sections; candlestick nests by direction first. Series renderer options (`CandlestickSeriesOptions`) follow the same restructure so instance overrides stay consistent with the theme.

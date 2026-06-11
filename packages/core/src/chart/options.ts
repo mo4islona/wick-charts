@@ -9,7 +9,10 @@
  */
 
 import type { AnimationsConfig } from '../animation/config';
-import { PerfMonitor, type PerfMonitorOptions } from '../perf/perf-monitor';
+// Type-only on purpose: a value import of PerfMonitor would drag the perf
+// module into every bundle. The chart receives perf code via the option.
+import type { PerfConfig } from '../perf/perf-hud';
+import type { PerfMonitor } from '../perf/perf-monitor';
 import type { ChartTheme } from '../theme/types';
 import type { AxisConfig, HorizontalPadding, VisibleRangeSpec } from '../types';
 import { DEFAULT_MAX_VISIBLE_BARS, MIN_VISIBLE_BARS } from './pan-zoom-math';
@@ -105,17 +108,17 @@ export interface ChartOptions {
   onEdgeReached?: (info: EdgeReachedInfo) => void;
   /**
    * Runtime performance instrumentation. Opt-in — absent by default so the
-   * hot render path stays free of timing/counting overhead.
+   * hot render path stays free of timing/counting overhead, and so bundles
+   * without instrumentation carry no perf code at all (the chart never
+   * imports it; whatever you pass here is what ships).
    *
-   * - `false` / omitted — no instrumentation, no HUD, byte-identical to a perf-free build.
-   * - `true` — create an internal {@link PerfMonitor} and mount a visible HUD overlay.
-   * - `{ hud: true, ...options }` — same, with monitor options forwarded.
-   * - `{ hud: false, ...options }` — instrument but do not render a HUD (useful when
-   *   the host app consumes stats via `monitor.onFrame` and renders its own UI).
-   * - `PerfMonitor` instance — attach to a pre-constructed monitor. Useful when several
-   *   charts share one telemetry sink. HUD defaults to off in this mode.
+   * - omitted — no instrumentation, no HUD.
+   * - `perfHud()` — monitor + visible HUD overlay (replaces the old `perf: true`).
+   * - `PerfMonitor` instance — instrument without a HUD; useful when the host
+   *   consumes stats via `monitor.onFrame` and renders its own UI, or when
+   *   several charts share one telemetry sink.
    */
-  perf?: boolean | PerfMonitor | (PerfMonitorOptions & { hud?: boolean; monitor?: PerfMonitor });
+  perf?: PerfMonitor | PerfConfig;
 }
 
 // =============================================================================
@@ -124,33 +127,35 @@ export interface ChartOptions {
 
 export interface ResolvedPerfOptions {
   monitor: PerfMonitor | null;
-  /** True when the monitor was constructed here; false for caller-supplied
+  /** True when the config constructed the monitor; false for caller-supplied
    *  monitors we must not destroy. */
   ownsMonitor: boolean;
-  showHud: boolean;
+  /** HUD mount carried by the config, or `null` when no HUD was requested. */
+  hud: PerfConfig['hud'] | null;
 }
 
 /**
- * Collapse the polymorphic `perf` option into a concrete monitor + HUD
- * decision. Returning `{ monitor: null }` preserves the zero-instrumentation
- * path — no Proxy, no timing, no HUD.
+ * Collapse the `perf` option into a concrete monitor + HUD decision.
+ * Returning `{ monitor: null }` preserves the zero-instrumentation path —
+ * no Proxy, no timing, no HUD. Duck-types on purpose: an `instanceof
+ * PerfMonitor` check would be a value import and drag the perf module into
+ * every bundle.
  */
 export function resolvePerfOptions(input: ChartOptions['perf']): ResolvedPerfOptions {
-  if (!input) return { monitor: null, ownsMonitor: false, showHud: false };
+  if (!input) return { monitor: null, ownsMonitor: false, hud: null };
 
-  if (input === true) return { monitor: new PerfMonitor(), ownsMonitor: true, showHud: true };
+  if (typeof input !== 'object' || !('monitor' in input || 'recordFrame' in input)) {
+    throw new Error(
+      '[wick-charts] The `perf: true` / option-object forms were replaced by config factories — ' +
+        'pass `perf: perfHud()` for a monitor with the HUD overlay, or a `PerfMonitor` instance ' +
+        'for HUD-less instrumentation. Importing the factory is what pulls perf code into the bundle.',
+    );
+  }
 
-  if (input instanceof PerfMonitor) return { monitor: input, ownsMonitor: false, showHud: false };
+  // Bare monitor — instrument without a HUD, caller owns the lifecycle.
+  if ('recordFrame' in input) return { monitor: input, ownsMonitor: false, hud: null };
 
-  // Object form: may carry an external monitor or construction options, plus a HUD flag.
-  const { hud, monitor, ...monitorOptions } = input;
-  const external = monitor !== undefined;
-
-  return {
-    monitor: monitor ?? new PerfMonitor(monitorOptions),
-    ownsMonitor: !external,
-    showHud: hud ?? !external,
-  };
+  return { monitor: input.monitor, ownsMonitor: input.ownsMonitor ?? false, hud: input.hud ?? null };
 }
 
 // =============================================================================

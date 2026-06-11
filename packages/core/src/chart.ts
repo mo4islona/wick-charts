@@ -26,7 +26,6 @@ import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
 import type { PerfMonitor } from './perf';
-import type { PerfHud } from './perf/perf-hud';
 import { RenderScheduler } from './render-scheduler';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
@@ -244,8 +243,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #perfMonitor: PerfMonitor | null;
   /** When true, `destroy()` tears down the monitor; false for caller-supplied monitors we must not destroy. */
   #ownsPerfMonitor = false;
-  /** Visible HUD overlay; non-null only when the caller requested one. */
-  #perfHud: PerfHud | null = null;
+  /** Visible HUD overlay (mounted by the perf config); non-null only when the caller requested one. */
+  #perfHud: { destroy(): void } | null = null;
 
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
@@ -306,8 +305,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#overlayScheduler = new RenderScheduler((t) =>
       this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
     );
-    if (this.#perfMonitor && resolvedPerf.showHud) {
-      this.#attachPerfHud(container, this.#perfMonitor);
+    if (this.#perfMonitor && resolvedPerf.hud) {
+      this.#perfHud = resolvedPerf.hud(container, this.#perfMonitor);
     }
 
     const interactive = options?.interactive !== false;
@@ -1264,20 +1263,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
     if (changed) this.#mainScheduler.markDirty();
-  }
-
-  /**
-   * Mount the HUD overlay. The DOM-heavy HUD module is loaded via dynamic
-   * import so bundles that never enable instrumentation don't carry it; the
-   * guard covers a chart destroyed (or re-monitored) before the module
-   * resolves — `destroy()` nulls `#perfMonitor`, failing the identity check.
-   */
-  #attachPerfHud(container: HTMLElement, monitor: PerfMonitor): void {
-    void import('./perf/perf-hud').then(({ PerfHud }) => {
-      if (this.#perfMonitor !== monitor || this.#perfHud) return;
-
-      this.#perfHud = new PerfHud(container, monitor);
-    });
   }
 
   /** Tear down the chart: cancel animations, remove listeners, and detach the canvas. */

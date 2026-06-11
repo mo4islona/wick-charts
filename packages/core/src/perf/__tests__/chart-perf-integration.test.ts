@@ -1,5 +1,6 @@
 /**
- * End-to-end: construct a ChartInstance with `perf: true`, drive frames through
+ * End-to-end: construct a ChartInstance with `perf: perfHud()` (or a bare
+ * PerfMonitor), drive frames through
  * a manual RAF stub, and assert the attached PerfMonitor collected FPS, draw
  * calls, and per-series timing. Also asserts the zero-perf path keeps the
  * render pipeline free of instrumentation.
@@ -7,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartInstance } from '../../chart';
+import { perfHud } from '../perf-hud';
 import { PerfMonitor } from '../perf-monitor';
 
 const INTERVAL = 60_000;
@@ -107,8 +109,8 @@ describe('ChartInstance — perf instrumentation', () => {
     }
   });
 
-  it('attaches a PerfMonitor when perf: true and collects frame timing + draw calls', () => {
-    const chart = new ChartInstance(container, { perf: { hud: false }, interactive: false });
+  it('attaches a bare PerfMonitor and collects frame timing + draw calls', () => {
+    const chart = new ChartInstance(container, { perf: new PerfMonitor(), interactive: false });
     try {
       const monitor = chart.getPerfMonitor();
       expect(monitor).not.toBeNull();
@@ -128,7 +130,7 @@ describe('ChartInstance — perf instrumentation', () => {
   });
 
   it('records per-series timing keyed by series id', () => {
-    const chart = new ChartInstance(container, { perf: { hud: false }, interactive: false });
+    const chart = new ChartInstance(container, { perf: new PerfMonitor(), interactive: false });
     try {
       const id = seedCandles(chart, 20);
       raf.flush(5);
@@ -153,26 +155,18 @@ describe('ChartInstance — perf instrumentation', () => {
     }
   });
 
-  it('renders the HUD element when perf: true (shorthand)', async () => {
-    const chart = new ChartInstance(container, { perf: true, interactive: false });
+  it('renders the HUD element when perf: perfHud()', () => {
+    const chart = new ChartInstance(container, { perf: perfHud(), interactive: false });
     try {
-      // The HUD module mounts after a dynamic import — wait for it to land.
-      await vi.waitFor(() => {
-        expect(container.querySelector('[data-chart-perf-hud]')).not.toBeNull();
-      });
+      expect(container.querySelector('[data-chart-perf-hud]')).not.toBeNull();
     } finally {
       chart.destroy();
       expect(container.querySelector('[data-chart-perf-hud]')).toBeNull();
     }
   });
 
-  it('a chart destroyed before the HUD module resolves never mounts the HUD', async () => {
-    const chart = new ChartInstance(container, { perf: true, interactive: false });
-    chart.destroy();
-
-    // Give the dynamic import every chance to settle before asserting.
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(container.querySelector('[data-chart-perf-hud]')).toBeNull();
+  it('throws on the removed perf: true shorthand with factory guidance', () => {
+    expect(() => new ChartInstance(container, { perf: true as never, interactive: false })).toThrowError(/perfHud\(\)/);
   });
 
   it('does not destroy a caller-supplied monitor when the chart is destroyed', () => {
@@ -192,8 +186,8 @@ describe('ChartInstance — perf instrumentation', () => {
     external.destroy();
   });
 
-  it('destroys an internally-created monitor on chart destroy', () => {
-    const chart = new ChartInstance(container, { perf: true, interactive: false });
+  it('destroys a perfHud()-owned monitor on chart destroy', () => {
+    const chart = new ChartInstance(container, { perf: perfHud(), interactive: false });
     const internal = chart.getPerfMonitor()!;
 
     seedCandles(chart, 20);

@@ -1,5 +1,6 @@
-import { CandlestickSeries, ChartContainer, TimeAxis, Title, YAxis } from '@wick-charts/react';
 import { useEffect, useMemo, useState } from 'react';
+
+import { CandlestickSeries, ChartContainer, TimeAxis, Title, YAxis } from '@wick-charts/react';
 
 import { generateOHLCData } from '../../data';
 import type { PanelCtx, StressPanel } from './panel';
@@ -14,12 +15,16 @@ function NewOptionsEveryRender({ theme, perfHud }: PanelCtx) {
   }, []);
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="new options object each render">Ref-identity stress</Title>
       {/* Literal inline `options` object — new reference each render, same content. */}
       <CandlestickSeries
         data={data}
-        options={{ up: { body: '#26a69a', wick: '#26a69a' }, down: { body: '#ef5350', wick: '#ef5350' }, bodyWidthRatio: 0.6 }}
+        options={{
+          up: { body: '#26a69a', wick: '#26a69a' },
+          down: { body: '#ef5350', wick: '#ef5350' },
+          bodyWidthRatio: 0.6,
+        }}
       />
       <YAxis />
       <TimeAxis />
@@ -36,7 +41,7 @@ function SeriesIdChurn({ theme, perfHud }: PanelCtx) {
   }, []);
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub={`remount every 2s · ep ${epoch}`}>Series id churn</Title>
       <CandlestickSeries key={epoch} id={`candle-${epoch}`} data={data} />
       <YAxis />
@@ -56,7 +61,7 @@ function NewDataArrayEveryRender({ theme, perfHud }: PanelCtx) {
   const sliced = base.slice();
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="`.slice()` each render">Array identity stress</Title>
       <CandlestickSeries data={sliced} />
       <YAxis />

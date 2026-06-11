@@ -1,3 +1,5 @@
+import { createCountingContext } from './counting-context';
+
 export type FrameKind = 'main' | 'overlay';
 
 export interface FrameTimingSample {
@@ -153,6 +155,16 @@ export class PerfMonitor {
   /** Clear the draw-call tally for the given layer. Call at the start of each frame. */
   resetDrawCalls(kind: FrameKind): void {
     (kind === 'main' ? this.drawCallsMain : this.drawCallsOverlay).clear();
+  }
+
+  /**
+   * Wrap a 2D context in a draw-call-counting Proxy feeding this monitor's
+   * tally for `kind`. Lives on the monitor (rather than being imported by
+   * the chart's canvas manager) so charts without instrumentation carry no
+   * perf code at all.
+   */
+  wrapContext(ctx: CanvasRenderingContext2D, kind: FrameKind): CanvasRenderingContext2D {
+    return createCountingContext(ctx, kind === 'main' ? this.drawCallsMain : this.drawCallsOverlay);
   }
 
   /** Record a completed frame's wall-clock duration and emit stats to subscribers. */

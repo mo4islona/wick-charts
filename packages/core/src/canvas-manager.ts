@@ -1,5 +1,4 @@
 import { EventEmitter } from './events';
-import { createCountingContext } from './perf/counting-context';
 import type { PerfMonitor } from './perf/perf-monitor';
 import type { CanvasSize } from './types';
 
@@ -51,8 +50,8 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
     if (!rawMain || !rawOverlay) {
       throw new Error('CanvasManager: failed to acquire 2D rendering context');
     }
-    this.mainCtx = perfMonitor ? createCountingContext(rawMain, perfMonitor.drawCallsMain) : rawMain;
-    this.overlayCtx = perfMonitor ? createCountingContext(rawOverlay, perfMonitor.drawCallsOverlay) : rawOverlay;
+    this.mainCtx = perfMonitor ? perfMonitor.wrapContext(rawMain, 'main') : rawMain;
+    this.overlayCtx = perfMonitor ? perfMonitor.wrapContext(rawOverlay, 'overlay') : rawOverlay;
 
     const dpr = window.devicePixelRatio || 1;
     this._size = {

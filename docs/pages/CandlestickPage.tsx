@@ -13,6 +13,7 @@ import {
   XAxis,
   YAxis,
   YLabel,
+  perfHud,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -102,7 +103,7 @@ function CandleChart({
       axis={axis}
       gradient={gradient}
       headerLayout={headerLayout}
-      perf={perfHudVisible}
+      perf={perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
       <Title sub={sub}>{title}</Title>
@@ -262,7 +263,7 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
         };
 
         const containerProps = buildCartesianContainerProps(s) ?? {};
-        if (s.perfHudVisible) containerProps.perf = true;
+        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         const yVisible = s.axis.y?.visible !== false;
         const xVisible = s.axis.x?.visible !== false;

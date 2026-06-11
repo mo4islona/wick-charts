@@ -31,9 +31,6 @@ export default defineConfig({
         {
           format: 'cjs',
           entryFileNames: 'index.cjs',
-          // The flat CJS entry can't host the PerfHud dynamic-import chunk
-          // (it would land as a stray .js file in a type:module package).
-          inlineDynamicImports: true,
         },
       ],
     },

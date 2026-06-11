@@ -1,5 +1,6 @@
-import { CandlestickSeries, ChartContainer, Crosshair, TimeAxis, Title, Tooltip, YAxis } from '@wick-charts/react';
 import { useEffect, useMemo, useState } from 'react';
+
+import { CandlestickSeries, ChartContainer, Crosshair, TimeAxis, Title, Tooltip, YAxis } from '@wick-charts/react';
 
 import { generateOHLCData } from '../../data';
 import type { PanelCtx, StressPanel } from './panel';
@@ -9,7 +10,7 @@ function Tiny({ theme, perfHud }: PanelCtx) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
       <div style={{ width: 120, height: 120, border: `1px dashed ${theme.axis.textColor}`, padding: 2 }}>
-        <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+        <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
           <Title>120×120</Title>
           <CandlestickSeries data={data} />
           <YAxis />
@@ -25,7 +26,7 @@ function Wide({ theme, perfHud }: PanelCtx) {
   return (
     <div style={{ width: '100%', height: '100%', overflowX: 'auto' }}>
       <div style={{ width: 2000, height: '100%' }}>
-        <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+        <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
           <Title sub="2000×~280">Wide aspect</Title>
           <CandlestickSeries data={data} />
           <Tooltip />
@@ -60,7 +61,7 @@ function HiddenRevealed({ theme, perfHud }: PanelCtx) {
         {hidden ? 'Reveal' : 'Hide'}
       </button>
       <div style={{ display: hidden ? 'none' : 'block', height: '100%' }}>
-        <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+        <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
           <Title sub="toggle display:none">Hidden / revealed</Title>
           <CandlestickSeries data={data} />
           <YAxis />
@@ -85,7 +86,7 @@ function ExtremeZoom({ theme, perfHud }: PanelCtx) {
   const windowed = range === 'narrow' ? data.slice(100, 105) : data;
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub={range === 'narrow' ? '5 visible candles' : 'full range'}>Extreme zoom</Title>
       <CandlestickSeries data={windowed} />
       <YAxis />

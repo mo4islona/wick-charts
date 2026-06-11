@@ -14,6 +14,7 @@ import {
   type TooltipSort,
   XAxis,
   YAxis,
+  perfHud,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -99,7 +100,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
       axis={props.axis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
-      perf={props.perfHudVisible}
+      perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
       <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
@@ -162,7 +163,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       axis={props.axis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
-      perf={props.perfHudVisible}
+      perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
@@ -435,7 +436,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       }}
       codeConfig={(s) => {
         const containerProps = buildCartesianContainerProps(s) ?? {};
-        if (s.perfHudVisible) containerProps.perf = true;
+        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'line'),

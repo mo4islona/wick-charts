@@ -1,4 +1,43 @@
-import type { PerfMonitor, PerfStats } from './perf-monitor';
+import { PerfMonitor, type PerfMonitorOptions, type PerfStats } from './perf-monitor';
+
+/**
+ * Chart-ready perf configuration: a monitor plus an optional HUD mount.
+ * Produced by {@link perfHud} (or hand-assembled); passed as the chart's
+ * `perf` option. The chart itself never imports perf code — whatever the
+ * config carries is all that ships in the bundle.
+ */
+export interface PerfConfig {
+  /** Monitor that collects frame timing / draw calls for this chart. */
+  monitor: PerfMonitor;
+  /** Mounts the HUD overlay; the chart calls it at construction and destroys the result. */
+  hud?: (container: HTMLElement, monitor: PerfMonitor) => { destroy(): void };
+  /** True when the config constructed the monitor — the chart then destroys it on teardown. */
+  ownsMonitor?: boolean;
+}
+
+/**
+ * Performance instrumentation with the visible HUD overlay — the factory
+ * replacement for the old `perf: true`:
+ *
+ * ```ts
+ * new ChartInstance(el, { perf: perfHud() });
+ * <ChartContainer perf={perfHud({ windowMs: 500 })} />
+ * perfHud(sharedMonitor) // HUD on an externally-owned monitor
+ * ```
+ *
+ * Importing this factory is what pulls the monitor + HUD code into the
+ * bundle; pass a bare `PerfMonitor` instance as `perf` for HUD-less
+ * instrumentation.
+ */
+export function perfHud(init?: PerfMonitorOptions | PerfMonitor): PerfConfig {
+  const external = init instanceof PerfMonitor;
+
+  return {
+    monitor: external ? init : new PerfMonitor(init),
+    hud: (container, monitor) => new PerfHud(container, monitor),
+    ownsMonitor: !external,
+  };
+}
 
 const DEFAULT_UPDATE_MS = 100;
 

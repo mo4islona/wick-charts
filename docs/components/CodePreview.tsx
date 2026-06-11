@@ -79,6 +79,8 @@ const VAR_REF_NAMES = new Set([
   'hermite()',
   'spring()',
   'snap()',
+  // Perf instrumentation factory — `perf={perfHud()}`.
+  'perfHud()',
 ]);
 
 function isVarRef(v: PropValue): boolean {
@@ -176,6 +178,12 @@ export function generateCode(config: ChartCodeConfig, fw: Framework): string {
   // hand the underlying ChartTheme to ChartContainer). Only the import root
   // belongs in the import list.
   if (config.theme) imports.add(config.theme.split('.')[0]);
+  // Factory-call refs on the container (`perf={perfHud()}`) import their callee.
+  for (const value of Object.values(config.containerProps ?? {})) {
+    if (isVarRef(value) && typeof value === 'string' && value.endsWith('()')) {
+      imports.add(value.slice(0, -2));
+    }
+  }
 
   const importList = Array.from(imports).sort();
   const pkg = PACKAGES[fw];

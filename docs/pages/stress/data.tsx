@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import {
   BarSeries,
   CandlestickSeries,
@@ -9,7 +11,6 @@ import {
   YAxis,
   YLabel,
 } from '@wick-charts/react';
-import { useMemo } from 'react';
 
 import { generateOHLCData } from '../../data';
 import {
@@ -25,7 +26,7 @@ import type { PanelCtx, StressPanel } from './panel';
 
 function Empty({ theme, perfHud }: PanelCtx) {
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="data=[]">Empty</Title>
       <CandlestickSeries data={[]} />
       <YAxis />
@@ -38,7 +39,7 @@ function SinglePoint({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(1, 42_000), []);
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="one candle">Single point</Title>
       <CandlestickSeries id="single" data={data} />
       <YLabel seriesId="single" />
@@ -52,7 +53,7 @@ function SinglePoint({ theme, perfHud }: PanelCtx) {
 function Nulls({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCWithNulls(300, 42_000, 0.15), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="15% of points have a null field">Nulls in OHLC</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -64,7 +65,7 @@ function Nulls({ theme, perfHud }: PanelCtx) {
 function LineNulls({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateLineWithNulls(300, 0.2), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="20% of values = null / NaN / Infinity / undefined">Nulls in line</Title>
       <LineSeries data={[data]} />
       <YAxis />
@@ -76,7 +77,7 @@ function LineNulls({ theme, perfHud }: PanelCtx) {
 function BarNulls({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateBarWithNulls(200, 0.2), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="20% of values = null / NaN / -Infinity / undefined">Nulls in bar</Title>
       <BarSeries data={[data]} />
       <YAxis />
@@ -88,7 +89,7 @@ function BarNulls({ theme, perfHud }: PanelCtx) {
 function NanInfinity({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCWithNanInfinity(300, 42_000), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="every 7th candle is poisoned">NaN / Infinity</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -100,7 +101,7 @@ function NanInfinity({ theme, perfHud }: PanelCtx) {
 function DuplicateTimestamps({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateDuplicateTimestampOHLC(300), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="two candles share time[1]">Duplicate timestamps</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -112,7 +113,7 @@ function DuplicateTimestamps({ theme, perfHud }: PanelCtx) {
 function Unsorted({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateUnsortedOHLC(300), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="reversed input">Unsorted input</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -124,7 +125,7 @@ function Unsorted({ theme, perfHud }: PanelCtx) {
 function Gapped({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateGappedOHLC(300, 120, 50), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="50-bar hole mid-range">Gapped</Title>
       <CandlestickSeries data={data} />
       <LineSeries data={[data.map((c) => ({ time: c.time, value: c.close }))]} options={{ area: { visible: false } }} />

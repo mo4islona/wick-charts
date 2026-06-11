@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import {
   BarSeries,
   CandlestickSeries,
@@ -10,7 +12,6 @@ import {
   YAxis,
   resolveCandlestickBodyColor,
 } from '@wick-charts/react';
-import { useMemo } from 'react';
 
 import { generateBandLine, generateBarData, generateOHLCData, generateWaveData } from '../../data';
 import { ema, sma } from '../../data/stress';
@@ -21,7 +22,7 @@ function CandleWithMAs({ theme, perfHud }: PanelCtx) {
   const sma20 = useMemo(() => sma(ohlc, 20), [ohlc]);
   const ema50 = useMemo(() => ema(ohlc, 50), [ohlc]);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="SMA20 + EMA50">Candle + moving averages</Title>
       <CandlestickSeries data={ohlc} />
       <LineSeries
@@ -42,13 +43,10 @@ function CandleWithMAs({ theme, perfHud }: PanelCtx) {
 
 function CandleWithBarVolume({ theme, perfHud }: PanelCtx) {
   const ohlc = useMemo(() => generateOHLCData(200, 42_000), []);
-  const volume = useMemo(
-    () => ohlc.map((c) => ({ time: c.time, value: c.volume ?? 0 })),
-    [ohlc],
-  );
+  const volume = useMemo(() => ohlc.map((c) => ({ time: c.time, value: c.volume ?? 0 })), [ohlc]);
   const upBase = resolveCandlestickBodyColor(theme.candlestick.up.body);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="bar series layered under">Candle + bar volume overlay</Title>
       <BarSeries data={[volume]} options={{ colors: [upBase], barWidthRatio: 0.4 }} />
       <CandlestickSeries data={ohlc} />
@@ -62,7 +60,7 @@ function StackedBarsTrend({ theme, perfHud }: PanelCtx) {
   const layers = useMemo(() => [generateBarData(120), generateBarData(120), generateBarData(120)], []);
   const trend = useMemo(() => generateWaveData(120, { amplitude: 400, period: 50, base: 200 }), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="3 stacked + line">Stacked bars + trend</Title>
       <BarSeries data={layers} options={{ stacking: 'normal' }} />
       <LineSeries data={[trend]} options={{ area: { visible: false }, strokeWidth: 2 }} />
@@ -77,7 +75,7 @@ function BollingerBands({ theme, perfHud }: PanelCtx) {
   const upper = useMemo(() => generateBandLine(ohlc, 0.03), [ohlc]);
   const lower = useMemo(() => generateBandLine(ohlc, -0.03), [ohlc]);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="candle + upper/lower bands">OHLC + Bollinger</Title>
       <LineSeries
         data={[upper, lower]}
@@ -106,7 +104,7 @@ export const multiPanels: readonly StressPanel[] = [
   {
     id: 'multi-vol',
     title: 'Candle + bar volume',
-    hint: 'Bar series beneath candles. Z-order correct means bars don\'t occlude bodies.',
+    hint: "Bar series beneath candles. Z-order correct means bars don't occlude bodies.",
     render: (ctx) => <CandleWithBarVolume {...ctx} />,
   },
   {

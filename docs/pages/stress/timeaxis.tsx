@@ -16,7 +16,7 @@ const YEAR = Math.round(365.25 * DAY);
 function SubSecond({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(200, 100, 50), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="50 ms buckets">Sub-second</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -28,7 +28,7 @@ function SubSecond({ theme, perfHud }: PanelCtx) {
 function Minutes({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(120, 100, MINUTE), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 m buckets · 2 h total">Minute scale</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -40,7 +40,7 @@ function Minutes({ theme, perfHud }: PanelCtx) {
 function Hourly({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(72, 100, HOUR), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 h buckets · 3 days">Hourly</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -52,7 +52,7 @@ function Hourly({ theme, perfHud }: PanelCtx) {
 function Daily({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(365, 100, DAY), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 d buckets · 1 year">Daily</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -64,7 +64,7 @@ function Daily({ theme, perfHud }: PanelCtx) {
 function Weekly({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(260, 100, WEEK), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 w buckets · 5 years">Weekly</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -76,7 +76,7 @@ function Weekly({ theme, perfHud }: PanelCtx) {
 function Monthly({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(120, 100, MONTH), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 mo buckets · 10 years">Monthly</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -88,7 +88,7 @@ function Monthly({ theme, perfHud }: PanelCtx) {
 function Yearly({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(50, 100, YEAR), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 y buckets · 50 years">Yearly</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -100,7 +100,7 @@ function Yearly({ theme, perfHud }: PanelCtx) {
 function Decades({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateOHLCData(30, 100, 5 * YEAR), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="5 y buckets · 150 years">Decades</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -119,7 +119,7 @@ function MixedSparseLongRange({ theme, perfHud }: PanelCtx) {
   }, []);
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="irregular, 40-year span">Sparse long-range</Title>
       <LineSeries data={[data]} />
       <YAxis />
@@ -137,7 +137,7 @@ function UnixEpochStart({ theme, perfHud }: PanelCtx) {
   );
 
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="starts at Unix epoch (t=0)">Historical (1970)</Title>
       <LineSeries data={[data]} />
       <YAxis />

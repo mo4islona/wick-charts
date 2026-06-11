@@ -1,5 +1,6 @@
-import { CandlestickSeries, ChartContainer, LineSeries, TimeAxis, Title, YAxis } from '@wick-charts/react';
 import { useMemo } from 'react';
+
+import { CandlestickSeries, ChartContainer, LineSeries, TimeAxis, Title, YAxis } from '@wick-charts/react';
 
 import {
   generateAllNegativeOHLC,
@@ -13,7 +14,7 @@ import type { PanelCtx, StressPanel } from './panel';
 function Constant({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateConstantOHLC(200, 100), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="min === max">Constant value</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -25,7 +26,7 @@ function Constant({ theme, perfHud }: PanelCtx) {
 function NearZero({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateNearZeroLine(200, 1e-8), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="[1e-8, 2e-8]">Near-zero magnitudes</Title>
       <LineSeries data={[data]} />
       <YAxis />
@@ -37,7 +38,7 @@ function NearZero({ theme, perfHud }: PanelCtx) {
 function HugeRange({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateHugeRangeLine(200), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="1 → 1e9, linear axis">Giant range</Title>
       <LineSeries data={[data]} />
       <YAxis />
@@ -49,7 +50,7 @@ function HugeRange({ theme, perfHud }: PanelCtx) {
 function NegativeCrossing({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateNegativeCrossingLine(200, 500), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="±500, crosses 0">Negative crossing</Title>
       <LineSeries data={[data]} options={{ area: { visible: true } }} />
       <YAxis />
@@ -61,7 +62,7 @@ function NegativeCrossing({ theme, perfHud }: PanelCtx) {
 function AllNegative({ theme, perfHud }: PanelCtx) {
   const data = useMemo(() => generateAllNegativeOHLC(200), []);
   return (
-    <ChartContainer theme={theme} perf={perfHud} interactive={false}>
+    <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="fully-negative OHLC">All negative</Title>
       <CandlestickSeries data={data} />
       <YAxis />
@@ -74,7 +75,7 @@ export const scalePanels: readonly StressPanel[] = [
   {
     id: 'scale-constant',
     title: 'Constant value',
-    hint: 'All OHLC = 100. Min==max. Check axis doesn\'t collapse to a single tick.',
+    hint: "All OHLC = 100. Min==max. Check axis doesn't collapse to a single tick.",
     render: (ctx) => <Constant {...ctx} />,
   },
   {

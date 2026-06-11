@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { type ChartTheme, hermite, snap, spring } from '@wick-charts/react';
+import { type ChartTheme, hermite, perfHud as perfHudConfig, snap, spring } from '@wick-charts/react';
 
 import { Toggle } from '../components/playground/primitives';
 import { themeSurfaceVars } from '../components/playground/themeSurface';
@@ -202,7 +202,13 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
         </nav>
       </header>
 
-      <StressPanels panels={panels} theme={theme} perfHud={perfHud} yEngine={yEngine} yEngineLabel={yEngineLabel} />
+      <StressPanels
+        panels={panels}
+        theme={theme}
+        perfHud={perfHud ? perfHudConfig : undefined}
+        yEngine={yEngine}
+        yEngineLabel={yEngineLabel}
+      />
     </div>
   );
 }
