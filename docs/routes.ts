@@ -18,6 +18,7 @@ export type Route =
   | 'use-cases/realtime-data'
   | 'use-cases/multi-chart-sync'
   | 'use-cases/custom-renders'
+  | 'use-cases/event-markers'
   | 'use-cases/theme'
   | 'api/line-series'
   | 'api/bar-series'
@@ -30,6 +31,7 @@ export type Route =
   | 'api/tooltip'
   | 'api/crosshair'
   | 'api/legend'
+  | 'api/marker'
   | 'api/navigator'
   | 'api/title'
   | 'api/info-bar'
@@ -106,6 +108,7 @@ const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
   { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
   { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
+  { route: 'use-cases/event-markers', label: 'Event Markers', title: 'Event Markers' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level
@@ -128,6 +131,7 @@ const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/crosshair', label: 'Crosshair', title: '' },
   { route: 'api/info-bar', label: 'InfoBar', title: '' },
   { route: 'api/legend', label: 'Legend', title: '' },
+  { route: 'api/marker', label: 'Marker', title: '' },
   { route: 'api/navigator', label: 'Navigator', title: '' },
   { route: 'api/number-flow', label: 'NumberFlow', title: '' },
   { route: 'api/pie-legend', label: 'PieLegend', title: '' },

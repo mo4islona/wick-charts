@@ -37,6 +37,8 @@ export type {
   LinePainter,
   /** @deprecated Use {@link TimePoint} instead. */
   LineSeriesOptions,
+  MarkerConfig,
+  MarkerShape,
   NavigatorCandlePoint,
   NavigatorControllerParams,
   NavigatorData,
@@ -165,6 +167,9 @@ export { InfoBar } from './ui/InfoBar';
 export type { LegendItemOverride, LegendProps } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
+// Markers — point annotations (event markers)
+export type { MarkerProps } from './ui/Marker';
+export { Marker } from './ui/Marker';
 export type { NavigatorProps } from './ui/Navigator';
 export { Navigator } from './ui/Navigator';
 export { NumberFlow } from './ui/NumberFlow';

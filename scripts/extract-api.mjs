@@ -38,6 +38,7 @@ const COMPONENTS = [
   { name: 'Tooltip', file: 'packages/react/src/ui/Tooltip.tsx', kind: 'subcomponent' },
   { name: 'Crosshair', file: 'packages/react/src/ui/Crosshair.tsx', kind: 'subcomponent' },
   { name: 'Legend', file: 'packages/react/src/ui/Legend.tsx', kind: 'subcomponent' },
+  { name: 'Marker', file: 'packages/react/src/ui/Marker.tsx', kind: 'subcomponent' },
   { name: 'Navigator', file: 'packages/react/src/ui/Navigator.tsx', kind: 'subcomponent' },
   { name: 'Title', file: 'packages/react/src/ui/Title.tsx', kind: 'subcomponent' },
   { name: 'InfoBar', file: 'packages/react/src/ui/InfoBar.tsx', kind: 'subcomponent' },
@@ -240,8 +241,7 @@ const READABLE_UNION_ALIASES = {
   // Name the layer form `SeriesLayer<…>` — the docs `data` switcher drills into
   // its fields on click, so the union stays named rather than inlining the
   // `{ label, color, data }` shape on every accepted form.
-  MultiLayerData:
-    'TimePointInput[] | TimePointInput[][] | SeriesLayer<TimePointInput> | SeriesLayer<TimePointInput>[]',
+  MultiLayerData: 'TimePointInput[] | TimePointInput[][] | SeriesLayer<TimePointInput> | SeriesLayer<TimePointInput>[]',
   CandlestickData: 'OHLCInput[] | SeriesLayer<OHLCInput>',
 };
 

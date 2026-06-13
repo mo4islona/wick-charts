@@ -90,6 +90,17 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
 
   Title: { staticChildren: 'BTC / USD' },
 
+  Marker: {
+    required: [{ name: 'time', valueExpr: 'openedMs' }],
+    optional: [
+      { name: 'seriesId', valueExpr: "'metric'" },
+      { name: 'shape', valueExpr: "'arrow-down'" },
+      { name: 'label', valueExpr: "'broke'" },
+      { name: 'color', valueExpr: "'#f0556a'" },
+    ],
+    selfClosingWhenEmpty: true,
+  },
+
   Tooltip: {
     optional: [{ name: 'sort', valueExpr: "'desc'" }],
     slot: {

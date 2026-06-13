@@ -13,7 +13,7 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 - `@wick-charts/vue` — components + composables
 - `@wick-charts/svelte` — components + stores
 
-Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
+Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `Marker`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
 Framework-specific gaps to know about:
 
@@ -111,6 +111,7 @@ Placed as children of `ChartContainer`.
 | `YAxis` | `format?` | — | Vertical tick axis |
 | `TimeAxis` (alias `XAxis`) | — | — | Horizontal time axis |
 | `YLabel` | `seriesId?`, `color?`, `format?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
+| `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
 | `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | — | Standalone animated number |
@@ -122,6 +123,29 @@ Placed as children of `ChartContainer`.
 **Hoisting**: `Title` + `InfoBar` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / InfoBar so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="isolate"` isolates that item and a second click restores all).
 
 `Tooltip` is **floating-only**. For the top info bar, use `<InfoBar>` — the two are complementary and usually composed together.
+
+## Markers (event annotations)
+
+`<Marker>` pins a point annotation to a `time` + `value` — "anomaly opened here", "deploy shipped", "alert resolved". Unlike a series, a marker is **excluded from the tooltip, legend, and Y-range autoscale** and never shows up in series queries — so you don't need the single-point fake-series workaround. It draws on the overlay layer, clipped to the plot area, and can reuse the line pulse halo.
+
+```tsx
+<ChartContainer theme={theme}>
+  <LineSeries id="metric" data={metric} />
+  {/* explicit Y */}
+  <Marker time={deployMs} value={observed} shape="dot" label="deploy v1.2.3" />
+  {/* or snap Y to a series' value at `time` */}
+  <Marker time={openedMs} seriesId="metric" shape="arrow-down" pulse label="broke" color="#f0556a" />
+</ChartContainer>
+```
+
+- `time` — ms or `Date`.
+- `value` — Y as a data value. **Omit it and pass `seriesId`** to snap Y to that series' nearest point at `time` (removes the "what Y do I use" problem).
+- `shape` — `'dot' | 'circle' | 'arrow-up' | 'arrow-down'` (default `'dot'`; arrows point their tip at the anchor).
+- `pulse` — reuse the line halo animation (default `false`).
+- `label` — optional text pill next to the glyph.
+- `color` — override; falls back to the series color (when `seriesId` is set), then the theme line color.
+
+Render as many `<Marker>`s as you need. Prop set is identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addMarker(config) → id`, `chart.updateMarker(id, config)`, `chart.removeMarker(id)`.
 
 ## Themes
 

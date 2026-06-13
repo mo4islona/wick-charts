@@ -1758,7 +1758,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Stroke width in CSS pixels (default: 1.5)",
+          "description": "Stroke width in CSS pixels (default: 1)",
           "see": []
         },
         {
@@ -3366,6 +3366,77 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Render-prop escape hatch. Receives the computed `items` (each carrying\nits own `toggle()` / `isolate()` closures) and fully replaces the\nbuilt-in flex row / column. Callers can filter, reorder, and re-style\nwithout reimplementing visibility wiring.",
+          "see": []
+        }
+      ]
+    },
+    "Marker": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/Marker.tsx",
+      "alias": null,
+      "description": "A point annotation (event marker) pinned to a `time` / `value` — \"anomaly\nopened here\", \"deploy v1.2.3\", \"alert resolved\". Renders on the chart's\noverlay canvas and stays out of the series model, so it never shows up in the\ntooltip, legend, or Y-range autoscale, and is clipped to the plot area.\n\n```tsx\n<Marker time={openedMs} seriesId=\"metric\" shape=\"arrow-down\" pulse label=\"broke\" color=\"#f0556a\" />\n```",
+      "props": [
+        {
+          "name": "time",
+          "type": "TimeValue",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "X anchor — epoch ms or a `Date`.",
+          "see": []
+        },
+        {
+          "name": "value",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Y anchor as a data value. Omit and set {@link MarkerProps.seriesId} to snap\nthe marker to that series' nearest data point at `time`.",
+          "see": []
+        },
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Snap Y to this series' value at `time` when `value` is omitted. Also the default color source.",
+          "see": []
+        },
+        {
+          "name": "shape",
+          "type": "MarkerShape",
+          "optional": true,
+          "defaultValue": "'dot'",
+          "deprecated": null,
+          "description": "Glyph at the anchor. Default: `'dot'`. Arrows point their tip at the anchor.",
+          "see": []
+        },
+        {
+          "name": "pulse",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "false",
+          "deprecated": null,
+          "description": "Reuse the line pulse halo around the anchor. Default: `false`.",
+          "see": []
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Optional text label drawn in a pill next to the anchor.",
+          "see": []
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Color override. Falls back to the series color (when `seriesId` is set), then the theme line color.",
           "see": []
         }
       ]

@@ -24,6 +24,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/tooltip': 'Tooltip',
   'api/crosshair': 'Crosshair',
   'api/legend': 'Legend',
+  'api/marker': 'Marker',
   'api/navigator': 'Navigator',
   'api/title': 'Title',
   'api/info-bar': 'InfoBar',

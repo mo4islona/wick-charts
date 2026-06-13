@@ -28,6 +28,10 @@ export type { MountAxisLabelsOptions } from './axis/dom-labels';
 export { mountAxisLabels } from './axis/dom-labels';
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
 export { ChartInstance } from './chart';
+// Markers — point annotations (event markers) pinned to time/value, drawn on the
+// overlay layer. Kept out of the series model, so excluded from tooltips, the
+// legend, and Y-range autoscale. Add via `chart.addMarker(config)`.
+export type { MarkerConfig, MarkerShape } from './components/marker';
 // Series data reconciliation — shared by the React / Vue / Svelte wrappers so
 // every framework picks the same cheapest-correct mutation (append / keepLast /
 // update / replace) and streams without Y-snapping.

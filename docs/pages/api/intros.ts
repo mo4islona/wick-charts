@@ -42,4 +42,6 @@ export const INTROS: Record<string, string> = {
     'Animated number ticker. Spins between values with configurable duration. Used internally by `<YLabel>` and the InfoBar percent-change badge — also exported for custom UI.',
   YLabel:
     'Floating price badge anchored to the last data point of a series. Pulses with the data and animates value transitions via `NumberFlow`.',
+  Marker:
+    'Pins a point annotation to a `time` / `value` — an event marker like "anomaly opened", "deploy shipped", or "alert resolved". Anchor Y explicitly with `value`, or pass a `seriesId` to snap to that series’ value at `time`. Markers render on the overlay layer and stay out of the series model, so they never appear in the tooltip, legend, or Y-range autoscale. Opt into a `pulse` halo and a text `label` per marker.',
 };

@@ -32,6 +32,8 @@ export type {
   LinePainter,
   /** @deprecated Use {@link TimePoint} instead. */
   LineSeriesOptions,
+  MarkerConfig,
+  MarkerShape,
   NavigatorCandlePoint,
   NavigatorControllerParams,
   NavigatorData,
@@ -140,6 +142,7 @@ export { default as PieSeries } from './PieSeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
 export { default as InfoBar } from './ui/InfoBar.vue';
 export { default as Legend } from './ui/Legend.vue';
+export { default as Marker } from './ui/Marker.vue';
 export { default as Navigator } from './ui/Navigator.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';

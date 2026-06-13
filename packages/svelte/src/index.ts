@@ -32,6 +32,8 @@ export type {
   LinePainter,
   /** @deprecated Use {@link TimePoint} instead. */
   LineSeriesOptions,
+  MarkerConfig,
+  MarkerShape,
   NavigatorCandlePoint,
   NavigatorControllerParams,
   NavigatorData,
@@ -146,6 +148,7 @@ export {
 export { default as Crosshair } from './ui/Crosshair.svelte';
 export { default as InfoBar } from './ui/InfoBar.svelte';
 export { default as Legend } from './ui/Legend.svelte';
+export { default as Marker } from './ui/Marker.svelte';
 export { default as Navigator } from './ui/Navigator.svelte';
 export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';

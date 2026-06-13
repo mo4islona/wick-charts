@@ -1,6 +1,6 @@
-import { AnimationConfig } from './animation/config';
+import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
-import { CanvasManager } from './canvas-manager';
+import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { drawEdgeIndicators, resolveEdgeBoundary } from './chart/edge-indicators';
 import { computeFitToData } from './chart/fit-to-data';
 import { getLastValue, getPreviousClose, getStackedLastValue } from './chart/last-value';
@@ -22,6 +22,7 @@ import { resolvePaddingTime } from './chart/viewport-padding';
 import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
+import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
@@ -96,7 +97,20 @@ interface SeriesEntry {
   visible: boolean;
 }
 
+/** Internal bookkeeping for a registered marker. `time` is normalized to epoch ms; `shape`/`pulse` carry resolved defaults. */
+interface MarkerEntry {
+  id: string;
+  time: number;
+  value?: number;
+  seriesId?: string;
+  shape: MarkerShape;
+  pulse: boolean;
+  label?: string;
+  color?: string;
+}
+
 let seriesIdCounter = 0;
+let markerIdCounter = 0;
 
 /** Shallow equality for per-layer label arrays (handles the `undefined` holes). */
 function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefined)[] | undefined): boolean {
@@ -136,6 +150,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #interactions: InteractionHandler | null;
   /** All registered series (candlestick, line, bar, pie). */
   #series: SeriesEntry[] = [];
+  /** Point annotations (event markers) drawn on the overlay layer, kept out of the series model. */
+  #markers: MarkerEntry[] = [];
   /** Active visual theme (colors, fonts, grid style). */
   #theme: ChartTheme;
   /** Whether to render the background grid. */
@@ -507,6 +523,112 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
       this.#bumpOverlayVersion();
+    }
+  }
+
+  // --- Markers (point annotations) -----------------------------------------
+
+  /**
+   * Pin a point annotation to `time` (X) and `value` (Y), or to a series via
+   * `seriesId` (Y snaps to the nearest data point at `time`). Returns the marker
+   * id for later {@link updateMarker} / {@link removeMarker}.
+   *
+   * Markers render on the overlay layer and stay out of the series model — they
+   * are excluded from tooltips, the legend, and the Y-range autoscale, and never
+   * appear in series queries.
+   */
+  addMarker(config: MarkerConfig): string {
+    const id = `marker_${++markerIdCounter}`;
+    this.#markers.push(this.#normalizeMarker(id, config));
+    this.#overlayScheduler.markDirty();
+
+    return id;
+  }
+
+  /** Replace a marker's config in place. No-op when the id is unknown. */
+  updateMarker(id: string, config: MarkerConfig): void {
+    const idx = this.#markers.findIndex((m) => m.id === id);
+    if (idx === -1) return;
+
+    this.#markers[idx] = this.#normalizeMarker(id, config);
+    this.#overlayScheduler.markDirty();
+  }
+
+  /** Remove a marker by id. No-op when the id is unknown. */
+  removeMarker(id: string): void {
+    const idx = this.#markers.findIndex((m) => m.id === id);
+    if (idx === -1) return;
+
+    this.#markers.splice(idx, 1);
+    this.#overlayScheduler.markDirty();
+  }
+
+  /** Read-only snapshot of the registered markers (normalized). Mutate via add / update / removeMarker. */
+  getMarkers(): readonly Readonly<MarkerEntry>[] {
+    return this.#markers;
+  }
+
+  #normalizeMarker(id: string, config: MarkerConfig): MarkerEntry {
+    return {
+      id,
+      time: normalizeTime(config.time),
+      value: config.value,
+      seriesId: config.seriesId,
+      shape: config.shape ?? 'dot',
+      pulse: config.pulse ?? false,
+      label: config.label,
+      color: config.color,
+    };
+  }
+
+  /** Resolve a marker's Y value: explicit `value`, else snapped to its series at `time`. Null when neither resolves. */
+  #resolveMarkerValue(marker: MarkerEntry): number | null {
+    if (marker.value !== undefined && Number.isFinite(marker.value)) return marker.value;
+    if (marker.seriesId === undefined) return null;
+
+    const point = this.getDataAtTime(marker.seriesId, marker.time);
+    if (!point) return null;
+
+    return 'close' in point ? point.close : point.value;
+  }
+
+  /** Resolve a marker's color: explicit `color`, else the series color, else the theme line color. */
+  #resolveMarkerColor(marker: MarkerEntry): string {
+    if (marker.color !== undefined) return marker.color;
+
+    if (marker.seriesId !== undefined) {
+      const seriesColor = this.getSeriesColor(marker.seriesId);
+      if (seriesColor !== null) return seriesColor;
+    }
+
+    return this.#theme.line.color;
+  }
+
+  #drawMarkers(scope: BitmapCoordinateSpace): void {
+    if (this.#markers.length === 0) return;
+
+    // Share one halo phase across markers, off the same clock and period the line pulse uses.
+    const phase = (performance.now() / (DEFAULT_LINE_PULSE * 2 * Math.PI)) % 1;
+
+    for (const marker of this.#markers) {
+      const value = this.#resolveMarkerValue(marker);
+      if (value === null) continue;
+
+      renderMarker({
+        scope,
+        timeScale: this.timeScale,
+        yScale: this.yScale,
+        theme: this.#theme,
+        marker: {
+          time: marker.time,
+          value,
+          color: this.#resolveMarkerColor(marker),
+          shape: marker.shape,
+          pulse: marker.pulse,
+          label: marker.label,
+        },
+        phase,
+      });
     }
   }
 
@@ -1351,6 +1473,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   destroy(): void {
     for (const entry of this.#series) entry.renderer.dispose();
     this.#series = [];
+    this.#markers = [];
     this.#seriesIdCache = null;
     this.#mainScheduler.destroy();
     this.#overlayScheduler.destroy();
@@ -2165,6 +2288,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
 
+    // A pulsing marker keeps the overlay ticking just like a line pulse.
+    if (this.#markers.some((m) => m.pulse)) overlayAnimates = true;
+
     // The loading-state edge indicator animates a spinner; keep the overlay ticking.
     const edgeAnimates = this.#edgeStates.left === 'loading' || this.#edgeStates.right === 'loading';
     // Any non-idle edge needs a single redraw; only `loading` needs continuous frames.
@@ -2173,7 +2299,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Skip the full-bitmap clear when the overlay is empty AND was already
     // empty last pass — only the painted→empty transition (e.g. mouseleave
     // erasing a stale crosshair) needs one erasing clear.
-    const hasContent = Boolean(this.#crosshairPos) || overlayAnimates || edgeVisible;
+    const hasContent = Boolean(this.#crosshairPos) || overlayAnimates || edgeVisible || this.#markers.length > 0;
     if (!hasContent && !this.#overlayHasContent) return;
 
     this.#overlayHasContent = hasContent;
@@ -2220,6 +2346,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         });
       }
 
+      // Point annotations (event markers): above series overlays, below edge indicators.
+      this.#drawMarkers(scope);
+
       // Edge indicators last — they paint over any series overlay that happened
       // to land in the overshoot area.
       if (edgeVisible) {
@@ -2249,6 +2378,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           break;
         }
       }
+
+      // A pulsing marker within the visible window keeps the tick alive too.
+      if (!visibleLast) {
+        for (const marker of this.#markers) {
+          if (marker.pulse && marker.time >= from && marker.time <= to) {
+            visibleLast = true;
+            break;
+          }
+        }
+      }
+
       if (visibleLast) this.#overlayScheduler.markDirty();
     }
 
