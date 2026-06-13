@@ -57,7 +57,6 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     }
   }, [
     chart,
-    options?.colors?.join(','),
     options?.strokeWidth,
     options?.area?.visible,
     (options as { areaFill?: boolean } | undefined)?.areaFill,

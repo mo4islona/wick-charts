@@ -27,6 +27,18 @@ const TIME_FIELD: ApiProp = {
   description: 'Unix milliseconds.',
 };
 
+// Input variant: the series `data` props accept `Date` for time (normalized to
+// ms internally via getTime). Sparkline is the exception — its `data` is the
+// strict `TimePoint[]`, so it keeps `TIME_FIELD`.
+const TIME_FIELD_INPUT: ApiProp = {
+  name: 'time',
+  type: 'number | Date',
+  optional: false,
+  defaultValue: null,
+  deprecated: null,
+  description: 'Unix milliseconds, or a `Date` (converted via `getTime()` internally).',
+};
+
 const TIME_POINT: DataShape = {
   typeName: 'TimePoint',
   props: [
@@ -42,28 +54,36 @@ const TIME_POINT: DataShape = {
   ],
 };
 
+// Line/bar accept `TimePointInput` (time may be a `Date`); only `time` differs
+// from `TimePoint`, so reuse its `value` field.
+const TIME_POINT_INPUT: DataShape = {
+  typeName: 'TimePointInput',
+  props: [TIME_FIELD_INPUT, ...TIME_POINT.props.slice(1)],
+};
+
 export const CHART_DATA_TYPES: Record<string, DataShape> = {
   LineSeries: {
-    ...TIME_POINT,
+    ...TIME_POINT_INPUT,
     description:
-      'Omnivorous: a flat `TimePoint[]` (one line), `TimePoint[][]` (one inner array per layer), or named `{ label, color?, data }` layers (single or array). The label/color ride in the data — there is no `label` option. Time may be epoch ms or a `Date`.',
+      'Omnivorous: a flat `TimePointInput[]` (one line), `TimePointInput[][]` (one inner array per layer), or named `{ label?, color?, data }` layers (single or array). Name and color ride in the data — there is no `label` or `colors` option. `color` is `string | ((value) => string)`. Time may be epoch ms or a `Date`.',
   },
   BarSeries: {
-    ...TIME_POINT,
+    ...TIME_POINT_INPUT,
     description:
-      'Same shape as `LineSeries` — a flat `TimePoint[]`, `TimePoint[][]` (one layer per stacked / overlapping series), or named `{ label, color?, data }` layers.',
+      'Same shape as `LineSeries` — a flat `TimePointInput[]`, `TimePointInput[][]`, or named `{ label?, color?, data }` layers. A single bar defaults to the theme sign coloring (`theme.bar.color`); a `color` function paints each bar by value.',
   },
   Sparkline: {
-    ...TIME_POINT,
-    description: 'Single-array form — `Sparkline` plots one tiny line/bar, so the input is `TimePoint[]` (not 2D).',
+    ...TIME_POINT_INPUT,
+    description:
+      'Single-array form — `Sparkline` plots one tiny line/bar, so the input is `TimePointInput[]` (not 2D). Time may be epoch ms or a `Date`.',
   },
 
   CandlestickSeries: {
-    typeName: 'OHLCData',
+    typeName: 'OHLCInput',
     description:
-      "A flat `OHLCData[]` stream, or `{ label, data }` to name it for the tooltip / info bar. `volume` is optional — omit it when you don't want a volume pane.",
+      "A flat `OHLCInput[]` stream, or `{ label, data }` to name it for the tooltip / info bar. Time may be epoch ms or a `Date`. `volume` is optional — omit it when you don't want a volume pane.",
     props: [
-      TIME_FIELD,
+      TIME_FIELD_INPUT,
       {
         name: 'open',
         type: 'number',

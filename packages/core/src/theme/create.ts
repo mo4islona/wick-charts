@@ -1,3 +1,4 @@
+import type { ValueColor } from '../types';
 import { lighten } from '../utils/color';
 import { resolveCandlestickBodyColor } from './resolve';
 import type { ChartTheme } from './types';
@@ -30,6 +31,7 @@ export interface ThemeConfig {
   };
   line?: Partial<ChartTheme['line']>;
   seriesColors?: string[];
+  bar?: Partial<NonNullable<ChartTheme['bar']>>;
   pie?: Partial<NonNullable<ChartTheme['pie']>>;
   bands?: Partial<ChartTheme['bands']>;
   crosshair?: Partial<ChartTheme['crosshair']>;
@@ -123,6 +125,9 @@ export function createTheme(config: ThemeConfig): ThemePreset {
   // gradient tuple to its top stop.
   const upBase = resolveCandlestickBodyColor(upBody);
   const downBase = resolveCandlestickBodyColor(downBody);
+  // Default single-bar coloring: up color when value >= 0, down color when
+  // negative. A value-fn, so bars get sign coloring straight from the theme.
+  const defBarColor: ValueColor = (value: number) => (value >= 0 ? upBase : downBase);
   const lineColor = config.line?.color ?? defLine;
   const fg = config.tooltip?.textColor ?? defFg;
   const dim = config.axis?.textColor ?? defDim;
@@ -160,6 +165,9 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       areaBottomColor: config.line?.areaBottomColor ?? hexToRgba(lineColor, 0.01),
     },
     seriesColors: config.seriesColors ?? [lineColor, defUp, defDown],
+    bar: {
+      color: config.bar?.color ?? defBarColor,
+    },
     pie: {
       // The dim axis tone doubles as the "Other" slice fill — muted enough to
       // read as an aggregate, and it already adapts to theme polarity.

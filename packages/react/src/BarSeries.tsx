@@ -58,7 +58,6 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
     }
   }, [
     chart,
-    options?.colors?.join(','),
     options?.barWidthRatio,
     options?.stacking,
     options?.entryAnimation,

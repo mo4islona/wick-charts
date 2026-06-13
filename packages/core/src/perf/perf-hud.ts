@@ -619,12 +619,14 @@ export class PerfHud {
         },
       });
       const seriesId = chart.addSeries(LineSeriesDef, {
-        colors: [COLOR_GOOD],
         strokeWidth: 1,
         curve: 'smooth',
         area: { visible: true },
         pulse: false,
       });
+      // `colors` is no longer an option — set the line color via the per-layer
+      // override path.
+      chart.setLayerColors(seriesId, [COLOR_GOOD]);
 
       // Seed the entire window with zeros so the plot spans the full width
       // from the first paint — a partially filled window reads as a mystery

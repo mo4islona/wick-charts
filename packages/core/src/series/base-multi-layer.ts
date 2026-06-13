@@ -2,7 +2,8 @@ import { Animator } from '../animation/animator';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
-import type { TimePoint, TimePointInput } from '../types';
+import type { TimePoint, TimePointInput, ValueColor } from '../types';
+import { resolveColor } from '../utils/color';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
 import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
@@ -18,7 +19,8 @@ import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
  * never has to handle the disable sentinel.
  */
 export interface CommonSeriesOptions {
-  colors: string[];
+  /** One resolver per layer. A function paints per datum (bar) / per segment (line) by value. */
+  colors: ValueColor[];
   stacking: 'off' | 'normal' | 'percent';
   entryMs: number;
   smoothMs: number;
@@ -121,12 +123,38 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
   // --- Color accessors ------------------------------------------------------
 
-  getColor(): string {
-    return this.options.colors[0];
+  /**
+   * Per-layer color overrides carried in `data` (sparse — `undefined` leaves a
+   * layer on the theme base in `options.colors`). Kept separate from the base so
+   * a theme swap, which rewrites `options.colors`, leaves these untouched.
+   */
+  #colorOverrides: (ValueColor | undefined)[] = [];
+
+  setColorOverrides(overrides: (ValueColor | undefined)[]): void {
+    this.#colorOverrides = overrides;
   }
 
-  getColors(): string[] {
+  /** The active resolver for a layer — the `data` override if set, else the theme base (cycled). */
+  #layerResolver(layerIndex: number): ValueColor {
+    const override = this.#colorOverrides[layerIndex];
+    if (override !== undefined) return override;
+
+    const base = this.options.colors;
+    return base[layerIndex % base.length];
+  }
+
+  /** The first layer's color resolver (string or value-fn). */
+  getColor(): ValueColor {
+    return this.#layerResolver(0);
+  }
+
+  getColors(): ValueColor[] {
     return this.options.colors;
+  }
+
+  /** Resolve one layer's color for a given datum value. */
+  resolveLayerColor(layerIndex: number, value: number): string {
+    return resolveColor(this.#layerResolver(layerIndex), value);
   }
 
   // --- Data ingest ----------------------------------------------------------
@@ -234,8 +262,17 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.stores[index]?.isVisible() ?? true;
   }
 
+  /** Representative concrete color per layer — value-fns are resolved at the
+   *  layer's last value, giving the legend swatch / color-change detection a
+   *  stable string. Honors per-layer `data` overrides. */
   getLayerColors(): string[] {
-    return this.getColors();
+    const colors: string[] = [];
+    for (let i = 0; i < this.stores.length; i++) {
+      const lastValue = this.stores[i]?.last()?.value ?? 0;
+      colors.push(this.resolveLayerColor(i, lastValue));
+    }
+
+    return colors;
   }
 
   // --- Lifecycle ------------------------------------------------------------
@@ -453,7 +490,6 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   ): { layerIndex: number; time: number; value: number; color: string }[] | null {
     if (this.stores.length <= 1) return null;
 
-    const colors = this.getColors();
     const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
     for (let li = 0; li < this.stores.length; li++) {
       if (!this.stores[li].isVisible()) continue;
@@ -478,7 +514,9 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         layerIndex: li,
         time: closest.time,
         value: closest.value,
-        color: colors[li % colors.length],
+        // Resolve the layer's color at the hovered datum's value so a value-fn
+        // colors the tooltip dot to match the bar / segment under the cursor.
+        color: this.resolveLayerColor(li, closest.value),
       });
     }
 
@@ -536,7 +574,6 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {
     if (this.stores.length <= 1) return null;
 
-    const colors = this.getColors();
     const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
     for (let li = 0; li < this.stores.length; li++) {
       if (!this.stores[li].isVisible()) continue;
@@ -548,7 +585,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         layerIndex: li,
         time: last.time,
         value: last.value,
-        color: colors[li % colors.length],
+        color: this.resolveLayerColor(li, last.value),
       });
     }
 

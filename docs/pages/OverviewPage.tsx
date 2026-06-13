@@ -113,10 +113,7 @@ function MultiLineChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="10 assets · Live">Portfolio</Title>
-      <LineSeries
-        data={datasets}
-        options={{ colors: theme.seriesColors.slice(0, datasets.length), area: { visible: false }, strokeWidth: 1 }}
-      />
+      <LineSeries data={datasets} options={{ area: { visible: false }, strokeWidth: 1 }} />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -134,15 +131,8 @@ function BarChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="Live Bar">P&L Delta</Title>
-      <BarSeries
-        data={[datasets[0]]}
-        options={{
-          colors: [
-            resolveCandlestickBodyColor(theme.candlestick.up.body),
-            resolveCandlestickBodyColor(theme.candlestick.down.body),
-          ],
-        }}
-      />
+      {/* Sign coloring (green-up / red-down) comes from the theme's bar.color. */}
+      <BarSeries data={[datasets[0]]} />
       <Tooltip />
       <Crosshair />
       <YAxis />

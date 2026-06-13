@@ -1,3 +1,5 @@
+import type { ValueColor } from '../types';
+
 /** Font family and base font size used across the chart. */
 export interface Typography {
   /** CSS `font-family` stack applied to all text rendered by the chart. */
@@ -65,6 +67,22 @@ export interface ChartTheme {
 
   /** Color palette for multi-series charts (stacked bars, overlays). */
   seriesColors: string[];
+
+  /**
+   * Default single-layer bar color. A {@link ValueColor}: a string for a uniform
+   * bar, or a function of the bar's value for sign / threshold coloring.
+   * {@link createTheme} defaults it to a sign function (candlestick up / down
+   * body), which is how bars get green-up / red-down without any option.
+   *
+   * Optional so hand-built theme literals keep compiling — the bar renderer
+   * falls back to {@link ChartTheme.seriesColors}`[0]`. A function value makes
+   * the theme non-JSON-serializable; that is an accepted trade-off (the theme
+   * editor simply omits it).
+   */
+  bar?: {
+    /** Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down). */
+    color: ValueColor;
+  };
 
   /**
    * Pie / donut specific colors. Optional so hand-built theme literals that

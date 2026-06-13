@@ -2,7 +2,7 @@ import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../
 import { easeOutCubic } from '../animation/easing';
 import { decimateLineData } from '../data/decimation';
 import type { ChartTheme } from '../theme/types';
-import type { LineSeriesOptions, TimePoint } from '../types';
+import type { LineSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
@@ -15,12 +15,18 @@ import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` / `pulseMs` are concrete
  *  numbers (`false` from the public surface gets normalized to `0` at the
- *  merge boundary, so downstream reads never see the disable sentinel). */
+ *  merge boundary, so downstream reads never see the disable sentinel). `colors`
+ *  is renderer-internal (one resolver per layer, sourced from the theme palette
+ *  and per-layer `data` overrides) — it is no longer a public option. */
 type ResolvedLineOptions = Omit<LineSeriesOptions, 'entryMs' | 'smoothMs' | 'pulseMs'> & {
+  colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
   pulseMs: number;
 };
+
+/** Caller-facing option input — the public surface plus the internal `colors`. */
+type LineOptionsInput = Partial<LineSeriesOptions> & { colors?: ValueColor[] };
 
 const DEFAULT_OPTIONS: ResolvedLineOptions = {
   colors: ['#2962FF'],
@@ -41,7 +47,7 @@ const DEFAULT_OPTIONS: ResolvedLineOptions = {
  * only reads the canonical field, and converts the `false` disable sentinel
  * on duration fields into `0`.
  */
-function normalize(input: LineSeriesOptions): ResolvedLineOptions {
+function normalize(input: LineSeriesOptions & { colors: ValueColor[] }): ResolvedLineOptions {
   const legacyAreaFill = (input as { areaFill?: boolean }).areaFill;
   const area = legacyAreaFill !== undefined && input.area === undefined ? { visible: !!legacyAreaFill } : input.area;
 
@@ -100,12 +106,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   protected declare options: ResolvedLineOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
-  constructor(layerCount: number, options?: Partial<LineSeriesOptions>) {
+  constructor(layerCount: number, options?: LineOptionsInput) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
   }
 
-  updateOptions(options: Partial<LineSeriesOptions>): void {
+  updateOptions(options: LineOptionsInput): void {
     this.options = normalize({ ...this.options, ...options });
   }
 
@@ -114,19 +120,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   applyTheme(theme: ChartTheme, prev: ChartTheme): void {
-    if (this.stores.length === 1) {
-      // Single-layer: update color only if it matches the previous theme default
-      if (this.getColor() === prev.line.color) {
-        this.updateOptions({ colors: [theme.line.color] });
-      }
-    } else {
-      this.updateOptions({
-        colors: theme.seriesColors.slice(0, this.stores.length),
-      });
-    }
+    // Reset the theme base only; per-layer `data` color overrides are held
+    // separately (setColorOverrides) and ride through a theme swap untouched, so
+    // there is no user color to preserve here.
+    const colors = this.stores.length === 1 ? [theme.line.color] : theme.seriesColors.slice(0, this.stores.length);
+    this.updateOptions({ colors });
 
-    // Stroke width follows theme unless the user pinned it with an explicit
-    // option. Same "matches previous theme default" guard as the color path.
+    // Stroke width follows theme unless the user pinned it with an explicit option.
     if (this.options.strokeWidth === prev.line.width) {
       this.updateOptions({ strokeWidth: theme.line.width });
     }
@@ -285,7 +285,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
       if (data.length < 2) continue;
 
-      const color = this.options.colors[li % this.options.colors.length];
+      // A value-fn color is resolved once per line, at the layer's last value —
+      // the whole stroke / area takes that one color (per-segment coloring is a
+      // bar-only feature). A plain string resolves to itself.
+      const layerLastValue = this.stores[li].last()?.value ?? data[data.length - 1].value;
+      const color = this.resolveLayerColor(li, layerLastValue);
 
       // Trailing-segment entrance: the new segment appears to unfurl from the
       // penultimate point to the new one. 'grow' interpolates both axes (via
@@ -608,7 +612,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const layerAlpha = this.getLayerAlpha(li);
       if (layerAlpha <= 0) continue;
 
-      const color = this.options.colors[li % this.options.colors.length];
+      const lastValue = this.stores[li].last()?.value ?? 0;
+      const color = this.resolveLayerColor(li, lastValue);
       const upperChain = layerChains[li];
       // The lower edge is the shared boundary with the nearest VISIBLE layer
       // below — whichever slice draws this same boundary as its upper edge.
@@ -772,7 +777,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     // Crosshair nearest-point dots
     if (crosshair) {
-      const colors = this.options.colors;
       const stacking = this.options.stacking;
       const r = 4 * size.horizontalPixelRatio;
 
@@ -816,7 +820,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0) continue;
 
-        const color = colors[li % colors.length];
+        // Resolve the dot at the layer's raw value under the cursor so a
+        // value-fn color matches the segment the crosshair is on.
+        const color = this.resolveLayerColor(li, layerValues[li]);
         const px = timeScale.timeToBitmapX(t);
         const py = yScale.valueToBitmapY(displayValues[li]);
 
@@ -859,7 +865,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0) continue;
 
-        const color = this.options.colors[li % this.options.colors.length];
+        const lastValue = this.stores[li].last()?.value ?? 0;
+        const color = this.resolveLayerColor(li, lastValue);
 
         if (stacking === 'off') {
           // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'

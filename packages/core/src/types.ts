@@ -32,6 +32,15 @@ export interface TimePoint {
 export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
 
 /**
+ * A color, or a function of a datum's value → color. The function form is
+ * evaluated per element — per bar in a bar series, per segment in a line — so
+ * one layer can paint by sign / threshold (e.g. `v => v >= 0 ? up : down`)
+ * without any extra option. Used both for the per-layer `data` override and the
+ * theme's default bar color.
+ */
+export type ValueColor = string | ((value: number) => string);
+
+/**
  * A single named (and optionally colored) layer. Carries the layer's display
  * name and color *alongside* its data, so `Tooltip` / `Legend` show per-layer
  * names without a separate `label` option. `color` applies to line/bar layers;
@@ -40,8 +49,8 @@ export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
 export interface SeriesLayer<T> {
   /** Display name shown in tooltip / legend. A multi-layer series defaults each unnamed layer to `Series N`. */
   label?: string;
-  /** Line/bar stroke + fill color for this layer; overrides the palette. Ignored by candlestick. */
-  color?: string;
+  /** Stroke + fill color for this layer; overrides the theme default. A function colors per bar / per line segment by value. Ignored by candlestick. */
+  color?: ValueColor;
   /** The layer's points. */
   data: T[];
 }
@@ -259,8 +268,6 @@ export type LineEntryAnimation = 'none' | 'grow' | 'fade';
 
 /** Visual options for a line series. */
 export interface LineSeriesOptions {
-  /** One color per layer. Per-layer `color` in the `data` ({@link SeriesLayer}) overrides this. */
-  colors: string[];
   /** Stroke width in CSS pixels. Default: 1. `0` hides the line stroke. */
   strokeWidth: number;
   /** Area-fill configuration. Default: `{ visible: true }`. */
@@ -378,8 +385,6 @@ export type BarEntryAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
-  /** One color per layer. Per-layer `color` in the `data` ({@link SeriesLayer}) overrides this. */
-  colors: string[];
   /** Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot. Default: 0.7. */
   barWidthRatio: number;
   /** Stacking mode. Default: 'off'. */

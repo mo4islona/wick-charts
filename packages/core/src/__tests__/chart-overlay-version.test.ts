@@ -122,33 +122,42 @@ describe('ChartInstance overlayVersion + overlayChange', () => {
   it('does not bump on updateSeriesOptions when overlay-relevant fields are unchanged', () => {
     // Vue deep watchers replay `updateSeriesOptions` with fresh but equal
     // objects every render. Those must not thrash the snapshot cache.
-    const id = chart.addSeries('line', { label: 'same', colors: ['#112233'] });
+    const id = chart.addSeries('line', { label: 'same' });
     const stable = chart.getOverlayVersion();
     const listener = vi.fn();
     chart.on('overlayChange', listener);
 
-    chart.updateSeriesOptions(id, { label: 'same', colors: ['#112233'] });
+    chart.updateSeriesOptions(id, { label: 'same' });
 
     expect(chart.getOverlayVersion()).toBe(stable);
     expect(listener).not.toHaveBeenCalled();
   });
 
-  it('bumps on updateSeriesOptions only when label or layer colors actually change', () => {
-    const id = chart.addSeries('line', { label: 'first', colors: ['#112233'] });
+  it('bumps on updateSeriesOptions only when the label actually changes', () => {
+    const id = chart.addSeries('line', { label: 'first' });
     const afterAdd = chart.getOverlayVersion();
 
     chart.updateSeriesOptions(id, { label: 'second' });
     const afterLabel = chart.getOverlayVersion();
     expect(afterLabel).toBeGreaterThan(afterAdd);
 
-    chart.updateSeriesOptions(id, { colors: ['#445566'] });
-    const afterColors = chart.getOverlayVersion();
-    expect(afterColors).toBeGreaterThan(afterLabel);
-
     // A non-overlay-relevant option (e.g. strokeWidth) by itself is not
     // required to bump — guard against false positives.
     chart.updateSeriesOptions(id, { strokeWidth: 3 });
-    expect(chart.getOverlayVersion()).toBe(afterColors);
+    expect(chart.getOverlayVersion()).toBe(afterLabel);
+  });
+
+  it('bumps when a per-layer data color override changes', () => {
+    const id = chart.addSeries('line', { label: 'colored' });
+    const afterAdd = chart.getOverlayVersion();
+
+    chart.setLayerColors(id, ['#445566']);
+    const afterColor = chart.getOverlayVersion();
+    expect(afterColor).toBeGreaterThan(afterAdd);
+
+    // Same override again — no bump.
+    chart.setLayerColors(id, ['#445566']);
+    expect(chart.getOverlayVersion()).toBe(afterColor);
   });
 
   it('coalesces overlayChange into a single emission across a batch', () => {

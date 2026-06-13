@@ -3,8 +3,9 @@ import { type CSSProperties, useMemo } from 'react';
 import {
   type AxisBound,
   type ChartTheme,
-  type TimePoint,
+  type TimePointInput,
   formatCompact,
+  normalizeTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -16,8 +17,8 @@ export type SparklineVariant = 'line' | 'bar';
 export type SparklineValuePosition = 'left' | 'right' | 'none';
 
 export interface SparklineProps {
-  /** Data points plotted by the sparkline. A flat `TimePoint[]` — the sparkline only ever shows one tiny line/bar. */
-  data: TimePoint[];
+  /** Data points plotted by the sparkline. A flat `TimePointInput[]` (time may be ms or a `Date`) — the sparkline only ever shows one tiny line/bar. */
+  data: TimePointInput[];
   /**
    * Streaming-window mode: viewport is fixed at `capacity` bars wide. Pass
    * at least two seed points in `data` so the initial window can infer the
@@ -88,7 +89,7 @@ function hexToRgba(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function computeChange(data: TimePoint[]): { value: number; pct: number; positive: boolean } {
+function computeChange(data: TimePointInput[]): { value: number; pct: number; positive: boolean } {
   if (data.length < 2) return { value: 0, pct: 0, positive: true };
   const first = data[0].value;
   const last = data[data.length - 1].value;
@@ -159,7 +160,10 @@ export function Sparkline({
   const viewport = useMemo(() => {
     if (!flow || data.length < 2) return undefined;
 
-    const interval = data[1].time - data[0].time;
+    // Normalize first — `time` may be a `Date`, and the interval / bound math
+    // below needs concrete numbers (TS forbids arithmetic on `Date`).
+    const t0 = normalizeTime(data[0].time);
+    const interval = normalizeTime(data[1].time) - t0;
     if (interval <= 0) return undefined;
 
     const align = flow.align ?? 'right';
@@ -167,11 +171,11 @@ export function Sparkline({
     if (align === 'left') {
       return {
         maxVisibleBars: flow.capacity,
-        initialRange: { from: data[0].time, bars: flow.capacity } as const,
+        initialRange: { from: t0, bars: flow.capacity } as const,
       };
     }
 
-    const last = data[data.length - 1].time;
+    const last = normalizeTime(data[data.length - 1].time);
     const to = align === 'offscreen' ? last - interval : last;
     const from = to - flow.capacity * interval;
 
@@ -268,9 +272,8 @@ export function Sparkline({
       >
         {variant === 'line' ? (
           <LineSeries
-            data={[data]}
+            data={{ color: resolvedColor, data }}
             options={{
-              colors: [resolvedColor],
               strokeWidth,
               area: { visible: areaVisible },
               pulse: false,
@@ -279,9 +282,10 @@ export function Sparkline({
           />
         ) : (
           <BarSeries
-            data={[data]}
+            // Sign coloring rides in the data now: positive bars take the main
+            // color, negative ones the secondary.
+            data={{ color: (value) => (value >= 0 ? resolvedColor : resolvedNegColor), data }}
             options={{
-              colors: [resolvedColor, resolvedNegColor],
               barWidthRatio: 0.7,
               stacking: 'off',
               anchor: 'right',

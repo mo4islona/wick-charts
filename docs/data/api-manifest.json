@@ -27,15 +27,6 @@
             "name": "LineSeriesOptions",
             "props": [
               {
-                "name": "colors",
-                "type": "string[]",
-                "optional": false,
-                "defaultValue": null,
-                "deprecated": null,
-                "description": "One color per layer. Per-layer `color` in the `data` (SeriesLayer) overrides this.",
-                "see": []
-              },
-              {
                 "name": "strokeWidth",
                 "type": "number",
                 "optional": false,
@@ -183,15 +174,6 @@
           "nested": {
             "name": "BarSeriesOptions",
             "props": [
-              {
-                "name": "colors",
-                "type": "string[]",
-                "optional": false,
-                "defaultValue": null,
-                "deprecated": null,
-                "description": "One color per layer. Per-layer `color` in the `data` (SeriesLayer) overrides this.",
-                "see": []
-              },
               {
                 "name": "barWidthRatio",
                 "type": "number",
@@ -764,11 +746,11 @@
       "props": [
         {
           "name": "data",
-          "type": "TimePoint[]",
+          "type": "TimePointInput[]",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Data points plotted by the sparkline. A flat `TimePoint[]` — the sparkline only ever shows one tiny line/bar.",
+          "description": "Data points plotted by the sparkline. A flat `TimePointInput[]` (time may be ms or a `Date`) — the sparkline only ever shows one tiny line/bar.",
           "see": []
         },
         {
@@ -1032,6 +1014,29 @@
                 "deprecated": null,
                 "description": "Color palette for multi-series charts (stacked bars, overlays).",
                 "see": []
+              },
+              {
+                "name": "bar",
+                "type": "{ color: ValueColor; }",
+                "optional": true,
+                "defaultValue": "single-layer bar color",
+                "deprecated": null,
+                "description": "Default single-layer bar color. A ValueColor: a string for a uniform\nbar, or a function of the bar's value for sign / threshold coloring.\n{@link createTheme } defaults it to a sign function (candlestick up / down\nbody), which is how bars get green-up / red-down without any option.\n\nOptional so hand-built theme literals keep compiling — the bar renderer\nfalls back to {@link ChartTheme.seriesColors}`[0]`. A function value makes\nthe theme non-JSON-serializable; that is an accepted trade-off (the theme\neditor simply omits it).",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "color",
+                      "type": "ValueColor",
+                      "optional": false,
+                      "defaultValue": "fill — a string",
+                      "deprecated": null,
+                      "description": "Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down).",
+                      "see": []
+                    }
+                  ]
+                }
               },
               {
                 "name": "pie",
@@ -2020,6 +2025,29 @@
                 "deprecated": null,
                 "description": "Color palette for multi-series charts (stacked bars, overlays).",
                 "see": []
+              },
+              {
+                "name": "bar",
+                "type": "{ color: ValueColor; }",
+                "optional": true,
+                "defaultValue": "single-layer bar color",
+                "deprecated": null,
+                "description": "Default single-layer bar color. A ValueColor: a string for a uniform\nbar, or a function of the bar's value for sign / threshold coloring.\n{@link createTheme } defaults it to a sign function (candlestick up / down\nbody), which is how bars get green-up / red-down without any option.\n\nOptional so hand-built theme literals keep compiling — the bar renderer\nfalls back to {@link ChartTheme.seriesColors}`[0]`. A function value makes\nthe theme non-JSON-serializable; that is an accepted trade-off (the theme\neditor simply omits it).",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "color",
+                      "type": "ValueColor",
+                      "optional": false,
+                      "defaultValue": "fill — a string",
+                      "deprecated": null,
+                      "description": "Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down).",
+                      "see": []
+                    }
+                  ]
+                }
               },
               {
                 "name": "pie",

@@ -95,7 +95,8 @@ function BarPreview({ theme }: { theme: ChartTheme }) {
   return (
     <ChartContainer theme={theme} interactive={false}>
       <Title sub="theme preview">Bar</Title>
-      <BarSeries data={[barData]} options={{ colors: theme.seriesColors.slice(0, 1) }} />
+      {/* Bars take the theme's bar.color (sign coloring) by default. */}
+      <BarSeries data={[barData]} />
       <Crosshair />
       <YAxis />
       <XAxis />
@@ -125,15 +126,7 @@ function LinePreview({ theme, seriesCount }: { theme: ChartTheme; seriesCount: n
     <ChartContainer theme={theme} interactive={false}>
       <Title sub={`${data.length} series`}>Line</Title>
       {!mobile && <InfoBar />}
-      <LineSeries
-        id="line-v2"
-        data={data}
-        options={{
-          colors: theme.seriesColors.slice(0, data.length),
-          area: { visible: true },
-          pulse: true,
-        }}
-      />
+      <LineSeries id="line-v2" data={data} options={{ area: { visible: true }, pulse: true }} />
       <Tooltip />
       <Crosshair />
       <YAxis />

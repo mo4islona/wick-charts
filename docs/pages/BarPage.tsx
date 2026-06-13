@@ -15,7 +15,6 @@ import {
   XAxis,
   YAxis,
   perfHud,
-  resolveCandlestickBodyColor,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -83,10 +82,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       <BarSeries
         data={[display]}
         options={{
-          colors: [
-            resolveCandlestickBodyColor(props.theme.candlestick.up.body),
-            resolveCandlestickBodyColor(props.theme.candlestick.down.body),
-          ],
+          // Sign coloring (green-up / red-down) comes from the theme's bar.color.
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: 'off',
           cornerRadius: props.cornerRadius,
@@ -130,7 +126,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       <BarSeries
         data={display}
         options={{
-          colors: props.theme.seriesColors.slice(0, display.length),
+          // Multi-layer bars default to the theme palette (seriesColors).
           barWidthRatio: BAR_WIDTH_MAP[props.barWidth],
           stacking: props.stacking,
           cornerRadius: props.cornerRadius,

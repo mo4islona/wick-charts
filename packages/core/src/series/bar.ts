@@ -1,6 +1,6 @@
 import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
-import type { BarSeriesOptions, TimePoint } from '../types';
+import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
@@ -11,16 +11,22 @@ import type { SeriesRenderContext } from './types';
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
 type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs'> & {
+  /** One resolver per layer; renderer-internal (theme default + `data` override), not a public option. */
+  colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
 };
+
+/** Caller-facing option input — the public surface plus the internal `colors`. */
+type BarOptionsInput = Partial<BarSeriesOptions> & { colors?: ValueColor[] };
 
 /** Default free-end corner radius in CSS px. `0` is byte-identical to the
  *  pre-rounding `fillRect` output (see {@link fillRoundedRect}). */
 const DEFAULT_CORNER_RADIUS = 2;
 
 const DEFAULT_OPTIONS: ResolvedBarOptions = {
-  colors: ['#26a69a', '#ef5350'],
+  // Single fallback resolver; the definition's `create` swaps in `theme.bar.color`.
+  colors: ['#26a69a'],
   barWidthRatio: 0.6,
   stacking: 'off',
   anchor: 'center',
@@ -29,7 +35,7 @@ const DEFAULT_OPTIONS: ResolvedBarOptions = {
   smoothMs: DEFAULT_BAR_SMOOTH,
 };
 
-function normalize(options: BarSeriesOptions): ResolvedBarOptions {
+function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): ResolvedBarOptions {
   return {
     ...options,
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_BAR_ENTRY),
@@ -101,12 +107,12 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
    *  {@link render}, read by {@link drawAnimatedBar}. */
   #pass: BarPass | null = null;
 
-  constructor(layerCount: number, options?: Partial<BarSeriesOptions>) {
+  constructor(layerCount: number, options?: BarOptionsInput) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
   }
 
-  updateOptions(options: Partial<BarSeriesOptions>): void {
+  updateOptions(options: BarOptionsInput): void {
     this.options = normalize({ ...this.options, ...options });
   }
 
@@ -114,16 +120,18 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     return (this.options.entryAnimation ?? 'fade-grow') !== 'none';
   }
 
-  applyTheme(theme: ChartTheme, prev: ChartTheme): void {
-    // Only swap colors that still match the previous theme's defaults — that
-    // preserves caller-supplied palettes (e.g. candlestick up/down for a P&L
-    // bar) across theme switches, while still tracking the active theme for
-    // colors the caller didn't override.
-    const prevDefaults = prev.seriesColors;
-    const current = this.options.colors;
-    const next = current.map((c, i) => (c === prevDefaults[i] ? (theme.seriesColors[i] ?? c) : c));
+  applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
+    // Reset the theme base only; per-layer `data` color overrides are held
+    // separately (setColorOverrides) and ride through a theme swap untouched. A
+    // single-layer bar defaults to the theme's `bar.color` (a sign value-fn), so
+    // bars get green-up / red-down with no option; multi-layer uses the palette.
+    const single = this.stores.length === 1;
+    const fallback = theme.seriesColors[0] ?? '#26a69a';
+    const colors: ValueColor[] = single
+      ? [theme.bar?.color ?? fallback]
+      : theme.seriesColors.slice(0, this.stores.length);
 
-    this.updateOptions({ colors: next });
+    this.updateOptions({ colors });
   }
 
   /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
@@ -238,19 +246,22 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     if (isSingleLayer) {
       if (!this.stores[0].isVisible()) return;
 
-      // Single-layer: colors[0] = positive, colors[1] = negative
-      const posColor = this.options.colors[0];
-      const negColor = this.options.colors.length > 1 ? this.options.colors[1] : posColor;
       const visibleData = this.stores[0].getVisibleData(range.from, range.to);
 
       for (const d of visibleData) {
         // Skip poisoned values (null / NaN / ±Infinity / undefined) — the
         // renderer must not draw a NaN-height bar.
         if (!Number.isFinite(d.value)) continue;
+
         const value = this.effectiveValue(ctx, 0, d.time, d.value);
         const progress = this.entranceProgress(ctx, 0, d.time);
         const isProjected = this.isProjectedTime(d.time);
         const cx = timeScale.timeToBitmapX(d.time);
+        // One resolver per layer: a value-fn (the theme default) paints by sign
+        // / threshold, a string paints uniform — replaces the old colors[0]=up /
+        // colors[1]=down pair.
+        const color = this.resolveLayerColor(0, value);
+
         if (value >= 0) {
           const topY = yScale.valueToBitmapY(value);
           const barHeight = Math.max(1, zeroY - topY);
@@ -262,7 +273,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             barHeight,
             x: cx - anchorOffset,
             barWidth: bodyWidth,
-            color: posColor,
+            color,
             roundEdge: 'top',
             isProjected,
           });
@@ -277,7 +288,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             barHeight,
             x: cx - anchorOffset,
             barWidth: bodyWidth,
-            color: negColor,
+            color,
             roundEdge: 'bottom',
             isProjected,
           });
@@ -325,7 +336,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         // it, so a square edge on a back bar reads as a rendering glitch.
         for (let i = 0; i < entries.length; i++) {
           const { layer, value } = entries[i];
-          const color = this.options.colors[layer % this.options.colors.length];
+          const color = this.resolveLayerColor(layer, value);
           const progress = this.entranceProgress(ctx, layer, time);
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
@@ -460,7 +471,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     // bars don't take an additional opacity fade because the geometry
     // collapse already reads cleanly as the layer leaving the stack.
     for (let li = 0; li < layers.length; li++) {
-      const color = this.options.colors[li % this.options.colors.length];
+      // A stacked layer is one category — resolve a value-fn once at the layer's
+      // last value rather than per segment.
+      const color = this.resolveLayerColor(li, this.stores[li].last()?.value ?? 0);
 
       for (const [time, values] of timeMap) {
         const raw = values[li];
@@ -625,9 +638,14 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
  *  so hosts that never render bars don't bundle this module. */
 export const BarSeriesDef: SeriesDefinition<BarSeriesOptions> = {
   type: 'bar',
-  create: ({ theme, layerCount }, options) =>
-    new BarRenderer(layerCount, {
-      colors: theme.seriesColors.slice(0, layerCount),
-      ...options,
-    }),
+  create: ({ theme, layerCount }, options) => {
+    // Single-layer bars default to the theme's sign value-fn (green-up /
+    // red-down); multi-layer bars to the palette.
+    const colors: ValueColor[] =
+      layerCount === 1
+        ? [theme.bar?.color ?? theme.seriesColors[0] ?? '#26a69a']
+        : theme.seriesColors.slice(0, layerCount);
+
+    return new BarRenderer(layerCount, { colors, ...options });
+  },
 };

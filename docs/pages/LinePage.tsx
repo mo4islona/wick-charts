@@ -171,7 +171,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       <LineSeries
         data={display}
         options={{
-          colors: props.theme.seriesColors.slice(0, display.length),
+          // Multi-layer lines default to the theme palette (seriesColors).
           area: { visible: props.areaVisible },
           curve: props.curve,
           strokeWidth: props.strokeWidth,

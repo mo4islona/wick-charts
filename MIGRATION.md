@@ -84,8 +84,36 @@ suffixed `1` / `2` / `3`; they now agree.
 The `data` prop is now **omnivorous** — a flat `TimePoint[]`, layered
 `TimePoint[][]`, a single `{ label, color?, data }`, or an array mixing raw
 and named layers all work and normalize internally. Unnamed layers in a
-multi-layer series auto-name `Series 1`, `Series 2`, …; a per-layer `color`
-overrides `options.colors`. The `colors` option still exists as the palette.
+multi-layer series auto-name `Series 1`, `Series 2`, …
+
+### Breaking: the `colors` option is gone — color lives in the theme + `data`
+
+`LineSeries` and `BarSeries` no longer take a `colors` option. Colors come from
+the theme by default, with a per-layer `data.color` override:
+
+```tsx
+// 0.4
+<LineSeries data={[a, b]} options={{ colors: ['#f00', '#0f0'] }} />
+<BarSeries data={[pnl]} options={{ colors: [up, down] }} /> // colors[0]=up, colors[1]=down
+
+// 0.5 — color rides in the data (or just use the theme)
+<LineSeries data={[{ color: '#f00', data: a }, { color: '#0f0', data: b }]} />
+<BarSeries data={[pnl]} /> // green-up / red-down comes from theme.bar.color
+```
+
+`data.color` (and the new **`theme.bar.color`**) is a `ValueColor` =
+`string | ((value) => string)`. The function form colors a **bar per bar** and
+a **line by its latest value**, so sign / threshold coloring needs no option:
+
+```tsx
+<BarSeries data={{ color: (v) => (v >= 0 ? up : down), data }} />
+```
+
+Theme defaults: a single line is `theme.line.color`, a single bar is the new
+`theme.bar.color` (a sign value-fn), and multi-layer series use
+`theme.seriesColors`. Because `theme.bar.color` may be a function, a theme is
+**no longer guaranteed JSON-serializable** — an accepted trade-off; the docs
+theme editor simply omits the function.
 
 ## 0.2 → 0.3
 

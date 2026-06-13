@@ -1,3 +1,10 @@
+import type { ValueColor } from '../types';
+
+/** Resolve a {@link ValueColor} to a concrete color string for a given datum value. */
+export function resolveColor(color: ValueColor, value: number): string {
+  return typeof color === 'function' ? color(value) : color;
+}
+
 /** Parse-once color cache — hex colors come from theme config and don't change per-frame. */
 const rgbaCache = new Map<string, string>();
 const lightenCache = new Map<string, string>();

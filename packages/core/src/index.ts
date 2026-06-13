@@ -155,6 +155,7 @@ export type {
   TimePoint,
   TimePointInput,
   TimeValue,
+  ValueColor,
   VisibleRange,
   VisibleRangeSpec,
   XAxisConfig,

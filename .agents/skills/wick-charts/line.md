@@ -31,24 +31,28 @@ data={[layer1, layer2, layer3]}
 
 ### Naming / coloring layers
 
-There is **no `label` option** — a layer's name (and optional color) is carried in the data via `{ label, color?, data }`. This is what the tooltip and legend show per layer; unnamed layers in a multi-layer series auto-name `Series 1`, `Series 2`, …
+There is **no `label` or `colors` option** — a layer's name and color are carried in the data via `{ label?, color?, data }`. By default colors come from the theme (`theme.line.color` for one line, `theme.seriesColors` for layers); a per-layer `color` overrides it.
+
+`color` is a `ValueColor` = `string | ((value) => string)`. The function form colors the line at its latest value (e.g. red when currently down).
 
 ```ts
-// One named line
+// One named, colored line
 data={{ label: 'Revenue', color: '#00d4aa', data: revenue }}
 
-// Several named lines — each row gets its own tooltip/legend entry
+// Several named lines — each gets its own tooltip/legend entry
 data={[
   { label: 'Revenue', color: '#4ecdc4', data: revenue },
   { label: 'Costs',   color: '#ff6b6b', data: costs },
 ]}
+
+// Color by value (threshold)
+data={{ color: (v) => (v >= 0 ? '#46b78f' : '#f0556a'), data }}
 ```
 
 ## Series options
 
 ```ts
 interface LineSeriesOptions {
-  colors: string[];                        // one color per layer — default: ['#2962FF']; per-layer data `color` overrides
   strokeWidth: number;                     // stroke width in px — default: 1
   area: { visible: boolean };              // gradient area under line — default: { visible: true }
   pulse: boolean;                          // animated dot at last point — default: true

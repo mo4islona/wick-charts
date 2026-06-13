@@ -3,7 +3,7 @@ import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
-import type { OHLCData, TimePoint } from '../types';
+import type { OHLCData, TimePoint, ValueColor } from '../types';
 
 /**
  * Vertical padding reserved at the top/bottom of the chart area.
@@ -125,6 +125,11 @@ export interface BaseSeriesRenderer {
   isLayerVisible(index: number): boolean;
   /** Per-layer colors. Single-layer renderers return `[primary]`. */
   getLayerColors(): string[];
+  /**
+   * Set per-layer color overrides carried in `data` (sparse — `undefined` keeps
+   * the theme base). Only multi-layer (line / bar) renderers implement it.
+   */
+  setColorOverrides?(overrides: (ValueColor | undefined)[]): void;
 
   // --- Theme ---------------------------------------------------------------
 

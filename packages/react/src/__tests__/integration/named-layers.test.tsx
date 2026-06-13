@@ -1,4 +1,4 @@
-import { Legend, LineSeries, Tooltip } from '@wick-charts/react';
+import { BarSeries, Legend, LineSeries, Tooltip } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -96,17 +96,24 @@ describe('named layers — per-layer label + color (0.5)', () => {
     expect(mounted.chart.getLayerLabel('m', 0)).toBeUndefined();
   });
 
-  it('a per-layer color overrides the palette; an unnamed-color layer keeps it', () => {
+  it('a per-layer color overrides the palette; an unnamed-color layer keeps the theme palette', () => {
+    mounted = mountChart(<LineSeries id="m" data={[{ color: '#123456', data: revenue }, { data: costs }]} />);
+
+    const palette = mounted.chart.getTheme().seriesColors;
+    const layers = mounted.chart.getSeriesLayers('m');
+    expect(layers?.[0].color).toBe('#123456'); // data color wins
+    expect(layers?.[1].color).toBe(palette[1]); // unnamed layer falls back to the theme palette
+  });
+
+  it('a function color paints a bar per value (sign coloring)', () => {
     mounted = mountChart(
-      <LineSeries
-        id="m"
-        data={[{ color: '#123456', data: revenue }, { data: costs }]}
-        options={{ colors: ['#aaaaaa', '#bbbbbb'] }}
+      <BarSeries
+        id="b"
+        data={{ color: (v: number) => (v >= 0 ? '#00ff00' : '#ff0000'), data: [{ time: 1, value: 5 }] }}
       />,
     );
 
-    const layers = mounted.chart.getSeriesLayers('m');
-    expect(layers?.[0].color).toBe('#123456'); // data color wins
-    expect(layers?.[1].color).toBe('#bbbbbb'); // falls back to options.colors[1]
+    // getSeriesLayers is multi-layer only; a single bar's color comes via getSeriesColor.
+    expect(mounted.chart.getSeriesColor('b')).toBe('#00ff00');
   });
 });

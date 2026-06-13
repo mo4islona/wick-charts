@@ -201,13 +201,17 @@ describe('SeriesRenderer interface', () => {
     expect((r as unknown as LineInternal).options.colors[0]).toBe('#222222');
   });
 
-  it('LineRenderer.applyTheme preserves a user-pinned color (does not match prev default)', () => {
+  it('LineRenderer.applyTheme resets the base color but a data color override survives', () => {
     const prev = { ...catppuccin.theme, line: { ...catppuccin.theme.line, color: '#111111' } };
     const next = { ...catppuccin.theme, line: { ...catppuccin.theme.line, color: '#222222' } };
 
-    const r = new LineRenderer(1, { colors: ['#abcdef'] });
+    const r = new LineRenderer(1, { colors: ['#111111'] });
+    // A per-layer `data` color override is kept separate from the theme base.
+    r.setColorOverrides(['#abcdef']);
     r.applyTheme(next, prev);
 
-    expect((r as unknown as LineInternal).options.colors[0]).toBe('#abcdef');
+    // The base resets to the new theme, but the override still wins on resolve.
+    expect((r as unknown as LineInternal).options.colors[0]).toBe('#222222');
+    expect(r.getLayerColors()[0]).toBe('#abcdef');
   });
 });

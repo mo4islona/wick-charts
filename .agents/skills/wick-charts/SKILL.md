@@ -271,7 +271,8 @@ Pass a new `data` array reference when data changes (e.g. via immutable state up
 - `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`.
 - `TimePoint` is the canonical point shape (used by `LineSeries`, `BarSeries`, `Sparkline`).
 - `LineSeries` / `BarSeries` `data` (`MultiLayerData`) is omnivorous: a flat `TimePointInput[]`, layered `TimePointInput[][]`, a named `{ label, color?, data }` layer, or an array mixing raw and named layers.
-- **There is no `label` option on `LineSeries` / `BarSeries` / `CandlestickSeries`** — a series/layer name is carried in `data` (`{ label, data }`). Multi-layer lines/bars auto-name unnamed layers `Series N`. This is the per-layer name the tooltip *and* legend show (they now agree). `colors` is still an option but a per-layer data `color` wins over it.
+- **There is no `label` or `colors` option on `LineSeries` / `BarSeries`** (candlestick keeps neither `colors` nor `label`) — a layer's name *and* color ride in `data` (`{ label?, color?, data }`). Multi-layer lines/bars auto-name unnamed layers `Series N` (the per-layer name the tooltip *and* legend show — they now agree).
+- **Color comes from the theme + per-layer `data.color` override.** `color` is a `ValueColor` = `string | ((value) => string)`. The function colors a **bar per bar** and a **line by its latest value**. Single bars default to `theme.bar.color` (green-up / red-down by sign); multi-layer uses `theme.seriesColors`.
 - `CandlestickSeries` `data` is `OHLCInput[]` or `{ label, data }` (single stream; `color` not applicable).
 - `PieSeries` `data` is flat `PieSliceData[]`.
 - `VisibleRange` is a deprecated alias for `XRange` (identical shape `{ from, to }`). Use `XRange` in new code.

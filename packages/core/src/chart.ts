@@ -47,6 +47,7 @@ import type {
   SeriesType,
   TimePoint,
   TimePointInput,
+  ValueColor,
   VisibleRangeSpec,
   XRange,
   YRange,
@@ -87,11 +88,10 @@ interface SeriesEntry {
   labels?: (string | undefined)[];
   /**
    * Per-layer color overrides carried in `data` (sparse — `undefined` where the
-   * layer specifies no color). Re-applied on top of `options.colors` after every
-   * options update so a data color can't be clobbered by the wrapper's options
-   * effect, whichever runs last.
+   * layer specifies no color). Mirrored to the renderer, which keeps them
+   * separate from the theme base; held here only for change detection.
    */
-  colorOverrides?: (string | undefined)[];
+  colorOverrides?: (ValueColor | undefined)[];
   renderer: SeriesRenderer;
   visible: boolean;
 }
@@ -104,6 +104,17 @@ function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefin
   if (!a || !b || a.length !== b.length) return false;
 
   return a.every((label, i) => label === b[i]);
+}
+
+/** Shallow equality for per-layer color-override arrays (string compare; functions by reference). */
+function colorOverridesEqual(
+  a: (ValueColor | undefined)[] | undefined,
+  b: (ValueColor | undefined)[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+
+  return a.every((color, i) => color === b[i]);
 }
 
 /**
@@ -595,10 +606,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // animations the chart asked to hold off.
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
     entry.renderer.updateOptions({ ...options, ...forceOff });
-    // Per-layer `data` colors win over `options.colors` — re-apply them on top of
-    // whatever the options update just set, so the wrapper's options effect can't
-    // clobber a data-carried color regardless of effect ordering.
-    this.#applyColorOverrides(entry);
     // Keep the stored single-name label in sync with options (pie / candlestick
     // back-compat — line/bar set per-layer names through `setSeriesLabels`).
     if ('label' in options && typeof options.label === 'string') {
@@ -1101,31 +1108,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /**
    * Set the per-layer color overrides carried in `data` (sparse — `undefined`
-   * leaves that layer on the palette / `options.colors`). Stored on the entry
-   * and re-applied after every options update so data colors always win. Called
-   * by the framework wrappers; no-ops when unchanged.
+   * leaves that layer on the theme base). A {@link ValueColor} per layer: a
+   * string (uniform) or a function of value (per bar / per segment). Handed to
+   * the renderer, which keeps them separate from the theme base so a theme swap
+   * preserves them. Called by the framework wrappers; no-ops when unchanged.
    */
-  setLayerColors(seriesId: string, overrides: (string | undefined)[]): void {
+  setLayerColors(seriesId: string, overrides: (ValueColor | undefined)[]): void {
     const entry = this.#series.find((s) => s.id === seriesId);
-    if (!entry || labelsEqual(entry.colorOverrides, overrides)) return;
+    if (!entry || colorOverridesEqual(entry.colorOverrides, overrides)) return;
 
     entry.colorOverrides = overrides;
-    this.#applyColorOverrides(entry);
+    entry.renderer.setColorOverrides?.(overrides);
     this.#mainScheduler.markDirty();
     this.#bumpOverlayVersion();
-  }
-
-  /** Re-apply `entry.colorOverrides` on top of the renderer's current colors. */
-  #applyColorOverrides(entry: SeriesEntry): void {
-    const overrides = entry.colorOverrides;
-    if (!overrides?.some((c) => c !== undefined)) return;
-
-    const current = entry.renderer.getLayerColors();
-    if (current.length === 0) return;
-
-    const count = entry.renderer.getLayerCount();
-    const merged = Array.from({ length: count }, (_, i) => overrides[i] ?? current[i % current.length]);
-    entry.renderer.updateOptions({ colors: merged });
   }
 
   /** Get per-layer colors for a series. Returns null for single-layer non-bar/line series. */
@@ -1155,6 +1150,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const prev = this.#theme;
     this.#theme = theme;
     for (const entry of this.#series) {
+      // The renderer keeps `data` color overrides separate from the theme base,
+      // so applyTheme rewrites only the base and the overrides ride through.
       entry.renderer.applyTheme(theme, prev);
     }
     this.#mainScheduler.markDirty();

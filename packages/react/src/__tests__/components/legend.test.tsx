@@ -64,7 +64,7 @@ describe('Legend', () => {
     ];
     mounted = mountChart(
       <>
-        <LineSeries data={data} options={{ colors: ['#ff00aa'] }} />
+        <LineSeries data={[{ color: '#ff00aa', data: data[0] }]} />
         <Legend />
       </>,
     );

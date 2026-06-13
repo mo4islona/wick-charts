@@ -31,20 +31,25 @@ data={[layer1, layer2, layer3]}
 
 ### Naming / coloring layers
 
-There is **no `label` option** — a layer's name (and optional color) rides in the data via `{ label, color?, data }`, which is what the tooltip and legend show per layer. Unnamed layers in a multi-layer series auto-name `Series 1`, `Series 2`, …
+There is **no `label` or `colors` option** — a layer's name and color ride in the data via `{ label?, color?, data }`. By default a single bar series is colored by the theme's **`bar.color`** (green-up / red-down by sign); multi-layer bars use the `theme.seriesColors` palette. A per-layer `color` overrides it.
+
+`color` is a `ValueColor` = `string | ((value) => string)`. For bars the **function is evaluated per bar**, so sign / threshold coloring needs no option.
 
 ```ts
+// Named, colored layers
 data={[
   { label: 'Buys', color: '#26a69a', data: buys },
   { label: 'Sells', color: '#ef5350', data: sells },
 ]}
+
+// Color each bar by value (this is what the theme does by default)
+data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data }}
 ```
 
 ## Series options
 
 ```ts
 interface BarSeriesOptions {
-  colors: string[];                        // color palette — default: ['#26a69a', '#ef5350']; per-layer data `color` overrides
   barWidthRatio: number;                   // 0–1, bar width relative to interval — default: 0.6
   stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
   entryAnimation?: 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'; // default: 'fade-grow'
@@ -59,22 +64,28 @@ All options are optional — pass `Partial<BarSeriesOptions>`.
 
 ## Options explained
 
-### `colors`
+### Coloring (no `colors` option)
 
-Color behavior depends on the number of layers:
+Colors come from the theme, overridable per layer in the `data`:
 
-**Single layer:** `colors[0]` = positive bars, `colors[1]` = negative bars.
+**Single layer:** defaults to `theme.bar.color` — a value-fn that paints positive bars the up color and negatives the down color. Override with a per-layer `color`:
 
 ```ts
-// Green for positive, red for negative
-options={{ colors: ['#26a69a', '#ef5350'] }}
+// Custom sign coloring via a value-fn
+data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data }}
+
+// Or a flat color (uniform bars)
+data={{ color: '#26a69a', data }}
 ```
 
-**Multi-layer:** each layer gets its own color from the palette.
+**Multi-layer:** each layer takes its palette color (`theme.seriesColors`); override individually:
 
 ```ts
-// Three layers, three colors
-options={{ colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'] }}
+data={[
+  { color: '#ff6b6b', data: a },
+  { color: '#4ecdc4', data: b },
+  { color: '#45b7d1', data: c },
+]}
 ```
 
 ### `barWidthRatio`

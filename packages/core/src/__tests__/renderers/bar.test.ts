@@ -7,7 +7,7 @@ import { buildRenderContext } from '../helpers/render-context';
 // Bars round their free end by default; these geometry tests predate that and
 // assert on fillRect, so pin them to cornerRadius:0 (the byte-identical square
 // path). Rounding has dedicated coverage in bar-rounded.test.ts.
-function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+function makeBar(layers: number, opts: ConstructorParameters<typeof BarRenderer>[1] = {}): BarRenderer {
   return new BarRenderer(layers, { cornerRadius: 0, ...opts });
 }
 
@@ -23,8 +23,12 @@ describe('BarRenderer.render', () => {
     expect(spy.calls).toHaveLength(0);
   });
 
+  // Sign coloring now rides on a single value-fn resolver (the theme default is
+  // exactly this shape) — positive → up color, negative → down color.
+  const signColor = (value: number) => (value >= 0 ? '#00aa00' : '#aa0000');
+
   it('single-layer positive values: one fillRect per bar with the positive color', () => {
-    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+    const r = makeBar(1, { colors: [signColor], stacking: 'off' });
     r.setData(ts(4, (i) => i + 1));
     const { ctx, spy } = buildRenderContext({ yRange: { min: 0, max: 10 } });
     r.render(ctx);
@@ -35,8 +39,8 @@ describe('BarRenderer.render', () => {
     }
   });
 
-  it('single-layer with negative values uses colors[1], draws a zero line, and heights go downward', () => {
-    const r = makeBar(1, { colors: ['#00aa00', '#aa0000'], stacking: 'off' });
+  it('single-layer with negative values colors by sign via the value-fn, draws a zero line, and heights go downward', () => {
+    const r = makeBar(1, { colors: [signColor], stacking: 'off' });
     r.setData([
       { time: 10, value: 3 },
       { time: 30, value: -2 },

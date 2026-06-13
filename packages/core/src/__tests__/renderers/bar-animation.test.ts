@@ -7,7 +7,7 @@ import { buildRenderContext } from '../helpers/render-context';
 // Bars round their free end by default; these animation tests assert on fillRect,
 // so pin them to cornerRadius:0 (the byte-identical square path). Rounding has
 // dedicated coverage in bar-rounded.test.ts.
-function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+function makeBar(layers: number, opts: ConstructorParameters<typeof BarRenderer>[1] = {}): BarRenderer {
   return new BarRenderer(layers, { cornerRadius: 0, ...opts });
 }
 

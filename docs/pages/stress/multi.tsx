@@ -48,7 +48,7 @@ function CandleWithBarVolume({ theme, perfHud }: PanelCtx) {
   return (
     <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="bar series layered under">Candle + bar volume overlay</Title>
-      <BarSeries data={[volume]} options={{ colors: [upBase], barWidthRatio: 0.4 }} />
+      <BarSeries data={{ color: upBase, data: volume }} options={{ barWidthRatio: 0.4 }} />
       <CandlestickSeries data={ohlc} />
       <YAxis />
       <TimeAxis />
@@ -78,13 +78,11 @@ function BollingerBands({ theme, perfHud }: PanelCtx) {
     <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
       <Title sub="candle + upper/lower bands">OHLC + Bollinger</Title>
       <LineSeries
-        data={[upper, lower]}
-        options={{
-          colors: [theme.bands.upper, theme.bands.lower],
-          area: { visible: false },
-          strokeWidth: 1,
-          pulse: false,
-        }}
+        data={[
+          { color: theme.bands.upper, data: upper },
+          { color: theme.bands.lower, data: lower },
+        ]}
+        options={{ area: { visible: false }, strokeWidth: 1, pulse: false }}
       />
       <CandlestickSeries data={ohlc} />
       <Crosshair />

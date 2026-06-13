@@ -7,7 +7,7 @@ import { buildRenderContext } from '../helpers/render-context';
 
 // Bars round their free end by default; these fade/geometry tests assert on
 // fillRect, so pin them to cornerRadius:0 (the byte-identical square path).
-function makeBar(layers: number, opts: Partial<BarSeriesOptions> = {}): BarRenderer {
+function makeBar(layers: number, opts: ConstructorParameters<typeof BarRenderer>[1] = {}): BarRenderer {
   return new BarRenderer(layers, { cornerRadius: 0, ...opts });
 }
 
