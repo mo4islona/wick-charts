@@ -274,6 +274,33 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
+   * Trailing data points whose entrance is still unsettled, oldest first.
+   * Walks back from the store's last point and stops at the first settled
+   * point — that point is the stable anchor a chained grow-lerp hangs off.
+   *
+   * A feed that appends faster than `entryMs` keeps several entrances in
+   * flight at once; animating only the newest (and snapping the rest to
+   * their raw spots) makes the head region jump a segment-fraction forward
+   * on every append. Renderers lerp each chain link from the previous
+   * link's *rendered* position instead, so geometry stays continuous.
+   */
+  protected unsettledTail(ctx: SeriesRenderContext, layerIndex: number): Array<{ time: number; progress: number }> {
+    const all = this.stores[layerIndex]?.getAll();
+    if (!all || all.length < 2) return [];
+
+    const tail: Array<{ time: number; progress: number }> = [];
+    // Index 0 has no predecessor to grow from — never part of a chain.
+    for (let i = all.length - 1; i >= 1; i--) {
+      const progress = this.entranceProgress(ctx, layerIndex, all[i].time);
+      if (progress >= 1) break;
+
+      tail.unshift({ time: all[i].time, progress });
+    }
+
+    return tail;
+  }
+
+  /**
    * Substitute the renderer-smoothed last value for `rawValue` when the
    * query `time` matches the layer's current last point, or the still-settling
    * pinned chase (see {@link appendPoint}) when it matches the penultimate.

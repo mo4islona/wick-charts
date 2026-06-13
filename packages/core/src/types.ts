@@ -31,6 +31,42 @@ export interface TimePoint {
 /** {@link TimePoint} that also accepts `Date` for the time field. */
 export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
 
+/**
+ * A single named (and optionally colored) layer. Carries the layer's display
+ * name and color *alongside* its data, so `Tooltip` / `Legend` show per-layer
+ * names without a separate `label` option. `color` applies to line/bar layers;
+ * a candlestick stream ignores it (candle colors come from `up` / `down`).
+ */
+export interface SeriesLayer<T> {
+  /** Display name shown in tooltip / legend. A multi-layer series defaults each unnamed layer to `Series N`. */
+  label?: string;
+  /** Line/bar stroke + fill color for this layer; overrides the palette. Ignored by candlestick. */
+  color?: string;
+  /** The layer's points. */
+  data: T[];
+}
+
+/**
+ * Omnivorous `data` shape for line and bar series. Accepts, interchangeably:
+ * - `TimePointInput[]` — one auto-named layer (the common single-series case);
+ * - `TimePointInput[][]` — N auto-named layers;
+ * - `SeriesLayer<TimePointInput>` — one named/colored layer;
+ * - an array mixing raw `TimePointInput[]` layers and named `SeriesLayer`s.
+ *
+ * Everything normalizes to `SeriesLayer[]` internally (see `toLayers`). Time
+ * accepts epoch milliseconds or a `Date` on every point.
+ */
+export type MultiLayerData =
+  | TimePointInput[]
+  | SeriesLayer<TimePointInput>
+  | Array<TimePointInput[] | SeriesLayer<TimePointInput>>;
+
+/**
+ * `data` shape for a candlestick series — a flat `OHLCInput[]` stream, or a
+ * `SeriesLayer<OHLCInput>` that names it for the tooltip / info bar / legend.
+ */
+export type CandlestickData = OHLCInput[] | SeriesLayer<OHLCInput>;
+
 /** Time range (timestamps in milliseconds) of the currently visible portion of the chart. */
 export interface XRange {
   from: number;
@@ -139,8 +175,6 @@ export interface CandlestickDirectionColors {
 
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
-  /** Display label shown in the tooltip. */
-  label?: string;
   /** Colours for bullish candles (close ≥ open). */
   up: CandlestickDirectionColors;
   /** Colours for bearish candles (close < open). */
@@ -225,9 +259,7 @@ export type LineEntryAnimation = 'none' | 'grow' | 'fade';
 
 /** Visual options for a line series. */
 export interface LineSeriesOptions {
-  /** Display label shown in the tooltip (e.g. "BTC", "Revenue"). */
-  label?: string;
-  /** One color per layer. */
+  /** One color per layer. Per-layer `color` in the `data` ({@link SeriesLayer}) overrides this. */
   colors: string[];
   /** Stroke width in CSS pixels. Default: 1. `0` hides the line stroke. */
   strokeWidth: number;
@@ -346,9 +378,7 @@ export type BarEntryAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
-  /** Display label shown in the tooltip (e.g. "Volume"). */
-  label?: string;
-  /** One color per layer. */
+  /** One color per layer. Per-layer `color` in the `data` ({@link SeriesLayer}) overrides this. */
   colors: string[];
   /** Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot. Default: 0.7. */
   barWidthRatio: number;
@@ -510,6 +540,27 @@ export interface PieLabelsOptions {
   labelGap?: number;
 }
 
+/**
+ * Grouping of the smallest slices into a single synthetic "Other" slice.
+ * Enabled by default: when the data holds more than {@link maxSlices} slices,
+ * the largest `maxSlices - 1` keep their original order and the rest are
+ * summed into one "Other" slice appended at the end. The grouped slice
+ * behaves like a regular slice in labels / legend / tooltip / hit-testing.
+ */
+export interface PieOtherOptions {
+  /** Max number of rendered slices including "Other". Default: 8. */
+  maxSlices?: number;
+  /** Label of the aggregated slice. Default: `'Other'`. */
+  label?: string;
+  /**
+   * Color override for the aggregated slice. Default: `theme.pie.otherColor`
+   * (falls back to `axis.textColor` for themes without a `pie` block) — a
+   * muted tone so the aggregate doesn't carry the same visual weight as a
+   * real category.
+   */
+  color?: string;
+}
+
 /** Visual options for a pie/donut series. `innerRadiusRatio > 0` makes it a donut. */
 export interface PieSeriesOptions {
   /** Palette fallback (defaults to theme.seriesColors). */
@@ -522,6 +573,13 @@ export interface PieSeriesOptions {
   label?: string;
   /** Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}. */
   sliceLabels?: PieLabelsOptions;
+  /**
+   * Group the smallest slices into a single "Other" slice when the dataset
+   * exceeds `maxSlices` (default: 8 rendered slices total). On by default so
+   * dense datasets stay readable — pass `false` to always render every slice.
+   * See {@link PieOtherOptions}.
+   */
+  other?: boolean | PieOtherOptions;
   /**
    * When `true`, enables pie motion effects: the outside-label entrance
    * draw-in on mount / data swap, and the hover-explode slice offset.

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChartInstance } from '../chart';
-import { EMPTY_SYNC_STATE, type SeriesSyncState, syncSeriesLayer } from '../data/sync';
+import { EMPTY_SYNC_STATE, type SeriesSyncState, syncSeriesLayer, toLayers } from '../data/sync';
 
 /** Minimal mock — only the methods syncSeriesLayer calls. */
 function mockChart() {
@@ -15,6 +15,41 @@ function mockChart() {
 }
 
 const point = (time: number) => ({ time, value: time });
+
+describe('toLayers', () => {
+  it('wraps a flat single-layer array into one unnamed layer', () => {
+    const flat = [point(1), point(2), point(3)];
+
+    const layers = toLayers(flat);
+
+    expect(layers).toEqual([{ data: flat }]);
+    expect(layers.length).toBe(1);
+  });
+
+  it('wraps each raw layer of a 2D array', () => {
+    const a = [point(1), point(2)];
+    const b = [point(3)];
+
+    expect(toLayers([a, b])).toEqual([{ data: a }, { data: b }]);
+  });
+
+  it('passes a single named layer through as one layer', () => {
+    const named = { label: 'Revenue', color: '#f00', data: [point(1), point(2)] };
+
+    expect(toLayers(named)).toEqual([named]);
+  });
+
+  it('keeps named layers and wraps raw layers in a mixed array', () => {
+    const named = { label: 'Costs', data: [point(3)] };
+    const raw = [point(1), point(2)];
+
+    expect(toLayers([raw, named])).toEqual([{ data: raw }, named]);
+  });
+
+  it('treats an empty array as a single empty layer', () => {
+    expect(toLayers([])).toEqual([{ data: [] }]);
+  });
+});
 
 describe('syncSeriesLayer', () => {
   it('full replace on first load (prev.len === 0)', () => {

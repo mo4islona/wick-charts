@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { BarSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
-import { BarSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import type { BarSeriesOptions, MultiLayerData, SeriesSyncState } from '@wick-charts/core';
+import { BarSeriesDef, EMPTY_SYNC_STATE, syncLayers, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
 const props = defineProps<{
-  data: TimePoint[][];
+  /** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
+  data: MultiLayerData;
   options?: Partial<BarSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
@@ -15,25 +16,23 @@ const props = defineProps<{
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
 // Per-layer sync state — drives the shared append/keepLast/update/replace
-// reconciliation so streaming eases instead of snapping Y every tick.
+// reconciliation (plus per-layer labels/colors) so streaming eases instead of
+// snapping Y every tick.
 let prevSync: SeriesSyncState[] = [];
 
-function applyData(id: string, data: TimePoint[][]): void {
-  chart.batch(() => {
-    for (let i = 0; i < data.length; i++) {
-      prevSync[i] = syncSeriesLayer({ chart, id, data: data[i], prev: prevSync[i] ?? EMPTY_SYNC_STATE, layerIndex: i });
-    }
-  });
+function applyData(id: string, data: MultiLayerData): void {
+  prevSync = syncLayers({ chart, id, data, prev: prevSync });
 }
 
 onMounted(() => {
+  const layerCount = toLayers(props.data).length;
   const id = chart.addSeries(BarSeriesDef, {
     ...props.options,
-    layers: props.data.length,
+    layers: layerCount,
     id: props.id,
   });
   seriesId.value = id;
-  prevSync = props.data.map(() => EMPTY_SYNC_STATE);
+  prevSync = new Array(layerCount).fill(EMPTY_SYNC_STATE);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   applyData(id, props.data);
 });

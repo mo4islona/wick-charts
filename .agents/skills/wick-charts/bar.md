@@ -9,24 +9,42 @@ interface TimePoint {
   time: number;   // timestamp in milliseconds (Date.now() style)
   value: number;  // can be negative
 }
+
+// Also accepts Date objects for time:
+type TimePointInput = Omit<TimePoint, 'time'> & { time: number | Date };
 ```
 
-**Data prop is always `TimePoint[][]`** — an array of layers.
+**The `data` prop accepts either a flat single layer or an array of layers** (`TimePointInput[] | TimePointInput[][]`). A flat array is normalized to `[data]` internally.
 
 ```ts
-// Single layer — wrap in array
+// Single layer — flat array (no wrapping needed)
+data={myData}
+
+// Single layer — explicit (equivalent)
 data={[myData]}
 
 // Multi-layer
 data={[layer1, layer2, layer3]}
 ```
 
+`time` accepts epoch milliseconds (`Date.now()` style) or a `Date` object on every entry.
+
+### Naming / coloring layers
+
+There is **no `label` option** — a layer's name (and optional color) rides in the data via `{ label, color?, data }`, which is what the tooltip and legend show per layer. Unnamed layers in a multi-layer series auto-name `Series 1`, `Series 2`, …
+
+```ts
+data={[
+  { label: 'Buys', color: '#26a69a', data: buys },
+  { label: 'Sells', color: '#ef5350', data: sells },
+]}
+```
+
 ## Series options
 
 ```ts
 interface BarSeriesOptions {
-  label?: string;                          // tooltip display name
-  colors: string[];                        // color palette — default: ['#26a69a', '#ef5350']
+  colors: string[];                        // color palette — default: ['#26a69a', '#ef5350']; per-layer data `color` overrides
   barWidthRatio: number;                   // 0–1, bar width relative to interval — default: 0.6
   stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
   entryAnimation?: 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'; // default: 'fade-grow'
@@ -124,7 +142,7 @@ import { ChartContainer, BarSeries, Tooltip, Legend, YAxis, TimeAxis } from '@wi
 
 ```ts
 interface BarSeriesProps {
-  data: TimePoint[][];
+  data: MultiLayerData;                      // TimePointInput[] | TimePointInput[][] — flat or layered
   options?: Partial<BarSeriesOptions>;
   /** Stable series ID — reuse across overlays that target this series. */
   id?: string;
@@ -182,7 +200,7 @@ const props = defineProps<{ data: TimePoint[] }>();
 
 ```ts
 // Props
-data: TimePoint[][]
+data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
 options?: Partial<BarSeriesOptions>
 /** Stable series ID — reuse across overlays that target this series. */
 id?: string
@@ -232,7 +250,7 @@ id?: string
 ### Props
 
 ```ts
-data: TimePoint[][]
+data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
 options?: Partial<BarSeriesOptions>
 /** Stable series ID — reuse across overlays that target this series. */
 id?: string

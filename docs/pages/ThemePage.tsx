@@ -50,13 +50,21 @@ const LINE_POOL = SERIES_WAVE_OPTS.map((opts) => generateWaveData(200, { interva
 
 const barData = generateBarData(40, DEMO_INTERVAL);
 
+// 10 categories — past the default `other.maxSlices` of 8, so the pie groups
+// the tail into a synthetic "Other" slice. That slice is painted with
+// `theme.pie.otherColor`, which makes the token visibly editable in the
+// theme editor.
 const pieData: PieSliceData[] = [
   { label: 'BTC', value: 42 },
   { label: 'ETH', value: 28 },
   { label: 'SOL', value: 12 },
   { label: 'AVAX', value: 8 },
   { label: 'DOT', value: 6 },
-  { label: 'Other', value: 4 },
+  { label: 'MATIC', value: 4 },
+  { label: 'LINK', value: 3 },
+  { label: 'ATOM', value: 2 },
+  { label: 'UNI', value: 1.5 },
+  { label: 'XRP', value: 1 },
 ];
 
 // ── Types ─────────────────────────────────────────────────────

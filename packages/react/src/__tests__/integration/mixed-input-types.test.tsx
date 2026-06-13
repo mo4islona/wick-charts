@@ -20,7 +20,9 @@ describe('mixed Date/number input normalization (regression #4)', () => {
 
   it('LineSeries with Date only at a middle index renders with finite coords', () => {
     const base = 1_700_000_000_000;
-    const data: Array<{ time: number | Date; value: number }>[] = [
+    // `MultiLayerData` accepts `Date` for time (and a mixed Date/number array),
+    // so no cast is needed on the prop — passing this directly also type-checks.
+    const data = [
       [
         { time: base, value: 10 },
         { time: new Date(base + 1_000), value: 20 }, // Date in the middle
@@ -28,8 +30,7 @@ describe('mixed Date/number input normalization (regression #4)', () => {
         { time: base + 3_000, value: 40 },
       ],
     ];
-    // Cast through `as never` so TS accepts the union in the array-of-arrays position.
-    mounted = mountChart(<LineSeries data={data as never} />);
+    mounted = mountChart(<LineSeries data={data} />);
 
     const calls = mounted.mainSpy.calls.filter((c) => c.method === 'moveTo' || c.method === 'lineTo');
     expect(calls.length).toBeGreaterThan(0);

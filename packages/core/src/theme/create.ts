@@ -30,6 +30,7 @@ export interface ThemeConfig {
   };
   line?: Partial<ChartTheme['line']>;
   seriesColors?: string[];
+  pie?: Partial<NonNullable<ChartTheme['pie']>>;
   bands?: Partial<ChartTheme['bands']>;
   crosshair?: Partial<ChartTheme['crosshair']>;
   axis?: Partial<ChartTheme['axis']>;
@@ -159,6 +160,11 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       areaBottomColor: config.line?.areaBottomColor ?? hexToRgba(lineColor, 0.01),
     },
     seriesColors: config.seriesColors ?? [lineColor, defUp, defDown],
+    pie: {
+      // The dim axis tone doubles as the "Other" slice fill — muted enough to
+      // read as an aggregate, and it already adapts to theme polarity.
+      otherColor: config.pie?.otherColor ?? dim,
+    },
     bands: {
       upper: config.bands?.upper ?? lineColor,
       lower: config.bands?.lower ?? downBase,

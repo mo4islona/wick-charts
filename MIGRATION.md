@@ -53,6 +53,40 @@ instead of `perf={true}`. Passing a bare `PerfMonitor` still works and still
 leaves its lifecycle to the caller; `perfHud()`-created monitors are owned and
 destroyed by the chart. The removed forms throw with this guidance.
 
+### Breaking: the series `label` option is gone — names live in `data`
+
+`LineSeries`, `BarSeries`, and `CandlestickSeries` no longer take a `label`
+option. A series/layer name (and, for line/bar, an optional `color`) now rides
+in the `data` prop. This lets a multi-layer chart name **each layer** — the
+tooltip *and* legend show that per-layer name. Previously the single series
+`label` was repeated across every layer in the tooltip while the legend
+suffixed `1` / `2` / `3`; they now agree.
+
+```tsx
+// 0.4 — one label for the whole series
+<LineSeries data={[revenue]} options={{ label: 'Revenue', colors: ['#f00'] }} />
+
+// 0.5 — name (and optionally color) the layer in the data
+<LineSeries data={{ label: 'Revenue', color: '#f00', data: revenue }} />
+
+// multi-layer: each layer is named independently
+<LineSeries
+  data={[
+    { label: 'Revenue', data: revenue },
+    { label: 'Costs', data: costs },
+  ]}
+/>
+
+// candlestick names its stream the same way
+<CandlestickSeries data={{ label: 'BTC', data: candles }} />
+```
+
+The `data` prop is now **omnivorous** — a flat `TimePoint[]`, layered
+`TimePoint[][]`, a single `{ label, color?, data }`, or an array mixing raw
+and named layers all work and normalize internally. Unnamed layers in a
+multi-layer series auto-name `Series 1`, `Series 2`, …; a per-layer `color`
+overrides `options.colors`. The `colors` option still exists as the palette.
+
 ## 0.2 → 0.3
 
 Version 0.3 restructures `ChartTheme` so every key lives where it semantically belongs. Confusing flat keys like `typography.axisFontSize` (shared across axes, legend, tooltips) and `candlestick.upColor` / `wickUpColor` (direction and part mixed at one level) are gone. Font sizes move into their owning sections; candlestick nests by direction first. Series renderer options (`CandlestickSeriesOptions`) follow the same restructure so instance overrides stay consistent with the theme.

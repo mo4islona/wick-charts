@@ -26,12 +26,12 @@ function CandleWithMAs({ theme, perfHud }: PanelCtx) {
       <Title sub="SMA20 + EMA50">Candle + moving averages</Title>
       <CandlestickSeries data={ohlc} />
       <LineSeries
-        data={[sma20]}
-        options={{ colors: ['#ffd700'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
+        data={{ label: 'SMA 20', color: '#ffd700', data: sma20 }}
+        options={{ strokeWidth: 1, area: { visible: false }, pulse: false }}
       />
       <LineSeries
-        data={[ema50]}
-        options={{ colors: ['#ff6b6b'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'EMA 50' }}
+        data={{ label: 'EMA 50', color: '#ff6b6b', data: ema50 }}
+        options={{ strokeWidth: 1, area: { visible: false }, pulse: false }}
       />
       <Tooltip />
       <Crosshair />

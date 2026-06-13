@@ -43,6 +43,8 @@ interface PieSettings {
   labelDistance: number;
   labelRailWidth: number;
   minSliceAngle: number;
+  groupOther: boolean;
+  otherMaxSlices: number;
   cardinality: number;
   legendPosition: PieLegendPosition;
   legendMode: PieLegendMode;
@@ -110,6 +112,8 @@ function PieChart({
   labelDistance,
   labelRailWidth,
   minSliceAngle,
+  groupOther,
+  otherMaxSlices,
   legendPosition,
   legendMode,
   perfHudVisible,
@@ -153,6 +157,7 @@ function PieChart({
             railWidth: labelRailWidth,
             minSliceAngle,
           },
+          other: groupOther ? { maxSlices: otherMaxSlices } : false,
         }}
       />
       {tooltipVisible && <PieTooltip seriesId={sid} />}
@@ -402,6 +407,29 @@ const LABELS_SECTION: SectionSpec = {
   ] as RowSpec[],
 };
 
+const GROUPING_SECTION: SectionSpec = {
+  id: 'grouping-pie',
+  title: 'Grouping',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'groupOther',
+      label: 'Group into "Other"',
+      hint: 'Collapse the smallest slices into a single "Other" slice (on by default).',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'otherMaxSlices',
+      label: 'Max slices',
+      hint: 'Total rendered slices including "Other". Crank the Stress slices up to see it kick in.',
+      visible: (s) => s.groupOther === true,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={3} max={15} step={1} onChange={onChange as (v: number) => void} />
+      ),
+    },
+  ] as RowSpec[],
+};
+
 const STRESS_SECTION: SectionSpec = {
   id: 'stress-pie',
   title: 'Stress',
@@ -481,7 +509,9 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         labelDistance: 14,
         labelRailWidth: 16,
         minSliceAngle: 2.5,
-        cardinality: 5,
+        groupOther: true,
+        otherMaxSlices: 8,
+        cardinality: 12,
         legendPosition: 'bottom',
         legendMode: 'both',
       }}
@@ -492,7 +522,15 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       // per-kind entry/update sliders are no-op in core and the live chart
       // doesn't pass `animations`, so suppress the built-in Animations section.
       animationKinds={[]}
-      sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, SHADOW_SECTION, LABELS_SECTION, STRESS_SECTION, LEGEND_SECTION]}
+      sections={[
+        DISPLAY_EXTRA,
+        GEOMETRY_SECTION,
+        SHADOW_SECTION,
+        LABELS_SECTION,
+        GROUPING_SECTION,
+        STRESS_SECTION,
+        LEGEND_SECTION,
+      ]}
       charts={(props) => (
         <>
           <Cell theme={props.theme}>
@@ -555,6 +593,13 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
                     railWidth: s.labelRailWidth,
                     minSliceAngle: s.minSliceAngle,
                   },
+                  // Grouping is on with maxSlices: 8 by default — only emit
+                  // `other` when the panel deviates from that.
+                  ...(s.groupOther
+                    ? s.otherMaxSlices !== 8
+                      ? { other: { maxSlices: s.otherMaxSlices } }
+                      : {}
+                    : { other: false }),
                 },
               },
             },

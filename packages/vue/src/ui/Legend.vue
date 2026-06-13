@@ -129,7 +129,6 @@ function buildLegendItems(c: ChartInstance): LegendItem[] {
   for (const seriesId of c.getSeriesIds()) {
     const layers = c.getSeriesLayers(seriesId);
     if (layers) {
-      const baseLabel = c.getSeriesLabel(seriesId);
       for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
         const id = `${seriesId}_layer${layerIndex}`;
         const visible = c.isSeriesVisible(seriesId) && c.isLayerVisible(seriesId, layerIndex);
@@ -138,7 +137,7 @@ function buildLegendItems(c: ChartInstance): LegendItem[] {
             id,
             seriesId,
             layerIndex,
-            label: baseLabel ? `${baseLabel} ${layerIndex + 1}` : `Series ${layerIndex + 1}`,
+            label: c.getLayerLabel(seriesId, layerIndex) ?? `Series ${layerIndex + 1}`,
             color: layers[layerIndex].color,
             isDisabled: !visible,
           }),

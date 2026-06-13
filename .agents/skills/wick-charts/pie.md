@@ -32,6 +32,13 @@ interface PieSeriesOptions {
   label?: string;            // tooltip label
   sliceLabels?: PieLabelsOptions; // per-slice on-pie labels — see below
   animate?: boolean;         // label draw-in + hover explode — default: false
+  other?: boolean | PieOtherOptions; // small-slice grouping — default: true (on)
+}
+
+interface PieOtherOptions {
+  maxSlices?: number;       // total rendered slices including "Other" — default: 8
+  label?: string;           // aggregated slice label — default: 'Other'
+  color?: string;           // aggregated slice fill — default: theme.pie.otherColor
 }
 
 interface PieLabelsOptions {
@@ -73,6 +80,23 @@ Gap between adjacent slices in degrees. Default `1.15°` (≈ 0.02 rad) gives a 
 ### `animate`
 
 Motion toggle. When `true`, labels draw in on mount / data swap and the hovered slice explodes outward. Default `false` — both effects are skipped and the chart paints in its final state on the first frame. Enable for presentations; keep off for dense dashboards.
+
+### `other` — small-slice grouping
+
+**On by default.** When the data has more than `maxSlices` entries (default 8), the largest `maxSlices - 1` slices keep their original order and the rest are summed into a single synthetic "Other" slice appended at the end. The aggregate behaves like a regular slice everywhere — labels, legend, tooltip, hover, hit-testing — and is painted with the theme's muted `pie.otherColor` so it doesn't compete with real categories.
+
+```ts
+// Default: top 7 + "Other" when data exceeds 8 slices
+<PieSeries data={data} />
+
+// Show every slice, no grouping
+options={{ other: false }}
+
+// Tighter grouping with a custom label
+options={{ other: { maxSlices: 5, label: 'Rest' } }}
+```
+
+Ranking uses sanitized values — negative / non-finite entries never outrank a real slice.
 
 ### `sliceLabels`
 

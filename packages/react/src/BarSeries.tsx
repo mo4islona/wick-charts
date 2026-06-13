@@ -4,16 +4,22 @@ import {
   BarSeriesDef,
   type BarSeriesOptions,
   EMPTY_SYNC_STATE,
+  type MultiLayerData,
   type SeriesSyncState,
-  type TimePoint,
-  syncSeriesLayer,
+  syncLayers,
+  toLayers,
 } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
 export interface BarSeriesProps {
-  /** Array of datasets — one per layer. A single-layer bar chart uses `[data]`. */
-  data: TimePoint[][];
+  /**
+   * Series data — omnivorous. A single-layer bar chart passes a flat
+   * `TimePoint[]`; a multi-layer one passes `TimePoint[][]`. To name/color a
+   * layer, pass `{ label, color?, data }` (or an array of them). Time accepts
+   * ms or `Date`.
+   */
+  data: MultiLayerData;
   /** Visual options override — colours per layer, bar-width ratio, stacking, entrance animation, smoothing. */
   options?: Partial<BarSeriesOptions>;
   /** Stable series ID — same value across remounts. */
@@ -24,33 +30,26 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
+  // A flat single-layer `data` has a point-count `length`; normalize first so
+  // the series is recreated on layer-count change only, not on every append.
+  const layerCount = toLayers(data).length;
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(BarSeriesDef, { ...options, layers: data.length, id: idProp });
+    const id = chart.addSeries(BarSeriesDef, { ...options, layers: layerCount, id: idProp });
     seriesRef.current = id;
-    prevSyncRef.current = new Array(data.length).fill(EMPTY_SYNC_STATE);
+    prevSyncRef.current = new Array(layerCount).fill(EMPTY_SYNC_STATE);
     return () => {
       chart.removeSeries(id);
       seriesRef.current = null;
       prevSyncRef.current = [];
     };
-  }, [chart, data.length, idProp]);
+  }, [chart, layerCount, idProp]);
 
   useLayoutEffect(() => {
     const id = seriesRef.current;
     if (!id) return;
 
-    chart.batch(() => {
-      for (let i = 0; i < data.length; i++) {
-        prevSyncRef.current[i] = syncSeriesLayer({
-          chart,
-          id,
-          data: data[i],
-          prev: prevSyncRef.current[i] ?? EMPTY_SYNC_STATE,
-          layerIndex: i,
-        });
-      }
-    });
+    prevSyncRef.current = syncLayers({ chart, id, data, prev: prevSyncRef.current });
   }, [chart, data]);
 
   useEffect(() => {

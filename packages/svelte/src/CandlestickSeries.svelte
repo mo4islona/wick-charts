@@ -1,12 +1,13 @@
 <script lang="ts">
-import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
-import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import type { CandlestickData, CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
+import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer, toLayers } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
 import { getChartContext } from './context';
 
-export let data: OHLCInput[];
+/** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
+export let data: CandlestickData;
 export let options: Partial<CandlestickSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;
@@ -22,7 +23,7 @@ const sync: { state: SeriesSyncState } = { state: EMPTY_SYNC_STATE };
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries(CandlestickSeriesDef, { ...options, id });
+  seriesId = chart.addSeries(CandlestickSeriesDef, { ...options, id, label: toLayers<OHLCInput>(data)[0].label });
 });
 
 onDestroy(() => {
@@ -36,7 +37,9 @@ $: {
   const chart = $chartStore;
   const sid = seriesId;
   if (sid && chart) {
-    sync.state = syncSeriesLayer({ chart, id: sid, data, prev: sync.state });
+    const layer = toLayers<OHLCInput>(data)[0];
+    chart.setSeriesLabels(sid, [layer.label]);
+    sync.state = syncSeriesLayer({ chart, id: sid, data: layer.data, prev: sync.state });
   }
 }
 

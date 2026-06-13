@@ -25,7 +25,7 @@ Framework-specific gaps to know about:
 - [Candlestick](candlestick.md) — OHLCV with volume bars
 - [Line / Area](line.md) — multi-layer, stacking, area, pulse
 - [Bar / Histogram](bar.md) — multi-layer, stacking
-- [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation
+- [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation, "Other" grouping (on by default)
 - [Sparkline](sparkline.md) — inline mini-chart + value label (React only)
 
 ## ChartContainer
@@ -172,7 +172,7 @@ const candleId = 'btc-ohlc';
   <Title sub="BTC · 1h">BTC/USD</Title>
   <InfoBar />
   <CandlestickSeries id={candleId} data={ohlc} />
-  <LineSeries data={[sma]} options={{ colors: ['#ffd700'], strokeWidth: 1, label: 'SMA 20' }} />
+  <LineSeries data={{ label: 'SMA 20', color: '#ffd700', data: sma }} options={{ strokeWidth: 1 }} />
   <Tooltip />
   <Crosshair />
   <YAxis />
@@ -270,6 +270,8 @@ Pass a new `data` array reference when data changes (e.g. via immutable state up
 
 - `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`.
 - `TimePoint` is the canonical point shape (used by `LineSeries`, `BarSeries`, `Sparkline`).
-- `LineSeries` / `BarSeries` `data` is always `TimePoint[][]` — wrap single datasets as `[myData]`.
+- `LineSeries` / `BarSeries` `data` (`MultiLayerData`) is omnivorous: a flat `TimePointInput[]`, layered `TimePointInput[][]`, a named `{ label, color?, data }` layer, or an array mixing raw and named layers.
+- **There is no `label` option on `LineSeries` / `BarSeries` / `CandlestickSeries`** — a series/layer name is carried in `data` (`{ label, data }`). Multi-layer lines/bars auto-name unnamed layers `Series N`. This is the per-layer name the tooltip *and* legend show (they now agree). `colors` is still an option but a per-layer data `color` wins over it.
+- `CandlestickSeries` `data` is `OHLCInput[]` or `{ label, data }` (single stream; `color` not applicable).
 - `PieSeries` `data` is flat `PieSliceData[]`.
 - `VisibleRange` is a deprecated alias for `XRange` (identical shape `{ from, to }`). Use `XRange` in new code.

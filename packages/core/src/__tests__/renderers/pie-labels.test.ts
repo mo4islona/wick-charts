@@ -188,7 +188,9 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
     const legPad = 6;
     const mockedCharWidth = 6; // recording-context's measureText returns length*6
 
-    const r = new PieRenderer({ padAngle: 0, sliceLabels: { distance, legPad } });
+    // `other: false` — this test is about label geometry across 10 distinct
+    // slices; default grouping would collapse them to 8 and shift the arcs.
+    const r = new PieRenderer({ padAngle: 0, other: false, sliceLabels: { distance, legPad } });
     r.setData(data);
     const { ctx } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     settleReveal(r, ctx);
@@ -387,7 +389,9 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
     for (let i = 0; i < 100; i++) {
       data.push({ label: `s${i}`, value: 1 });
     }
-    const r = new PieRenderer({ padAngle: 0, sliceLabels: { minSliceAngle: 5 } });
+    // `other: false` — grouping would merge 93 of the 100 tiny slices into
+    // one huge "Other" that easily clears minSliceAngle and gets a label.
+    const r = new PieRenderer({ padAngle: 0, other: false, sliceLabels: { minSliceAngle: 5 } });
     r.setData(data);
     const { ctx } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     settleReveal(r, ctx);

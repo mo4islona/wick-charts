@@ -45,11 +45,13 @@ const TIME_POINT: DataShape = {
 export const CHART_DATA_TYPES: Record<string, DataShape> = {
   LineSeries: {
     ...TIME_POINT,
-    description: 'Each layer is `TimePoint[]`. The series accepts a 2D array — one inner array per line.',
+    description:
+      'Omnivorous: a flat `TimePoint[]` (one line), `TimePoint[][]` (one inner array per layer), or named `{ label, color?, data }` layers (single or array). The label/color ride in the data — there is no `label` option. Time may be epoch ms or a `Date`.',
   },
   BarSeries: {
     ...TIME_POINT,
-    description: 'Same shape as `LineSeries` — bars take `TimePoint[][]` (one layer per stacked / overlapping series).',
+    description:
+      'Same shape as `LineSeries` — a flat `TimePoint[]`, `TimePoint[][]` (one layer per stacked / overlapping series), or named `{ label, color?, data }` layers.',
   },
   Sparkline: {
     ...TIME_POINT,
@@ -59,7 +61,7 @@ export const CHART_DATA_TYPES: Record<string, DataShape> = {
   CandlestickSeries: {
     typeName: 'OHLCData',
     description:
-      "One inner array per candlestick stream. `volume` is optional — omit it when you don't want a volume pane.",
+      "A flat `OHLCData[]` stream, or `{ label, data }` to name it for the tooltip / info bar. `volume` is optional — omit it when you don't want a volume pane.",
     props: [
       TIME_FIELD,
       {

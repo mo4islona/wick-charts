@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import type { CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
-import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import type { CandlestickData, CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
+import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
 const props = defineProps<{
-  data: OHLCInput[];
+  /** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
+  data: CandlestickData;
   options?: Partial<CandlestickSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
@@ -19,13 +20,23 @@ const seriesId = ref<string | null>(null);
 // burst takes the smooth append path, matching React's 20-candle threshold).
 let prevSync: SeriesSyncState = EMPTY_SYNC_STATE;
 
+function applyData(id: string, data: CandlestickData): void {
+  const layer = toLayers<OHLCInput>(data)[0];
+  chart.setSeriesLabels(id, [layer.label]);
+  prevSync = syncSeriesLayer({ chart, id, data: layer.data, prev: prevSync });
+}
+
 onMounted(() => {
-  const id = chart.addSeries(CandlestickSeriesDef, { ...props.options, id: props.id });
+  const id = chart.addSeries(CandlestickSeriesDef, {
+    ...props.options,
+    id: props.id,
+    label: toLayers<OHLCInput>(props.data)[0].label,
+  });
   seriesId.value = id;
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply
   // the first value here so components with static data render immediately.
-  prevSync = syncSeriesLayer({ chart, id, data: props.data, prev: prevSync });
+  applyData(id, props.data);
 });
 
 onUnmounted(() => {
@@ -38,7 +49,7 @@ watch(
     const id = seriesId.value;
     if (!id) return;
 
-    prevSync = syncSeriesLayer({ chart, id, data, prev: prevSync });
+    applyData(id, data);
   },
 );
 

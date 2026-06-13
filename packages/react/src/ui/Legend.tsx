@@ -63,7 +63,6 @@ function buildLegendItems({ chart, isolatedIdRef, setIsolatedId }: BuildArgs): L
   for (const seriesId of seriesIds) {
     const layers = chart.getSeriesLayers(seriesId);
     if (layers) {
-      const baseLabel = chart.getSeriesLabel(seriesId);
       for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
         const id = `${seriesId}_layer${layerIndex}`;
         const visible = chart.isSeriesVisible(seriesId) && chart.isLayerVisible(seriesId, layerIndex);
@@ -72,7 +71,7 @@ function buildLegendItems({ chart, isolatedIdRef, setIsolatedId }: BuildArgs): L
             id,
             seriesId,
             layerIndex,
-            label: baseLabel ? `${baseLabel} ${layerIndex + 1}` : `Series ${layerIndex + 1}`,
+            label: chart.getLayerLabel(seriesId, layerIndex) ?? `Series ${layerIndex + 1}`,
             color: layers[layerIndex].color,
             isDisabled: !visible,
             chart,

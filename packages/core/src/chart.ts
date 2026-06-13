@@ -83,12 +83,28 @@ interface ChartEvents {
 /** Internal bookkeeping for a registered series. */
 interface SeriesEntry {
   id: string;
-  label?: string;
+  /** Per-layer display names; index = layer. A hole / `undefined` entry means "unnamed". */
+  labels?: (string | undefined)[];
+  /**
+   * Per-layer color overrides carried in `data` (sparse — `undefined` where the
+   * layer specifies no color). Re-applied on top of `options.colors` after every
+   * options update so a data color can't be clobbered by the wrapper's options
+   * effect, whichever runs last.
+   */
+  colorOverrides?: (string | undefined)[];
   renderer: SeriesRenderer;
   visible: boolean;
 }
 
 let seriesIdCounter = 0;
+
+/** Shallow equality for per-layer label arrays (handles the `undefined` holes). */
+function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefined)[] | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+
+  return a.every((label, i) => label === b[i]);
+}
 
 /**
  * Core chart controller. Manages series, viewport, scales, and rendering.
@@ -410,13 +426,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * resolves through the registry and requires a one-time
    * `registerBuiltinSeries()` call at startup.
    */
-  addSeries(type: 'candlestick', options?: Partial<CandlestickSeriesOptions & { id?: string }>): string;
-  addSeries(type: 'line', options?: Partial<LineSeriesOptions & { layers?: number; id?: string }>): string;
-  addSeries(type: 'bar', options?: Partial<BarSeriesOptions & { layers?: number; id?: string }>): string;
-  addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string }>): string;
+  addSeries(type: 'candlestick', options?: Partial<CandlestickSeriesOptions & { id?: string; label?: string }>): string;
+  addSeries(
+    type: 'line',
+    options?: Partial<
+      LineSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+    >,
+  ): string;
+  addSeries(
+    type: 'bar',
+    options?: Partial<
+      BarSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+    >,
+  ): string;
+  addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string; label?: string }>): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
-    options?: Partial<O> & { layers?: number; id?: string; label?: string },
+    options?: Partial<O> & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] },
   ): string;
   addSeries(type: SeriesType | SeriesDefinition, options: Record<string, unknown> = {}): string {
     const def = typeof type === 'string' ? resolveSeriesDefinition(type) : type;
@@ -428,10 +454,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       );
     }
 
-    const { layers, id, ...rest } = options as {
+    // `label` / `labels` are series-entry metadata, not renderer options — pull
+    // them out so they never reach `def.create`. `labels` (per-layer) wins;
+    // `label` is the single-name back-compat form (pie, candlestick).
+    const { layers, id, label, labels, ...rest } = options as {
       layers?: number;
       id?: string;
       label?: string;
+      labels?: (string | undefined)[];
       [key: string]: unknown;
     };
     const layerCount = layers ?? 1;
@@ -445,9 +475,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     };
     const renderer = def.create({ theme: this.#theme, layerCount }, merged);
 
+    const entryLabels = labels ?? (typeof label === 'string' ? [label] : undefined);
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
-    this.#series.push({ id: seriesId, label: rest.label, renderer, visible: true });
+    this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true });
     this.#seriesIdCache = null;
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
@@ -554,7 +585,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     //
     // Compare the inputs that actually feed overlays — label + layer colors —
     // before and after the update, and only bump when they really changed.
-    const prevLabel = entry.label;
+    const prevLabels = entry.labels;
     const prevColors = entry.renderer.getLayerColors().slice();
 
     // React / Vue / Svelte wrappers replay the user's options on every
@@ -564,15 +595,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // animations the chart asked to hold off.
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
     entry.renderer.updateOptions({ ...options, ...forceOff });
-    // Keep stored label in sync with options (affects tooltip/legend)
+    // Per-layer `data` colors win over `options.colors` — re-apply them on top of
+    // whatever the options update just set, so the wrapper's options effect can't
+    // clobber a data-carried color regardless of effect ordering.
+    this.#applyColorOverrides(entry);
+    // Keep the stored single-name label in sync with options (pie / candlestick
+    // back-compat — line/bar set per-layer names through `setSeriesLabels`).
     if ('label' in options && typeof options.label === 'string') {
-      entry.label = options.label;
+      entry.labels = [options.label];
     }
     this.#mainScheduler.markDirty();
 
     const nextColors = entry.renderer.getLayerColors();
     const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
-    const labelChanged = prevLabel !== entry.label;
+    const labelChanged = !labelsEqual(prevLabels, entry.labels);
     if (colorsChanged || labelChanged) {
       this.#bumpOverlayVersion();
     }
@@ -1039,8 +1075,57 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return colors[0] ?? this.#theme.line.color;
   }
 
+  /** The series' primary name (first layer). Used for single-layer overlays. */
   getSeriesLabel(seriesId: string): string | undefined {
-    return this.#series.find((s) => s.id === seriesId)?.label;
+    return this.#series.find((s) => s.id === seriesId)?.labels?.[0];
+  }
+
+  /** The display name of one layer, or `undefined` when that layer is unnamed. */
+  getLayerLabel(seriesId: string, layerIndex: number): string | undefined {
+    return this.#series.find((s) => s.id === seriesId)?.labels?.[layerIndex];
+  }
+
+  /**
+   * Set every layer's display name at once (index = layer). Drives the tooltip,
+   * legend, and info bar. Called by the framework wrappers as the carried
+   * per-layer labels in `data` change. No-ops (and skips the overlay bump) when
+   * the labels are unchanged, so it's safe to call on every data tick.
+   */
+  setSeriesLabels(seriesId: string, labels: (string | undefined)[]): void {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry || labelsEqual(entry.labels, labels)) return;
+
+    entry.labels = labels;
+    this.#bumpOverlayVersion();
+  }
+
+  /**
+   * Set the per-layer color overrides carried in `data` (sparse — `undefined`
+   * leaves that layer on the palette / `options.colors`). Stored on the entry
+   * and re-applied after every options update so data colors always win. Called
+   * by the framework wrappers; no-ops when unchanged.
+   */
+  setLayerColors(seriesId: string, overrides: (string | undefined)[]): void {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry || labelsEqual(entry.colorOverrides, overrides)) return;
+
+    entry.colorOverrides = overrides;
+    this.#applyColorOverrides(entry);
+    this.#mainScheduler.markDirty();
+    this.#bumpOverlayVersion();
+  }
+
+  /** Re-apply `entry.colorOverrides` on top of the renderer's current colors. */
+  #applyColorOverrides(entry: SeriesEntry): void {
+    const overrides = entry.colorOverrides;
+    if (!overrides?.some((c) => c !== undefined)) return;
+
+    const current = entry.renderer.getLayerColors();
+    if (current.length === 0) return;
+
+    const count = entry.renderer.getLayerCount();
+    const merged = Array.from({ length: count }, (_, i) => overrides[i] ?? current[i % current.length]);
+    entry.renderer.updateOptions({ colors: merged });
   }
 
   /** Get per-layer colors for a series. Returns null for single-layer non-bar/line series. */

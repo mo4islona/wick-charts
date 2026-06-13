@@ -66,6 +66,21 @@ export interface ChartTheme {
   /** Color palette for multi-series charts (stacked bars, overlays). */
   seriesColors: string[];
 
+  /**
+   * Pie / donut specific colors. Optional so hand-built theme literals that
+   * predate the field keep compiling — renderers fall back to
+   * {@link ChartTheme.axis} `textColor` (the same muted tone
+   * {@link createTheme} derives by default).
+   */
+  pie?: {
+    /**
+     * Fill of the synthetic "Other" slice produced by small-slice grouping.
+     * Deliberately muted: a vivid palette color would give the aggregate the
+     * same visual weight as a real category.
+     */
+    otherColor: string;
+  };
+
   /** Bollinger band / envelope fill colors. */
   bands: {
     /** Fill for the upper band region (above the middle band). */

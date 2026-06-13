@@ -1,5 +1,5 @@
 import type { ChartTheme } from '../theme/types';
-import type { PieLabelsOptions, PieSeriesOptions, PieSliceData } from '../types';
+import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData } from '../types';
 import { lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
 import type { SeriesDefinition } from './definition';
@@ -32,7 +32,30 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
   sliceLabels: { ...DEFAULT_LABELS },
   // Motion off by default: label draw-in + hover explode both skipped.
   animate: false,
+  // Small-slice grouping on by default: dense datasets collapse into the top
+  // slices plus a single "Other" so outside labels stay legible.
+  other: true,
 };
+
+/**
+ * Resolved grouping config. `color` stays optional: when the user doesn't
+ * override it, the aggregate is painted with the theme's `pie.otherColor`
+ * at render time (themes are unknown when display data is computed).
+ */
+type ResolvedOtherOptions = Required<Omit<PieOtherOptions, 'color'>> & Pick<PieOtherOptions, 'color'>;
+
+const DEFAULT_OTHER: ResolvedOtherOptions = {
+  maxSlices: 8,
+  label: 'Other',
+};
+
+/** Resolve the `other` grouping option. Returns `null` when grouping is off. */
+function resolveOther(other: PieSeriesOptions['other']): ResolvedOtherOptions | null {
+  if (other === false) return null;
+  if (other === true || other === undefined) return DEFAULT_OTHER;
+
+  return { ...DEFAULT_OTHER, ...other };
+}
 
 const DEG_TO_RAD = Math.PI / 180;
 
@@ -224,6 +247,20 @@ function blendOver(base: string, overlay: string): string {
 export class PieRenderer implements PieSeriesRenderer {
   readonly kind = 'pie' as const;
   #data: PieSliceData[] = [];
+  /**
+   * Slices actually rendered. Equals {@link #data} unless "other" grouping is
+   * active and the dataset exceeds `maxSlices` — then the smallest slices are
+   * summed into a synthetic "Other" slice appended at the end. Every read
+   * path (render, hit-test, hover / slice info, label reserve) goes through
+   * this array so the grouped view is consistent across all surfaces.
+   */
+  #display: PieSliceData[] = [];
+  /**
+   * Index of the synthetic "Other" slice in {@link #display}, or -1 when
+   * grouping didn't apply. Lets the color resolution pick the theme's muted
+   * `pie.otherColor` for the aggregate instead of the next palette color.
+   */
+  #otherIndex = -1;
   #options: PieSeriesOptions;
   /** Index of the hovered slice (-1 = none). Set via {@link setHoverIndex}. */
   #hoverIndex = -1;
@@ -251,16 +288,73 @@ export class PieRenderer implements PieSeriesRenderer {
   }
 
   /**
-   * Merge partial options onto a base, deep-merging `sliceLabels` so callers
-   * can override one field (e.g. `mode`) without dropping sibling defaults.
+   * Merge partial options onto a base, deep-merging `sliceLabels` and `other`
+   * so callers can override one field (e.g. `mode` or `maxSlices`) without
+   * dropping sibling defaults.
    */
   #mergeOptions(base: PieSeriesOptions, incoming: Partial<PieSeriesOptions>): PieSeriesOptions {
     const merged: PieSeriesOptions = { ...base, ...incoming };
     if (incoming.sliceLabels !== undefined) {
       merged.sliceLabels = mergeLabelOpts(base.sliceLabels, incoming.sliceLabels);
     }
+    if (typeof incoming.other === 'object' && typeof base.other === 'object') {
+      merged.other = { ...base.other, ...incoming.other };
+    }
 
     return merged;
+  }
+
+  /**
+   * Build the display array from the raw data. When grouping applies, the
+   * largest `maxSlices - 1` slices are kept in their original order; the rest
+   * are summed into one "Other" slice appended at the end. Ranking uses the
+   * layout-sanitized value so negative / non-finite entries can never outrank
+   * a real slice.
+   */
+  #computeDisplayData(): PieSliceData[] {
+    this.#otherIndex = -1;
+
+    const other = resolveOther(this.#options.other);
+    if (!other || this.#data.length <= other.maxSlices) return this.#data;
+
+    const keepCount = Math.max(1, other.maxSlices - 1);
+    const ranked = this.#data
+      .map((slice, index) => ({ index, value: this.#sliceValue(slice.value) }))
+      .sort((a, b) => b.value - a.value);
+    const kept = new Set<number>();
+    for (const entry of ranked.slice(0, keepCount)) {
+      kept.add(entry.index);
+    }
+
+    const display: PieSliceData[] = [];
+    let otherValue = 0;
+    for (let i = 0; i < this.#data.length; i++) {
+      if (kept.has(i)) {
+        display.push(this.#data[i]);
+      } else {
+        otherValue += this.#sliceValue(this.#data[i].value);
+      }
+    }
+    display.push({ label: other.label, value: otherValue, color: other.color });
+    this.#otherIndex = display.length - 1;
+
+    return display;
+  }
+
+  /**
+   * Paint color for one display slice: explicit slice color → theme-driven
+   * "Other" color for the synthetic aggregate → palette by index. The
+   * `axis.textColor` fallback matches what {@link createTheme} derives for
+   * `pie.otherColor`, so hand-built theme literals without the `pie` block
+   * get the same muted tone.
+   */
+  #sliceColor(args: { index: number; palette: readonly string[]; theme: ChartTheme }): string {
+    const { index, palette, theme } = args;
+    const slice = this.#display[index];
+    if (slice?.color) return slice.color;
+    if (index === this.#otherIndex) return theme.pie?.otherColor ?? theme.axis.textColor;
+
+    return palette[index % palette.length];
   }
 
   getData(): PieSliceData[] {
@@ -270,7 +364,8 @@ export class PieRenderer implements PieSeriesRenderer {
   setData(data: unknown): void {
     const slices = (data ?? []) as PieSliceData[];
     this.#data = slices;
-    this.#sliceOffsets = new Array(slices.length).fill(0);
+    this.#display = this.#computeDisplayData();
+    this.#sliceOffsets = new Array(this.#display.length).fill(0);
     // Only reset reveal to 0 when the entrance animation is enabled;
     // otherwise keep it pinned at 1 so the new data paints fully-revealed.
     this.#labelReveal = this.#options.animate ? 0 : 1;
@@ -300,11 +395,19 @@ export class PieRenderer implements PieSeriesRenderer {
       this.#labelReveal = this.#options.animate ? 0 : 1;
     }
 
+    // Grouping options may have changed — rebuild the display array and keep
+    // the offsets in lockstep with its length so hover animation state never
+    // indexes past the slice list (or keeps a stale tail alive).
+    this.#display = this.#computeDisplayData();
+    if (this.#sliceOffsets.length !== this.#display.length) {
+      this.#sliceOffsets = new Array(this.#display.length).fill(0);
+    }
+
     this.#labelReserveCache = null;
   }
 
   getColor(): string {
-    return this.#data[0]?.color ?? this.#options.colors?.[0] ?? '#888';
+    return this.#display[0]?.color ?? this.#options.colors?.[0] ?? '#888';
   }
 
   getLayerCount(): number {
@@ -336,7 +439,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
   /** Hit-test: which slice is at this bitmap coordinate? Returns index or -1. */
   hitTest(bx: number, by: number, bitmapWidth: number, bitmapHeight: number, padding?: RenderPadding): number {
-    if (this.#data.length === 0) return -1;
+    if (this.#display.length === 0) return -1;
 
     const total = this.#total();
     if (total <= 0) return -1;
@@ -366,8 +469,8 @@ export class PieRenderer implements PieSeriesRenderer {
     if (mouseAngle < 0) mouseAngle += TWO_PI;
 
     let angle = 0;
-    for (let i = 0; i < this.#data.length; i++) {
-      const sliceAngle = (this.#sliceValue(this.#data[i].value) / total) * TWO_PI;
+    for (let i = 0; i < this.#display.length; i++) {
+      const sliceAngle = (this.#sliceValue(this.#display[i].value) / total) * TWO_PI;
       if (mouseAngle >= angle && mouseAngle < angle + sliceAngle) return i;
 
       angle += sliceAngle;
@@ -391,7 +494,7 @@ export class PieRenderer implements PieSeriesRenderer {
   getHoverInfo(theme: ChartTheme): HoverInfo | null {
     if (this.#hoverIndex < 0) return null;
 
-    const slice = this.#data[this.#hoverIndex];
+    const slice = this.#display[this.#hoverIndex];
     if (!slice) return null;
 
     const total = this.#total();
@@ -401,21 +504,21 @@ export class PieRenderer implements PieSeriesRenderer {
       label: slice.label,
       value: slice.value,
       percent: total > 0 ? (this.#sliceValue(slice.value) / total) * 100 : 0,
-      color: slice.color ?? palette[this.#hoverIndex % palette.length],
+      color: this.#sliceColor({ index: this.#hoverIndex, palette, theme }),
     };
   }
 
   getSliceInfo(theme: ChartTheme): SliceInfo[] | null {
-    if (this.#data.length === 0) return null;
+    if (this.#display.length === 0) return null;
 
     const total = this.#total();
     const palette = this.#options.colors ?? theme.seriesColors;
 
-    return this.#data.map((d, i) => ({
+    return this.#display.map((d, i) => ({
       label: d.label,
       value: d.value,
       percent: total > 0 ? (this.#sliceValue(d.value) / total) * 100 : 0,
-      color: d.color ?? palette[i % palette.length],
+      color: this.#sliceColor({ index: i, palette, theme }),
     }));
   }
 
@@ -435,6 +538,8 @@ export class PieRenderer implements PieSeriesRenderer {
   dispose(): void {
     this.#dataListeners = [];
     this.#data = [];
+    this.#display = [];
+    this.#otherIndex = -1;
     this.#sliceOffsets = [];
     this.#lastRenderTime = 0;
   }
@@ -465,7 +570,7 @@ export class PieRenderer implements PieSeriesRenderer {
    *  sweep and percentage. Always finite and ≥ 0. */
   #total(): number {
     let sum = 0;
-    for (const d of this.#data) {
+    for (const d of this.#display) {
       sum += this.#sliceValue(d.value);
     }
 
@@ -508,7 +613,7 @@ export class PieRenderer implements PieSeriesRenderer {
     }
 
     let maxWidth = 0;
-    for (const slice of this.#data) {
+    for (const slice of this.#display) {
       const text = this.#formatSliceLabel(slice, total, labels.content);
       const w = context.measureText(text).width;
       if (w > maxWidth) maxWidth = w;
@@ -631,12 +736,13 @@ export class PieRenderer implements PieSeriesRenderer {
     outerR: number;
     total: number;
     palette: readonly string[];
+    theme: ChartTheme;
     labels: Required<PieLabelsOptions>;
     hpr: number;
     bitmapHeight: number;
   }): Array<OutsideLabelLayout | null> {
-    const { cx, cy, outerR, total, palette, labels, hpr, bitmapHeight } = args;
-    const entries: Array<OutsideLabelLayout | null> = new Array(this.#data.length).fill(null);
+    const { cx, cy, outerR, total, palette, theme, labels, hpr, bitmapHeight } = args;
+    const entries: Array<OutsideLabelLayout | null> = new Array(this.#display.length).fill(null);
     const elbowRadial = labels.elbowLen * hpr;
     // Clamp `distance` against `elbowLen` so the label ring sits outside the
     // elbow stub — otherwise the stub would point inward on a pure-radial
@@ -650,8 +756,8 @@ export class PieRenderer implements PieSeriesRenderer {
     let angle = -Math.PI / 2;
     const minSliceRad = labels.minSliceAngle * DEG_TO_RAD;
 
-    for (let i = 0; i < this.#data.length; i++) {
-      const slice = this.#data[i];
+    for (let i = 0; i < this.#display.length; i++) {
+      const slice = this.#display[i];
       const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
 
       if (sliceAngle >= minSliceRad) {
@@ -682,7 +788,7 @@ export class PieRenderer implements PieSeriesRenderer {
           labelX,
           labelY,
           text: this.#formatSliceLabel(slice, total, labels.content),
-          color: slice.color ?? palette[i % palette.length],
+          color: this.#sliceColor({ index: i, palette, theme }),
         };
         entries[i] = entry;
         pending.push({ entry });
@@ -846,7 +952,7 @@ export class PieRenderer implements PieSeriesRenderer {
   }
 
   render(ctx: SeriesRenderContext): void {
-    if (this.#data.length === 0) return;
+    if (this.#display.length === 0) return;
 
     const { scope, theme, padding } = ctx;
     const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
@@ -866,11 +972,11 @@ export class PieRenderer implements PieSeriesRenderer {
     // effect is skipped entirely — the hovered slice stays in place, and
     // hover feedback is left to the tooltip / legend / cursor change.
     const hoverRate = 12;
-    while (this.#sliceOffsets.length < this.#data.length) {
+    while (this.#sliceOffsets.length < this.#display.length) {
       this.#sliceOffsets.push(0);
     }
     if (this.#options.animate) {
-      for (let i = 0; i < this.#data.length; i++) {
+      for (let i = 0; i < this.#display.length; i++) {
         const target = i === this.#hoverIndex ? 1 : 0;
         this.#sliceOffsets[i] = smoothToward(this.#sliceOffsets[i], target, hoverRate, dt);
       }
@@ -911,13 +1017,13 @@ export class PieRenderer implements PieSeriesRenderer {
     let angle = -Math.PI / 2;
 
     // Draw slices
-    for (let i = 0; i < this.#data.length; i++) {
-      const slice = this.#data[i];
+    for (let i = 0; i < this.#display.length; i++) {
+      const slice = this.#display[i];
       const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
       const startAngle = angle + pad / 2;
       const endAngle = angle + sliceAngle - pad / 2;
       const midAngle = angle + sliceAngle / 2;
-      const color = slice.color ?? palette[i % palette.length];
+      const color = this.#sliceColor({ index: i, palette, theme });
 
       // Degenerate slice — sliceAngle collapses below pad, leaving no
       // visible wedge once the two pad/2 gaps are carved out. Advance the
@@ -996,6 +1102,7 @@ export class PieRenderer implements PieSeriesRenderer {
         outerR,
         total,
         palette,
+        theme,
         labels,
         hpr: horizontalPixelRatio,
         bitmapHeight: bitmapSize.height,
@@ -1033,13 +1140,13 @@ export class PieRenderer implements PieSeriesRenderer {
     context.textBaseline = 'middle';
     const minSliceRad = labels.minSliceAngle * DEG_TO_RAD;
 
-    for (let i = 0; i < this.#data.length; i++) {
-      const slice = this.#data[i];
+    for (let i = 0; i < this.#display.length; i++) {
+      const slice = this.#display[i];
       const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
       if (sliceAngle >= minSliceRad) {
         const midAngle = angle + sliceAngle / 2;
         const offset = this.#sliceOffsets[i] * explodeDistance;
-        const sliceColor = slice.color ?? palette[i % palette.length];
+        const sliceColor = this.#sliceColor({ index: i, palette, theme });
         const text = this.#formatSliceLabel(slice, total, labels.content);
 
         // Skip when the text won't fit the slice chord at `labelR`, or when a

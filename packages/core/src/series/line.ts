@@ -173,11 +173,61 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   /**
+   * Rendered positions of the layer's still-unsettled trailing points, keyed
+   * by time. Each chain link lerps from the *previous link's rendered
+   * position* toward its own target — so when appends arrive faster than
+   * `entryMs` and several entrances overlap, the older heads keep unfurling
+   * instead of snapping to their raw spots the frame a new point lands.
+   *
+   * Targets read {@link BaseMultiLayerSeries.effectiveValue}, so the pinned
+   * live chase and the entrance compose. Returns `null` when nothing is
+   * unsettled or any value in the chain (anchor included) is non-finite —
+   * callers fall back to raw geometry, mirroring the old NaN guard.
+   */
+  private chainedTailPositions(
+    ctx: SeriesRenderContext | OverlayRenderContext,
+    layerIndex: number,
+  ): Map<number, { x: number; y: number }> | null {
+    const chain = this.unsettledTail(ctx, layerIndex);
+    if (chain.length === 0) return null;
+
+    const all = this.stores[layerIndex].getAll();
+    const anchorIdx = all.length - 1 - chain.length;
+    if (anchorIdx < 0) return null;
+
+    const { timeScale, yScale } = ctx;
+    const anchor = all[anchorIdx];
+    if (!Number.isFinite(anchor.value)) return null;
+
+    let prevX = timeScale.timeToBitmapX(anchor.time);
+    let prevY = yScale.valueToBitmapY(this.effectiveValue(ctx, layerIndex, anchor.time, anchor.value));
+
+    const positions = new Map<number, { x: number; y: number }>();
+    for (let k = 0; k < chain.length; k++) {
+      const point = all[anchorIdx + 1 + k];
+      if (!Number.isFinite(point.value)) return null;
+
+      // Ease the unfurl so each head decelerates into its resting spot
+      // instead of hard-stopping at settle. Linear `progress` still drives
+      // the fade-alpha path elsewhere — only the geometry is eased.
+      const eased = easeOutCubic(chain[k].progress);
+      const targetX = timeScale.timeToBitmapX(point.time);
+      const targetY = yScale.valueToBitmapY(this.effectiveValue(ctx, layerIndex, point.time, point.value));
+      const x = lerp(prevX, targetX, eased);
+      const y = lerp(prevY, targetY, eased);
+      positions.set(point.time, { x, y });
+      prevX = x;
+      prevY = y;
+    }
+
+    return positions;
+  }
+
+  /**
    * Bitmap coordinates for the trailing endpoint of a layer — i.e. where the
    * last visible point should be drawn *right now*. Accounts for live-tracking
    * smoothing on Y (via {@link BaseMultiLayerSeries.effectiveValue}) and the
-   * `'grow'` entrance animation, which lerps (X, Y) from the penultimate
-   * point to the new point over the engine-driven entry progress.
+   * `'grow'` entrance animation via the chained tail lerp.
    *
    * Shared between `renderOff` (last `lineTo` of the polyline) and `drawOverlay`
    * (pulse dot) so the pulse glides in sync with the trailing segment instead
@@ -200,35 +250,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       return { x: lastRawX, y: lastRawY };
     }
 
-    const progress = this.entranceProgress(ctx, layerIndex, last.time);
-    if (progress >= 1) {
-      return { x: lastRawX, y: lastRawY };
-    }
+    const chained = this.chainedTailPositions(ctx, layerIndex);
 
-    const all = store.getAll();
-    if (all.length < 2) return { x: lastRawX, y: lastRawY };
-
-    const penultimate = all[all.length - 2];
-    // Skip the lerp when the penultimate value is non-finite — otherwise the
-    // overlay pulse would consume an interpolated `(NaN, ...)` endpoint.
-    // Anchor to the raw last instead so the dot stays at the new point.
-    if (!Number.isFinite(penultimate.value)) return { x: lastRawX, y: lastRawY };
-    const penulX = timeScale.timeToBitmapX(penultimate.time);
-    // The grow lerp must start from where the penultimate is *displayed* —
-    // a pinned chase may still be settling it after the append — or the head
-    // would teleport to the raw value the frame the new point lands.
-    const penulY = yScale.valueToBitmapY(this.effectiveValue(ctx, layerIndex, penultimate.time, penultimate.value));
-
-    // Ease the unfurl so the head decelerates into its resting spot instead of
-    // travelling at constant velocity and hard-stopping at settle (a visible
-    // pop on every appended segment). Linear `progress` still drives the
-    // fade-alpha path elsewhere — only the geometry is eased.
-    const eased = easeOutCubic(progress);
-
-    return {
-      x: lerp(penulX, lastRawX, eased),
-      y: lerp(penulY, lastRawY, eased),
-    };
+    return chained?.get(last.time) ?? { x: lastRawX, y: lastRawY };
   }
 
   /** Each layer drawn independently */
@@ -284,6 +308,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       };
       const trailingX = endpoint.x;
       const trailingY = endpoint.y;
+      // Chained positions for tail points whose entrance is still unsettled —
+      // when appends outpace entryMs, the older heads keep unfurling instead
+      // of snapping to their raw spots the frame a new point lands.
+      const chained = lastIsLive && style === 'grow' ? this.chainedTailPositions(ctx, li) : null;
 
       // Single save/restore composes per-layer alpha (setLayerVisible fade)
       // with the per-point entrance alpha (trailing fade). Chart already set
@@ -314,11 +342,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           current = [];
           runs.push(current);
         }
-        // effectiveValue picks up the pinned chase on the penultimate point —
-        // the vertex keeps gliding to its final stored value after an append
-        // instead of snapping there in one frame.
-        const y = yScale.valueToBitmapY(this.effectiveValue(ctx, li, data[i].time, v));
-        current.push({ x: timeScale.timeToBitmapX(data[i].time), y });
+        // Chained tail positions win (overlapping entrances mid-unfurl);
+        // otherwise effectiveValue picks up the pinned chase on the
+        // penultimate point — the vertex keeps gliding to its final stored
+        // value after an append instead of snapping there in one frame.
+        const override = chained?.get(data[i].time);
+        if (override) {
+          current.push({ x: override.x, y: override.y });
+        } else {
+          const y = yScale.valueToBitmapY(this.effectiveValue(ctx, li, data[i].time, v));
+          current.push({ x: timeScale.timeToBitmapX(data[i].time), y });
+        }
       }
       // Attach the trailing endpoint only if it's finite AND the last data
       // point is finite. A poisoned last value would produce a NaN trailing
@@ -483,55 +517,66 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
     }
 
-    // Per-layer entrance progress on the layer's last data time. Stacked geometry
-    // owns its own draw loop, so we can't reuse renderOff's trailingEndpoint —
-    // we lerp the trailing segment's geometry directly off the cumulative arrays.
+    // Per-layer chained entrance progress. Stacked geometry owns its own draw
+    // loop, so we can't reuse renderOff's chained tail — we lerp the trailing
+    // segments directly off the cumulative arrays.
     //
-    // Animation only fires when (a) the appended point is the rightmost time in
-    // the visible `times` window AND (b) the previous time in `times` is the
-    // layer's penultimate point. Anywhere else, lerping `xy[length-1]` would
-    // distort an already-superseded segment or pull an off-screen point into
-    // the on-screen tail.
+    // Animation only fires when the layer's still-unsettled tail points (see
+    // {@link BaseMultiLayerSeries.unsettledTail}) occupy the trailing slots of
+    // the visible `times` window, with the chain's anchor immediately before
+    // them. Anywhere else, lerping the tail would distort an already-superseded
+    // segment or pull an off-screen point into the on-screen tail.
     const style = this.options.entryAnimation ?? 'grow';
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
-    const lastVisibleIdx = times.length - 1;
-    const layerProgress: number[] = new Array(this.stores.length).fill(1);
+    // Eased per-link progress of each layer's gated entrance chain, oldest
+    // first. Empty = fully settled.
+    const layerChains: number[][] = Array.from({ length: this.stores.length }, () => []);
+    // Raw progress of the newest link — drives the 'fade' alpha ramp.
+    const layerHeadProgress: number[] = new Array(this.stores.length).fill(1);
     for (let li = 0; li < this.stores.length; li++) {
       if (this.getLayerAlpha(li) <= 0) continue;
 
-      const last = this.stores[li].last();
-      if (!last) continue;
+      const chain = this.unsettledTail(ctx, li);
+      const len = chain.length;
+      if (len === 0) continue;
 
-      const progress = this.entranceProgress(ctx, li, last.time);
-      if (progress >= 1) continue;
+      let gated = true;
+      for (let j = 0; j < len; j++) {
+        if (timeIdx.get(chain[j].time) !== times.length - len + j) {
+          gated = false;
+          break;
+        }
+      }
+      if (!gated) continue;
 
-      const toIdx = timeIdx.get(last.time);
-      if (toIdx !== lastVisibleIdx) continue;
-
-      // Penultimate point time must occupy the immediately-previous slot in
-      // the times list — otherwise lerping the tail would re-shape a stable
-      // earlier segment instead of just unfurling the new tip.
+      // The chain's anchor (the settled point the oldest link grows from)
+      // must occupy the slot immediately before the chain — otherwise the
+      // lerp would re-shape a stable earlier segment instead of just
+      // unfurling the new tip.
       const all = this.stores[li].getAll();
-      if (all.length < 2) continue;
-      const penultimateTime = all[all.length - 2].time;
-      const fromIdx = timeIdx.get(penultimateTime);
-      if (fromIdx !== toIdx - 1) continue;
+      const anchorIdx = all.length - 1 - len;
+      if (anchorIdx < 0) continue;
+      if (timeIdx.get(all[anchorIdx].time) !== times.length - len - 1) continue;
 
-      layerProgress[li] = progress;
+      layerChains[li] = chain.map((c) => easeOutCubic(c.progress));
+      layerHeadProgress[li] = chain[len - 1].progress;
     }
 
-    // Lerp the last entry of an XY array between the prior point and the
-    // current last by `progress` — mirrors renderOff's trailing-endpoint
-    // interpolation. The gating above guarantees `xy[length-2]` is the layer's
-    // penultimate.
-    const applyGrowLerp = (xy: [number, number][], progress: number): void => {
-      if (progress >= 1 || xy.length < 2) return;
+    // Chain-lerp the trailing entries of an XY array: each link lerps from
+    // the previous (already-lerped) vertex toward its own target — mirrors
+    // renderOff's chained tail, so when appends outpace entryMs the older
+    // heads keep unfurling instead of snapping the frame a new point lands.
+    const applyGrowChain = (xy: [number, number][], easedChain: readonly number[]): void => {
+      const len = easedChain.length;
+      if (len === 0 || xy.length < len + 1) return;
 
-      const lastIdx = xy.length - 1;
-      const prev = xy[lastIdx - 1];
-      const last = xy[lastIdx];
-      xy[lastIdx] = [lerp(prev[0], last[0], progress), lerp(prev[1], last[1], progress)];
+      for (let j = 0; j < len; j++) {
+        const idx = xy.length - len + j;
+        const prev = xy[idx - 1];
+        const target = xy[idx];
+        xy[idx] = [lerp(prev[0], target[0], easedChain[j]), lerp(prev[1], target[1], easedChain[j])];
+      }
     };
 
     // Find the lowest visible layer — that slice anchors its lower edge to
@@ -564,10 +609,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (layerAlpha <= 0) continue;
 
       const color = this.options.colors[li % this.options.colors.length];
-      const upperProg = layerProgress[li];
+      const upperChain = layerChains[li];
       // The lower edge is the shared boundary with the nearest VISIBLE layer
       // below — whichever slice draws this same boundary as its upper edge.
-      // Mirror that layer's entrance progress (not `layerProgress[li - 1]`,
+      // Mirror that layer's entrance chain (not `layerChains[li - 1]`,
       // which belongs to a hidden intermediate layer) so the two edges
       // grow-lerp identically and tile pixel-exactly. Hidden layers contribute
       // 0 to cumulative, so the boundary's data position is unchanged either way.
@@ -578,7 +623,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           break;
         }
       }
-      const lowerProg = belowVisibleLi >= 0 ? layerProgress[belowVisibleLi] : 1;
+      const lowerChain = belowVisibleLi >= 0 ? layerChains[belowVisibleLi] : [];
 
       const isBottomVisible = li === bottomVisibleLi;
       // The next visible slice above the bottom-most smoothly hands off
@@ -604,7 +649,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         lowerXY.push([timeScale.timeToBitmapX(times[ti]), lowerY]);
       }
-      if (style === 'grow') applyGrowLerp(lowerXY, easeOutCubic(lowerProg));
+      if (style === 'grow') applyGrowChain(lowerXY, lowerChain);
 
       // Upper edge = alpha-weighted cumulative. For the bottom-most slice
       // during a fade we additionally lerp it down to bitmapBottom so the
@@ -618,17 +663,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         upperXY.push([timeScale.timeToBitmapX(times[ti]), upperY]);
       }
-      if (style === 'grow') applyGrowLerp(upperXY, easeOutCubic(upperProg));
+      if (style === 'grow') applyGrowChain(upperXY, upperChain);
 
       // Upper-edge curve segments, shared by the area fill and the stroke so the
       // stroked line sits exactly on the filled slice's top edge.
       const upperPoints = toPoints(upperXY);
-      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && upperProg < 1);
+      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && upperChain.length > 0);
 
-      const useFade = style === 'fade' && upperProg < 1;
+      const useFade = style === 'fade' && layerHeadProgress[li] < 1;
       if (useFade) {
         context.save();
-        context.globalAlpha = upperProg;
+        context.globalAlpha = layerHeadProgress[li];
       }
 
       // Fill area between upper and lower with a per-slice vertical gradient
@@ -671,7 +716,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           // shares the exact path with the slice below's upper edge (no sliver
           // gap between adjacent fills).
           const lowerPoints = toPoints(lowerXY);
-          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && lowerProg < 1);
+          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && lowerChain.length > 0);
           const lowerLast = lowerPoints[lowerPoints.length - 1];
           context.lineTo(lowerLast.x, lowerLast.y);
           replaySegmentsReversed(context, lowerPoints, lowerSegs);
@@ -877,22 +922,27 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
         const appendStyle = this.options.entryAnimation ?? 'grow';
         if (appendStyle === 'grow') {
-          const progress = this.entranceProgress(ctx, li, t);
-          if (progress < 1) {
-            // Penultimate point's time → fromTime for the grow lerp. Skip the
-            // animation when the layer has < 2 points or when the penultimate
-            // shares a time with the last (degenerate).
-            const all = this.stores[li].getAll();
-            const penultimate = all.length >= 2 ? all[all.length - 2] : null;
-            if (penultimate !== null && penultimate.time !== t) {
-              // Match the eased unfurl of the line head (trailingEndpoint) so
-              // the pulse dot glides in lockstep instead of leading it.
-              const eased = easeOutCubic(progress);
-              const prevX = timeScale.timeToBitmapX(penultimate.time);
-              const prevY = yScale.valueToBitmapY(cumulativeAt(penultimate.time));
-              pulseX = lerp(prevX, pulseX, eased);
-              pulseY = lerp(prevY, pulseY, eased);
+          // Chain-lerp through every still-unsettled tail point (cumulative Y
+          // per link) so the dot glides in lockstep with the chained line
+          // head — including when appends outpace entryMs and several
+          // entrances overlap.
+          const chain = this.unsettledTail(ctx, li);
+          const all = this.stores[li].getAll();
+          const anchorIdx = all.length - 1 - chain.length;
+          if (chain.length > 0 && anchorIdx >= 0) {
+            const anchor = all[anchorIdx];
+            let px = timeScale.timeToBitmapX(anchor.time);
+            let py = yScale.valueToBitmapY(cumulativeAt(anchor.time));
+            for (let k = 0; k < chain.length; k++) {
+              const point = all[anchorIdx + 1 + k];
+              const eased = easeOutCubic(chain[k].progress);
+              const targetX = timeScale.timeToBitmapX(point.time);
+              const targetY = yScale.valueToBitmapY(cumulativeAt(point.time));
+              px = lerp(px, targetX, eased);
+              py = lerp(py, targetY, eased);
             }
+            pulseX = px;
+            pulseY = py;
           }
         }
 

@@ -18,7 +18,7 @@ interface OHLCData {
 type OHLCInput = Omit<OHLCData, 'time'> & { time: number | Date };
 ```
 
-Pass as a flat array: `OHLCData[]` (or `OHLCInput[]` when using `Date`).
+Pass as a flat array: `OHLCData[]` (or `OHLCInput[]` when using `Date`). To name the stream for the tooltip / info bar, wrap it: `{ label: 'BTC', data: candles }` — there is **no `label` option** anymore.
 
 ## Series options
 
@@ -29,7 +29,6 @@ interface CandlestickDirectionColors {
 }
 
 interface CandlestickSeriesOptions {
-  label?: string;                  // tooltip display name
   up:   CandlestickDirectionColors;  // bullish (close >= open). Default: { body: '#26a69a', wick: '#26a69a' }
   down: CandlestickDirectionColors;  // bearish (close < open).  Default: { body: '#ef5350', wick: '#ef5350' }
   bodyWidthRatio: number;          // 0–1, candle body width — default: 0.6
@@ -318,14 +317,14 @@ Same shape in Vue (`v-slot="{ snapshots, time }"`) and Svelte (`let:snapshots le
 const id = 'btc-ohlc';
 
 <ChartContainer theme={catppuccin.theme}>
-  <CandlestickSeries id={id} data={ohlcData} />
+  <CandlestickSeries id={id} data={{ label: 'BTC', data: ohlcData }} />
   <LineSeries
-    data={[sma20]}
-    options={{ colors: ['#ffd700'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
+    data={{ label: 'SMA 20', color: '#ffd700', data: sma20 }}
+    options={{ strokeWidth: 1, area: { visible: false }, pulse: false }}
   />
   <LineSeries
-    data={[ema50]}
-    options={{ colors: ['#ff6b6b'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'EMA 50' }}
+    data={{ label: 'EMA 50', color: '#ff6b6b', data: ema50 }}
+    options={{ strokeWidth: 1, area: { visible: false }, pulse: false }}
   />
   <Tooltip />
   <Crosshair />

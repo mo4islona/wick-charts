@@ -91,14 +91,14 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
     <ChartContainer theme={theme}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       {!mobile && <InfoBar />}
-      <LineSeries data={[datasets[0]]} options={{ area: { visible: true }, strokeWidth: 1 }} />
+      <LineSeries data={{ label: 'ETH', data: datasets[0] }} options={{ area: { visible: true }, strokeWidth: 1 }} />
       <LineSeries
-        data={[datasets[1]]}
-        options={{ colors: [theme.bands.upper], area: { visible: true }, strokeWidth: 1 }}
+        data={{ label: 'Upper band', color: theme.bands.upper, data: datasets[1] }}
+        options={{ area: { visible: true }, strokeWidth: 1 }}
       />
       <LineSeries
-        data={[datasets[2]]}
-        options={{ colors: [theme.bands.lower], area: { visible: true }, strokeWidth: 1 }}
+        data={{ label: 'Lower band', color: theme.bands.lower, data: datasets[2] }}
+        options={{ area: { visible: true }, strokeWidth: 1 }}
       />
       <Tooltip />
       <Crosshair />

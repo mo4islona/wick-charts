@@ -136,7 +136,6 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
   for (const id of chart.getSeriesIds()) {
     if (!chart.isSeriesVisible(id)) continue;
 
-    const label = chart.getSeriesLabel(id);
     const isMultiLayer = chart.getSeriesLayers(id) !== null;
 
     if (isMultiLayer) {
@@ -154,7 +153,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
             id: `${id}_layer${l.layerIndex}`,
             seriesId: id,
             layerIndex: l.layerIndex,
-            label,
+            label: chart.getLayerLabel(id, l.layerIndex),
             data: { time: l.time, value: l.value } as TimePoint,
             color: l.color,
           }),
@@ -171,7 +170,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
       freezeSnapshot({
         id,
         seriesId: id,
-        label,
+        label: chart.getSeriesLabel(id),
         data: d,
         color: chart.getSeriesColor(id) ?? '#888',
       }),
@@ -206,7 +205,6 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
   for (const id of chart.getSeriesIds()) {
     if (!chart.isSeriesVisible(id)) continue;
 
-    const label = chart.getSeriesLabel(id);
     const layerLasts = chart.getLayerLastSnapshots(id);
     if (layerLasts) {
       for (const l of layerLasts) {
@@ -215,7 +213,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
             id: `${id}_layer${l.layerIndex}`,
             seriesId: id,
             layerIndex: l.layerIndex,
-            label,
+            label: chart.getLayerLabel(id, l.layerIndex),
             data: { time: l.time, value: l.value } as TimePoint,
             color: l.color,
           }),
@@ -232,7 +230,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
       freezeSnapshot({
         id,
         seriesId: id,
-        label,
+        label: chart.getSeriesLabel(id),
         data: d,
         color: chart.getSeriesColor(id) ?? '#888',
       }),

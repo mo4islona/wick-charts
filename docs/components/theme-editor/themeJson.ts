@@ -144,6 +144,7 @@ export function themeToJson(t: ChartTheme): JsonValue {
     },
     line: { color: t.line.color, width: t.line.width },
     seriesColors: [...t.seriesColors],
+    pie: { otherColor: t.pie?.otherColor ?? t.axis.textColor },
     bands: { upper: t.bands.upper, lower: t.bands.lower },
     crosshair: {
       color: t.crosshair.color,

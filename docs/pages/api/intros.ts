@@ -11,7 +11,7 @@ export const INTROS: Record<string, string> = {
   CandlestickSeries:
     'Renders OHLC candles with optional volume bars. The default body colour is direction-driven (up/down) but accepts a `bodyColor` callback for custom rules. Wicks render at sub-pixel widths on hi-DPI displays for a sharp look at any zoom.',
   PieSeries:
-    'Renders a pie or donut chart. Slices animate on enter/exit, support hover lift, and optionally show inline labels at the slice midpoints. Use `<PieLegend>` and `<PieTooltip>` for accompanying overlays.',
+    'Renders a pie or donut chart. Slices animate on enter/exit, support hover lift, and optionally show inline labels at the slice midpoints. Datasets past 8 slices group the smallest into a single "Other" slice by default — tune or disable via `options.other`. Use `<PieLegend>` and `<PieTooltip>` for accompanying overlays.',
   Sparkline:
     'A self-contained miniature chart for tables, KPIs, and dashboards. Renders without any of the chrome (`<YAxis>`, `<TimeAxis>`, etc.) and includes a lightweight value badge.',
 

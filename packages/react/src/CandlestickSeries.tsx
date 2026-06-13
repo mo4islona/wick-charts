@@ -1,19 +1,25 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import {
+  type CandlestickData,
   CandlestickSeriesDef,
   type CandlestickSeriesOptions,
   EMPTY_SYNC_STATE,
   type OHLCInput,
   type SeriesSyncState,
   syncSeriesLayer,
+  toLayers,
 } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
 
 export interface CandlestickSeriesProps {
-  /** OHLC candles to render. Each element carries `time/open/high/low/close` and an optional `volume`. */
-  data: OHLCInput[];
+  /**
+   * OHLC candles to render — a flat `OHLCInput[]`, or `{ label, data }` to name
+   * the stream for the tooltip / info bar. Each candle carries
+   * `time/open/high/low/close` and an optional `volume`.
+   */
+  data: CandlestickData;
   /** Visual options override — colours, body width, entrance animation, smoothing. Merged onto theme defaults. */
   options?: Partial<CandlestickSeriesOptions>;
   /** Stable series ID — same value across remounts. */
@@ -24,9 +30,12 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState>(EMPTY_SYNC_STATE);
+  // Candlestick is single-stream — normalize the optional `{ label, data }`
+  // wrapper down to its one layer.
+  const layer = toLayers<OHLCInput>(data)[0];
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(CandlestickSeriesDef, { ...options, id: idProp });
+    const id = chart.addSeries(CandlestickSeriesDef, { ...options, id: idProp, label: layer.label });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);
@@ -39,7 +48,8 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     const id = seriesRef.current;
     if (!id) return;
 
-    prevSyncRef.current = syncSeriesLayer({ chart, id, data, prev: prevSyncRef.current });
+    chart.setSeriesLabels(id, [layer.label]);
+    prevSyncRef.current = syncSeriesLayer({ chart, id, data: layer.data, prev: prevSyncRef.current });
   }, [chart, data]);
 
   useEffect(() => {

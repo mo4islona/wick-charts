@@ -14,22 +14,41 @@ interface TimePoint {
 type TimePointInput = Omit<TimePoint, 'time'> & { time: number | Date };
 ```
 
-**Data prop is always `TimePoint[][]`** — an array of layers.
+**The `data` prop accepts either a flat single layer or an array of layers** (`TimePointInput[] | TimePointInput[][]`). A flat array is the common single-line case; it's normalized to `[data]` internally.
 
 ```ts
-// Single line — wrap in array
+// Single line — flat array (no wrapping needed)
+data={myData}
+
+// Single line — explicit layer (equivalent)
 data={[myData]}
 
 // Multi-layer
 data={[layer1, layer2, layer3]}
 ```
 
+`time` accepts epoch milliseconds (`Date.now()` style) or a `Date` object on every entry — mixed arrays are fine.
+
+### Naming / coloring layers
+
+There is **no `label` option** — a layer's name (and optional color) is carried in the data via `{ label, color?, data }`. This is what the tooltip and legend show per layer; unnamed layers in a multi-layer series auto-name `Series 1`, `Series 2`, …
+
+```ts
+// One named line
+data={{ label: 'Revenue', color: '#00d4aa', data: revenue }}
+
+// Several named lines — each row gets its own tooltip/legend entry
+data={[
+  { label: 'Revenue', color: '#4ecdc4', data: revenue },
+  { label: 'Costs',   color: '#ff6b6b', data: costs },
+]}
+```
+
 ## Series options
 
 ```ts
 interface LineSeriesOptions {
-  label?: string;                          // tooltip display name
-  colors: string[];                        // one color per layer — default: ['#2962FF']
+  colors: string[];                        // one color per layer — default: ['#2962FF']; per-layer data `color` overrides
   strokeWidth: number;                     // stroke width in px — default: 1
   area: { visible: boolean };              // gradient area under line — default: { visible: true }
   pulse: boolean;                          // animated dot at last point — default: true
@@ -122,14 +141,12 @@ import { ChartContainer, LineSeries, Tooltip, Legend } from '@wick-charts/react'
 
 <ChartContainer style={{ width: '100%', height: 400 }}>
   <LineSeries
-    data={[revenue, costs, profit]}
-    options={{
-      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      strokeWidth: 1,
-      area: { visible: true },
-      stacking: 'normal',
-      label: 'Revenue',
-    }}
+    data={[
+      { label: 'Revenue', color: '#ff6b6b', data: revenue },
+      { label: 'Costs', color: '#4ecdc4', data: costs },
+      { label: 'Profit', color: '#45b7d1', data: profit },
+    ]}
+    options={{ strokeWidth: 1, area: { visible: true }, stacking: 'normal' }}
   />
   <Tooltip sort="desc" />
   <Legend position="bottom" mode="toggle" />
@@ -140,7 +157,7 @@ import { ChartContainer, LineSeries, Tooltip, Legend } from '@wick-charts/react'
 
 ```ts
 interface LineSeriesProps {
-  data: TimePoint[][];                       // array of layers
+  data: MultiLayerData;                      // TimePointInput[] | TimePointInput[][] — flat or layered
   options?: Partial<LineSeriesOptions>;
   /** Stable series ID — reuse across overlays that target this series. */
   id?: string;
@@ -179,14 +196,12 @@ const props = defineProps<{ data: TimePoint[] }>();
 <template>
   <ChartContainer style="width: 100%; height: 400px">
     <LineSeries
-      :data="[revenue, costs, profit]"
-      :options="{
-        colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-        strokeWidth: 1,
-        area: { visible: true },
-        stacking: 'normal',
-        label: 'Revenue',
-      }"
+      :data="[
+        { label: 'Revenue', color: '#ff6b6b', data: revenue },
+        { label: 'Costs', color: '#4ecdc4', data: costs },
+        { label: 'Profit', color: '#45b7d1', data: profit },
+      ]"
+      :options="{ strokeWidth: 1, area: { visible: true }, stacking: 'normal' }"
     />
     <Tooltip sort="desc" />
     <Legend position="bottom" mode="toggle" />
@@ -198,7 +213,7 @@ const props = defineProps<{ data: TimePoint[] }>();
 
 ```ts
 // Props
-data: TimePoint[][]
+data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
 options?: Partial<LineSeriesOptions>
 /** Stable series ID — reuse across overlays that target this series. */
 id?: string
@@ -231,14 +246,12 @@ id?: string
 ```svelte
 <ChartContainer style="width:100%;height:400px">
   <LineSeries
-    data={[revenue, costs, profit]}
-    options={{
-      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      strokeWidth: 1,
-      area: { visible: true },
-      stacking: 'normal',
-      label: 'Revenue',
-    }}
+    data={[
+      { label: 'Revenue', color: '#ff6b6b', data: revenue },
+      { label: 'Costs', color: '#4ecdc4', data: costs },
+      { label: 'Profit', color: '#45b7d1', data: profit },
+    ]}
+    options={{ strokeWidth: 1, area: { visible: true }, stacking: 'normal' }}
   />
   <Tooltip sort="desc" />
   <Legend position="bottom" mode="toggle" />
@@ -248,7 +261,7 @@ id?: string
 ### Props
 
 ```ts
-data: TimePoint[][]
+data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
 options?: Partial<LineSeriesOptions>
 /** Stable series ID — reuse across overlays that target this series. */
 id?: string
@@ -312,7 +325,7 @@ options={{
 
 ```ts
 <LineSeries
-  data={[smaData]}
-  options={{ colors: ['#ffd700'], strokeWidth: 1, area: { visible: false }, pulse: false, label: 'SMA 20' }}
+  data={{ label: 'SMA 20', color: '#ffd700', data: smaData }}
+  options={{ strokeWidth: 1, area: { visible: false }, pulse: false }}
 />
 ```

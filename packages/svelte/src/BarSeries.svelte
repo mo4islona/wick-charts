@@ -1,12 +1,13 @@
 <script lang="ts">
-import type { BarSeriesOptions, SeriesSyncState, TimePoint } from '@wick-charts/core';
-import { BarSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer } from '@wick-charts/core';
+import type { BarSeriesOptions, MultiLayerData, SeriesSyncState } from '@wick-charts/core';
+import { BarSeriesDef, syncLayers, toLayers } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
 import { getChartContext } from './context';
 
-export let data: TimePoint[][];
+/** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
+export let data: MultiLayerData;
 export let options: Partial<BarSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;
@@ -22,7 +23,7 @@ const sync: { state: SeriesSyncState[] } = { state: [] };
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries(BarSeriesDef, { ...options, layers: data.length, id });
+  seriesId = chart.addSeries(BarSeriesDef, { ...options, layers: toLayers(data).length, id });
 });
 
 onDestroy(() => {
@@ -35,17 +36,7 @@ $: {
   const chart = $chartStore;
   const sid = seriesId;
   if (sid && chart) {
-    chart.batch(() => {
-      for (let i = 0; i < data.length; i++) {
-        sync.state[i] = syncSeriesLayer({
-          chart,
-          id: sid,
-          data: data[i],
-          prev: sync.state[i] ?? EMPTY_SYNC_STATE,
-          layerIndex: i,
-        });
-      }
-    });
+    sync.state = syncLayers({ chart, id: sid, data, prev: sync.state });
   }
 }
 
