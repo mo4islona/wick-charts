@@ -230,12 +230,29 @@ function getJsDocInfo(symbol) {
   return { description, defaultValue, deprecated, see };
 }
 
+/**
+ * A few `data`-prop aliases are unions of accepted shapes — show the union
+ * (the docs render it as a readable multi-line list) instead of the opaque
+ * alias name. Kept here rather than expanded via the checker because the
+ * checker output (`SeriesLayer<TimePointInput>` → its object literal) is noisy.
+ */
+const READABLE_UNION_ALIASES = {
+  // Name the layer form `SeriesLayer<…>` — the docs `data` switcher drills into
+  // its fields on click, so the union stays named rather than inlining the
+  // `{ label, color, data }` shape on every accepted form.
+  MultiLayerData:
+    'TimePointInput[] | TimePointInput[][] | SeriesLayer<TimePointInput> | SeriesLayer<TimePointInput>[]',
+  CandlestickData: 'OHLCInput[] | SeriesLayer<OHLCInput>',
+};
+
 /** Format a property's declared type as a single-line string. */
 function printPropType(prop, decl) {
   // Prefer the type from the declaration node — preserves union order and
   // type aliases (e.g. `LineEntryAnimation`) instead of expanding them.
   if (decl && ts.isPropertySignature(decl) && decl.type) {
-    return compactType(decl.type.getText());
+    const text = decl.type.getText();
+
+    return compactType(READABLE_UNION_ALIASES[text] ?? text);
   }
 
   const type = checker.getTypeOfSymbolAtLocation(prop, prop.valueDeclaration ?? decl);

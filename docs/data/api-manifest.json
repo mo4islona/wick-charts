@@ -8,7 +8,7 @@
       "props": [
         {
           "name": "data",
-          "type": "MultiLayerData",
+          "type": "TimePointInput[] | TimePointInput[][] | SeriesLayer<TimePointInput> | SeriesLayer<TimePointInput>[]",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
@@ -156,7 +156,7 @@
       "props": [
         {
           "name": "data",
-          "type": "MultiLayerData",
+          "type": "TimePointInput[] | TimePointInput[][] | SeriesLayer<TimePointInput> | SeriesLayer<TimePointInput>[]",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
@@ -281,7 +281,7 @@
       "props": [
         {
           "name": "data",
-          "type": "CandlestickData",
+          "type": "OHLCInput[] | SeriesLayer<OHLCInput>",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,

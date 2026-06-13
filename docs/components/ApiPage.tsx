@@ -138,6 +138,7 @@ function mergeDataShapeIntoProps(component: string, props: ApiProp[]): ApiProp[]
     return {
       ...p,
       nested: { name: shape.typeName, props: shape.props },
+      variants: shape.variants,
       defaultOpen: true,
       // Surface the description on the data prop itself if it doesn't have
       // one already, so the reader sees "Each layer is `TimePoint[]` …"

@@ -16,6 +16,62 @@ export interface DataShape {
   description?: string;
   /** Fields of the inner element type — same shape as ApiProp so the existing renderer just works. */
   props: ApiProp[];
+  /**
+   * Switchable shapes for the `data` prop — one tab per accepted form (e.g. the
+   * raw point vs. a named `{ label, color, data }` layer). When present, the
+   * docs render a type switcher and the field list swaps to the picked variant.
+   */
+  variants?: DataVariant[];
+}
+
+/** A single tab in the `data`-prop type switcher. */
+export interface DataVariant {
+  /** Tab label — the union member (e.g. `TimePointInput` or `{ label, color, data }`). */
+  label: string;
+  /** Type name shown above the swapped field list. */
+  typeName: string;
+  props: ApiProp[];
+}
+
+/**
+ * Fields of a named layer (`SeriesLayer<T>`) for the `data` switcher. `color`
+ * is line/bar only — a candlestick stream ignores it.
+ */
+function seriesLayerProps(elementType: string, withColor: boolean): ApiProp[] {
+  const props: ApiProp[] = [
+    {
+      name: 'label',
+      type: 'string',
+      optional: true,
+      defaultValue: null,
+      deprecated: null,
+      description:
+        'Display name shown in the tooltip / legend. A multi-layer series auto-names unnamed layers `Series N`.',
+    },
+  ];
+
+  if (withColor) {
+    props.push({
+      name: 'color',
+      type: 'string | ((value: number) => string)',
+      optional: true,
+      defaultValue: null,
+      deprecated: null,
+      description:
+        'Stroke / fill color, overriding the theme. A function colors a bar per bar, a line by its latest value.',
+    });
+  }
+
+  props.push({
+    name: 'data',
+    type: `${elementType}[]`,
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description: "The layer's points.",
+  });
+
+  return props;
 }
 
 const TIME_FIELD: ApiProp = {
@@ -61,16 +117,71 @@ const TIME_POINT_INPUT: DataShape = {
   props: [TIME_FIELD_INPUT, ...TIME_POINT.props.slice(1)],
 };
 
+/** OHLC candle fields (time accepts a `Date`). Shared by the candlestick `props` and its switcher variant. */
+const OHLC_INPUT_PROPS: ApiProp[] = [
+  TIME_FIELD_INPUT,
+  {
+    name: 'open',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description: 'Price at the start of the candle interval.',
+  },
+  {
+    name: 'high',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description: 'Highest price reached during the interval. Drives the upper wick.',
+  },
+  {
+    name: 'low',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description: 'Lowest price reached during the interval. Drives the lower wick.',
+  },
+  {
+    name: 'close',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description:
+      'Price at the end of the interval. The body is drawn between `open` and `close`; `close > open` paints the up colour, otherwise the down colour.',
+  },
+  {
+    name: 'volume',
+    type: 'number',
+    optional: true,
+    defaultValue: null,
+    deprecated: null,
+    description:
+      'Trade volume for the interval. When present on any candle, the chart adds a volume pane below the price pane; omit it across the whole series to hide that pane.',
+  },
+];
+
 export const CHART_DATA_TYPES: Record<string, DataShape> = {
   LineSeries: {
     ...TIME_POINT_INPUT,
     description:
       'Omnivorous: a flat `TimePointInput[]` (one line), `TimePointInput[][]` (one inner array per layer), or named `{ label?, color?, data }` layers (single or array). Name and color ride in the data — there is no `label` or `colors` option. `color` is `string | ((value) => string)`. Time may be epoch ms or a `Date`.',
+    variants: [
+      { label: 'TimePointInput', typeName: 'TimePointInput', props: TIME_POINT_INPUT.props },
+      { label: 'SeriesLayer', typeName: 'SeriesLayer', props: seriesLayerProps('TimePointInput', true) },
+    ],
   },
   BarSeries: {
     ...TIME_POINT_INPUT,
     description:
       'Same shape as `LineSeries` — a flat `TimePointInput[]`, `TimePointInput[][]`, or named `{ label?, color?, data }` layers. A single bar defaults to the theme sign coloring (`theme.bar.color`); a `color` function paints each bar by value.',
+    variants: [
+      { label: 'TimePointInput', typeName: 'TimePointInput', props: TIME_POINT_INPUT.props },
+      { label: 'SeriesLayer', typeName: 'SeriesLayer', props: seriesLayerProps('TimePointInput', true) },
+    ],
   },
   Sparkline: {
     ...TIME_POINT_INPUT,
@@ -82,50 +193,10 @@ export const CHART_DATA_TYPES: Record<string, DataShape> = {
     typeName: 'OHLCInput',
     description:
       "A flat `OHLCInput[]` stream, or `{ label, data }` to name it for the tooltip / info bar. Time may be epoch ms or a `Date`. `volume` is optional — omit it when you don't want a volume pane.",
-    props: [
-      TIME_FIELD_INPUT,
-      {
-        name: 'open',
-        type: 'number',
-        optional: false,
-        defaultValue: null,
-        deprecated: null,
-        description: 'Price at the start of the candle interval.',
-      },
-      {
-        name: 'high',
-        type: 'number',
-        optional: false,
-        defaultValue: null,
-        deprecated: null,
-        description: 'Highest price reached during the interval. Drives the upper wick.',
-      },
-      {
-        name: 'low',
-        type: 'number',
-        optional: false,
-        defaultValue: null,
-        deprecated: null,
-        description: 'Lowest price reached during the interval. Drives the lower wick.',
-      },
-      {
-        name: 'close',
-        type: 'number',
-        optional: false,
-        defaultValue: null,
-        deprecated: null,
-        description:
-          'Price at the end of the interval. The body is drawn between `open` and `close`; `close > open` paints the up colour, otherwise the down colour.',
-      },
-      {
-        name: 'volume',
-        type: 'number',
-        optional: true,
-        defaultValue: null,
-        deprecated: null,
-        description:
-          'Trade volume for the interval. When present on any candle, the chart adds a volume pane below the price pane; omit it across the whole series to hide that pane.',
-      },
+    props: OHLC_INPUT_PROPS,
+    variants: [
+      { label: 'OHLCInput', typeName: 'OHLCInput', props: OHLC_INPUT_PROPS },
+      { label: 'SeriesLayer', typeName: 'SeriesLayer', props: seriesLayerProps('OHLCInput', false) },
     ],
   },
 

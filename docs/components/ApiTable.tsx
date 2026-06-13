@@ -22,6 +22,12 @@ export interface ApiProp {
   see?: string[];
   nested?: { name: string; props: ApiProp[] };
   /**
+   * Switchable shapes for the prop (the chart `data` type switcher). When set,
+   * the entry renders a tab per accepted form and swaps the field list to the
+   * picked one — used to drill into `TimePointInput` vs a named layer.
+   */
+  variants?: { label: string; typeName: string; props: ApiProp[] }[];
+  /**
    * When true, the nested expansion opens by default. Used for the chart
    * `data` prop where the inner element shape is the most interesting bit
    * for the reader. Default behaviour (`undefined` / `false`) is collapsed.
@@ -96,12 +102,15 @@ function PropEntry({
   depth: number;
   isFirst: boolean;
 }) {
-  const hasNested = !!prop.nested && prop.nested.props.length > 0;
+  const hasVariants = !!prop.variants && prop.variants.length > 0;
+  const hasNested = !hasVariants && !!prop.nested && prop.nested.props.length > 0;
   // Collapsed by default with the card layout — auto-expanding everything
   // would scroll forever. Individual props can opt into open-by-default
   // via `defaultOpen` (used for the chart `data` prop where the inner
   // shape is the lead).
   const [open, setOpen] = useState(prop.defaultOpen ?? false);
+  // Selected tab when the prop has switchable `variants`.
+  const [variant, setVariant] = useState(0);
 
   const codeColor = theme.line.color;
   const mutedColor = theme.axis.textColor;
@@ -192,10 +201,11 @@ function PropEntry({
         )}
       </div>
 
-      {/* Multi-line type: rendered below the header on its own block.
-          Suppressed when nested expansion is available — the toggle below
-          already shows the full shape, so the pre block would just duplicate. */}
-      {isMultilineType && !hasNested && (
+      {/* Multi-line type: rendered below the header on its own block. Shown even
+          with a nested expansion — a multi-line type here is a union of accepted
+          shapes (e.g. the `data` prop), which complements rather than duplicates
+          the nested field toggle below. */}
+      {isMultilineType && (
         <pre
           style={{
             margin: '6px 0 0',
@@ -225,16 +235,82 @@ function PropEntry({
             opacity: 0.92,
           }}
         >
-          <Description
-            text={prop.description}
-            mutedColor={mutedColor}
-            deprecated={prop.deprecated}
-            theme={theme}
-          />
+          <Description text={prop.description} mutedColor={mutedColor} deprecated={prop.deprecated} theme={theme} />
         </div>
       )}
 
-      {/* Nested children */}
+      {/* Type switcher — one tab per accepted `data` shape; the field list below
+          swaps to the picked variant. */}
+      {hasVariants && prop.variants && (
+        <div style={{ marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '2px 8px 2px 6px',
+              fontSize: '1em',
+              borderRadius: 4,
+              border: `1px solid ${borderColor}`,
+              background: 'transparent',
+              color: mutedColor,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: '0.83em', lineHeight: 1 }}>{open ? '▼' : '▶'}</span>
+            {open ? 'Hide shapes' : 'Show shapes'}
+          </button>
+
+          {open && (
+            <>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: DEPTH_INDENT }}>
+                {prop.variants.map((v, i) => {
+                  const active = i === variant;
+
+                  return (
+                    <button
+                      key={v.label}
+                      type="button"
+                      className="md-inline-code"
+                      onClick={() => setVariant(i)}
+                      style={{
+                        fontSize: '1em',
+                        padding: '2px 10px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        border: `1px solid ${active ? codeColor : borderColor}`,
+                        background: active ? hexToRgba(codeColor, 0.12) : 'transparent',
+                        color: active ? codeColor : mutedColor,
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {v.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  marginLeft: DEPTH_INDENT,
+                  borderLeft: `2px solid ${borderColor}`,
+                  background: hexToRgba(theme.crosshair.labelBackground, 0.08),
+                  borderRadius: 4,
+                }}
+              >
+                <PropList props={prop.variants[variant].props} theme={theme} depth={depth + 1} />
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Nested children (single shape — props without a variant switcher) */}
       {hasNested && prop.nested && (
         <div style={{ marginTop: 10 }}>
           <button
@@ -283,7 +359,34 @@ function PropEntry({
  * lines on `{` / `;` / `}` boundaries instead of mushing into one string.
  * Short types and types without object literals pass through unchanged.
  */
+/** Split a type on top-level `|`, ignoring pipes nested in `{}` / `[]` / `()`. */
+function splitTopLevelUnion(type: string): string[] {
+  const members: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < type.length; i++) {
+    const ch = type[i];
+    if (ch === '{' || ch === '[' || ch === '(') {
+      depth++;
+    } else if (ch === '}' || ch === ']' || ch === ')') {
+      depth--;
+    } else if (ch === '|' && depth === 0) {
+      members.push(type.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  members.push(type.slice(start).trim());
+
+  return members.filter(Boolean);
+}
+
 function formatType(type: string): string {
+  // A long, multi-member union reads better as one member per line.
+  const members = splitTopLevelUnion(type);
+  if (members.length >= 3 && type.length >= 70) {
+    return members.map((m, i) => (i === 0 ? m : `| ${m}`)).join('\n');
+  }
+
   if (!type.includes('{')) return type;
   if (type.length < 50) return type;
 
