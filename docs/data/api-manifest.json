@@ -1758,7 +1758,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Stroke width in CSS pixels (default: 1)",
+          "description": "Stroke width in CSS pixels (default: 1.5)",
           "see": []
         },
         {
@@ -3437,6 +3437,121 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Color override. Falls back to the series color (when `seriesId` is set), then the theme line color.",
+          "see": []
+        }
+      ]
+    },
+    "ReferenceLine": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/ReferenceLine.tsx",
+      "alias": null,
+      "description": "A straight reference line across the plot — a horizontal threshold / baseline\npinned to a `value`, or a vertical event boundary pinned to a `time`\n(mutually exclusive). Renders on the chart's overlay layer *above* the series\nand stays out of the series model, so it never affects the Y-range autoscale,\ntooltip, or legend.\n\n```tsx\n<ReferenceLine value={0.5} label=\"alert\" color=\"#f0556a\" />\n<ReferenceLine time={deployMs} label=\"deploy\" />\n```",
+      "props": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Horizontal line at this Y data value. Mutually exclusive with {@link ReferenceLineProps.time}.",
+          "see": []
+        },
+        {
+          "name": "time",
+          "type": "TimeValue",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}.",
+          "see": []
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the theme line color",
+          "deprecated": null,
+          "description": "Line and label-pill color. Default: the theme line color.",
+          "see": []
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Optional text label drawn in a pill at the line's near end.",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "ReferenceLineStyle",
+          "optional": true,
+          "defaultValue": "'dashed'",
+          "deprecated": null,
+          "description": "Dash style. Default: `'dashed'`.",
+          "see": []
+        },
+        {
+          "name": "width",
+          "type": "number",
+          "optional": true,
+          "defaultValue": "1",
+          "deprecated": null,
+          "description": "Stroke width in CSS pixels. Default: `1`.",
+          "see": []
+        }
+      ]
+    },
+    "TimeRegion": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/TimeRegion.tsx",
+      "alias": null,
+      "description": "A translucent vertical band shading the interval `[from, to]` — an anomaly\nwindow, a maintenance window, a highlighted session. Renders on the chart's\nmain layer *behind* the series and stays out of the series model, so it never\naffects the Y-range autoscale, tooltip, or legend. Omit `to` (or pass\n`'now'`) for an open-ended band that extends to the right edge.\n\n```tsx\n<TimeRegion from={openedMs} to={recoveredMs ?? 'now'} fill=\"rgba(240, 85, 106, 0.08)\" label=\"anomaly window\" />\n```",
+      "props": [
+        {
+          "name": "from",
+          "type": "TimeValue",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Left edge — epoch ms or a `Date`.",
+          "see": []
+        },
+        {
+          "name": "to",
+          "type": "TimeRegionEnd",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Right edge — epoch ms or a `Date`. Omit (or pass `'now'`) for an open-ended\nregion that extends to the right edge of the plot — the \"still firing\" case.",
+          "see": []
+        },
+        {
+          "name": "fill",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "a faint tint of `color`",
+          "deprecated": null,
+          "description": "Band fill — any CSS color, typically translucent. Default: a faint tint of `color`.",
+          "see": []
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Optional text label drawn in a pill at the top of the band.",
+          "see": []
+        },
+        {
+          "name": "color",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the theme's muted axis text color",
+          "deprecated": null,
+          "description": "Edge-line and label-pill accent. Default: the theme's muted axis text color.",
           "see": []
         }
       ]

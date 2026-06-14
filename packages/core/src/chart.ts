@@ -23,6 +23,13 @@ import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
+import {
+  type ReferenceLineConfig,
+  type ReferenceLineOrientation,
+  type ReferenceLineStyle,
+  renderReferenceLine,
+} from './components/reference-line';
+import { type TimeRegionConfig, renderTimeRegion, resolveTimeRegionColors } from './components/time-region';
 import { EventEmitter } from './events';
 import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
@@ -109,8 +116,31 @@ interface MarkerEntry {
   color?: string;
 }
 
+/** Internal bookkeeping for a registered time region. `from`/`to` are normalized to epoch ms; `to: null` is open-ended. */
+interface RegionEntry {
+  id: string;
+  from: number;
+  to: number | null;
+  fill?: string;
+  color?: string;
+  label?: string;
+}
+
+/** Internal bookkeeping for a registered reference line. `coord` is a Y value (horizontal) or normalized epoch ms (vertical). */
+interface LineEntry {
+  id: string;
+  orientation: ReferenceLineOrientation;
+  coord: number;
+  color?: string;
+  label?: string;
+  style: ReferenceLineStyle;
+  width: number;
+}
+
 let seriesIdCounter = 0;
 let markerIdCounter = 0;
+let regionIdCounter = 0;
+let lineIdCounter = 0;
 
 /** Shallow equality for per-layer label arrays (handles the `undefined` holes). */
 function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefined)[] | undefined): boolean {
@@ -152,6 +182,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #series: SeriesEntry[] = [];
   /** Point annotations (event markers) drawn on the overlay layer, kept out of the series model. */
   #markers: MarkerEntry[] = [];
+  /** Time-region bands drawn on the main layer behind the series, kept out of the series model. */
+  #regions: RegionEntry[] = [];
+  /** Reference lines (horizontal threshold / vertical event) drawn on the overlay layer, kept out of the series model. */
+  #lines: LineEntry[] = [];
   /** Active visual theme (colors, fonts, grid style). */
   #theme: ChartTheme;
   /** Whether to render the background grid. */
@@ -628,6 +662,165 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           label: marker.label,
         },
         phase,
+      });
+    }
+  }
+
+  // --- Time regions (shaded bands) -----------------------------------------
+
+  /**
+   * Shade the time interval `[from, to]` with a translucent vertical band —
+   * an anomaly window, a maintenance window, a highlighted session. Omit `to`
+   * (or pass `'now'`) for an open-ended band that extends to the right edge of
+   * the plot — the "still firing" case. Returns the region id for later
+   * {@link updateRegion} / {@link removeRegion}.
+   *
+   * Regions render on the main layer *behind* the series and stay out of the
+   * series model — they never affect the Y-range autoscale, tooltips, or the
+   * legend.
+   */
+  addRegion(config: TimeRegionConfig): string {
+    const id = `region_${++regionIdCounter}`;
+    this.#regions.push(this.#normalizeRegion(id, config));
+    this.#mainScheduler.markDirty();
+
+    return id;
+  }
+
+  /** Replace a region's config in place. No-op when the id is unknown. */
+  updateRegion(id: string, config: TimeRegionConfig): void {
+    const idx = this.#regions.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+
+    this.#regions[idx] = this.#normalizeRegion(id, config);
+    this.#mainScheduler.markDirty();
+  }
+
+  /** Remove a region by id. No-op when the id is unknown. */
+  removeRegion(id: string): void {
+    const idx = this.#regions.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+
+    this.#regions.splice(idx, 1);
+    this.#mainScheduler.markDirty();
+  }
+
+  /** Read-only snapshot of the registered regions (normalized). Mutate via add / update / removeRegion. */
+  getRegions(): readonly Readonly<RegionEntry>[] {
+    return this.#regions;
+  }
+
+  #normalizeRegion(id: string, config: TimeRegionConfig): RegionEntry {
+    const { to } = config;
+    const resolvedTo = to === undefined || to === 'now' ? null : normalizeTime(to);
+
+    return {
+      id,
+      from: normalizeTime(config.from),
+      to: resolvedTo,
+      fill: config.fill,
+      color: config.color,
+      label: config.label,
+    };
+  }
+
+  #drawRegions(scope: BitmapCoordinateSpace, plotWidth: number, plotHeight: number): void {
+    if (this.#regions.length === 0) return;
+
+    for (const region of this.#regions) {
+      const { color, fill } = resolveTimeRegionColors(region, this.#theme);
+      renderTimeRegion({
+        scope,
+        timeScale: this.timeScale,
+        theme: this.#theme,
+        region: { from: region.from, to: region.to, fill, color, label: region.label },
+        plotWidth,
+        plotHeight,
+      });
+    }
+  }
+
+  // --- Reference lines (thresholds / event boundaries) ---------------------
+
+  /**
+   * Draw a reference line across the plot — a horizontal threshold / baseline
+   * pinned to a `value`, or a vertical event boundary pinned to a `time`
+   * (mutually exclusive). Returns the line id for later {@link updateLine} /
+   * {@link removeLine}.
+   *
+   * Lines render on the overlay layer *above* the series and stay out of the
+   * series model — they never affect the Y-range autoscale, tooltips, or the
+   * legend.
+   */
+  addLine(config: ReferenceLineConfig): string {
+    const id = `line_${++lineIdCounter}`;
+    this.#lines.push(this.#normalizeLine(id, config));
+    this.#overlayScheduler.markDirty();
+
+    return id;
+  }
+
+  /** Replace a reference line's config in place. No-op when the id is unknown. */
+  updateLine(id: string, config: ReferenceLineConfig): void {
+    const idx = this.#lines.findIndex((l) => l.id === id);
+    if (idx === -1) return;
+
+    this.#lines[idx] = this.#normalizeLine(id, config);
+    this.#overlayScheduler.markDirty();
+  }
+
+  /** Remove a reference line by id. No-op when the id is unknown. */
+  removeLine(id: string): void {
+    const idx = this.#lines.findIndex((l) => l.id === id);
+    if (idx === -1) return;
+
+    this.#lines.splice(idx, 1);
+    this.#overlayScheduler.markDirty();
+  }
+
+  /** Read-only snapshot of the registered reference lines (normalized). Mutate via add / update / removeLine. */
+  getLines(): readonly Readonly<LineEntry>[] {
+    return this.#lines;
+  }
+
+  #normalizeLine(id: string, config: ReferenceLineConfig): LineEntry {
+    const { time, value } = config;
+    const common = {
+      id,
+      color: config.color,
+      label: config.label,
+      style: config.style ?? 'dashed',
+      width: config.width ?? 1,
+    };
+
+    // A `time` wins over `value` when both are set (vertical); neither resolves
+    // to a non-finite coord, which the renderer skips.
+    if (time !== undefined) {
+      return { ...common, orientation: 'vertical', coord: normalizeTime(time) };
+    }
+
+    return { ...common, orientation: 'horizontal', coord: value ?? Number.NaN };
+  }
+
+  #drawLines(scope: BitmapCoordinateSpace, plotWidth: number, plotHeight: number): void {
+    if (this.#lines.length === 0) return;
+
+    for (const line of this.#lines) {
+      renderReferenceLine({
+        scope,
+        timeScale: this.timeScale,
+        yScale: this.yScale,
+        theme: this.#theme,
+        line: {
+          orientation: line.orientation,
+          coord: line.coord,
+          color: line.color ?? this.#theme.line.color,
+          style: line.style,
+          width: line.width,
+          label: line.label,
+        },
+        plotWidth,
+        plotHeight,
       });
     }
   }
@@ -1474,6 +1667,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     for (const entry of this.#series) entry.renderer.dispose();
     this.#series = [];
     this.#markers = [];
+    this.#regions = [];
+    this.#lines = [];
     this.#seriesIdCache = null;
     this.#mainScheduler.destroy();
     this.#overlayScheduler.destroy();
@@ -2167,6 +2362,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         });
       }
 
+      // Time-region bands sit between the grid and the series so the data reads
+      // on top of the shading.
+      this.#drawRegions(scope, chartBitmapWidth, chartBitmapHeight);
+
       const vpad = this.#padding;
       const padding = { top: vpad.top, bottom: vpad.bottom };
       const perfMon = this.#perfMonitor;
@@ -2299,7 +2498,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Skip the full-bitmap clear when the overlay is empty AND was already
     // empty last pass — only the painted→empty transition (e.g. mouseleave
     // erasing a stale crosshair) needs one erasing clear.
-    const hasContent = Boolean(this.#crosshairPos) || overlayAnimates || edgeVisible || this.#markers.length > 0;
+    const hasContent =
+      Boolean(this.#crosshairPos) ||
+      overlayAnimates ||
+      edgeVisible ||
+      this.#markers.length > 0 ||
+      this.#lines.length > 0;
     if (!hasContent && !this.#overlayHasContent) return;
 
     this.#overlayHasContent = hasContent;
@@ -2345,6 +2549,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           seriesId: entry.id,
         });
       }
+
+      // Reference lines (thresholds / event boundaries): above series overlays,
+      // below point markers so an event dot reads on top of its own line.
+      this.#drawLines(scope, chartBitmapWidth, chartBitmapHeight);
 
       // Point annotations (event markers): above series overlays, below edge indicators.
       this.#drawMarkers(scope);

@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import type { ChartTheme } from '@wick-charts/react';
 
 import type { Route } from '../../routes';
+import { AnomalyWindowPage } from './anomaly-window';
 import { CustomRendersPage } from './custom-renders';
 import { EventMarkersPage } from './event-markers';
 import { MultiChartSyncPage } from './multi-chart-sync';
@@ -19,6 +20,7 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/multi-chart-sync': MultiChartSyncPage,
   'use-cases/custom-renders': CustomRendersPage,
   'use-cases/event-markers': EventMarkersPage,
+  'use-cases/anomaly-window': AnomalyWindowPage,
 };
 
 export function UseCasesRoutePage({ route, theme }: { route: Route; theme: ChartTheme }) {

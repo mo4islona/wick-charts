@@ -39,6 +39,8 @@ const COMPONENTS = [
   { name: 'Crosshair', file: 'packages/react/src/ui/Crosshair.tsx', kind: 'subcomponent' },
   { name: 'Legend', file: 'packages/react/src/ui/Legend.tsx', kind: 'subcomponent' },
   { name: 'Marker', file: 'packages/react/src/ui/Marker.tsx', kind: 'subcomponent' },
+  { name: 'ReferenceLine', file: 'packages/react/src/ui/ReferenceLine.tsx', kind: 'subcomponent' },
+  { name: 'TimeRegion', file: 'packages/react/src/ui/TimeRegion.tsx', kind: 'subcomponent' },
   { name: 'Navigator', file: 'packages/react/src/ui/Navigator.tsx', kind: 'subcomponent' },
   { name: 'Title', file: 'packages/react/src/ui/Title.tsx', kind: 'subcomponent' },
   { name: 'InfoBar', file: 'packages/react/src/ui/InfoBar.tsx', kind: 'subcomponent' },

@@ -13,7 +13,7 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 - `@wick-charts/vue` — components + composables
 - `@wick-charts/svelte` — components + stores
 
-Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `Marker`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
+Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `Marker`, `ReferenceLine`, `TimeRegion`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
 Framework-specific gaps to know about:
 
@@ -112,6 +112,8 @@ Placed as children of `ChartContainer`.
 | `TimeAxis` (alias `XAxis`) | — | — | Horizontal time axis |
 | `YLabel` | `seriesId?`, `color?`, `format?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
 | `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
+| `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
+| `TimeRegion` | `from`, `to?`, `fill?`, `label?`, `color?` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
 | `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | — | Standalone animated number |
@@ -146,6 +148,32 @@ Placed as children of `ChartContainer`.
 - `color` — override; falls back to the series color (when `seriesId` is set), then the theme line color.
 
 Render as many `<Marker>`s as you need. Prop set is identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addMarker(config) → id`, `chart.updateMarker(id, config)`, `chart.removeMarker(id)`.
+
+## Time regions & reference lines (annotations)
+
+Two more annotations in the same family as `<Marker>` — also **excluded from the tooltip, legend, and Y-range autoscale**.
+
+`<TimeRegion>` shades a time interval with a translucent band (an anomaly window, a maintenance window, a highlighted session). It draws on the main layer **behind** the series, so data reads on top of the shading. Omit `to` (or pass `'now'`) for an open-ended band that extends to the right edge — the "still firing" case.
+
+`<ReferenceLine>` is a straight line across the plot — a horizontal threshold / baseline pinned to a `value`, **or** a vertical event boundary pinned to a `time` (mutually exclusive). It draws on the overlay layer **above** the series, so a threshold reads on top of the data. `style` is `'solid' | 'dashed'` (default `'dashed'`).
+
+```tsx
+<ChartContainer theme={theme}>
+  <LineSeries id="metric" data={metric} />
+  {/* shade the incident; `to="now"` while still firing, a timestamp once recovered */}
+  <TimeRegion from={brokeMs} to={recoveredMs ?? 'now'} fill="rgba(240,85,106,0.1)" color="#f0556a" label="incident" />
+  {/* horizontal threshold + baseline */}
+  <ReferenceLine value={70} label="alert 70" color="#f0a83c" />
+  <ReferenceLine value={baseline} label="baseline" />
+  {/* vertical event boundary */}
+  <ReferenceLine time={deployMs} label="deploy v2.1.0" color="#6f9ef8" />
+</ChartContainer>
+```
+
+- `TimeRegion`: `from` (ms / `Date`), `to?` (ms / `Date` / `'now'` / omitted → open-ended), `fill?` (default: faint tint of `color`), `color?` (edge + label accent, default muted axis color), `label?`.
+- `ReferenceLine`: `value?` **xor** `time?` (a `time` wins if both are set), `color?` (default theme line color), `label?`, `style?`, `width?` (CSS px, default 1).
+
+Prop sets are identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addRegion(config) → id` / `updateRegion` / `removeRegion`, and `chart.addLine(config) → id` / `updateLine` / `removeLine`.
 
 ## Themes
 

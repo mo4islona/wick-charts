@@ -48,6 +48,9 @@ export type {
   PerfStats,
   PieSeriesOptions,
   PieSliceData,
+  ReferenceLineConfig,
+  ReferenceLineOrientation,
+  ReferenceLineStyle,
   RoundedRectArgs,
   SeriesCreateEnv,
   SeriesDefinition,
@@ -60,6 +63,8 @@ export type {
   ThemePreset,
   TimePoint,
   TimePointInput,
+  TimeRegionConfig,
+  TimeRegionEnd,
   TimeValue,
   TooltipField,
   TooltipFormatter,
@@ -147,7 +152,9 @@ export { default as Navigator } from './ui/Navigator.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
+export { default as ReferenceLine } from './ui/ReferenceLine.vue';
 export { default as TimeAxis } from './ui/TimeAxis.vue';
+export { default as TimeRegion } from './ui/TimeRegion.vue';
 export { default as Title } from './ui/Title.vue';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.vue';

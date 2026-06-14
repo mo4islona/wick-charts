@@ -53,6 +53,9 @@ export type {
   PerfStats,
   PieSeriesOptions,
   PieSliceData,
+  ReferenceLineConfig,
+  ReferenceLineOrientation,
+  ReferenceLineStyle,
   RoundedRectArgs,
   SeriesCreateEnv,
   SeriesDefinition,
@@ -65,6 +68,8 @@ export type {
   ThemePreset,
   TimePoint,
   TimePointInput,
+  TimeRegionConfig,
+  TimeRegionEnd,
   TimeValue,
   TooltipField,
   TooltipFormatter,
@@ -176,9 +181,15 @@ export { NumberFlow } from './ui/NumberFlow';
 export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderContext } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
 export { PieTooltip } from './ui/PieTooltip';
+// Reference lines — horizontal threshold / vertical event boundary
+export type { ReferenceLineProps } from './ui/ReferenceLine';
+export { ReferenceLine } from './ui/ReferenceLine';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
 export { Sparkline } from './ui/Sparkline';
 export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
+// Time regions — translucent shaded bands over a time interval
+export type { TimeRegionProps } from './ui/TimeRegion';
+export { TimeRegion } from './ui/TimeRegion';
 export type { TitleProps } from './ui/Title';
 export { Title } from './ui/Title';
 export type { TooltipProps, TooltipRenderContext, TooltipSort } from './ui/Tooltip';

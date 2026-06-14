@@ -32,6 +32,18 @@ export { ChartInstance } from './chart';
 // overlay layer. Kept out of the series model, so excluded from tooltips, the
 // legend, and Y-range autoscale. Add via `chart.addMarker(config)`.
 export type { MarkerConfig, MarkerShape } from './components/marker';
+// Reference lines — horizontal thresholds / baselines (pinned to a value) or
+// vertical event boundaries (pinned to a time), drawn on the overlay layer.
+// Kept out of the series model. Add via `chart.addLine(config)`.
+export type {
+  ReferenceLineConfig,
+  ReferenceLineOrientation,
+  ReferenceLineStyle,
+} from './components/reference-line';
+// Time regions — translucent vertical bands shading a time interval (anomaly /
+// maintenance windows), drawn on the main layer behind the series. Kept out of
+// the series model. Add via `chart.addRegion(config)`.
+export type { TimeRegionConfig, TimeRegionEnd } from './components/time-region';
 // Series data reconciliation — shared by the React / Vue / Svelte wrappers so
 // every framework picks the same cheapest-correct mutation (append / keepLast /
 // update / replace) and streams without Y-snapping.
