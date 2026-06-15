@@ -255,6 +255,50 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return chained?.get(last.time) ?? { x: lastRawX, y: lastRawY };
   }
 
+  /**
+   * Vertical stroke + area gradients for `options.threshold`, pinned to the
+   * threshold value's pixel row so the series reads calm below the level and hot
+   * above it. Returns `null` when no threshold is configured.
+   *
+   * Recomputed per frame: `createLinearGradient` is cheap, and the row drifts as
+   * the Y-axis autoscales (and during the spike's entrance), so a cache keyed on
+   * the row would miss almost every frame anyway.
+   */
+  private buildThresholdPaint(
+    ctx: SeriesRenderContext,
+    seriesColor: string,
+  ): { stroke: CanvasGradient; area: CanvasGradient } | null {
+    const threshold = this.options.threshold;
+    if (!threshold) return null;
+
+    const { scope, yScale } = ctx;
+    const { context } = scope;
+    const height = scope.bitmapSize.height;
+    const above = threshold.above;
+    const below = threshold.below ?? seriesColor;
+
+    // The threshold value's pixel row as a 0..1 gradient offset, with a small
+    // blend band so the switch reads as a transition rather than an aliased edge.
+    const row = Math.min(1, Math.max(0, yScale.valueToBitmapY(threshold.value) / height));
+    const band = Math.min(6 * scope.verticalPixelRatio, height * 0.02) / height;
+    const top = Math.max(0, row - band);
+    const bottom = Math.min(1, row + band);
+
+    const stroke = context.createLinearGradient(0, 0, 0, height);
+    stroke.addColorStop(0, above);
+    stroke.addColorStop(top, above);
+    stroke.addColorStop(bottom, below);
+    stroke.addColorStop(1, below);
+
+    const area = context.createLinearGradient(0, 0, 0, height);
+    area.addColorStop(0, hexToRgba(above, 0.26));
+    area.addColorStop(top, hexToRgba(above, 0.14));
+    area.addColorStop(bottom, hexToRgba(below, 0.1));
+    area.addColorStop(1, hexToRgba(below, 0.01));
+
+    return { stroke, area };
+  }
+
   /** Each layer drawn independently */
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale } = ctx;
@@ -290,6 +334,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // bar-only feature). A plain string resolves to itself.
       const layerLastValue = this.stores[li].last()?.value ?? data[data.length - 1].value;
       const color = this.resolveLayerColor(li, layerLastValue);
+
+      // Positional threshold gradient (calm below the level, hot above it). Null
+      // unless `options.threshold` is set, in which case it drives both the
+      // stroke and the area fill in place of the flat series color.
+      const thresholdPaint = this.buildThresholdPaint(ctx, color);
 
       // Trailing-segment entrance: the new segment appears to unfurl from the
       // penultimate point to the new one. 'grow' interpolates both axes (via
@@ -388,7 +437,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           if (run.length < 2) continue;
           builder(paintEnv, { points: run, color, lineWidth, closing: false, grew: growing && run === growingRun });
         }
-        context.strokeStyle = color;
+        context.strokeStyle = thresholdPaint ? thresholdPaint.stroke : color;
         context.lineWidth = lineWidth;
         context.lineJoin = 'round';
         context.lineCap = 'round';
@@ -421,16 +470,20 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // fill across the gaps.
       if (this.options.area.visible) {
         const bottomY = scope.bitmapSize.height;
-        const cacheKey = String(li);
-        const cached = this.areaGradientCache.get(cacheKey);
         let grad: CanvasGradient;
-        if (cached && cached.bottomY === bottomY && cached.color === color) {
-          grad = cached.gradient;
+        if (thresholdPaint) {
+          grad = thresholdPaint.area;
         } else {
-          grad = context.createLinearGradient(0, 0, 0, bottomY);
-          grad.addColorStop(0, hexToRgba(color, 0.12));
-          grad.addColorStop(1, hexToRgba(color, 0.01));
-          this.areaGradientCache.set(cacheKey, { gradient: grad, bottomY, color });
+          const cacheKey = String(li);
+          const cached = this.areaGradientCache.get(cacheKey);
+          if (cached && cached.bottomY === bottomY && cached.color === color) {
+            grad = cached.gradient;
+          } else {
+            grad = context.createLinearGradient(0, 0, 0, bottomY);
+            grad.addColorStop(0, hexToRgba(color, 0.12));
+            grad.addColorStop(1, hexToRgba(color, 0.01));
+            this.areaGradientCache.set(cacheKey, { gradient: grad, bottomY, color });
+          }
         }
         context.fillStyle = grad;
         for (const run of runs) {

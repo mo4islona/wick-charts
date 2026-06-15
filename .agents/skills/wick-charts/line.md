@@ -58,6 +58,11 @@ interface LineSeriesOptions {
   pulse: boolean;                          // animated dot at last point — default: true
   pulseMs?: number | false;                // pulse period; false disables — default: 600
   stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
+  threshold?: {                            // positional above/below color split — default: off
+    value: number;                         //   Y value where the color switches
+    above: string;                         //   color above the level
+    below?: string;                        //   color below — default: series color
+  };
   entryAnimation?: 'none' | 'grow' | 'fade'; // entrance style for new points — default: 'grow'
   entryMs?: number | false;                // entrance duration; false disables — default: 250
   smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 250
@@ -109,6 +114,26 @@ Animated pulsing dot at the last data point. Useful for live data. Set `false` f
 | `'off'` | Each layer rendered independently, overlapping |
 | `'normal'` | Layers stack cumulatively — each layer's Y = sum of all layers below |
 | `'percent'` | Like `'normal'` but normalized to 0–100% of total |
+
+### `threshold`
+
+Positional color split: paints the stroke **and** the area fill one color above a Y `value` and another below it. The switch is pinned to that value's pixel row — a vertical gradient, so it tracks the Y-axis as it autoscales. Makes a series visibly "go critical" past a limit (calm below the level, hot above it).
+
+```ts
+// Red above 70, series color below
+options={{ threshold: { value: 70, above: '#f0556a' } }}
+
+// Explicit color on both sides of zero
+options={{ threshold: { value: 0, above: '#46b78f', below: '#f0556a' } }}
+```
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `value` | yes | Y data value where the color switches |
+| `above` | yes | Color above the threshold (toward the top of the plot) |
+| `below` | no | Color below; defaults to the series' resolved color |
+
+Distinct from the `data.color` callback above (which colors the whole line by its *latest value*): `threshold` colors by Y *position*, so one line reads two colors at once. It is positional and overrides `data.color` for the stroke/fill. Unstacked lines only.
 
 ## Performance
 

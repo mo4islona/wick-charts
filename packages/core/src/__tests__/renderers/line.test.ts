@@ -63,6 +63,37 @@ describe('LineRenderer.render', () => {
     expect(fill?.fillStyle).toContain('gradient(linear');
   });
 
+  it('threshold → stroke is a positional gradient spanning below→above colors', () => {
+    const r = new LineRenderer(1, {
+      area: { visible: false },
+      colors: ['#0000ff'],
+      threshold: { value: 50, above: '#ff0000' },
+    });
+    r.setData(seed(5, 0, 25), 0); // values 0,25,50,75,100 — straddle the threshold
+    const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    r.render(ctx);
+
+    const style = String(spy.callsOf('stroke')[0]?.strokeStyle);
+    expect(style).toContain('gradient(linear');
+    expect(style).toContain('#ff0000'); // above color
+    expect(style).toContain('#0000ff'); // below defaults to the series color
+  });
+
+  it('threshold → area fill tints the above color in above the level', () => {
+    const r = new LineRenderer(1, {
+      area: { visible: true },
+      colors: ['#0000ff'],
+      threshold: { value: 50, above: '#ff0000' },
+    });
+    r.setData(seed(5, 0, 25), 0);
+    const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    r.render(ctx);
+
+    const style = String(spy.callsOf('fill')[0]?.fillStyle);
+    expect(style).toContain('gradient(linear');
+    expect(style).toContain('rgba(255, 0, 0'); // above color tinted into the fill
+  });
+
   it('hidden layer is skipped (no beginPath/stroke for it)', () => {
     const r = new LineRenderer(2, { area: { visible: false }, stacking: 'off', colors: ['#111', '#222'] });
     r.setData(seed(3), 0);

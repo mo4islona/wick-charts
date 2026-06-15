@@ -133,6 +133,47 @@
                 "deprecated": null,
                 "description": "Custom line path builder — a raw `LinePainter` function. Overrides `curve`,\napplied per finite run to both the stroke and the area-fill top edge. Read\nfresh each frame; keep it a stable reference so the wrapper diffs it cleanly.\nA throw falls back to the straight builder. Stacked mode uses the `curve`\nkind for gap-free interior tiling, so a custom `linePainter` there falls back\nto `'straight'`.",
                 "see": []
+              },
+              {
+                "name": "threshold",
+                "type": "{ value: number; above: string; below?: string; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Threshold coloring. Paints the stroke and the area fill one color below a Y\n`value` and another above it, with the switch pinned to that value's pixel\nrow — a vertical canvas gradient, so it tracks the Y-axis as it autoscales.\nUse it to make a series visibly \"go critical\" past a limit: the line runs\ncalm below the level and hot above it.\n\nPositional, so it is independent of (and overrides) the per-layer\n`data.color` for the stroke and fill. Applies to unstacked lines only.\n\n```\n<LineSeries data={data} options={{ threshold: { value: 70, above: '#f0556a' } }} />\n```",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "value",
+                      "type": "number",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Y data value where the color switches.",
+                      "see": []
+                    },
+                    {
+                      "name": "above",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Color above the threshold (toward the top of the plot).",
+                      "see": []
+                    },
+                    {
+                      "name": "below",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "the series' resolved color",
+                      "deprecated": null,
+                      "description": "Color below the threshold. Default: the series' resolved color.",
+                      "see": []
+                    }
+                  ]
+                }
               }
             ]
           }

@@ -368,6 +368,28 @@ export interface LineSeriesOptions {
    * to `'straight'`.
    */
   linePainter?: LinePainter;
+  /**
+   * Threshold coloring. Paints the stroke and the area fill one color below a Y
+   * `value` and another above it, with the switch pinned to that value's pixel
+   * row — a vertical canvas gradient, so it tracks the Y-axis as it autoscales.
+   * Use it to make a series visibly "go critical" past a limit: the line runs
+   * calm below the level and hot above it.
+   *
+   * Positional, so it is independent of (and overrides) the per-layer
+   * `data.color` for the stroke and fill. Applies to unstacked lines only.
+   *
+   * ```
+   * <LineSeries data={data} options={{ threshold: { value: 70, above: '#f0556a' } }} />
+   * ```
+   */
+  threshold?: {
+    /** Y data value where the color switches. */
+    value: number;
+    /** Color above the threshold (toward the top of the plot). */
+    above: string;
+    /** Color below the threshold. Default: the series' resolved color. */
+    below?: string;
+  };
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */
