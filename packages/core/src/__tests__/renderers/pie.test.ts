@@ -75,6 +75,34 @@ describe('PieRenderer.render', () => {
     expect(fills).toHaveLength(3);
     for (const f of fills) expect(f.fillStyle).toContain('gradient(radial');
   });
+
+  it('gradient: false → flat solid fill, no radial gradient', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, gradient: false });
+    r.setData(SLICES);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    expect(spy.countOf('createRadialGradient')).toBe(0);
+    const fills = spy.callsOf('fill');
+    expect(fills).toHaveLength(3);
+    for (const f of fills) {
+      expect(f.fillStyle).not.toContain('gradient');
+      expect(f.fillStyle).toMatch(/^#|^rgb/);
+    }
+  });
+
+  it('gradient: false + innerShadow → still a gradient (rim band is orthogonal)', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, gradient: false, innerShadow: true });
+    r.setData(SLICES);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    // innerShadow needs the radial gradient for its dark rim stop even when
+    // the depth highlight is disabled.
+    expect(spy.countOf('createRadialGradient')).toBe(3);
+    const fills = spy.callsOf('fill');
+    for (const f of fills) expect(f.fillStyle).toContain('gradient(radial');
+  });
 });
 
 describe('PieRenderer.hitTest', () => {

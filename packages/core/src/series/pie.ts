@@ -35,6 +35,9 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
   // Small-slice grouping on by default: dense datasets collapse into the top
   // slices plus a single "Other" so outside labels stay legible.
   other: true,
+  // Radial depth gradient (lighter center → flat edge) on by default. Set
+  // false for flat, solid-color slices.
+  gradient: true,
 };
 
 /**
@@ -1013,6 +1016,7 @@ export class PieRenderer implements PieSeriesRenderer {
     const shadowStyle = resolveShadow(shadow);
     const innerShadow = this.#options.innerShadow ?? false;
     const innerShadowStyle = resolveInnerShadow(innerShadow);
+    const useGradient = this.#options.gradient !== false;
 
     let angle = -Math.PI / 2;
 
@@ -1051,21 +1055,27 @@ export class PieRenderer implements PieSeriesRenderer {
       }
       context.closePath();
 
-      // Radial gradient for depth. When `innerShadow` is on, add a second
-      // stop near the outer edge that blends the slice color toward the rim
-      // color, producing an inset rim-darkening band without a second draw
-      // pass. `depth` ∈ (0, 1] places the inflection at `(1 - depth)` of the
-      // radial span.
-      const grad = context.createRadialGradient(sliceCx, sliceCy, innerR || 0, sliceCx, sliceCy, outerR);
-      grad.addColorStop(0, lightenColor(color, 0.15));
-      if (innerShadow) {
-        const inflection = Math.max(0, Math.min(0.999, 1 - innerShadowStyle.depth));
-        grad.addColorStop(inflection, color);
-        grad.addColorStop(1, blendOver(color, innerShadowStyle.color));
+      // Slice fill. The radial depth gradient (lighter center → flat edge) is
+      // on by default; `gradient: false` paints a flat solid color instead.
+      // `innerShadow` is orthogonal — when on it adds a dark rim band near the
+      // outer edge via the same gradient (a second stop blending the slice
+      // color toward the rim color, no extra draw pass), so it still applies
+      // even with the depth highlight disabled. `depth` ∈ (0, 1] places the
+      // inflection at `(1 - depth)` of the radial span.
+      if (useGradient || innerShadow) {
+        const grad = context.createRadialGradient(sliceCx, sliceCy, innerR || 0, sliceCx, sliceCy, outerR);
+        grad.addColorStop(0, useGradient ? lightenColor(color, 0.15) : color);
+        if (innerShadow) {
+          const inflection = Math.max(0, Math.min(0.999, 1 - innerShadowStyle.depth));
+          grad.addColorStop(inflection, color);
+          grad.addColorStop(1, blendOver(color, innerShadowStyle.color));
+        } else {
+          grad.addColorStop(1, color);
+        }
+        context.fillStyle = grad;
       } else {
-        grad.addColorStop(1, color);
+        context.fillStyle = color;
       }
-      context.fillStyle = grad;
 
       // Ambient shadow (opt-in) + hover-lift shadow (animate-gated). The
       // two stack additively: the hover offset just deepens the ambient.

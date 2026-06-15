@@ -643,6 +643,15 @@
                 "see": []
               },
               {
+                "name": "gradient",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Per-slice radial *depth* gradient — a subtle lightening from the slice\ncenter toward its edge that gives the pie a soft 3D sheen. On by default.\nSet `false` for flat, solid-color slices (the material / infographic\nlook). Orthogonal to innerShadow: an explicit `innerShadow` still\npaints its dark rim band even when the depth gradient is off.",
+                "see": []
+              },
+              {
                 "name": "shadow",
                 "type": "boolean | { color?: string; blur?: number; offsetX?: number; offsetY?: number; }",
                 "optional": true,

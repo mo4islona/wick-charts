@@ -595,6 +595,14 @@ export interface PieSeriesOptions {
    */
   animate?: boolean;
   /**
+   * Per-slice radial *depth* gradient — a subtle lightening from the slice
+   * center toward its edge that gives the pie a soft 3D sheen. On by default.
+   * Set `false` for flat, solid-color slices (the material / infographic
+   * look). Orthogonal to {@link innerShadow}: an explicit `innerShadow` still
+   * paints its dark rim band even when the depth gradient is off.
+   */
+  gradient?: boolean;
+  /**
    * Ambient *outer* drop-shadow behind each slice. Adds lift for flat
    * dashboards. Omit / `false` to disable (default). `true` uses soft
    * defaults; pass an object to tune individually.

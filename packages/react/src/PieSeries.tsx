@@ -37,6 +37,7 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     options?.innerRadiusRatio,
     options?.padAngle,
     options?.animate,
+    options?.gradient,
     options?.shadow,
     options?.innerShadow,
     options?.colors,

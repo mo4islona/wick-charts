@@ -32,6 +32,7 @@ interface PieSeriesOptions {
   label?: string;            // tooltip label
   sliceLabels?: PieLabelsOptions; // per-slice on-pie labels — see below
   animate?: boolean;         // label draw-in + hover explode — default: false
+  gradient?: boolean;        // radial depth gradient on slices — default: true
   other?: boolean | PieOtherOptions; // small-slice grouping — default: true (on)
 }
 
@@ -81,6 +82,15 @@ Gap between adjacent slices in degrees. Default `1.15°` (≈ 0.02 rad) gives a 
 
 Motion toggle. When `true`, labels draw in on mount / data swap and the hovered slice explodes outward. Default `false` — both effects are skipped and the chart paints in its final state on the first frame. Enable for presentations; keep off for dense dashboards.
 
+### `gradient`
+
+Each slice is painted with a radial *depth* gradient — a subtle lightening from the slice center toward its edge for a soft 3D sheen. **On by default.** Set `false` for flat, solid-color slices (the material / infographic look).
+
+```ts
+// Flat, solid-color slices
+options={{ gradient: false }}
+```
+
 ### `other` — small-slice grouping
 
 **On by default.** When the data has more than `maxSlices` entries (default 8), the largest `maxSlices - 1` slices keep their original order and the rest are summed into a single synthetic "Other" slice appended at the end. The aggregate behaves like a regular slice everywhere — labels, legend, tooltip, hover, hit-testing — and is painted with the theme's muted `pie.otherColor` so it doesn't compete with real categories.
@@ -122,7 +132,7 @@ Tuning outside-label crowding:
 ## Visual features
 
 - **Hover animation:** slices explode outward with shadow blur (smooth exponential easing)
-- **Radial gradient:** each slice has a subtle radial gradient for depth
+- **Radial gradient:** each slice has a subtle radial depth gradient (disable with `gradient: false` for flat slices)
 - **On-pie labels:** configurable via `sliceLabels` (outside / inside / none)
 - **Smart text color:** light/dark text auto-detected from slice background
 
