@@ -3424,7 +3424,7 @@
       "kind": "subcomponent",
       "file": "packages/react/src/ui/Marker.tsx",
       "alias": null,
-      "description": "A point annotation (event marker) pinned to a `time` / `value` — \"anomaly\nopened here\", \"deploy v1.2.3\", \"alert resolved\". Renders on the chart's\noverlay canvas and stays out of the series model, so it never shows up in the\ntooltip, legend, or Y-range autoscale, and is clipped to the plot area.\n\n```tsx\n<Marker time={openedMs} seriesId=\"metric\" shape=\"arrow-down\" pulse label=\"broke\" color=\"#f0556a\" />\n```",
+      "description": "A point annotation (event marker) pinned to a `time` / `value` — \"anomaly\nopened here\", \"deploy v1.2.3\", \"alert resolved\". Renders on the chart's\noverlay canvas and stays out of the series model, so it never shows up in the\ntooltip, legend, or Y-range autoscale, and is clipped to the plot area.\n\n```tsx\n<Marker time={openedMs} seriesId=\"metric\" shape=\"arrow-down\" pulse={true} label=\"broke\" color=\"#f0556a\" />\n```",
       "props": [
         {
           "name": "time",

@@ -18,8 +18,7 @@ export type Route =
   | 'use-cases/realtime-data'
   | 'use-cases/multi-chart-sync'
   | 'use-cases/custom-renders'
-  | 'use-cases/event-markers'
-  | 'use-cases/anomaly-window'
+  | 'use-cases/annotations'
   | 'use-cases/theme'
   | 'api/line-series'
   | 'api/bar-series'
@@ -109,8 +108,7 @@ const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
   { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
   { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
-  { route: 'use-cases/event-markers', label: 'Event Markers', title: 'Event Markers' },
-  { route: 'use-cases/anomaly-window', label: 'Anomaly Window', title: 'Anomaly Window' },
+  { route: 'use-cases/annotations', label: 'Annotations', title: 'Annotations' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level

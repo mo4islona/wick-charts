@@ -31,7 +31,7 @@ export interface MarkerProps {
  * tooltip, legend, or Y-range autoscale, and is clipped to the plot area.
  *
  * ```tsx
- * <Marker time={openedMs} seriesId="metric" shape="arrow-down" pulse label="broke" color="#f0556a" />
+ * <Marker time={openedMs} seriesId="metric" shape="arrow-down" pulse={true} label="broke" color="#f0556a" />
  * ```
  */
 export function Marker({ time, value, seriesId, shape, pulse, label, color }: MarkerProps) {
