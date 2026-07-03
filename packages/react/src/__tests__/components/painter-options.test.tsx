@@ -58,4 +58,19 @@ describe('<BarSeries> / <LineSeries> painter-option live-toggles reach the rende
     mounted.flushScheduler();
     expect(mounted.mainSpy.countOf('bezierCurveTo')).toBeGreaterThan(0);
   });
+
+  it('flipping LineSeries points visible/radius/color reaches the renderer (arc reaches the canvas)', () => {
+    mounted = mountChart(<LineSeries id="line" data={lineData} options={{ points: { visible: false } }} />);
+    mounted.flushScheduler();
+    expect(mounted.mainSpy.countOf('arc')).toBe(0);
+
+    mounted.rerender(
+      <LineSeries id="line" data={lineData} options={{ points: { visible: true, radius: 5, color: '#ff8800' } }} />,
+    );
+    mounted.flushScheduler();
+    const arcs = mounted.mainSpy.callsOf('arc');
+    expect(arcs.length).toBeGreaterThan(0);
+    expect(arcs.every((c) => c.args[2] === 5)).toBe(true);
+    expect(mounted.mainSpy.callsOf('fill').some((c) => c.fillStyle === '#ff8800')).toBe(true);
+  });
 });

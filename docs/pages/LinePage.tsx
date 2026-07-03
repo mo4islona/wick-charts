@@ -42,6 +42,8 @@ interface LineSettings {
   areaVisible: boolean;
   curve: CurveKind;
   strokeWidth: number;
+  pointsVisible: boolean;
+  pointsRadius: number;
   stacking: StackingMode;
   tooltipSort: TooltipSort;
   tooltipCustom: boolean;
@@ -102,6 +104,9 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
+      // Point markers auto-hide when too dense; cap the window so the demo
+      // spacing clears the density guard across the whole radius slider range.
+      viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
       <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
@@ -114,6 +119,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
           strokeWidth: props.strokeWidth,
           pulse: props.streaming,
           entryAnimation: props.lineEntryAnimation,
+          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
         }}
       />
       {props.tooltipVisible && renderTooltip(props)}
@@ -165,6 +171,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
+      viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
       <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
@@ -178,6 +185,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
           pulse: props.streaming,
           stacking: props.stacking,
           entryAnimation: props.lineEntryAnimation,
+          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
         }}
       />
       {props.tooltipVisible && renderTooltip(props)}
@@ -197,12 +205,6 @@ const DISPLAY_EXTRA: SectionSpec = {
   icon: ICONS.display,
   rows: [
     {
-      key: 'tooltipVisible',
-      label: 'Tooltip',
-      hint: 'On hover',
-      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
-    },
-    {
       key: 'infoBarVisible',
       label: 'Info bar',
       hint: 'Series values above the chart',
@@ -212,12 +214,6 @@ const DISPLAY_EXTRA: SectionSpec = {
       key: 'crosshairVisible',
       label: 'Crosshair',
       hint: 'Vertical + horizontal cursor lines',
-      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
-    },
-    {
-      key: 'areaVisible',
-      label: 'Area gradient',
-      hint: 'Below the line',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -289,6 +285,26 @@ const SERIES_SECTION: SectionSpec = {
         <Slider value={v as number} min={0} max={5} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
+    {
+      key: 'areaVisible',
+      label: 'Fill',
+      hint: 'Area gradient below the line',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'pointsVisible',
+      label: 'Points',
+      hint: 'Dot at each data point',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'pointsRadius',
+      label: 'Point radius',
+      visible: (s) => s.pointsVisible,
+      render: (v, onChange) => (
+        <Slider value={v as number} min={1} max={6} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
   ] as RowSpec[],
 };
 
@@ -297,6 +313,12 @@ const TOOLTIP_SECTION: SectionSpec = {
   title: 'Tooltip',
   icon: ICONS.tooltip,
   rows: [
+    {
+      key: 'tooltipVisible',
+      label: 'Tooltip',
+      hint: 'On hover',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
     {
       key: 'tooltipSort',
       label: 'Sort',
@@ -399,6 +421,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         areaVisible: true,
         curve: 'straight',
         strokeWidth: 1,
+        pointsVisible: false,
+        pointsRadius: 3,
         stacking: 'off',
         tooltipSort: 'desc',
         tooltipCustom: false,
@@ -418,14 +442,14 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
           <>
             <Cell theme={props.theme}>
               <SingleChart
-                key={`${props.dataMode}-${props.streaming}-${props.perfHudVisible}-s`}
+                key={`${props.dataMode}-${props.streaming}-${props.perfHudVisible}-${props.pointsVisible}-s`}
                 {...props}
                 allData={single}
               />
             </Cell>
             <Cell theme={props.theme}>
               <MultiChart
-                key={`${props.dataMode}-${props.streaming}-${props.stacking}-${props.perfHudVisible}-m`}
+                key={`${props.dataMode}-${props.streaming}-${props.stacking}-${props.perfHudVisible}-${props.pointsVisible}-m`}
                 {...props}
                 allData={multi}
                 title={label}
@@ -437,12 +461,18 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       codeConfig={(s) => {
         const containerProps = buildCartesianContainerProps(s) ?? {};
         if (s.perfHudVisible) containerProps.perf = 'perfHud()';
+        // Mirrors the live preview: the demo data is dense, so the snippet
+        // carries the same window cap that lets the dots clear the density guard.
+        if (s.pointsVisible) containerProps.viewport = { maxVisibleBars: 30 };
 
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'line'),
           ...(s.areaVisible ? { area: { visible: true } } : {}),
           ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
           ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
+          ...(s.pointsVisible
+            ? { points: { visible: true, ...(s.pointsRadius !== 3 ? { radius: s.pointsRadius } : {}) } }
+            : {}),
           ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
         };
 

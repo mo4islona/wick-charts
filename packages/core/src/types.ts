@@ -458,6 +458,28 @@ export interface LineSeriesOptions {
     /** Color below the threshold. Default: the series' resolved color. */
     below?: string;
   };
+  /**
+   * Dot markers at each data point. Hidden by default.
+   *
+   * Dots ride the same animated geometry as the stroke (entrance unfurl,
+   * live-value smoothing, stacked cumulative), so they glide with the line
+   * instead of snapping. When the visible points sit too dense to read as
+   * discrete markers (average spacing under ~1.5 dot diameters, e.g. zoomed
+   * far out), the dots are skipped for that frame — they'd merge into a fat
+   * line and hide the stroke. Zooming back in brings them back.
+   *
+   * ```
+   * <LineSeries data={data} options={{ points: { visible: true } }} />
+   * ```
+   */
+  points?: {
+    /** Whether a dot is drawn at each data point. */
+    visible: boolean;
+    /** Dot radius in CSS pixels. Default: `3`. */
+    radius?: number;
+    /** Fill color override. Default: the layer's resolved series color. */
+    color?: string;
+  };
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */

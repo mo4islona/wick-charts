@@ -606,6 +606,41 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return { stroke, area };
   }
 
+  /**
+   * Dot markers at each data point (`options.points`). Callers pass the same
+   * animated vertices the stroke was built from, so the dots glide with the
+   * entrance unfurl and live-value smoothing instead of snapping to raw
+   * geometry. Skipped for the frame when the average horizontal spacing falls
+   * under ~1.5 dot diameters — dots that dense melt into a fat line and hide
+   * the stroke.
+   */
+  private drawPointMarkers(params: {
+    context: CanvasRenderingContext2D;
+    points: readonly LinePoint[];
+    pixelRatio: number;
+    color: string;
+  }): void {
+    const config = this.options.points;
+    if (!config?.visible) return;
+
+    const { context, points, pixelRatio, color } = params;
+    if (points.length === 0) return;
+
+    const radius = Math.max(1, (config.radius ?? 3) * pixelRatio);
+    if (points.length > 1) {
+      const spacing = (points[points.length - 1].x - points[0].x) / (points.length - 1);
+      if (spacing < radius * 3) return;
+    }
+
+    context.beginPath();
+    for (const point of points) {
+      context.moveTo(point.x + radius, point.y);
+      context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    }
+    context.fillStyle = config.color ?? color;
+    context.fill();
+  }
+
   /** Each layer drawn independently */
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale } = ctx;
@@ -808,6 +843,18 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           context.fill();
         }
       }
+
+      // Per-point dot markers on top of the stroke and fill. `runs` already
+      // carries the chained-tail / smoothed vertices and excludes non-finite
+      // points, so the dots animate with the line and never land on NaN.
+      if (this.options.points?.visible) {
+        const flat: LinePoint[] = [];
+        for (const run of runs) {
+          for (const point of run) flat.push(point);
+        }
+        this.drawPointMarkers({ context, points: flat, pixelRatio: scope.horizontalPixelRatio, color });
+      }
+
       if (trailingFade || layerFaded) context.restore();
     }
   }
@@ -1118,6 +1165,19 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         context.stroke();
       }
       if (strokeFaded) context.restore();
+
+      // Per-point dot markers on the slice's upper edge — the layer's own
+      // visual boundary in a stack. Fades with layerAlpha in lockstep with
+      // the stroke so the dots don't pop out while the slice collapses.
+      if (this.options.points?.visible) {
+        const dotsFaded = layerAlpha < 1;
+        if (dotsFaded) {
+          context.save();
+          context.globalAlpha *= layerAlpha;
+        }
+        this.drawPointMarkers({ context, points: upperPoints, pixelRatio: scope.horizontalPixelRatio, color });
+        if (dotsFaded) context.restore();
+      }
 
       if (useFade) context.restore();
     }

@@ -63,6 +63,11 @@ interface LineSeriesOptions {
     above: string;                         //   color above the level
     below?: string;                        //   color below — default: series color
   };
+  points?: {                               // dot markers at each data point — default: hidden
+    visible: boolean;                      //   draw a dot at every data point
+    radius?: number;                       //   dot radius in CSS px — default: 3
+    color?: string;                        //   fill override — default: layer color
+  };
   entryAnimation?: 'none' | 'grow' | 'fade'; // entrance style for new points — default: 'grow'
   entryMs?: number | false;                // entrance duration; false disables — default: 250
   smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 250
@@ -134,6 +139,19 @@ options={{ threshold: { value: 0, above: '#46b78f', below: '#f0556a' } }}
 | `below` | no | Color below; defaults to the series' resolved color |
 
 Distinct from the `data.color` callback above (which colors the whole line by its *latest value*): `threshold` colors by Y *position*, so one line reads two colors at once. It is positional and overrides `data.color` for the stroke/fill. Unstacked lines only.
+
+### `points`
+
+Dot markers at every data point — good for sparse series where each sample matters.
+
+```ts
+options={{ points: { visible: true } }}
+
+// Bigger, custom-colored dots
+options={{ points: { visible: true, radius: 4, color: '#ffd700' } }}
+```
+
+Dots ride the same animated geometry as the stroke (entrance unfurl, live smoothing, stacked cumulative). When visible points get too dense to read as discrete markers (average spacing under ~1.5 dot diameters, e.g. zoomed far out), dots are skipped for that frame and reappear on zoom-in. Works in both unstacked and stacked modes; in a stack each layer's dots sit on its upper edge.
 
 ## Performance
 
