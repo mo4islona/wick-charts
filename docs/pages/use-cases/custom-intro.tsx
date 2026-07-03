@@ -53,11 +53,13 @@ const STEPS: Step[] = [
     heading: '04 — HAND IT TO THE SERIES',
     body: (
       <>
-        Pass the function to <code>introAnimation</code>; <code>introMs</code> controls the duration. Keep the reference
-        stable (module scope or <code>useMemo</code>) so the wrapper diffs it cleanly. The intro arms exactly once — on
-        the first empty → non-empty data seed; bulk re-seeds of a live series never replay it, and it's skipped entirely
-        under <code>prefers-reduced-motion</code>. That's why the Replay button remounts the chart: a fresh mount is the
-        same transition a real page load goes through.
+        Pass the function to <code>introAnimation</code>; <code>introMs</code> controls the duration. The reference
+        doesn't need to be memoized — the React wrapper latches the latest function behind a stable identity, so an
+        inline definition costs nothing. (Hoisting a <em>stateful</em> factory to module scope is still a good habit: a
+        factory re-created every render resets its closure state mid-intro.) The intro arms exactly once — on the first
+        empty → non-empty data seed; bulk re-seeds of a live series never replay it, and it's skipped entirely under{' '}
+        <code>prefers-reduced-motion</code>. That's why the Replay button remounts the chart: a fresh mount is the same
+        transition a real page load goes through.
       </>
     ),
     code: `<LineSeries\n  data={data}\n  options={{ introAnimation: centerOut, introMs: 700 }}\n/>`,

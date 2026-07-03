@@ -8,8 +8,9 @@ import { generateLineData } from '../../data';
 // it reads the frame (progress, visible range, pane size, scales, data
 // accessors) and returns directives describing what this frame should look
 // like — the renderer does the drawing. Here the reveal opens from the
-// center of the pane outward, a glowing head riding each front. Hoisted to
-// module scope so the reference stays stable across re-renders.
+// center of the pane outward, a glowing head riding each front. Module scope
+// keeps it out of the component; an inline definition works too — the React
+// wrapper latches the function, so the reference doesn't need memoizing.
 const centerOut: LineIntroFn = (frame) => {
   // Smoothstep easing — gentle in/out without importing an easing helper.
   const eased = frame.progress * frame.progress * (3 - 2 * frame.progress);
