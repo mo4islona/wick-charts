@@ -63,6 +63,7 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.introMs,
     options?.cornerRadius,
     options?.projectedFrom,
     // A registry-name string diffs by value; a raw painter function diffs by

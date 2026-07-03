@@ -65,6 +65,10 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.introMs,
+    // An intro fn diffs by reference — hoist it to module level (or memoize)
+    // for a stable identity across re-renders.
+    options?.introAnimation,
     options?.curve,
     // A registry-name string diffs by value; a raw painter diffs by reference.
     options?.linePainter,

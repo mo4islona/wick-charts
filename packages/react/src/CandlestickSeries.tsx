@@ -69,6 +69,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.introMs,
     options?.cornerRadius,
     // A registry-name string diffs by value; a raw painter diffs by reference.
     // Never run through `join` (it would stringify a function to undefined).
