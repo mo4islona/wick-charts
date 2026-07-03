@@ -26,6 +26,9 @@ export type {
   CornerMask,
   CrosshairPosition,
   CurveKind,
+  HeatmapCellData,
+  HeatmapCellLabelsOptions,
+  HeatmapSeriesOptions,
   HoverInfo,
   LegendItem,
   LinePaintArgs,
@@ -83,6 +86,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -111,6 +115,7 @@ export {
   materialPalenight,
   minimalLight,
   mintBreeze,
+  mixColors,
   monokaiPro,
   nightOwl,
   normalizeTime,
@@ -127,6 +132,7 @@ export {
   rosePineDawn,
   roundedBarFill,
   roundedCandleFill,
+  sampleRamp,
   sandDune,
   smoothCurve,
   solarizedLight,
@@ -142,9 +148,11 @@ export { default as ChartContainer } from './ChartContainer.vue';
 export { useCrosshairPosition, useLastYValue, usePreviousClose, useVisibleRange, useYRange } from './composables';
 // Composables and context
 export { useChartInstance, useTheme } from './context';
+export { default as HeatmapSeries } from './HeatmapSeries.vue';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
+export { default as HeatmapTooltip } from './ui/HeatmapTooltip.vue';
 export { default as InfoBar } from './ui/InfoBar.vue';
 export { default as Legend } from './ui/Legend.vue';
 export { default as Marker } from './ui/Marker.vue';

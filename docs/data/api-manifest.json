@@ -788,6 +788,168 @@
         }
       ]
     },
+    "HeatmapSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/HeatmapSeries.tsx",
+      "alias": null,
+      "description": "Matrix heatmap series. Cells map `(x, y)` category keys onto a sequential\ncolor ramp derived from the theme (override via `options.colors`).",
+      "props": [
+        {
+          "name": "data",
+          "type": "HeatmapCellData[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Cells to render. A flat array of `{ x, y, value, color? }` entries.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<HeatmapSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — ramp colors, gaps, labels, animation durations.",
+          "see": [],
+          "nested": {
+            "name": "HeatmapSeriesOptions",
+            "props": [
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": "derived from the theme — a faint wash of the accent color near\nthe surface up to the full accent",
+                "deprecated": null,
+                "description": "Sequential ramp stops, low → high, interpolated perceptually (OKLab).\nTwo stops give a classic single-hue ramp; three make a diverging scale.\nDefault: derived from the theme — a faint wash of the accent color near\nthe surface up to the full accent (`theme.heatmap.colors` when present).",
+                "see": []
+              },
+              {
+                "name": "min",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "the data minimum",
+                "deprecated": null,
+                "description": "Domain minimum mapped to the first ramp stop. Default: the data minimum.",
+                "see": []
+              },
+              {
+                "name": "max",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "the data maximum",
+                "deprecated": null,
+                "description": "Domain maximum mapped to the last ramp stop. Default: the data maximum.",
+                "see": []
+              },
+              {
+                "name": "gap",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "2",
+                "deprecated": null,
+                "description": "Surface gap between adjacent cells in CSS pixels. Default: 2.",
+                "see": []
+              },
+              {
+                "name": "cornerRadius",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "3",
+                "deprecated": null,
+                "description": "Cell corner radius in CSS pixels. Default: 3.",
+                "see": []
+              },
+              {
+                "name": "axisLabels",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "Draw row labels (left) and column labels (bottom). Default: true.",
+                "see": []
+              },
+              {
+                "name": "cellLabels",
+                "type": "boolean | HeatmapCellLabelsOptions",
+                "optional": true,
+                "defaultValue": "false",
+                "deprecated": null,
+                "description": "Draw the value inside each cell (auto-skipped when it doesn't fit). Default: false.",
+                "see": [],
+                "nested": {
+                  "name": "HeatmapCellLabelsOptions",
+                  "props": [
+                    {
+                      "name": "fontSize",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "10",
+                      "deprecated": null,
+                      "description": "Font size in CSS pixels. Default: 10.",
+                      "see": []
+                    },
+                    {
+                      "name": "format",
+                      "type": "(value: number) => string",
+                      "optional": true,
+                      "defaultValue": "decimals adapt to the value domain — 2 for\nunit-scale domains",
+                      "deprecated": null,
+                      "description": "Value formatter. Default: decimals adapt to the value domain — 2 for\nunit-scale domains (correlations), integers for wide ones, compact\nnotation (`1.2K`) past 1000.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "columns",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Explicit column order. Keys absent from the data render as empty columns.",
+                "see": []
+              },
+              {
+                "name": "rows",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Explicit row order. Keys absent from the data render as empty rows.",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Entrance duration per cell in milliseconds — the diagonal reveal wave on\nfirst paint / grid-shape change. `0` paints instantly.\nDefault: chart animation config (600).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Value/color tween duration when a cell's value changes in place, and the\nhover-lift ease. `0` snaps. Default: chart animation config (300).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -1106,6 +1268,29 @@
                       "defaultValue": null,
                       "deprecated": null,
                       "description": "Fill of the synthetic \"Other\" slice produced by small-slice grouping.\nDeliberately muted: a vivid palette color would give the aggregate the\nsame visual weight as a real category.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "heatmap",
+                "type": "{ colors: string[]; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Heatmap sequential ramp. Optional so hand-built theme literals keep\ncompiling — the renderer falls back to a ramp derived from\n{@link ChartTheme.line} `color` and the background at render time.",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "colors",
+                      "type": "string[]",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Ramp stops, low → high, interpolated perceptually. {@link createTheme }\nderives a two-stop single-hue ramp: a faint accent wash near the\nsurface up to the full accent — which flips anchor automatically with\ntheme polarity (low values sink into the background in both modes).",
                       "see": []
                     }
                   ]
@@ -2123,6 +2308,29 @@
                 }
               },
               {
+                "name": "heatmap",
+                "type": "{ colors: string[]; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Heatmap sequential ramp. Optional so hand-built theme literals keep\ncompiling — the renderer falls back to a ramp derived from\n{@link ChartTheme.line} `color` and the background at render time.",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "colors",
+                      "type": "string[]",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Ramp stops, low → high, interpolated perceptually. {@link createTheme }\nderives a two-stop single-hue ramp: a faint accent wash near the\nsurface up to the full accent — which flips anchor automatically with\ntheme polarity (low values sink into the background in both modes).",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
                 "name": "bands",
                 "type": "{ upper: string; lower: string; }",
                 "optional": false,
@@ -3083,7 +3291,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -3224,6 +3432,38 @@
                             "defaultValue": "250ms",
                             "deprecated": null,
                             "description": "Slice resize duration when data changes.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "heatmap",
+                      "type": "false | { entry?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Heatmap tweens. `false` disables the entrance wave, value tween,\nand hover lift.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "600ms",
+                            "deprecated": null,
+                            "description": "Per-cell entrance duration — the diagonal reveal wave on\nfirst paint / grid-shape change.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "300ms",
+                            "deprecated": null,
+                            "description": "In-place value/color tween and hover-lift ease.",
                             "see": []
                           }
                         ]
@@ -3804,6 +4044,32 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Render-prop escape hatch — receives hover info + format, replaces default UI.",
+          "see": []
+        }
+      ]
+    },
+    "HeatmapTooltip": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/HeatmapTooltip.tsx",
+      "alias": null,
+      "description": "Tooltip for heatmap charts. Shows the hovered cell's row · column label,\nvalue, and a small intensity meter locating the value on the color ramp.",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible heatmap\nseries is picked.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "plain integers",
+          "deprecated": null,
+          "description": "Custom formatter for the cell value. Default: plain integers, compact decimals.",
           "see": []
         }
       ]

@@ -99,6 +99,21 @@ export interface ChartTheme {
     otherColor: string;
   };
 
+  /**
+   * Heatmap sequential ramp. Optional so hand-built theme literals keep
+   * compiling — the renderer falls back to a ramp derived from
+   * {@link ChartTheme.line} `color` and the background at render time.
+   */
+  heatmap?: {
+    /**
+     * Ramp stops, low → high, interpolated perceptually. {@link createTheme}
+     * derives a two-stop single-hue ramp: a faint accent wash near the
+     * surface up to the full accent — which flips anchor automatically with
+     * theme polarity (low values sink into the background in both modes).
+     */
+    colors: string[];
+  };
+
   /** Bollinger band / envelope fill colors. */
   bands: {
     /** Fill for the upper band region (above the middle band). */

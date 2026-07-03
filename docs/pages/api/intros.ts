@@ -34,8 +34,12 @@ export const INTROS: Record<string, string> = {
     'Chart title and optional subtitle. Renders inline above the canvas (or as an overlay, depending on `headerLayout` on `<ChartContainer>`).',
   InfoBar:
     'Persistent header strip showing the last-known values from each series, including direction arrows and percent change. Stays visible when no hover is active — the companion to `<Tooltip>`.',
+  HeatmapSeries:
+    'Renders a matrix heatmap — `(x, y)` category cells colored by value on a perceptual (OKLab) sequential ramp derived from the theme. Cells reveal with a diagonal entrance wave, morph smoothly when values update in place, and lift on hover. Pass 3 ramp stops via `options.colors` for a diverging scale. Use `<HeatmapTooltip>` for the hover overlay.',
   PieLegend:
     'Companion to `<PieSeries>` — renders slice labels with their value or percent, anchored to one of three positions (`bottom`, `right`, `overlay`).',
+  HeatmapTooltip:
+    "Hover tooltip for `<HeatmapSeries>`. Shows the hovered cell's row · column label, its value, and a small intensity meter locating the value on the color ramp.",
   PieTooltip:
     'Hover tooltip for `<PieSeries>`. Behaves like `<Tooltip>` but takes a `seriesId` and exposes the active slice in the render-prop.',
   NumberFlow:

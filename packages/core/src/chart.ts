@@ -38,7 +38,7 @@ import { RenderScheduler } from './render-scheduler';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
-import type { HoverInfo, SeriesRenderer, SliceInfo } from './series/types';
+import { type HoverInfo, type SeriesRenderer, type SliceInfo, isTimeSeriesRenderer } from './series/types';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
 import type {
@@ -48,6 +48,7 @@ import type {
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,
+  HeatmapSeriesOptions,
   LineSeriesOptions,
   OHLCData,
   OHLCInput,
@@ -510,6 +511,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     >,
   ): string;
   addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string; label?: string }>): string;
+  addSeries(type: 'heatmap', options?: Partial<HeatmapSeriesOptions & { id?: string; label?: string }>): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
     options?: Partial<O> & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] },
@@ -908,7 +910,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<CandlestickSeriesOptions>
       | Partial<LineSeriesOptions>
       | Partial<BarSeriesOptions>
-      | Partial<PieSeriesOptions>,
+      | Partial<PieSeriesOptions>
+      | Partial<HeatmapSeriesOptions>,
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
@@ -1285,7 +1288,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   getLastData(seriesId: string): OHLCData | TimePoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
-    if (!entry || entry.renderer.kind === 'pie') return null;
+    if (!entry || !isTimeSeriesRenderer(entry.renderer)) return null;
 
     return entry.renderer.getLastDataPoint();
   }
@@ -1322,36 +1325,39 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * True if any visible series is non-pie (line / bar / candlestick). Used
-   * to gate crosshair rendering — a pie-only chart has no meaningful x/y
-   * coordinate system, so the dashed hairlines would just be visual noise.
+   * True if any visible series has a time axis (line / bar / candlestick).
+   * Used to gate crosshair rendering — a spatial-only chart (pie, heatmap)
+   * has no meaningful x/y coordinate system, so the dashed hairlines would
+   * just be visual noise.
    */
-  #hasNonPieSeries(): boolean {
+  #hasTimeSeries(): boolean {
     for (const entry of this.#series) {
       if (!entry.visible) continue;
-      if (entry.renderer.kind !== 'pie') return true;
+      if (isTimeSeriesRenderer(entry.renderer)) return true;
     }
 
     return false;
   }
 
   /**
-   * Filter `getSeriesIds()` by renderer type. `'pie'` returns pie series,
-   * `'time'` returns line/bar/candlestick.
+   * Filter `getSeriesIds()` by renderer type. `'pie'` / `'heatmap'` return
+   * that spatial kind, `'time'` returns line/bar/candlestick.
    *
    * - `opts.visibleOnly` — exclude series with `isSeriesVisible=false`; for
    *   multi-layer series also exclude when every layer is hidden.
    * - `opts.singleLayerOnly` — exclude series with more than one layer.
    *   Useful for YLabel fallback priority (stick to a single line first).
    */
-  getSeriesIdsByType(type: 'pie' | 'time', opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean }): string[] {
+  getSeriesIdsByType(
+    type: 'pie' | 'time' | 'heatmap',
+    opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean },
+  ): string[] {
     const visibleOnly = opts?.visibleOnly === true;
     const singleLayerOnly = opts?.singleLayerOnly === true;
     const result: string[] = [];
     for (const entry of this.#series) {
-      const isPie = entry.renderer.kind === 'pie';
-      if (type === 'pie' && !isPie) continue;
-      if (type === 'time' && isPie) continue;
+      const matches = type === 'time' ? isTimeSeriesRenderer(entry.renderer) : entry.renderer.kind === type;
+      if (!matches) continue;
 
       const layerCount = entry.renderer.getLayerCount();
       if (singleLayerOnly && layerCount > 1) continue;
@@ -1657,7 +1663,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /**
    * Dispatch a crosshair move to every renderer that supports spatial hover
-   * (currently: pie). Any change in hover index schedules a main-layer redraw.
+   * (pie, heatmap — anything implementing hitTest/setHoverIndex). Any change
+   * in hover index schedules a main-layer redraw. Keep this loop capability-
+   * probed, not kind-gated: a kind check here silently kills hover for the
+   * next spatial renderer.
    */
   #updateHover(pos: CrosshairPosition | null): void {
     const size = this.#canvasManager.size;
@@ -1790,7 +1799,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     let last: number | undefined;
     for (const entry of this.#series) {
       if (!entry.visible) continue;
-      if (entry.renderer.kind === 'pie') continue;
+      if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
       // `getTimeBounds` aggregates across ALL layers, so a ragged multi-layer
       // series reports its true span (not just layer 0's).
@@ -1901,7 +1910,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   private updateDataInterval(): void {
     for (const entry of this.#series) {
-      if (entry.renderer.kind === 'pie') continue;
+      if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
       // `>= 2` guard preserved: `detectInterval` on a lone timestamp lies.
       const times = entry.renderer.sampleTimes(20);
@@ -2624,7 +2633,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // visible series is pie — crosshair hairlines read as time/price
       // coordinates, which have no meaning on a pie and would just obscure
       // the disk.
-      if (this.#crosshairPos && this.#hasNonPieSeries()) {
+      if (this.#crosshairPos && this.#hasTimeSeries()) {
         const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
         const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
         renderCrosshair(scope, bx, by, this.#theme);

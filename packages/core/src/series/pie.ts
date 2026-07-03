@@ -2,7 +2,7 @@ import { DEFAULT_PIE_ENTRY } from '../animation/config';
 import { IntroWave } from '../animation/intro-wave';
 import type { ChartTheme } from '../theme/types';
 import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData } from '../types';
-import { lighten } from '../utils/color';
+import { isLightColor, lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
 import type { SeriesDefinition } from './definition';
 import type { HoverInfo, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
@@ -160,14 +160,6 @@ function computePieGeometry(input: PieGeometryInput): { cx: number; cy: number; 
   const maxR = Math.max(0, (Math.min(usableWidth, usableHeight) / 2) * PIE_FIT_FACTOR);
 
   return { cx, cy, maxR };
-}
-
-function isLightColor(hex: string): boolean {
-  if (!hex.startsWith('#')) return false;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return r * 0.299 + g * 0.587 + b * 0.114 > 150;
 }
 
 /**

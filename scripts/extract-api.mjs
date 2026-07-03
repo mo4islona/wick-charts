@@ -27,6 +27,7 @@ const COMPONENTS = [
   { name: 'BarSeries', file: 'packages/react/src/BarSeries.tsx', kind: 'chart' },
   { name: 'CandlestickSeries', file: 'packages/react/src/CandlestickSeries.tsx', kind: 'chart' },
   { name: 'PieSeries', file: 'packages/react/src/PieSeries.tsx', kind: 'chart' },
+  { name: 'HeatmapSeries', file: 'packages/react/src/HeatmapSeries.tsx', kind: 'chart' },
 
   // composite chart — own playground but lives under Components
   { name: 'Sparkline', file: 'packages/react/src/ui/Sparkline.tsx', kind: 'chart' },
@@ -46,6 +47,7 @@ const COMPONENTS = [
   { name: 'InfoBar', file: 'packages/react/src/ui/InfoBar.tsx', kind: 'subcomponent' },
   { name: 'PieLegend', file: 'packages/react/src/ui/PieLegend.tsx', kind: 'subcomponent' },
   { name: 'PieTooltip', file: 'packages/react/src/ui/PieTooltip.tsx', kind: 'subcomponent' },
+  { name: 'HeatmapTooltip', file: 'packages/react/src/ui/HeatmapTooltip.tsx', kind: 'subcomponent' },
   { name: 'NumberFlow', file: 'packages/react/src/ui/NumberFlow.tsx', kind: 'subcomponent' },
   { name: 'YLabel', file: 'packages/react/src/ui/YLabel.tsx', kind: 'subcomponent' },
 ];

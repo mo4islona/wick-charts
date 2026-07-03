@@ -76,7 +76,13 @@ export interface HoverInfo {
 export type SliceInfo = HoverInfo;
 
 /** Discriminant for the {@link SeriesRenderer} union. */
-export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie';
+export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap';
+
+/** Kinds with no time axis — they own their own layout inside the bitmap. */
+export type SpatialSeriesKind = 'pie' | 'heatmap';
+
+/** Runtime mirror of {@link SpatialSeriesKind} — drives {@link isTimeSeriesRenderer}. */
+const SPATIAL_SERIES_KINDS: readonly SpatialSeriesKind[] = ['pie', 'heatmap'];
 
 /**
  * Members shared by every series renderer, regardless of whether it owns a
@@ -87,8 +93,9 @@ export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie';
  * Multi-layer renderers (Line, Bar) override them against each internal store.
  *
  * Time-series data queries are NOT here — they live on {@link TimeSeriesRenderer}
- * as required methods, so Chart narrows via `kind !== 'pie'` and calls them
- * directly (no optional chaining).
+ * as required methods, so Chart narrows via {@link isTimeSeriesRenderer} and
+ * calls them directly (no optional chaining). Never narrow by comparing `kind`
+ * against a single spatial value — new spatial kinds slip through such guards.
  */
 export interface BaseSeriesRenderer {
   /** Paint the series on the main layer. */
@@ -292,8 +299,23 @@ export interface PieSeriesRenderer extends BaseSeriesRenderer {
   readonly kind: 'pie';
 }
 
+/** A spatial matrix renderer with no time axis (Heatmap). Has no time-series queries. */
+export interface HeatmapSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'heatmap';
+}
+
 /**
  * Every series renderer is one of these. Discriminated on `kind`: narrow with
- * `kind === 'pie'` (or `!== 'pie'`) to reach the variant-specific surface.
+ * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
+ * (pie, heatmap) have no time-series queries.
  */
-export type SeriesRenderer = TimeSeriesRenderer | PieSeriesRenderer;
+export type SeriesRenderer = TimeSeriesRenderer | PieSeriesRenderer | HeatmapSeriesRenderer;
+
+/**
+ * Narrow a renderer to the time-axis variant. The chart's viewport, crosshair,
+ * interval detection, and Y autoscale all dispatch through this guard so a new
+ * spatial kind only needs to be added here, not at every call site.
+ */
+export function isTimeSeriesRenderer(renderer: SeriesRenderer): renderer is TimeSeriesRenderer {
+  return !(SPATIAL_SERIES_KINDS as readonly string[]).includes(renderer.kind);
+}

@@ -10,6 +10,7 @@ import type { ChartTheme } from '@wick-charts/react';
 import type { Route } from '../../routes';
 import { BarPage } from '../BarPage';
 import { CandlestickPage } from '../CandlestickPage';
+import { HeatmapPage } from '../HeatmapPage';
 import { LinePage } from '../LinePage';
 import { PiePage } from '../PiePage';
 import { SparklinePage } from '../SparklinePage';
@@ -19,6 +20,7 @@ const CHARTS: Record<string, FC<{ theme: ChartTheme }>> = {
   'charts/line': LinePage,
   'charts/bar': BarPage,
   'charts/pie': PiePage,
+  'charts/heatmap': HeatmapPage,
   'charts/sparkline': SparklinePage,
 };
 

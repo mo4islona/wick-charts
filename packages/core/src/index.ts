@@ -49,6 +49,12 @@ export type { TimeRegionConfig, TimeRegionEnd } from './components/time-region';
 // update / replace) and streams without Y-snapping.
 export type { SeriesSyncState, SyncLayersArgs, SyncSeriesLayerArgs } from './data/sync';
 export { EMPTY_SYNC_STATE, syncLayers, syncSeriesLayer, toLayers } from './data/sync';
+export {
+  HEATMAP_TOOLTIP_HEIGHT,
+  HEATMAP_TOOLTIP_WIDTH,
+  defaultHeatmapFormat,
+  resolveHeatmapSeriesId,
+} from './heatmap-tooltip';
 // Overlay primitives — helpers, types, and positioning used by framework overlays
 export type { LegendItem } from './legend';
 export type {
@@ -97,6 +103,7 @@ export {
   type SeriesDefinition,
   registerSeriesDefinition,
 } from './series/definition';
+export { HeatmapSeriesDef } from './series/heatmap';
 export { LineSeriesDef } from './series/line';
 // LineIntroFn contract for fully custom intros. An intro is a plain function
 // passed to `options.introAnimation`; there is no name registry.
@@ -130,7 +137,8 @@ export type {
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
 export { registerBuiltinSeries } from './series/register-builtins';
-export type { HoverInfo, SliceInfo } from './series/types';
+export type { HoverInfo, SeriesKind, SliceInfo, SpatialSeriesKind } from './series/types';
+export { isTimeSeriesRenderer } from './series/types';
 export type {
   WaveIntroDirectives,
   WaveIntroElement,
@@ -189,6 +197,9 @@ export type {
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,
+  HeatmapCellData,
+  HeatmapCellLabelsOptions,
+  HeatmapSeriesOptions,
   HorizontalPadding,
   LineSeriesOptions,
   MultiLayerData,
@@ -213,6 +224,7 @@ export type {
   YRange,
 } from './types';
 // Utils
+export { mixColors, sampleRamp } from './utils/color';
 export type { TooltipField, TooltipFormatter, ValueFormatter } from './utils/format';
 export { formatCompact, formatPriceAdaptive } from './utils/format';
 export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';

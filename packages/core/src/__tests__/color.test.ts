@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { darken, hexToRgba, lighten } from '../utils/color';
+import { darken, deriveHeatmapRamp, hexToRgba, isLightColor, lighten, mixColors } from '../utils/color';
 
 describe('hexToRgba', () => {
   it('converts a 6-digit hex to rgba with the supplied alpha', () => {
@@ -71,5 +71,54 @@ describe('darken', () => {
   it('pads single-digit channels with a leading zero', () => {
     // 10 * (1 - 0.9) = 1 → "01"
     expect(darken('#0a0a0a', 0.9)).toBe('#010101');
+  });
+});
+
+describe('mixColors', () => {
+  it('returns the endpoints at t=0 and t=1', () => {
+    expect(mixColors('#000000', '#ffffff', 0)).toBe('#000000');
+    expect(mixColors('#000000', '#ffffff', 1)).toBe('#ffffff');
+  });
+
+  it('interpolates rgb()/rgba() inputs instead of hard-switching at t=0.5', () => {
+    // Regression: theme ramps built from `createTheme({ background: 'rgb(...)' })`
+    // used to degenerate to a binary flip — below-median cells painted the
+    // exact background color.
+    const low = mixColors('rgb(20, 20, 28)', 'rgb(41, 98, 255)', 0.12);
+    expect(low).toMatch(/^#[0-9a-f]{6}$/);
+    expect(low).not.toBe('rgb(20, 20, 28)');
+    expect(low).not.toBe('rgb(41, 98, 255)');
+  });
+
+  it('falls back to a hard switch for unparseable inputs — never a NaN fill', () => {
+    expect(mixColors('gold', '#ffffff', 0.4)).toBe('gold');
+    expect(mixColors('gold', '#ffffff', 0.6)).toBe('#ffffff');
+  });
+});
+
+describe('isLightColor', () => {
+  it('classifies hex fills by Rec. 601 luma', () => {
+    expect(isLightColor('#ffffff')).toBe(true);
+    expect(isLightColor('#1f2328')).toBe(false);
+  });
+
+  it('understands rgb() and shorthand hex — light fills get dark label ink', () => {
+    // Regression: non-hex light fills used to report dark, so cell labels
+    // painted white-on-near-white.
+    expect(isLightColor('rgb(250, 240, 150)')).toBe(true);
+    expect(isLightColor('#fff')).toBe(true);
+  });
+
+  it('reports dark for unparseable colors, keeping the default white ink', () => {
+    expect(isLightColor('transparent')).toBe(false);
+  });
+});
+
+describe('deriveHeatmapRamp', () => {
+  it('anchors the low stop just off the background and the high stop on the accent', () => {
+    const [low, high] = deriveHeatmapRamp('#ffffff', '#0969da');
+    expect(high).toBe('#0969da');
+    expect(low).not.toBe('#ffffff');
+    expect(low).toBe(mixColors('#ffffff', '#0969da', 0.12));
   });
 });
