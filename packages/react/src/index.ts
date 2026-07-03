@@ -44,6 +44,9 @@ export type {
   EdgeReachedInfo,
   EdgeSide,
   EdgeState,
+  HeatmapCellData,
+  HeatmapCellLabelsOptions,
+  HeatmapSeriesOptions,
   HoverInfo,
   LegendItem,
   LineIntroDirectives,
@@ -113,6 +116,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -146,6 +150,7 @@ export {
   materialPalenight,
   minimalLight,
   mintBreeze,
+  mixColors,
   monokaiPro,
   nightOwl,
   normalizeTime,
@@ -165,6 +170,7 @@ export {
   rosePineDawn,
   roundedBarFill,
   roundedCandleFill,
+  sampleRamp,
   sandDune,
   smoothCurve,
   snap,
@@ -189,6 +195,8 @@ export { ChartContainer } from './ChartContainer';
 export { useChartInstance } from './context';
 export type { EdgeLoaderProps, EdgeLoaderRenderArgs } from './EdgeLoader';
 export { EdgeLoader } from './EdgeLoader';
+export type { HeatmapSeriesProps } from './HeatmapSeries';
+export { HeatmapSeries } from './HeatmapSeries';
 export { LineSeries } from './LineSeries';
 export { PieSeries } from './PieSeries';
 export {
@@ -200,6 +208,8 @@ export {
 } from './store-bridge';
 export { ThemeProvider, useTheme } from './ThemeContext';
 export { Crosshair } from './ui/Crosshair';
+export type { HeatmapTooltipProps } from './ui/HeatmapTooltip';
+export { HeatmapTooltip } from './ui/HeatmapTooltip';
 export type { InfoBarProps, InfoBarRenderContext } from './ui/InfoBar';
 export { InfoBar } from './ui/InfoBar';
 export type { LegendItemOverride, LegendProps } from './ui/Legend';

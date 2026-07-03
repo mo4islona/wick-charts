@@ -1,5 +1,5 @@
 import type { ValueColor } from '../types';
-import { lighten } from '../utils/color';
+import { deriveHeatmapRamp, lighten } from '../utils/color';
 import { resolveCandlestickBodyColor } from './resolve';
 import type { ChartTheme } from './types';
 
@@ -33,6 +33,7 @@ export interface ThemeConfig {
   seriesColors?: string[];
   bar?: Partial<NonNullable<ChartTheme['bar']>>;
   pie?: Partial<NonNullable<ChartTheme['pie']>>;
+  heatmap?: Partial<NonNullable<ChartTheme['heatmap']>>;
   bands?: Partial<ChartTheme['bands']>;
   crosshair?: Partial<ChartTheme['crosshair']>;
   axis?: Partial<ChartTheme['axis']>;
@@ -172,6 +173,12 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       // The dim axis tone doubles as the "Other" slice fill — muted enough to
       // read as an aggregate, and it already adapts to theme polarity.
       otherColor: config.pie?.otherColor ?? dim,
+    },
+    heatmap: {
+      // Single-hue sequential ramp — see deriveHeatmapRamp. Shared with the
+      // renderer's no-token fallback so hand-built theme literals and
+      // createTheme presets paint the same wash.
+      colors: config.heatmap?.colors ?? deriveHeatmapRamp(bg, lineColor),
     },
     bands: {
       upper: config.bands?.upper ?? lineColor,

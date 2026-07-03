@@ -4,7 +4,7 @@
  * chart state beyond the series array and the current visible X window.
  */
 
-import type { SeriesRenderer } from '../series/types';
+import { type SeriesRenderer, isTimeSeriesRenderer } from '../series/types';
 import type { OHLCData, TimePoint, XRange } from '../types';
 
 export interface LastValueSeries {
@@ -33,7 +33,7 @@ export function getLastValue(
   if (!entry) return null;
 
   const renderer = entry.renderer;
-  if (renderer.kind === 'pie') return null;
+  if (!isTimeSeriesRenderer(renderer)) return null;
 
   const last = renderer.getLastDataPoint();
   if (!last) return null;
@@ -74,7 +74,7 @@ export function getPreviousClose(seriesId: string, series: readonly LastValueSer
   if (!entry) return null;
 
   const renderer = entry.renderer;
-  if (renderer.kind === 'pie') return null;
+  if (!isTimeSeriesRenderer(renderer)) return null;
 
   const prev = renderer.getSecondLastDataPoint();
   if (!prev) return null;

@@ -59,6 +59,11 @@ export const DEFAULT_PIE_ENTRY = 600;
 /** Pie segment data-update chase. Parsed at config-time; wiring lands in a later phase. */
 export const DEFAULT_PIE_UPDATE = 250;
 
+/** Heatmap per-cell entrance duration — the diagonal reveal wave. */
+export const DEFAULT_HEATMAP_ENTRY = 600;
+/** Heatmap in-place value/color tween and hover-lift ease. */
+export const DEFAULT_HEATMAP_UPDATE = 300;
+
 // =============================================================================
 // Axis durations
 // =============================================================================
@@ -139,7 +144,7 @@ export const DEFAULT_TICKS_MS = 250;
  * - `axis.ticks` — axis tick label cross-fade.
  * - `toggle` — series visibility (alpha fade + Y re-fit, locked to one
  *   duration so they finish on the same frame).
- * - `series.{line,candlestick,bar,pie}` — per-series-type data tweens.
+ * - `series.{line,candlestick,bar,pie,heatmap}` — per-series-type data tweens.
  *
  * Top-level `false` disables every animation category. `axis: false`
  * disables both axes and ticks. `axis.y: false` / `axis.x: false` disables
@@ -376,6 +381,27 @@ export interface AnimationsConfig {
                */
               update?: AnimationTime;
             };
+        /**
+         * Heatmap tweens. `false` disables the entrance wave, value tween,
+         * and hover lift.
+         */
+        heatmap?:
+          | false
+          | {
+              /**
+               * Per-cell entrance duration — the diagonal reveal wave on
+               * first paint / grid-shape change.
+               *
+               * @default {@link DEFAULT_HEATMAP_ENTRY}
+               */
+              entry?: AnimationTime;
+              /**
+               * In-place value/color tween and hover-lift ease.
+               *
+               * @default {@link DEFAULT_HEATMAP_UPDATE}
+               */
+              update?: AnimationTime;
+            };
       };
 }
 
@@ -401,12 +427,13 @@ export interface ResolvedXAxisAnimation {
   gestureMs: number;
 }
 
-/** Resolved per-series numeric durations (Pie has its own `updateMs`). */
+/** Resolved per-series numeric durations (Pie / Heatmap have their own `updateMs`). */
 export interface ResolvedSeriesAnimations {
   line: { entryMs: number; smoothMs: number; pulseMs: number; introMs: number };
   candlestick: { entryMs: number; smoothMs: number; introMs: number };
   bar: { entryMs: number; smoothMs: number; introMs: number };
   pie: { entryMs: number; updateMs: number };
+  heatmap: { entryMs: number; updateMs: number };
 }
 
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
@@ -414,6 +441,7 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   candlestick: { entryMs: 0, smoothMs: 0, introMs: 0 },
   bar: { entryMs: 0, smoothMs: 0, introMs: 0 },
   pie: { entryMs: 0, updateMs: 0 },
+  heatmap: { entryMs: 0, updateMs: 0 },
 };
 
 /**
@@ -563,6 +591,12 @@ export class AnimationConfig {
       return { entryMs, updateMs };
     }
 
+    if (kind === 'heatmap') {
+      const { entryMs, updateMs } = this.series.heatmap;
+
+      return { entryMs, updateMs };
+    }
+
     const { entryMs, smoothMs, introMs } = this.series.bar;
 
     return { entryMs, smoothMs, introMs };
@@ -594,6 +628,14 @@ export class AnimationConfig {
       return out;
     }
 
+    if (kind === 'heatmap') {
+      const { entryMs, updateMs } = this.series.heatmap;
+      if (entryMs === 0) out.entryMs = 0;
+      if (updateMs === 0) out.updateMs = 0;
+
+      return out;
+    }
+
     const { entryMs, smoothMs, introMs } = kind === 'candlestick' ? this.series.candlestick : this.series.bar;
     if (entryMs === 0) out.entryMs = 0;
     if (smoothMs === 0) out.smoothMs = 0;
@@ -610,6 +652,7 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
   const rawCandle = raw?.candlestick;
   const rawBar = raw?.bar;
   const rawPie = raw?.pie;
+  const rawHeatmap = raw?.heatmap;
 
   const line =
     rawLine === false
@@ -647,5 +690,13 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           updateMs: resolveAnimationTime(rawPie?.update, DEFAULT_PIE_UPDATE),
         };
 
-  return { line, candlestick, bar, pie };
+  const heatmap =
+    rawHeatmap === false
+      ? { entryMs: 0, updateMs: 0 }
+      : {
+          entryMs: resolveAnimationTime(rawHeatmap?.entry, DEFAULT_HEATMAP_ENTRY),
+          updateMs: resolveAnimationTime(rawHeatmap?.update, DEFAULT_HEATMAP_UPDATE),
+        };
+
+  return { line, candlestick, bar, pie, heatmap };
 }

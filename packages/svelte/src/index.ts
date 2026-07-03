@@ -26,6 +26,9 @@ export type {
   CornerMask,
   CrosshairPosition,
   CurveKind,
+  HeatmapCellData,
+  HeatmapCellLabelsOptions,
+  HeatmapSeriesOptions,
   HoverInfo,
   LegendItem,
   LinePaintArgs,
@@ -83,6 +86,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -111,6 +115,7 @@ export {
   materialPalenight,
   minimalLight,
   mintBreeze,
+  mixColors,
   monokaiPro,
   nightOwl,
   normalizeTime,
@@ -127,6 +132,7 @@ export {
   rosePineDawn,
   roundedBarFill,
   roundedCandleFill,
+  sampleRamp,
   sandDune,
   smoothCurve,
   solarizedLight,
@@ -141,6 +147,7 @@ export { default as CandlestickSeries } from './CandlestickSeries.svelte';
 export { default as ChartContainer } from './ChartContainer.svelte';
 // Context and stores
 export { getChartContext, getThemeContext } from './context';
+export { default as HeatmapSeries } from './HeatmapSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';
 export {
@@ -151,6 +158,7 @@ export {
   createYRange,
 } from './stores';
 export { default as Crosshair } from './ui/Crosshair.svelte';
+export { default as HeatmapTooltip } from './ui/HeatmapTooltip.svelte';
 export { default as InfoBar } from './ui/InfoBar.svelte';
 export { default as Legend } from './ui/Legend.svelte';
 export { default as Marker } from './ui/Marker.svelte';

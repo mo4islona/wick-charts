@@ -160,7 +160,7 @@ export interface ChartLayout {
 }
 
 /** Supported primary series types. */
-export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie';
+export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap';
 
 /**
  * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).
@@ -781,6 +781,68 @@ export interface PieSeriesOptions {
          */
         depth?: number;
       };
+}
+
+/** One cell of a heatmap matrix — a (column, row) coordinate with a magnitude. */
+export interface HeatmapCellData {
+  /** Column key. Column order follows first appearance unless {@link HeatmapSeriesOptions.columns} pins it. */
+  x: string;
+  /** Row key. Row order follows first appearance unless {@link HeatmapSeriesOptions.rows} pins it. */
+  y: string;
+  /** Magnitude mapped onto the sequential color ramp. */
+  value: number;
+  /** Explicit fill override for this cell. Skips the ramp entirely. */
+  color?: string;
+}
+
+/** Per-cell value labels drawn inside heatmap cells. */
+export interface HeatmapCellLabelsOptions {
+  /** Font size in CSS pixels. Default: 10. */
+  fontSize?: number;
+  /**
+   * Value formatter. Default: decimals adapt to the value domain — 2 for
+   * unit-scale domains (correlations), integers for wide ones, compact
+   * notation (`1.2K`) past 1000.
+   */
+  format?: (value: number) => string;
+}
+
+/** Visual options for a heatmap series. */
+export interface HeatmapSeriesOptions {
+  /**
+   * Sequential ramp stops, low → high, interpolated perceptually (OKLab).
+   * Two stops give a classic single-hue ramp; three make a diverging scale.
+   * Default: derived from the theme — a faint wash of the accent color near
+   * the surface up to the full accent (`theme.heatmap.colors` when present).
+   */
+  colors?: string[];
+  /** Domain minimum mapped to the first ramp stop. Default: the data minimum. */
+  min?: number;
+  /** Domain maximum mapped to the last ramp stop. Default: the data maximum. */
+  max?: number;
+  /** Surface gap between adjacent cells in CSS pixels. Default: 2. */
+  gap?: number;
+  /** Cell corner radius in CSS pixels. Default: 3. */
+  cornerRadius?: number;
+  /** Draw row labels (left) and column labels (bottom). Default: true. */
+  axisLabels?: boolean;
+  /** Draw the value inside each cell (auto-skipped when it doesn't fit). Default: false. */
+  cellLabels?: boolean | HeatmapCellLabelsOptions;
+  /** Explicit column order. Keys absent from the data render as empty columns. */
+  columns?: string[];
+  /** Explicit row order. Keys absent from the data render as empty rows. */
+  rows?: string[];
+  /**
+   * Entrance duration per cell in milliseconds — the diagonal reveal wave on
+   * first paint / grid-shape change. `0` paints instantly.
+   * Default: chart animation config (600).
+   */
+  entryMs?: number;
+  /**
+   * Value/color tween duration when a cell's value changes in place, and the
+   * hover-lift ease. `0` snaps. Default: chart animation config (300).
+   */
+  updateMs?: number;
 }
 
 /** Configuration for the Y axis. */

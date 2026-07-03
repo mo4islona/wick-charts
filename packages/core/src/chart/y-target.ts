@@ -13,7 +13,7 @@
  * The chart's `#computeYTarget` wires both stages together.
  */
 
-import type { SeriesRenderer } from '../series/types';
+import { type SeriesRenderer, isTimeSeriesRenderer } from '../series/types';
 import type { AxisBound, XRange } from '../types';
 
 export interface YTargetSeries {
@@ -39,13 +39,13 @@ export function computeTargetYRange(
   let max = -Infinity;
 
   // Single path: every time-series renderer answers `getValueRange` directly
-  // (stacked totals, raw min/max, or candle high/low). Pie has no Y range.
+  // (stacked totals, raw min/max, or candle high/low). Spatial kinds (pie, heatmap) have no Y range.
   // `allValues` now receives `[min, max]` per series rather than every sample
   // — function-style bounds see the range, not the full distribution (this
   // already held for multi-layer; see INTERNAL_REFACTOR.md).
   for (const entry of series) {
     if (!entry.visible) continue;
-    if (entry.renderer.kind === 'pie') continue;
+    if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
     const r = entry.renderer.getValueRange(targetVisible.from, targetVisible.to);
     if (!r) continue;

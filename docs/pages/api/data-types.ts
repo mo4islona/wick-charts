@@ -200,6 +200,46 @@ export const CHART_DATA_TYPES: Record<string, DataShape> = {
     ],
   },
 
+  HeatmapSeries: {
+    typeName: 'HeatmapCellData',
+    description:
+      'A flat array of cells. Column / row order follows first appearance in the data unless pinned via `options.columns` / `options.rows`.',
+    props: [
+      {
+        name: 'x',
+        type: 'string',
+        optional: false,
+        defaultValue: null,
+        deprecated: null,
+        description: 'Column key. Cells sharing an `x` stack into one column.',
+      },
+      {
+        name: 'y',
+        type: 'string',
+        optional: false,
+        defaultValue: null,
+        deprecated: null,
+        description: 'Row key. Cells sharing a `y` line up in one row.',
+      },
+      {
+        name: 'value',
+        type: 'number',
+        optional: false,
+        defaultValue: null,
+        deprecated: null,
+        description: 'Magnitude mapped onto the sequential color ramp between the domain min and max.',
+      },
+      {
+        name: 'color',
+        type: 'string',
+        optional: true,
+        defaultValue: null,
+        deprecated: null,
+        description: 'Override fill for this cell. Skips the ramp entirely.',
+      },
+    ],
+  },
+
   PieSeries: {
     typeName: 'PieSliceData',
     description:

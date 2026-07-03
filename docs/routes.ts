@@ -8,6 +8,7 @@ export type Route =
   | 'charts/line'
   | 'charts/bar'
   | 'charts/pie'
+  | 'charts/heatmap'
   | 'charts/sparkline'
   // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
   // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
@@ -25,6 +26,7 @@ export type Route =
   | 'api/bar-series'
   | 'api/candlestick-series'
   | 'api/pie-series'
+  | 'api/heatmap-series'
   | 'api/sparkline'
   | 'api/chart-container'
   | 'api/x-axis'
@@ -38,6 +40,7 @@ export type Route =
   | 'api/info-bar'
   | 'api/pie-legend'
   | 'api/pie-tooltip'
+  | 'api/heatmap-tooltip'
   | 'api/number-flow'
   | 'api/y-label'
   | 'hooks/use-chart-instance'
@@ -102,6 +105,7 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/line', label: 'Line & Area', title: 'Line & Area' },
   { route: 'charts/bar', label: 'Bar', title: 'Bar' },
   { route: 'charts/pie', label: 'Pie & Donut', title: 'Pie & Donut' },
+  { route: 'charts/heatmap', label: 'Heatmap', title: 'Heatmap' },
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
@@ -123,6 +127,7 @@ const USE_CASES: RouteEntry[] = [
 const API_CHARTS: RouteEntry[] = [
   { route: 'api/bar-series', label: 'BarSeries', title: '' },
   { route: 'api/candlestick-series', label: 'CandlestickSeries', title: '' },
+  { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
   { route: 'api/line-series', label: 'LineSeries', title: '' },
   { route: 'api/pie-series', label: 'PieSeries', title: '' },
   { route: 'api/sparkline', label: 'Sparkline', title: '' },
@@ -131,6 +136,7 @@ const API_CHARTS: RouteEntry[] = [
 const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/chart-container', label: 'ChartContainer', title: '' },
   { route: 'api/crosshair', label: 'Crosshair', title: '' },
+  { route: 'api/heatmap-tooltip', label: 'HeatmapTooltip', title: '' },
   { route: 'api/info-bar', label: 'InfoBar', title: '' },
   { route: 'api/legend', label: 'Legend', title: '' },
   { route: 'api/marker', label: 'Marker', title: '' },
@@ -272,6 +278,7 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/bar-series': 'charts/bar',
   'api/candlestick-series': 'charts/candlestick',
   'api/pie-series': 'charts/pie',
+  'api/heatmap-series': 'charts/heatmap',
   'api/sparkline': 'charts/sparkline',
 };
 

@@ -55,6 +55,7 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
   BarSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
   CandlestickSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
   PieSeries: { required: [{ name: 'data', valueExpr: 'pieData' }], selfClosingWhenEmpty: true },
+  HeatmapSeries: { required: [{ name: 'data', valueExpr: 'heatmapData' }], selfClosingWhenEmpty: true },
 
   Sparkline: {
     required: [{ name: 'data', valueExpr: 'data' }],
@@ -162,6 +163,10 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
       },
       ctxTypeName: 'PieTooltipRenderContext',
     },
+  },
+
+  HeatmapTooltip: {
+    required: [{ name: 'seriesId', valueExpr: "'heatmap'" }],
   },
 
   YLabel: {
