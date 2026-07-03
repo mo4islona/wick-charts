@@ -1,6 +1,7 @@
 import { Animator } from '../animation/animator';
-import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
+import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_INTRO, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
+import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { decimateOHLCData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
@@ -11,6 +12,7 @@ import { hexToRgba } from '../utils/color';
 import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
+import { type CandleIntroDirectives, candleUnfoldIntro } from './candlestick-intro';
 import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
@@ -20,9 +22,10 @@ import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedCandlestickOptions = Omit<CandlestickSeriesOptions, 'entryMs' | 'smoothMs'> & {
+type ResolvedCandlestickOptions = Omit<CandlestickSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
   entryMs: number;
   smoothMs: number;
+  introMs: number;
 };
 
 /** Per-candle entrance state — start wall-time so progress is `(now - startTime) / entryMs`. */
@@ -118,6 +121,9 @@ const ALL_CORNERS: CornerMask = { tl: true, tr: true, br: true, bl: true };
 /** Volume bars grow up from the baseline, so only the free (top) end rounds. */
 const VOLUME_TOP_CORNERS: CornerMask = { tl: true, tr: true, br: false, bl: false };
 
+/** Fallback intro when the option is unset — stateless, safe to share. */
+const DEFAULT_INTRO = candleUnfoldIntro();
+
 const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   up: { body: '#26a69a', wick: '#26a69a' },
   down: { body: '#ef5350', wick: '#ef5350' },
@@ -125,6 +131,7 @@ const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_CANDLESTICK_ENTRY,
   smoothMs: DEFAULT_CANDLESTICK_SMOOTH,
+  introMs: DEFAULT_CANDLESTICK_INTRO,
 };
 
 /** Per-render drawing context, resolved once in {@link CandlestickRenderer.render}
@@ -142,6 +149,7 @@ function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOption
     ...options,
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_CANDLESTICK_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_CANDLESTICK_SMOOTH),
+    introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_CANDLESTICK_INTRO),
   };
 }
 
@@ -174,6 +182,15 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     duration: 0,
     lerp: (a, b, t) => a + (b - a) * t,
   });
+  /** Initial-load reveal clock — armed on the first empty → non-empty seed;
+   *  candles reveal in a left-to-right wave across the visible window. */
+  protected readonly introWave = new IntroWave();
+  /** Per-frame intro directives, resolved once per render while the wave
+   *  runs; `null` when no intro is in flight. */
+  #introDirectives: CandleIntroDirectives | null = null;
+  /** Visible range captured alongside {@link #introDirectives} — positions
+   *  the per-element wave stagger. */
+  #introRange: { from: number; to: number } | null = null;
   /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
    *  positioned per candle via `ctx.translate`, instead of a fresh
    *  `createLinearGradient` for every body on every frame. */
@@ -204,7 +221,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   // --- SeriesRenderer interface implementation ------------------------------
 
   setData(data: unknown): void {
+    const hadData = this.store.length > 0;
     this.store.setData(normalizeOHLCArray((data ?? []) as OHLCInput[]));
+
+    // First seed only (empty → non-empty): arm the initial reveal. Bulk
+    // re-seeds of a live series must never replay the intro.
+    if (!hadData && this.store.length > 0) {
+      this.introWave.arm(this.options.introMs);
+    }
 
     // Bulk replace — seed `displayedLast` to the new last candle, drop any
     // in-flight chase and per-candle entries so the next render paints the
@@ -307,6 +331,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
    * fully-settled entrance entries. Called from `render()` once per frame.
    */
   private tickAnimations(now: number): void {
+    this.introWave.tick(now);
     this.#alphaAnimator.tick(now);
 
     const anim = this.#liveAnimator;
@@ -327,16 +352,22 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     }
   }
 
-  /** True while OHLC chase, any per-candle entrance, alpha fade, or the volume
-   *  scale is unsettled. */
+  /** True while OHLC chase, any per-candle entrance, the initial reveal,
+   *  alpha fade, or the volume scale is unsettled. */
   get needsAnimation(): boolean {
     return (
-      this.#alphaAnimator.animating || this.#liveAnimator !== null || this.entries.size > 0 || !this.#volScaleSettled
+      this.introWave.active ||
+      this.#alphaAnimator.animating ||
+      this.#liveAnimator !== null ||
+      this.entries.size > 0 ||
+      !this.#volScaleSettled
     );
   }
 
-  /** Abort in-flight per-candle entrance animations. Live-OHLC chase is left intact. */
+  /** Abort in-flight per-candle entrance animations, including the initial
+   *  reveal. Live-OHLC chase is left intact. */
   cancelEntranceAnimations(): void {
+    this.introWave.finish();
     this.entries.clear();
   }
 
@@ -429,6 +460,27 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       }
     }
 
+    // Resolve the intro's per-frame directives while the wave is in flight.
+    // The intro function owns the choreography (clip window and/or a
+    // per-element transform); the draw loops below apply it after the
+    // streaming entry transform.
+    this.#introDirectives = null;
+    this.#introRange = null;
+    if (this.introWave.active) {
+      const intro = this.options.introAnimation ?? DEFAULT_INTRO;
+      this.#introRange = range;
+      this.#introDirectives = intro({
+        progress: this.introWave.linear(),
+        // Plot-area extent, not the canvas bitmap — the canvas also carries
+        // the axis strips, so a width-based front (wipeIntro) would overshoot
+        // the data area.
+        width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+        height: yScale.getMediaHeight() * scope.verticalPixelRatio,
+        range,
+        timeToX: (time) => timeScale.timeToBitmapX(time),
+      });
+    }
+
     // Snapshot entrance progress per candle up-front so drawCandles batches
     // (bulls + bears) see a consistent value and we don't probe the entry
     // map twice per candle. `null` means no active entries this frame —
@@ -439,18 +491,17 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       const now = performance.now();
       for (const c of visibleData) {
         const state = this.entries.get(c.time);
-        if (state === undefined) continue;
+        if (state === undefined || entryMs <= 0) continue;
 
         const elapsed = now - state.startTime;
-        const linear = entryMs <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / entryMs));
+        const linear = Math.min(1, Math.max(0, elapsed / entryMs));
         if (linear >= 1) continue;
 
         // Ease so the body/wick/volume unfold decelerates into place instead of
         // moving at constant velocity and hard-stopping at settle — matches the
         // line series' eased grow entrance.
-        const progress = easeOutCubic(linear);
         if (entranceByTime === null) entranceByTime = new Map();
-        entranceByTime.set(c.time, progress);
+        entranceByTime.set(c.time, easeOutCubic(linear));
       }
     }
 
@@ -476,6 +527,19 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       bodyWidth = bodyWidth > 1 ? bodyWidth - 1 : 2;
     }
     const halfBody = Math.floor(bodyWidth / 2);
+
+    // Intro clip directive (e.g. `wipeIntro()`): clip the whole pass
+    // (volume band included) to the window — candles pop in fully formed
+    // as the front crosses them.
+    const introClip = this.#introDirectives?.clip;
+    if (introClip !== undefined) {
+      const fromX = introClip.fromX ?? 0;
+      const toX = introClip.toX ?? scope.bitmapSize.width;
+      context.save();
+      context.beginPath();
+      context.rect(fromX, 0, Math.max(0, toX - fromX), scope.bitmapSize.height);
+      context.clip();
+    }
 
     // Draw volume first (behind candles). Snap the volume scale on the frame
     // the decimation boundary is crossed — summed-bucket vs per-candle volume
@@ -562,6 +626,41 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       body: this.options.down.body,
       wickColor: this.options.down.wick,
     });
+
+    if (introClip !== undefined) context.restore();
+  }
+
+  /**
+   * Apply the intro's per-element directive to one element's settled (or
+   * entry-transformed) geometry. Returns `null` when no element directive
+   * is in flight this frame.
+   */
+  private introTransform(args: {
+    element: 'wick' | 'body' | 'volume';
+    time: number;
+    x: number;
+    topY: number;
+    bottomY: number;
+    anchorY: number;
+    barWidth: number;
+  }): CandleTransformOutput | null {
+    const element = this.#introDirectives?.element;
+    const range = this.#introRange;
+    if (element === undefined || range === null) return null;
+
+    const span = range.to - range.from;
+    const position = span > 0 ? clamp((args.time - range.from) / span, 0, 1) : 0;
+    const t = element({ ...args, position, progress: this.introWave.progressAt(position) });
+
+    const unfold = t.unfold ?? 1;
+    const offsetY = t.offsetY ?? 0;
+
+    return {
+      x: args.x + (t.offsetX ?? 0),
+      topY: lerp(args.anchorY, args.topY, unfold) + offsetY,
+      bottomY: lerp(args.anchorY, args.bottomY, unfold) + offsetY,
+      alpha: t.alpha ?? 1,
+    };
   }
 
   private drawVolume({
@@ -648,36 +747,55 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
       ctx.fillStyle = isUp ? upVolumeColor : downVolumeColor;
 
+      // Streaming entrance first: anchor grow/unfold from chartHeight
+      // (baseline) so the bar rises from the bottom — matches the candle's
+      // body unfold from openY. The intro's element directive composes on
+      // top of the (usually settled) entry geometry.
       const progress = entranceByTime?.get(c.time) ?? 1;
-      if (progress >= 1 || style === 'none') {
+      let g = { x: cx - halfBar, topY: chartHeight - h, bottomY: chartHeight, alpha: 1 };
+      if (progress < 1 && style !== 'none') {
+        const t = applyCandleTransform(progress, style, {
+          x: g.x,
+          barWidth: volBarWidth,
+          anchorY: chartHeight,
+          topY: g.topY,
+          bottomY: g.bottomY,
+        });
+        g = { x: t.x, topY: t.topY, bottomY: t.bottomY, alpha: t.alpha };
+      }
+
+      const intro = this.introTransform({
+        element: 'volume',
+        time: c.time,
+        x: g.x,
+        topY: g.topY,
+        bottomY: g.bottomY,
+        anchorY: chartHeight,
+        barWidth: volBarWidth,
+      });
+      if (intro !== null) {
+        g = { x: intro.x, topY: intro.topY, bottomY: intro.bottomY, alpha: g.alpha * intro.alpha };
+      }
+
+      if (g.alpha >= 1) {
         fillRoundedRect(ctx, {
-          x: cx - halfBar,
-          y: chartHeight - h,
+          x: g.x,
+          y: g.topY,
           width: volBarWidth,
-          height: h,
+          height: Math.max(1, g.bottomY - g.topY),
           radius,
           corners: VOLUME_TOP_CORNERS,
         });
         continue;
       }
 
-      // Mirror the candle body's entrance. Anchor grow/unfold from chartHeight
-      // (baseline) so the bar rises from the bottom — matches the candle's
-      // body unfold from openY.
-      const t = applyCandleTransform(progress, style, {
-        x: cx - halfBar,
-        barWidth: volBarWidth,
-        anchorY: chartHeight,
-        topY: chartHeight - h,
-        bottomY: chartHeight,
-      });
       ctx.save();
-      ctx.globalAlpha = t.alpha;
+      ctx.globalAlpha = g.alpha;
       fillRoundedRect(ctx, {
-        x: t.x,
-        y: t.topY,
+        x: g.x,
+        y: g.topY,
         width: volBarWidth,
-        height: Math.max(1, t.bottomY - t.topY),
+        height: Math.max(1, g.bottomY - g.topY),
         radius,
         corners: VOLUME_TOP_CORNERS,
       });
@@ -725,21 +843,42 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       const lowY = yScale.valueToBitmapY(c.low);
       const wickX = cx - Math.floor(wickWidth / 2);
 
-      if (progress >= 1 || style === 'none') {
+      let transformed = false;
+      let g = { x: wickX, topY: highY, bottomY: lowY, alpha: 1 };
+      if (progress < 1 && style !== 'none') {
+        const t = applyCandleTransform(progress, style, {
+          x: wickX,
+          barWidth,
+          anchorY: openY,
+          topY: highY,
+          bottomY: lowY,
+        });
+        g = { x: t.x, topY: t.topY, bottomY: t.bottomY, alpha: t.alpha };
+        transformed = true;
+      }
+
+      const intro = this.introTransform({
+        element: 'wick',
+        time: c.time,
+        x: g.x,
+        topY: g.topY,
+        bottomY: g.bottomY,
+        anchorY: openY,
+        barWidth,
+      });
+      if (intro !== null) {
+        g = { x: intro.x, topY: intro.topY, bottomY: intro.bottomY, alpha: g.alpha * intro.alpha };
+        transformed = true;
+      }
+
+      if (!transformed) {
         ctx.fillRect(wickX, highY, wickWidth, lowY - highY);
         continue;
       }
 
-      const t = applyCandleTransform(progress, style, {
-        x: wickX,
-        barWidth,
-        anchorY: openY,
-        topY: highY,
-        bottomY: lowY,
-      });
       ctx.save();
-      ctx.globalAlpha = t.alpha;
-      ctx.fillRect(t.x, t.topY, wickWidth, Math.max(1, t.bottomY - t.topY));
+      ctx.globalAlpha = g.alpha;
+      ctx.fillRect(g.x, g.topY, wickWidth, Math.max(1, g.bottomY - g.topY));
       ctx.restore();
     }
 
@@ -757,15 +896,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       const bodyBottom = Math.max(openY, closeY);
       const bodyHeight = Math.max(1, bodyBottom - bodyTop);
 
-      const needsTransform = progress < 1 && style !== 'none';
-
       let drawX = cx - halfBody;
       let drawTop = bodyTop;
-      let drawHeight = bodyHeight;
+      let drawBottom = bodyBottom;
       let alpha = 1;
-      if (needsTransform) {
+      let needsTransform = false;
+      if (progress < 1 && style !== 'none') {
         const t = applyCandleTransform(progress, style, {
-          x: cx - halfBody,
+          x: drawX,
           barWidth,
           anchorY: openY,
           topY: bodyTop,
@@ -773,9 +911,29 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
         });
         drawX = t.x;
         drawTop = t.topY;
-        drawHeight = Math.max(1, t.bottomY - t.topY);
+        drawBottom = t.bottomY;
         alpha = t.alpha;
+        needsTransform = true;
       }
+
+      const intro = this.introTransform({
+        element: 'body',
+        time: c.time,
+        x: drawX,
+        topY: drawTop,
+        bottomY: drawBottom,
+        anchorY: openY,
+        barWidth,
+      });
+      if (intro !== null) {
+        drawX = intro.x;
+        drawTop = intro.topY;
+        drawBottom = intro.bottomY;
+        alpha *= intro.alpha;
+        needsTransform = true;
+      }
+
+      const drawHeight = needsTransform ? Math.max(1, drawBottom - drawTop) : bodyHeight;
 
       if (needsTransform) ctx.save();
 

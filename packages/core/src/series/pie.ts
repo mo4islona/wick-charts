@@ -1,3 +1,5 @@
+import { DEFAULT_PIE_ENTRY } from '../animation/config';
+import { IntroWave } from '../animation/intro-wave';
 import type { ChartTheme } from '../theme/types';
 import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData } from '../types';
 import { lighten } from '../utils/color';
@@ -278,6 +280,14 @@ export class PieRenderer implements PieSeriesRenderer {
    */
   #labelReveal = 1;
   /**
+   * Initial-load reveal clock — armed on the first empty → non-empty seed;
+   * slices unfurl clockwise from 12 o'clock, then {@link #labelReveal}
+   * chains in. Armed with `entryMs / 2` because the wave's full window is
+   * `2 ×` its per-element duration and the pie treats `entryMs` as the
+   * total sweep time.
+   */
+  readonly #introWave = new IntroWave();
+  /**
    * Cached horizontal bitmap-pixel reserve for outside labels. Invalidated on
    * `setData` / `updateOptions`; computed lazily on first `render` call per
    * frame using the live canvas context for accurate `measureText`.
@@ -365,13 +375,22 @@ export class PieRenderer implements PieSeriesRenderer {
   }
 
   setData(data: unknown): void {
+    const hadData = this.#data.length > 0;
     const slices = (data ?? []) as PieSliceData[];
     this.#data = slices;
     this.#display = this.#computeDisplayData();
     this.#sliceOffsets = new Array(this.#display.length).fill(0);
-    // Only reset reveal to 0 when the entrance animation is enabled;
-    // otherwise keep it pinned at 1 so the new data paints fully-revealed.
-    this.#labelReveal = this.#options.animate ? 0 : 1;
+
+    // First seed only (empty → non-empty): arm the clockwise slice sweep.
+    // Bulk re-seeds of a live series must never replay the intro.
+    if (!hadData && this.#display.length > 0) {
+      this.#introWave.arm(this.#entryMs() / 2);
+    }
+
+    // Reset reveal to 0 when either motion source is engaged (`animate`, or
+    // the intro sweep that the labels chain after); otherwise keep it pinned
+    // at 1 so the new data paints fully-revealed.
+    this.#labelReveal = this.#options.animate || this.#introWave.active ? 0 : 1;
     this.#labelReserveCache = null;
     for (const listener of this.#dataListeners) {
       listener();
@@ -525,15 +544,32 @@ export class PieRenderer implements PieSeriesRenderer {
     }));
   }
 
+  /** Resolved slice-sweep duration — `entryMs` with the `false` sentinel
+   *  normalized to `0` (pie stores raw public options, unlike the
+   *  time-series renderers which normalize at the merge boundary). */
+  #entryMs(): number {
+    const raw = this.#options.entryMs;
+    if (raw === false) return 0;
+
+    return raw ?? DEFAULT_PIE_ENTRY;
+  }
+
   /** Returns true if animation is still in progress. */
   get needsAnimation(): boolean {
+    if (this.#introWave.active) return true;
+
+    // Label reveal runs on its own after the intro sweep (`animate` may be
+    // off), so it must keep the frame loop alive independently. Resolved
+    // mode, not the raw option — the default `sliceLabels: undefined`
+    // resolves to `'outside'`.
+    if (resolveLabels(this.#options.sliceLabels).mode === 'outside' && this.#labelReveal < 0.99) return true;
+
     if (!this.#options.animate) return false;
 
     for (let i = 0; i < this.#sliceOffsets.length; i++) {
       const target = i === this.#hoverIndex ? 1 : 0;
       if (Math.abs(this.#sliceOffsets[i] - target) > 0.01) return true;
     }
-    if (this.#options.sliceLabels?.mode === 'outside' && this.#labelReveal < 0.99) return true;
 
     return false;
   }
@@ -971,6 +1007,12 @@ export class PieRenderer implements PieSeriesRenderer {
     const total = this.#total();
     if (total <= 0) return;
 
+    // Initial-load sweep: slices unfurl clockwise from 12 o'clock behind
+    // `revealAngle`; labels chain in once the sweep completes.
+    this.#introWave.tick(now);
+    const introActive = this.#introWave.active;
+    const revealAngle = -Math.PI / 2 + this.#introWave.sweep() * TWO_PI;
+
     // Hovered-slice explode offset. When `animate` is off (the default) the
     // effect is skipped entirely — the hovered slice stays in place, and
     // hover feedback is left to the tooltip / legend / cursor change.
@@ -992,7 +1034,7 @@ export class PieRenderer implements PieSeriesRenderer {
     // labels paint fully revealed from the first frame. Font set before
     // measuring so `measureText` reports paint-accurate widths.
     context.font = `${labels.fontSize * horizontalPixelRatio}px ${theme.typography.fontFamily}`;
-    if (labels.mode === 'outside' && this.#options.animate) {
+    if (labels.mode === 'outside' && !introActive && this.#labelReveal < 1) {
       this.#labelReveal = smoothToward(this.#labelReveal, 1, 6, dt);
     }
 
@@ -1025,9 +1067,21 @@ export class PieRenderer implements PieSeriesRenderer {
       const slice = this.#display[i];
       const sliceAngle = (this.#sliceValue(slice.value) / total) * TWO_PI;
       const startAngle = angle + pad / 2;
-      const endAngle = angle + sliceAngle - pad / 2;
+      let endAngle = angle + sliceAngle - pad / 2;
       const midAngle = angle + sliceAngle / 2;
       const color = this.#sliceColor({ index: i, palette, theme });
+
+      // Clockwise unfurl: a slice the reveal front hasn't reached is skipped
+      // entirely; the slice under the front renders partially, its trailing
+      // edge pinned to `revealAngle` until the sweep passes.
+      if (introActive) {
+        if (startAngle >= revealAngle) {
+          angle += sliceAngle;
+          continue;
+        }
+
+        endAngle = Math.min(endAngle, revealAngle);
+      }
 
       // Degenerate slice — sliceAngle collapses below pad, leaving no
       // visible wedge once the two pad/2 gaps are carved out. Advance the
@@ -1172,11 +1226,20 @@ export class PieRenderer implements PieSeriesRenderer {
         const chord = sliceAngle < Math.PI ? 2 * labelR * Math.sin(sliceAngle / 2) : 2 * labelR;
         const tooNarrow = textWidth > chord - 4 * horizontalPixelRatio;
         const tooThin = innerR > 0 && labelR - innerR < minRing;
-        if (!tooNarrow && !tooThin) {
+        // During the intro sweep each label fades in just behind the reveal
+        // front, so text never sits on a wedge that hasn't unfurled yet.
+        const introAlpha = introActive ? clamp((revealAngle - (angle + sliceAngle)) / 0.35, 0, 1) : 1;
+        if (!tooNarrow && !tooThin && introAlpha > 0) {
           const lx = cx + Math.cos(midAngle) * (labelR + offset);
           const ly = cy + Math.sin(midAngle) * (labelR + offset);
+          const faded = introAlpha < 1;
+          if (faded) {
+            context.save();
+            context.globalAlpha *= introAlpha;
+          }
           context.fillStyle = isLightColor(sliceColor) ? '#000000' : '#ffffff';
           context.fillText(text, lx, ly);
+          if (faded) context.restore();
         }
       }
       angle += sliceAngle;

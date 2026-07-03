@@ -25,6 +25,7 @@ import { snap } from './y-range-snap';
 
 const DEFAULT_SERIES_ENTRY = 250;
 const DEFAULT_SERIES_SMOOTH = 250;
+const DEFAULT_SERIES_INTRO = 500;
 
 // =============================================================================
 // Per-series-type defaults (public)
@@ -34,6 +35,8 @@ const DEFAULT_SERIES_SMOOTH = 250;
 export const DEFAULT_LINE_ENTRY = DEFAULT_SERIES_ENTRY;
 /** Line live-value chase duration. */
 export const DEFAULT_LINE_SMOOTH = DEFAULT_SERIES_SMOOTH;
+/** Line initial-load reveal — per-element wave duration; the full intro lasts ~2×. */
+export const DEFAULT_LINE_INTRO = DEFAULT_SERIES_INTRO;
 /** Pulse cycle period for the line last-point halo. Periodic loop, not a one-shot transition. */
 export const DEFAULT_LINE_PULSE = 600;
 
@@ -41,14 +44,18 @@ export const DEFAULT_LINE_PULSE = 600;
 export const DEFAULT_CANDLESTICK_ENTRY = DEFAULT_SERIES_ENTRY;
 /** Candlestick live OHLC chase duration. */
 export const DEFAULT_CANDLESTICK_SMOOTH = DEFAULT_SERIES_SMOOTH;
+/** Candlestick initial-load reveal — per-candle wave duration; the full intro lasts ~2×. */
+export const DEFAULT_CANDLESTICK_INTRO = DEFAULT_SERIES_INTRO;
 
 /** Bar entrance tween duration. */
 export const DEFAULT_BAR_ENTRY = DEFAULT_SERIES_ENTRY;
 /** Bar live-value chase duration. */
 export const DEFAULT_BAR_SMOOTH = DEFAULT_SERIES_SMOOTH;
+/** Bar initial-load reveal — per-bar wave duration; the full intro lasts ~2×. */
+export const DEFAULT_BAR_INTRO = DEFAULT_SERIES_INTRO;
 
-/** Pie segment entry sweep. Parsed at config-time; wiring lands in a later phase. */
-export const DEFAULT_PIE_ENTRY = 250;
+/** Pie initial-load slice sweep — total clockwise unfurl duration on first seed. */
+export const DEFAULT_PIE_ENTRY = 600;
 /** Pie segment data-update chase. Parsed at config-time; wiring lands in a later phase. */
 export const DEFAULT_PIE_UPDATE = 250;
 
@@ -262,6 +269,15 @@ export interface AnimationsConfig {
                */
               entry?: AnimationTime;
               /**
+               * Initial-load reveal — the line draws itself left-to-right
+               * on the first data seed, with a glowing head riding the
+               * reveal front. The value is the per-element wave duration;
+               * the full sweep lasts ~2×. `false` / `0` disables the intro.
+               *
+               * @default {@link DEFAULT_LINE_INTRO}
+               */
+              intro?: AnimationTime;
+              /**
                * Last-value chase duration on `updateLastPoint`. `false` /
                * `0` snaps to the target instantly.
                *
@@ -291,6 +307,15 @@ export interface AnimationsConfig {
                */
               entry?: AnimationTime;
               /**
+               * Initial-load reveal — candles unfold in a left-to-right
+               * wave on the first data seed. The value is the per-candle
+               * wave duration; the full wave lasts ~2×. `false` / `0`
+               * disables the intro.
+               *
+               * @default {@link DEFAULT_CANDLESTICK_INTRO}
+               */
+              intro?: AnimationTime;
+              /**
                * Live OHLC chase duration on `updateLastPoint`. `false` / `0`
                * snaps to the target instantly.
                *
@@ -312,6 +337,15 @@ export interface AnimationsConfig {
                */
               entry?: AnimationTime;
               /**
+               * Initial-load reveal — bars grow from the baseline in a
+               * left-to-right wave on the first data seed. The value is the
+               * per-bar wave duration; the full wave lasts ~2×. `false` /
+               * `0` disables the intro.
+               *
+               * @default {@link DEFAULT_BAR_INTRO}
+               */
+              intro?: AnimationTime;
+              /**
                * Live value chase duration on `updateLastPoint`. `false` /
                * `0` snaps to the target instantly.
                *
@@ -320,15 +354,17 @@ export interface AnimationsConfig {
               smooth?: AnimationTime;
             };
         /**
-         * Pie segment entry/update tweens. Parsed at config-time; the actual
-         * wiring lands in a later phase — providing a value here today is a
-         * no-op but the shape is stable.
+         * Pie segment entry/update tweens. `false` disables the slice
+         * entry sweep (`update` is still parse-only; wiring lands in a
+         * later phase).
          */
         pie?:
           | false
           | {
               /**
-               * Slice grow-in duration on first paint.
+               * Initial-load reveal — slices unfurl clockwise over this
+               * total duration on the first data seed, then the outside
+               * labels chain in. `false` / `0` disables the intro.
                *
                * @default {@link DEFAULT_PIE_ENTRY}
                */
@@ -367,16 +403,16 @@ export interface ResolvedXAxisAnimation {
 
 /** Resolved per-series numeric durations (Pie has its own `updateMs`). */
 export interface ResolvedSeriesAnimations {
-  line: { entryMs: number; smoothMs: number; pulseMs: number };
-  candlestick: { entryMs: number; smoothMs: number };
-  bar: { entryMs: number; smoothMs: number };
+  line: { entryMs: number; smoothMs: number; pulseMs: number; introMs: number };
+  candlestick: { entryMs: number; smoothMs: number; introMs: number };
+  bar: { entryMs: number; smoothMs: number; introMs: number };
   pie: { entryMs: number; updateMs: number };
 }
 
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
-  line: { entryMs: 0, smoothMs: 0, pulseMs: 0 },
-  candlestick: { entryMs: 0, smoothMs: 0 },
-  bar: { entryMs: 0, smoothMs: 0 },
+  line: { entryMs: 0, smoothMs: 0, pulseMs: 0, introMs: 0 },
+  candlestick: { entryMs: 0, smoothMs: 0, introMs: 0 },
+  bar: { entryMs: 0, smoothMs: 0, introMs: 0 },
   pie: { entryMs: 0, updateMs: 0 },
 };
 
@@ -510,15 +546,15 @@ export class AnimationConfig {
    */
   defaults(kind: SeriesKind): Record<string, unknown> {
     if (kind === 'line') {
-      const { entryMs, smoothMs, pulseMs } = this.series.line;
+      const { entryMs, smoothMs, pulseMs, introMs } = this.series.line;
 
-      return { entryMs, smoothMs, pulseMs };
+      return { entryMs, smoothMs, pulseMs, introMs };
     }
 
     if (kind === 'candlestick') {
-      const { entryMs, smoothMs } = this.series.candlestick;
+      const { entryMs, smoothMs, introMs } = this.series.candlestick;
 
-      return { entryMs, smoothMs };
+      return { entryMs, smoothMs, introMs };
     }
 
     if (kind === 'pie') {
@@ -527,9 +563,9 @@ export class AnimationConfig {
       return { entryMs, updateMs };
     }
 
-    const { entryMs, smoothMs } = this.series.bar;
+    const { entryMs, smoothMs, introMs } = this.series.bar;
 
-    return { entryMs, smoothMs };
+    return { entryMs, smoothMs, introMs };
   }
 
   /**
@@ -542,20 +578,26 @@ export class AnimationConfig {
     const out: Record<string, unknown> = {};
 
     if (kind === 'line') {
-      const { entryMs, smoothMs, pulseMs } = this.series.line;
+      const { entryMs, smoothMs, pulseMs, introMs } = this.series.line;
       if (entryMs === 0) out.entryMs = 0;
       if (smoothMs === 0) out.smoothMs = 0;
       if (pulseMs === 0) out.pulseMs = 0;
+      if (introMs === 0) out.introMs = 0;
 
       return out;
     }
 
-    // Pie has no force-off path (its animation system isn't wired yet).
-    if (kind === 'pie') return out;
+    if (kind === 'pie') {
+      // Only `entry` (the slice sweep) is wired; `update` stays parse-only.
+      if (this.series.pie.entryMs === 0) out.entryMs = 0;
 
-    const { entryMs, smoothMs } = kind === 'candlestick' ? this.series.candlestick : this.series.bar;
+      return out;
+    }
+
+    const { entryMs, smoothMs, introMs } = kind === 'candlestick' ? this.series.candlestick : this.series.bar;
     if (entryMs === 0) out.entryMs = 0;
     if (smoothMs === 0) out.smoothMs = 0;
+    if (introMs === 0) out.introMs = 0;
 
     return out;
   }
@@ -571,27 +613,30 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
 
   const line =
     rawLine === false
-      ? { entryMs: 0, smoothMs: 0, pulseMs: 0 }
+      ? { entryMs: 0, smoothMs: 0, pulseMs: 0, introMs: 0 }
       : {
           entryMs: resolveAnimationTime(rawLine?.entry, DEFAULT_LINE_ENTRY),
           smoothMs: resolveAnimationTime(rawLine?.smooth, DEFAULT_LINE_SMOOTH),
           pulseMs: resolveAnimationTime(rawLine?.pulse, DEFAULT_LINE_PULSE),
+          introMs: resolveAnimationTime(rawLine?.intro, DEFAULT_LINE_INTRO),
         };
 
   const candlestick =
     rawCandle === false
-      ? { entryMs: 0, smoothMs: 0 }
+      ? { entryMs: 0, smoothMs: 0, introMs: 0 }
       : {
           entryMs: resolveAnimationTime(rawCandle?.entry, DEFAULT_CANDLESTICK_ENTRY),
           smoothMs: resolveAnimationTime(rawCandle?.smooth, DEFAULT_CANDLESTICK_SMOOTH),
+          introMs: resolveAnimationTime(rawCandle?.intro, DEFAULT_CANDLESTICK_INTRO),
         };
 
   const bar =
     rawBar === false
-      ? { entryMs: 0, smoothMs: 0 }
+      ? { entryMs: 0, smoothMs: 0, introMs: 0 }
       : {
           entryMs: resolveAnimationTime(rawBar?.entry, DEFAULT_BAR_ENTRY),
           smoothMs: resolveAnimationTime(rawBar?.smooth, DEFAULT_BAR_SMOOTH),
+          introMs: resolveAnimationTime(rawBar?.intro, DEFAULT_BAR_INTRO),
         };
 
   const pie =

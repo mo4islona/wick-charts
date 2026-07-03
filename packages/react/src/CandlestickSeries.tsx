@@ -12,6 +12,7 @@ import {
 } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
+import { useLatestFn } from './use-latest-fn';
 
 export interface CandlestickSeriesProps {
   /**
@@ -33,9 +34,12 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   // Candlestick is single-stream — normalize the optional `{ label, data }`
   // wrapper down to its one layer.
   const layer = toLayers<OHLCInput>(data)[0];
+  // The core reads the intro fn live, per frame — hand it a stable wrapper so
+  // a non-memoized inline fn neither re-fires the option effect nor goes stale.
+  const introAnimation = useLatestFn(options?.introAnimation);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(CandlestickSeriesDef, { ...options, id: idProp, label: layer.label });
+    const id = chart.addSeries(CandlestickSeriesDef, { ...options, introAnimation, id: idProp, label: layer.label });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);
@@ -54,7 +58,7 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
 
   useEffect(() => {
     if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, options);
+      chart.updateSeriesOptions(seriesRef.current, { ...options, introAnimation });
     }
   }, [
     chart,
@@ -69,6 +73,10 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.introMs,
+    // The latched wrapper changes identity only when the intro fn appears or
+    // disappears — fn body swaps flow through the wrapper without a re-apply.
+    introAnimation,
     options?.cornerRadius,
     // A registry-name string diffs by value; a raw painter diffs by reference.
     // Never run through `join` (it would stringify a function to undefined).

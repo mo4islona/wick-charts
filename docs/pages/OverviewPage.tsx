@@ -14,6 +14,7 @@ import {
   YAxis,
   YLabel,
   resolveCandlestickBodyColor,
+  traceIntro,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -36,6 +37,12 @@ const BAR_SERIES = [barSingle];
 // Keep a fixed visible window per chart so fast-speed streams don't
 // accumulate points indefinitely.
 const MAX_POINTS = 300;
+
+// Portfolio intro: blueprint → ink instead of the default unfold — ten
+// ghost lines appearing at once, then the ink sweep, reads best on the
+// densest chart of the dashboard. Module-level so the fn identity is
+// stable across re-renders.
+const PORTFOLIO_INTRO = traceIntro();
 
 // Candle chart zooms in to the most recent N bars on mount — imperative API
 // call, so the buffer stays at MAX_POINTS and the user can pan back for history.
@@ -113,7 +120,10 @@ function MultiLineChart({ theme, speed }: StreamProps) {
   return (
     <ChartContainer theme={theme}>
       <Title sub="10 assets · Live">Portfolio</Title>
-      <LineSeries data={datasets} options={{ area: { visible: false }, strokeWidth: 1 }} />
+      <LineSeries
+        data={datasets}
+        options={{ area: { visible: false }, strokeWidth: 1, introAnimation: PORTFOLIO_INTRO }}
+      />
       <Crosshair />
       <YAxis />
       <TimeAxis />

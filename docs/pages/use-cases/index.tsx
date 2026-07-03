@@ -4,6 +4,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import type { Route } from '../../routes';
 import { AnnotationsPage } from './annotations';
+import { CustomIntroPage } from './custom-intro';
 import { CustomRendersPage } from './custom-renders';
 import { MultiChartSyncPage } from './multi-chart-sync';
 import { RealtimeDataPage } from './realtime-data';
@@ -18,6 +19,7 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/realtime-data': RealtimeDataPage,
   'use-cases/multi-chart-sync': MultiChartSyncPage,
   'use-cases/custom-renders': CustomRendersPage,
+  'use-cases/custom-intro': CustomIntroPage,
   'use-cases/annotations': AnnotationsPage,
 };
 

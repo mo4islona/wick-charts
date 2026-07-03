@@ -1,6 +1,7 @@
-import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
+import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
+import { type BarIntroDirectives, growIntro } from './bar-intro';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
@@ -10,11 +11,12 @@ import type { SeriesRenderContext } from './types';
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs'> & {
+type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
   /** One resolver per layer; renderer-internal (theme default + `data` override), not a public option. */
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
+  introMs: number;
 };
 
 /** Caller-facing option input — the public surface plus the internal `colors`. */
@@ -33,6 +35,7 @@ const DEFAULT_OPTIONS: ResolvedBarOptions = {
   cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_BAR_ENTRY,
   smoothMs: DEFAULT_BAR_SMOOTH,
+  introMs: DEFAULT_BAR_INTRO,
 };
 
 function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): ResolvedBarOptions {
@@ -40,8 +43,12 @@ function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): Resolv
     ...options,
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_BAR_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_BAR_SMOOTH),
+    introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_BAR_INTRO),
   };
 }
+
+/** Fallback intro when the option is unset — stateless, safe to share. */
+const DEFAULT_INTRO = growIntro();
 
 /** The free end the renderer decided to round for a given bar / segment. The
  *  renderer owns this — only it knows the draw mode (single / overlap / stacked /
@@ -74,6 +81,8 @@ interface BarPass {
  *  args. */
 interface AnimatedBar {
   context: CanvasRenderingContext2D;
+  /** The bar's time coordinate — positions the intro's wave stagger. */
+  time: number;
   /** Entrance progress 0→1; `>= 1` paints the settled bar with no transform. */
   progress: number;
   /** Y the bar grows from during entrance — the zero line, or the segment's
@@ -107,6 +116,13 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
    *  {@link render}, read by {@link drawAnimatedBar}. */
   #pass: BarPass | null = null;
 
+  /** Per-frame intro directives, resolved once per render while the wave
+   *  runs; `null` when no intro is in flight. */
+  #introDirectives: BarIntroDirectives | null = null;
+  /** Visible range captured alongside {@link #introDirectives} — positions
+   *  the per-bar wave stagger. */
+  #introRange: { from: number; to: number } | null = null;
+
   constructor(layerCount: number, options?: BarOptionsInput) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
@@ -118,6 +134,38 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   protected isEntryEnabled(): boolean {
     return (this.options.entryAnimation ?? 'fade-grow') !== 'none';
+  }
+
+  /**
+   * Normalized x-position + eased wave progress for the intro's callbacks.
+   * `null` when no intro is in flight this frame.
+   */
+  #introWaveAt(time: number): { position: number; progress: number } | null {
+    const range = this.#introRange;
+    if (range === null) return null;
+
+    const span = range.to - range.from;
+    const raw = span > 0 ? (time - range.from) / span : 0;
+    const position = Math.min(1, Math.max(0, raw));
+
+    return { position, progress: this.introWave.progressAt(position) };
+  }
+
+  /**
+   * Apply the intro's `value` directive to one rendered value. Scaling here
+   * (before geometry and stacking) grows the bar from the baseline on every
+   * render path — off / stacked / percent — without touching their geometry
+   * code. Projected (forecast) bars stay settled, like streaming entrances.
+   */
+  private introValue(args: { layerIndex: number; time: number; value: number }): number {
+    const value = this.#introDirectives?.value;
+    if (value === undefined) return args.value;
+    if (this.isProjectedTime(args.time)) return args.value;
+
+    const wave = this.#introWaveAt(args.time);
+    if (wave === null) return args.value;
+
+    return value({ ...args, ...wave });
   }
 
   applyTheme(theme: ChartTheme, _prev: ChartTheme): void {
@@ -187,7 +235,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
 
-    const { scope } = ctx;
+    const { scope, timeScale, yScale } = ctx;
+
     this.#pass = {
       painter: resolveBarPainter(this.options.barPainter),
       env: {
@@ -198,6 +247,40 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       },
       radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * scope.horizontalPixelRatio,
     };
+
+    // Resolve the intro's per-frame directives while the wave is in flight.
+    // The intro function owns the choreography (clip window, per-value
+    // transform, per-bar transform); the render paths below apply it on top
+    // of the streaming entry animation.
+    this.#introDirectives = null;
+    this.#introRange = null;
+    if (this.introWave.active) {
+      const intro = this.options.introAnimation ?? DEFAULT_INTRO;
+      const range = timeScale.getRange();
+      this.#introRange = range;
+      this.#introDirectives = intro({
+        progress: this.introWave.linear(),
+        // Plot-area extent, not the canvas bitmap — the canvas also carries
+        // the axis strips, so a width-based front (wipeIntro) would overshoot
+        // the data area.
+        width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+        height: yScale.getMediaHeight() * scope.verticalPixelRatio,
+        range,
+        timeToX: (time) => timeScale.timeToBitmapX(time),
+      });
+    }
+
+    // Intro clip directive (e.g. `wipeIntro()`): bars pop in fully formed
+    // as the front crosses them.
+    const introClip = this.#introDirectives?.clip;
+    if (introClip !== undefined) {
+      const fromX = introClip.fromX ?? 0;
+      const toX = introClip.toX ?? scope.bitmapSize.width;
+      scope.context.save();
+      scope.context.beginPath();
+      scope.context.rect(fromX, 0, Math.max(0, toX - fromX), scope.bitmapSize.height);
+      scope.context.clip();
+    }
 
     switch (this.options.stacking) {
       case 'normal':
@@ -210,6 +293,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         this.renderOff(ctx);
         break;
     }
+
+    if (introClip !== undefined) scope.context.restore();
   }
 
   /** Stacking off — each layer drawn independently from zero, overlapping */
@@ -253,20 +338,25 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         // renderer must not draw a NaN-height bar.
         if (!Number.isFinite(d.value)) continue;
 
-        const value = this.effectiveValue(ctx, 0, d.time, d.value);
+        // The intro's value directive scales the drawn value (growth from
+        // the baseline); color resolves from the settled value so a
+        // threshold value-fn doesn't flicker hues while the bar grows.
+        const raw = this.effectiveValue(ctx, 0, d.time, d.value);
+        const value = this.introValue({ layerIndex: 0, time: d.time, value: raw });
         const progress = this.entranceProgress(ctx, 0, d.time);
         const isProjected = this.isProjectedTime(d.time);
         const cx = timeScale.timeToBitmapX(d.time);
         // One resolver per layer: a value-fn (the theme default) paints by sign
         // / threshold, a string paints uniform — replaces the old colors[0]=up /
         // colors[1]=down pair.
-        const color = this.resolveLayerColor(0, value);
+        const color = this.resolveLayerColor(0, raw);
 
         if (value >= 0) {
           const topY = yScale.valueToBitmapY(value);
           const barHeight = Math.max(1, zeroY - topY);
           this.drawAnimatedBar({
             context,
+            time: d.time,
             progress,
             baselineY: zeroY,
             topY,
@@ -282,6 +372,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           const barHeight = Math.max(1, bottomY - zeroY);
           this.drawAnimatedBar({
             context,
+            time: d.time,
             progress,
             baselineY: zeroY,
             topY: zeroY,
@@ -316,7 +407,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             arr = [];
             timeMap.set(d.time, arr);
           }
-          arr.push({ layer: li, value: this.effectiveValue(ctx, li, d.time, d.value) * alpha });
+
+          const scaled = this.effectiveValue(ctx, li, d.time, d.value) * alpha;
+          arr.push({ layer: li, value: this.introValue({ layerIndex: li, time: d.time, value: scaled }) });
         }
       }
 
@@ -343,6 +436,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const barHeight = Math.max(1, zeroY - topY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: zeroY,
               topY,
@@ -358,6 +452,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const barHeight = Math.max(1, bottomY - zeroY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: zeroY,
               topY: zeroY,
@@ -446,7 +541,10 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           value *= this.entranceProgress(ctx, li, d.time);
         }
 
-        arr[li] = value;
+        // The intro's value directive bakes growth into the stacked values
+        // the same way — the whole column rises (or overshoots) as one
+        // attached unit.
+        arr[li] = this.introValue({ layerIndex: li, time: d.time, value });
       }
     }
 
@@ -518,6 +616,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: bottomY,
               topY,
@@ -537,6 +636,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: topY,
               topY,
@@ -556,6 +656,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: bottomY,
               topY,
@@ -573,6 +674,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
+              time,
               progress,
               baselineY: topY,
               topY,
@@ -604,10 +706,34 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const progress = bar.isProjected ? 1 : bar.progress;
 
     const style = this.options.entryAnimation ?? 'fade-grow';
-    const t =
+    let t =
       progress >= 1 || style === 'none'
         ? { x, topY, barWidth, barHeight, alpha: 1 }
         : this.applyBarTransform(bar, progress);
+
+    // Intro element directive (translation / opacity) — growth arrives via
+    // the value directive upstream, so geometry here only shifts and fades.
+    const introElement = this.#introDirectives?.element;
+    if (introElement !== undefined && !bar.isProjected) {
+      const wave = this.#introWaveAt(bar.time);
+      if (wave !== null) {
+        const intro = introElement({
+          ...wave,
+          time: bar.time,
+          x: t.x,
+          topY: t.topY,
+          barHeight: t.barHeight,
+          baselineY,
+          barWidth: t.barWidth,
+        });
+        t = {
+          ...t,
+          x: t.x + (intro.offsetX ?? 0),
+          topY: t.topY + (intro.offsetY ?? 0),
+          alpha: t.alpha * (intro.alpha ?? 1),
+        };
+      }
+    }
 
     const args: BarPaintArgs = {
       geom: { x: t.x, y: t.topY, width: t.barWidth, height: t.barHeight, baselineY },

@@ -11,6 +11,7 @@ import {
 } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
+import { useLatestFn } from './use-latest-fn';
 
 export interface LineSeriesProps {
   /**
@@ -32,9 +33,12 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   // A flat single-series `data` has a point-count `length`; normalize first so
   // the series is recreated on layer-count change only, not on every append.
   const layerCount = toLayers(data).length;
+  // The core reads the intro fn live, per frame — hand it a stable wrapper so
+  // a non-memoized inline fn neither re-fires the option effect nor goes stale.
+  const introAnimation = useLatestFn(options?.introAnimation);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(LineSeriesDef, { ...options, layers: layerCount, id: idProp });
+    const id = chart.addSeries(LineSeriesDef, { ...options, introAnimation, layers: layerCount, id: idProp });
     seriesRef.current = id;
     prevSyncRef.current = new Array(layerCount).fill(EMPTY_SYNC_STATE);
     return () => {
@@ -53,7 +57,7 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
 
   useEffect(() => {
     if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, options);
+      chart.updateSeriesOptions(seriesRef.current, { ...options, introAnimation });
     }
   }, [
     chart,
@@ -65,6 +69,10 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     options?.entryAnimation,
     options?.entryMs,
     options?.smoothMs,
+    options?.introMs,
+    // The latched wrapper changes identity only when the intro fn appears or
+    // disappears — fn body swaps flow through the wrapper without a re-apply.
+    introAnimation,
     options?.curve,
     // A registry-name string diffs by value; a raw painter diffs by reference.
     options?.linePainter,
