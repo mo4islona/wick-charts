@@ -194,6 +194,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
   #crosshairPos: CrosshairPosition | null = null;
+  /**
+   * What the crosshair is anchored to, deciding which half of the position
+   * survives a viewport move (see {@link #syncCrosshairToViewport}):
+   * `'pointer'` (real hover) keeps `mediaX`/`mediaY` and re-resolves
+   * `time`/`y`; `'time'` (programmatic {@link setCrosshair}) keeps
+   * `time`/`y` and re-projects the pixel position.
+   */
+  #crosshairAnchor: 'pointer' | 'time' = 'pointer';
   /** Whether the last overlay pass painted anything — gates the full-bitmap
    *  clear so an empty overlay isn't cleared again every main frame. */
   #overlayHasContent = false;
@@ -415,6 +423,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.syncScales();
 
     this.#interactions?.on('crosshairMove', (pos) => {
+      this.#crosshairAnchor = 'pointer';
       this.#crosshairPos = pos;
       this.#overlayScheduler.markDirty();
       this.emit('crosshairMove', pos);
@@ -1215,6 +1224,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * current crosshair is a no-op (no emit). Combined with the y-preservation
    * above, this lets N charts broadcast their hover to each other without
    * a feedback-loop guard.
+   *
+   * The echo protection assumes the broadcast is **synchronous** (call
+   * `setCrosshair` directly from the `crosshairMove` listener). An echo
+   * routed through an async hop — a state store, a React render — can
+   * arrive with a stale `time` while the origin chart streams, miss the
+   * idempotency check, and flip that chart to time-anchored until the next
+   * real pointer move (see {@link #syncCrosshairToViewport}).
    */
   setCrosshair(pos: { time: number; y?: number } | null): void {
     if (pos === null) {
@@ -1248,6 +1264,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const mediaX = this.timeScale.timeToX(time);
     const mediaY = this.yScale.valueToY(y);
 
+    // Anchor flips only past the idempotency check — an echo of the same
+    // (time, y) back to the chart that originated the hover returns above
+    // and leaves that chart pointer-anchored.
+    this.#crosshairAnchor = 'time';
     this.#crosshairPos = { mediaX, mediaY, time, y };
     this.#overlayScheduler.markDirty();
     this.emit('crosshairMove', this.#crosshairPos);
@@ -1660,6 +1680,81 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
     if (changed) this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * Re-derive the crosshair after the viewport moved beneath it. A streaming
+   * auto-scroll, wheel zoom, or animated Y re-fit shifts the pixel↔data
+   * mapping while the cursor stays put — without this, the stored position
+   * goes stale: the tooltip freezes on the old time/values while the data
+   * (and any snap dots anchored to it) slides away underneath.
+   *
+   * Which half of the position is truth depends on {@link #crosshairAnchor}:
+   * a pointer-anchored crosshair stays under the cursor and re-resolves
+   * `time`/`y`; a time-anchored one keeps `time`/`y` and re-projects the
+   * pixel position so it tracks its data point across the screen. A
+   * time-anchored point whose time scrolls out of the visible range clears
+   * the crosshair entirely (mirroring pointer-leave) — otherwise the
+   * edge-clamped tooltip would pin to the chart border, live-updating for
+   * an invisible point.
+   *
+   * Called once per painted main frame (after `syncScales`). When the
+   * viewport didn't move, the re-derived values are bit-identical and the
+   * method exits without emitting.
+   */
+  #syncCrosshairToViewport(): void {
+    const pos = this.#crosshairPos;
+    if (pos === null) return;
+
+    // Y re-targeting on a streaming append can land the settled range one
+    // float ULP away from the previous frame — a strict equality would turn
+    // that invisible jitter into a crosshairMove per tick. Treat changes
+    // below a relative epsilon (1e-9 of the visible span, sub-micropixel)
+    // as "didn't move".
+    const { from, to } = this.timeScale.getRange();
+    const yRange = this.yScale.getRange();
+    const timeTolerance = Math.abs(to - from) * 1e-9;
+    const yTolerance = Math.abs(yRange.max - yRange.min) * 1e-9;
+    const pixelTolerance = 1e-6;
+
+    let next: CrosshairPosition;
+    if (this.#crosshairAnchor === 'pointer') {
+      const time = this.timeScale.xToTime(pos.mediaX);
+      const y = this.yScale.yToValue(pos.mediaY);
+
+      // A degenerate scale (zero-width range, zero-size canvas) can derive
+      // non-finite values — keep the last good position rather than emit NaN.
+      if (!Number.isFinite(time) || !Number.isFinite(y)) return;
+      if (Math.abs(time - pos.time) <= timeTolerance && Math.abs(y - pos.y) <= yTolerance) return;
+
+      next = { mediaX: pos.mediaX, mediaY: pos.mediaY, time, y };
+    } else {
+      // The anchored point scrolled out of the visible range — clear the
+      // crosshair (mirrors pointer-leave) instead of letting the clamped
+      // tooltip pin to the chart edge for an invisible point. Linked charts
+      // re-broadcast on every hover frame, so it comes back on its own.
+      if (pos.time < from || pos.time > to) {
+        this.#crosshairPos = null;
+        this.#overlayScheduler.markDirty();
+        this.emit('crosshairMove', null);
+        this.#updateHover(null);
+
+        return;
+      }
+
+      const mediaX = this.timeScale.timeToX(pos.time);
+      const mediaY = this.yScale.valueToY(pos.y);
+
+      if (!Number.isFinite(mediaX) || !Number.isFinite(mediaY)) return;
+      if (Math.abs(mediaX - pos.mediaX) <= pixelTolerance && Math.abs(mediaY - pos.mediaY) <= pixelTolerance) return;
+
+      next = { mediaX, mediaY, time: pos.time, y: pos.y };
+    }
+
+    this.#crosshairPos = next;
+    this.#overlayScheduler.markDirty();
+    this.emit('crosshairMove', next);
+    this.#updateHover(next);
   }
 
   /** Tear down the chart: cancel animations, remove listeners, and detach the canvas. */
@@ -2280,6 +2375,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     this.syncScales();
+
+    // Scales are fresh — reconcile the crosshair with the (possibly moved)
+    // viewport so hover state never paints stale.
+    this.#syncCrosshairToViewport();
 
     // Re-engage tail-following only when the user lands the viewport *at*
     // the live-tail position (newTo ≈ dataEnd + paddingRight). Just having
