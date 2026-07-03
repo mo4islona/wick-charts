@@ -72,14 +72,32 @@ export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
 // string form (`addSeries('line', ...)`) requires a one-time
 // `registerBuiltinSeries()` call at startup.
 export { BarSeriesDef } from './series/bar';
+// Bar / candlestick intro contracts + shipped style factories. Shared styles
+// (riseIntro / fadeIntro / wipeIntro, from wave-intro) type-check for both.
+export type {
+  BarElementTransform,
+  BarIntroDirectives,
+  BarIntroElement,
+  BarIntroFn,
+  BarIntroFrame,
+  BarIntroValueArgs,
+} from './series/bar-intro';
+export { growIntro, springIntro } from './series/bar-intro';
 export { CandlestickSeriesDef } from './series/candlestick';
+export type {
+  CandleElementTransform,
+  CandleIntroDirectives,
+  CandleIntroElement,
+  CandleIntroFn,
+  CandleIntroFrame,
+} from './series/candlestick-intro';
+export { candleUnfoldIntro, wickBodyIntro } from './series/candlestick-intro';
 export {
   type SeriesCreateEnv,
   type SeriesDefinition,
   registerSeriesDefinition,
 } from './series/definition';
 export { LineSeriesDef } from './series/line';
-// Line intro animations — the shipped reveal styles as factories plus the
 // LineIntroFn contract for fully custom intros. An intro is a plain function
 // passed to `options.introAnimation`; there is no name registry.
 export type { LineIntroDirectives, LineIntroFn, LineIntroFrame, LineIntroValueArgs } from './series/line-intro';
@@ -113,6 +131,14 @@ export type {
 export { PieSeriesDef } from './series/pie';
 export { registerBuiltinSeries } from './series/register-builtins';
 export type { HoverInfo, SliceInfo } from './series/types';
+export type {
+  WaveIntroDirectives,
+  WaveIntroElement,
+  WaveIntroFn,
+  WaveIntroFrame,
+  WaveIntroTransform,
+} from './series/wave-intro';
+export { fadeIntro, riseIntro, wipeIntro } from './series/wave-intro';
 export type {
   BuildHoverSnapshotsArgs,
   BuildLastSnapshotsArgs,
@@ -156,8 +182,10 @@ export { computeTooltipPosition } from './tooltip-position';
 export type {
   AxisBound,
   AxisConfig,
+  BarEntryAnimation,
   BarSeriesOptions,
   CandlestickData,
+  CandlestickEntryAnimation,
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,

@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
 import { BarRenderer } from '../../series/bar';
+import { springIntro } from '../../series/bar-intro';
 import { CandlestickRenderer } from '../../series/candlestick';
+import { wickBodyIntro } from '../../series/candlestick-intro';
 import { LineRenderer } from '../../series/line';
 import { type LineIntroFn, plotterIntro, sweepIntro, traceIntro, unfoldIntro } from '../../series/line-intro';
 import { PieRenderer } from '../../series/pie';
+import { fadeIntro, riseIntro, wipeIntro } from '../../series/wave-intro';
 import type { OHLCData, PieSliceData, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
@@ -147,6 +150,76 @@ describe('intro animations — initial-load reveal', () => {
       r.setData(BARS);
       expect(r.needsAnimation).toBe(false);
     });
+
+    it('wipeIntro(): clips to the sweeping front, bars behind it paint settled', () => {
+      const r = makeBar({ introAnimation: wipeIntro() });
+      r.setData(BARS);
+      renderFrame(r);
+
+      advance(500); // halfway through the 2 × 500ms wave window
+      const { spy } = renderFrame(r);
+
+      expect(spy.countOf('clip')).toBe(1);
+      const clipRect = spy.callsOf('rect')[0];
+      const frontX = clipRect.args[2] as number;
+      expect(frontX).toBeGreaterThan(0);
+      expect(frontX).toBeLessThan(800);
+
+      // No per-bar dimming/growing — the clip alone does the reveal.
+      for (const rect of spy.callsOf('fillRect')) {
+        expect(rect.globalAlpha).toBe(1);
+      }
+
+      advance(1001);
+      const settled = renderFrame(r);
+      expect(r.needsAnimation).toBe(false);
+      expect(settled.spy.countOf('clip')).toBe(0);
+    });
+
+    it('riseIntro(): the bar keeps its height but paints below its settled spot, translucent', () => {
+      const r = makeBar({ introAnimation: riseIntro() });
+      r.setData(BARS);
+      renderFrame(r);
+
+      advance(150); // left bar mid-tween
+      const mid = renderFrame(r);
+
+      advance(1001);
+      const settled = renderFrame(r);
+
+      const leftRect = (spy: (typeof mid)['spy']) => {
+        const rect = spy.callsOf('fillRect').find((c) => (c.args[0] as number) < 400);
+        if (!rect) throw new Error('left bar not drawn');
+
+        return rect;
+      };
+      const midRect = leftRect(mid.spy);
+      const settledRect = leftRect(settled.spy);
+
+      expect(midRect.args[3] as number).toBeCloseTo(settledRect.args[3] as number, 5);
+      expect(midRect.args[1] as number).toBeGreaterThan(settledRect.args[1] as number);
+      expect(midRect.globalAlpha).toBeLessThan(1);
+    });
+
+    it('springIntro(): the bar overshoots its settled height mid-intro', () => {
+      const r = makeBar({ introAnimation: springIntro() });
+      r.setData(BARS);
+      renderFrame(r);
+
+      advance(235); // left bar eased progress ≈ 0.75 — inside the overshoot region
+      const mid = renderFrame(r);
+
+      advance(1001);
+      const settled = renderFrame(r);
+
+      const leftHeight = (spy: (typeof mid)['spy']) => {
+        const rect = spy.callsOf('fillRect').find((c) => (c.args[0] as number) < 400);
+        if (!rect) throw new Error('left bar not drawn');
+
+        return rect.args[3] as number;
+      };
+      expect(leftHeight(mid.spy)).toBeGreaterThan(leftHeight(settled.spy));
+    });
   });
 
   describe('CandlestickRenderer', () => {
@@ -177,8 +250,8 @@ describe('intro animations — initial-load reveal', () => {
       expect(r.needsAnimation).toBe(false);
     });
 
-    it("waves left → right with 'fade': the left candle paints more opaque", () => {
-      const r = makeCandle({ entryAnimation: 'fade' });
+    it('waves left → right with fadeIntro(): the left candle paints more opaque', () => {
+      const r = makeCandle({ introAnimation: fadeIntro() });
       r.setData(CANDLES);
       renderFrame(r);
 
@@ -202,6 +275,77 @@ describe('intro animations — initial-load reveal', () => {
 
       r.setData(CANDLES);
       expect(r.needsAnimation).toBe(false);
+    });
+
+    it('wipeIntro(): clips to the sweeping front, candles behind it paint settled', () => {
+      const r = makeCandle({ introAnimation: wipeIntro() });
+      r.setData(CANDLES);
+      renderFrame(r);
+
+      advance(500); // halfway through the 2 × 500ms wave window
+      const { spy } = renderFrame(r);
+
+      expect(spy.countOf('clip')).toBe(1);
+      const clipRect = spy.callsOf('rect')[0];
+      const frontX = clipRect.args[2] as number;
+      expect(frontX).toBeGreaterThan(0);
+      expect(frontX).toBeLessThan(800);
+
+      // No per-candle dimming — the clip alone does the reveal.
+      for (const rect of spy.callsOf('fillRect')) {
+        expect(rect.globalAlpha).toBe(1);
+      }
+
+      advance(1001);
+      const settled = renderFrame(r);
+      expect(r.needsAnimation).toBe(false);
+      expect(settled.spy.countOf('clip')).toBe(0);
+    });
+
+    it('riseIntro(): candles paint below their settled position mid-intro, translucent', () => {
+      const r = makeCandle({ introAnimation: riseIntro() });
+      r.setData(CANDLES);
+      renderFrame(r);
+
+      advance(150); // left candle mid-tween
+      const mid = renderFrame(r);
+
+      advance(1001);
+      const settled = renderFrame(r);
+
+      // Top of the left candle's wick: settled at highY, shifted down mid-intro.
+      const topOf = (spy: (typeof mid)['spy']) =>
+        Math.min(...spy.callsOf('fillRect').flatMap((c) => ((c.args[0] as number) < 400 ? [c.args[1] as number] : [])));
+      expect(topOf(mid.spy)).toBeGreaterThan(topOf(settled.spy));
+
+      const leftMid = mid.spy.callsOf('fillRect').filter((c) => (c.args[0] as number) < 400);
+      for (const rect of leftMid) {
+        expect(rect.globalAlpha).toBeLessThan(1);
+      }
+    });
+
+    it('wickBodyIntro(): wicks needle out first while bodies are still invisible', () => {
+      const r = makeCandle({ introAnimation: wickBodyIntro() });
+      r.setData(CANDLES);
+      renderFrame(r);
+
+      advance(100); // left candle progress ≈ 0.27 — wick phase only
+      const { spy } = renderFrame(r);
+
+      // Wick width is 1 bitmap px at DPR 1; bodies are wider.
+      const left = spy.callsOf('fillRect').filter((c) => (c.args[0] as number) < 400);
+      const wicks = left.filter((c) => (c.args[2] as number) === 1);
+      const bodies = left.filter((c) => (c.args[2] as number) > 1);
+      expect(wicks.length).toBeGreaterThan(0);
+      expect(bodies.length).toBeGreaterThan(0);
+
+      for (const wick of wicks) {
+        expect(wick.globalAlpha).toBe(1);
+        expect(wick.args[3] as number).toBeGreaterThan(1);
+      }
+      for (const body of bodies) {
+        expect(body.globalAlpha).toBe(0);
+      }
     });
   });
 

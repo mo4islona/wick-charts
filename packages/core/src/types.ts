@@ -1,3 +1,5 @@
+import type { BarIntroFn } from './series/bar-intro';
+import type { CandleIntroFn } from './series/candlestick-intro';
 import type { LineIntroFn } from './series/line-intro';
 import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
 
@@ -221,10 +223,20 @@ export interface CandlestickSeriesOptions {
    */
   entryMs?: number | false;
   /**
+   * Initial-load intro animation — a `CandleIntroFn`, usually one of the
+   * shipped factories: `candleUnfoldIntro()` (the default),
+   * `wickBodyIntro()`, `riseIntro()`, `fadeIntro()`. Independent of
+   * `entryAnimation` — the intro plays once on the first data seed,
+   * streaming entrances keep their own style.
+   *
+   * @see introMs — cross-linked duration for this animation.
+   */
+  introAnimation?: CandleIntroFn;
+  /**
    * Initial-load reveal duration in milliseconds. On the first data seed
-   * (empty → non-empty) candles unfold in a left-to-right wave: each candle
+   * (empty → non-empty) candles reveal in a left-to-right wave: each candle
    * tweens for `introMs`, starts staggered across another `introMs`, so the
-   * full wave lasts ~2×. Uses the same visual style as `entryAnimation`.
+   * full wave lasts ~2×. The visual style is picked by `introAnimation`.
    * Default: `500`.
    *
    * ```
@@ -496,11 +508,21 @@ export interface BarSeriesOptions {
    */
   entryMs?: number | false;
   /**
+   * Initial-load intro animation — a `BarIntroFn`, usually one of the
+   * shipped factories: `growIntro()` (the default), `springIntro()`,
+   * `riseIntro()`, `fadeIntro()`, `wipeIntro()`. Independent of
+   * `entryAnimation` — the intro plays once on the first data seed,
+   * streaming entrances keep their own style.
+   *
+   * @see introMs — cross-linked duration for this animation.
+   */
+  introAnimation?: BarIntroFn;
+  /**
    * Initial-load reveal duration in milliseconds. On the first data seed
-   * (empty → non-empty) bars grow from the baseline in a left-to-right
-   * wave: each bar tweens for `introMs`, starts staggered across another
-   * `introMs`, so the full wave lasts ~2×. Uses the same visual style as
-   * `entryAnimation`. Default: `500`.
+   * (empty → non-empty) bars reveal in a left-to-right wave: each bar
+   * tweens for `introMs`, starts staggered across another `introMs`, so
+   * the full wave lasts ~2×. The visual style is picked by
+   * `introAnimation`. Default: `500`.
    *
    * ```
    * // Per-series override:
