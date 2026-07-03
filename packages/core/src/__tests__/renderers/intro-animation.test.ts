@@ -6,7 +6,14 @@ import { springIntro } from '../../series/bar-intro';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { wickBodyIntro } from '../../series/candlestick-intro';
 import { LineRenderer } from '../../series/line';
-import { type LineIntroFn, plotterIntro, sweepIntro, traceIntro, unfoldIntro } from '../../series/line-intro';
+import {
+  type LineIntroFn,
+  type LineIntroFrame,
+  plotterIntro,
+  sweepIntro,
+  traceIntro,
+  unfoldIntro,
+} from '../../series/line-intro';
 import { PieRenderer } from '../../series/pie';
 import { fadeIntro, riseIntro, wipeIntro } from '../../series/wave-intro';
 import type { OHLCData, PieSliceData, TimePoint } from '../../types';
@@ -398,6 +405,82 @@ describe('intro animations — initial-load reveal', () => {
       expect(spy.countOf('clip')).toBe(0);
     });
 
+    it('hands the intro fn the plot-area extent and an xToTime inverse of timeToX', () => {
+      let seen: LineIntroFrame | null = null;
+      const probe: LineIntroFn = (frame) => {
+        seen = frame;
+
+        return {};
+      };
+      const r = makeLine({ introAnimation: probe });
+      r.setData(POINTS);
+
+      // Simulate the axis strips sharing the canvas: the scales span
+      // 700×380 of the 800×400 bitmap. The frame must report the scale
+      // extent — the canvas size would make width-based x→time math (and
+      // `width / 2` centering) land off the data area.
+      const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
+      built.timeScale.update({ from: 0, to: 100 }, 700, 1);
+      built.yScale.update({ min: 0, max: 10 }, 380, 1);
+      r.render(built.ctx);
+
+      const frame = seen as LineIntroFrame | null;
+      if (frame === null) throw new Error('intro fn was not invoked');
+
+      expect(frame.width).toBe(700);
+      expect(frame.height).toBe(380);
+      expect(frame.xToTime(frame.timeToX(42))).toBeCloseTo(42, 6);
+      expect(frame.xToTime(700)).toBeCloseTo(100, 6);
+    });
+
+    it('parks the head glow on the trailing endpoint once the front passes the last point', () => {
+      const r = makeLine({ introAnimation: sweepIntro() });
+      r.setData(POINTS); // last point at time 100
+      // Right padding, as in the live default: the visible range runs past
+      // the data, so the eased front's time overshoots the last sample.
+      const stamp = buildRenderContext({ timeRange: { from: 0, to: 130 }, yRange: { min: 0, max: 10 } });
+      r.render(stamp.ctx);
+
+      advance(900); // eased front ≈ time 129.5 — well past the last point
+      const built = buildRenderContext({ timeRange: { from: 0, to: 130 }, yRange: { min: 0, max: 10 } });
+      r.render(built.ctx);
+
+      // Without the clamp the head would ride at ≈ x(129.5) ≈ 797 with a
+      // flat-clamped Y, detached from the line, then jump back on settle.
+      const arcs = built.spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThanOrEqual(2);
+      const endpointX = built.timeScale.timeToBitmapX(100);
+      const endpointY = built.yScale.valueToBitmapY(5);
+      for (const arc of arcs) {
+        expect(arc.args[0] as number).toBeCloseTo(endpointX, 0);
+        expect(arc.args[1] as number).toBeCloseTo(endpointY, 0);
+      }
+    });
+
+    it('cross-fades the pulse dot in over the intro tail instead of popping on settle', () => {
+      const r = makeLine({ introAnimation: sweepIntro() });
+      r.setData(POINTS);
+      renderFrame(r);
+
+      advance(700); // linear 0.7 — before the handoff window opens
+      renderFrame(r);
+      const early = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
+      r.drawOverlay(early.overlayCtx());
+      expect(early.spy.countOf('arc')).toBe(0);
+
+      advance(200); // linear 0.9 — inside the last-15% handoff window
+      renderFrame(r);
+      const mid = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
+      r.drawOverlay(mid.overlayCtx());
+
+      const arcs = mid.spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThan(0);
+      for (const arc of arcs) {
+        expect(arc.globalAlpha).toBeGreaterThan(0);
+        expect(arc.globalAlpha).toBeLessThan(1);
+      }
+    });
+
     it('suppresses the pulse dot while the intro sweep runs', () => {
       const r = makeLine({ introAnimation: sweepIntro() });
       r.setData(POINTS);
@@ -517,13 +600,12 @@ describe('intro animations — initial-load reveal', () => {
         const centerOut: LineIntroFn = (frame) => {
           const cx = frame.width / 2;
           const half = cx * frame.progress;
-          const toTime = (x: number) => frame.range.from + (x / frame.width) * (frame.range.to - frame.range.from);
 
           return {
             clip: { fromX: cx - half, toX: cx + half },
             heads: [
-              { x: cx - half, time: toTime(cx - half) },
-              { x: cx + half, time: toTime(cx + half) },
+              { x: cx - half, time: frame.xToTime(cx - half) },
+              { x: cx + half, time: frame.xToTime(cx + half) },
             ],
           };
         };

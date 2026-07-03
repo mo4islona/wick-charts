@@ -69,17 +69,24 @@ function toPoints(xy: readonly [number, number][]): LinePoint[] {
   return xy.map(([x, y]) => ({ x, y }));
 }
 
+/** Fraction of the intro window the head glow fades in/out over; the settled
+ *  pulse dot cross-fades in over the same tail window so the handoff is
+ *  seamless. */
+const INTRO_HEAD_FADE = 0.15;
+
 /**
  * Linearly interpolated series value at `time` between its bracketing
- * samples (binary search — `data` is time-sorted). `null` when the bracket
- * contains a non-finite gap; edges clamp to the boundary sample.
+ * samples (binary search — `data` is time-sorted). Values are read through
+ * `resolve`, so callers can substitute renderer-smoothed values while the
+ * raw sample still gates finiteness. `null` when the bracket contains a
+ * non-finite gap; edges clamp to the boundary sample.
  */
-function valueAtTime(data: readonly TimePoint[], time: number): number | null {
+function valueAtTime(data: readonly TimePoint[], time: number, resolve: (point: TimePoint) => number): number | null {
   if (data.length === 0) return null;
-  if (time <= data[0].time) return Number.isFinite(data[0].value) ? data[0].value : null;
+  if (time <= data[0].time) return Number.isFinite(data[0].value) ? resolve(data[0]) : null;
 
   const last = data[data.length - 1];
-  if (time >= last.time) return Number.isFinite(last.value) ? last.value : null;
+  if (time >= last.time) return Number.isFinite(last.value) ? resolve(last) : null;
 
   let lo = 0;
   let hi = data.length - 1;
@@ -97,9 +104,9 @@ function valueAtTime(data: readonly TimePoint[], time: number): number | null {
   if (!Number.isFinite(a.value) || !Number.isFinite(b.value)) return null;
 
   const span = b.time - a.time;
-  if (span <= 0) return a.value;
+  if (span <= 0) return resolve(a);
 
-  return lerp(a.value, b.value, (time - a.time) / span);
+  return lerp(resolve(a), resolve(b), (time - a.time) / span);
 }
 
 /** Emit a pre-built segment list onto `ctx` left-to-right. The caller has
@@ -308,10 +315,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return {
       progress: this.introWave.linear(),
       range,
-      width: scope.bitmapSize.width,
-      height: scope.bitmapSize.height,
+      // Plot-area extent, not the canvas bitmap — the canvas also carries the
+      // axis strips, so `bitmapSize` would make `width / 2` land right of the
+      // data center and any width-based x→time mapping sample the wrong time.
+      width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+      height: yScale.getMediaHeight() * scope.verticalPixelRatio,
       stacking: this.options.stacking,
       timeToX: (time) => timeScale.timeToBitmapX(time),
+      xToTime: (x) => timeScale.xToTime(x / scope.horizontalPixelRatio),
       valueToY: (value) => yScale.valueToBitmapY(value),
       layerCount: this.stores.length,
       layerData,
@@ -388,40 +399,84 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   private drawIntroHeads(ctx: SeriesRenderContext, heads: ReadonlyArray<{ x: number; time: number }>): void {
     if (this.options.stacking !== 'off') return;
 
-    // Bell alpha: in over the first ~15% of the intro window, out over the last ~15%.
+    // Bell alpha: in over the first ~15% of the intro window, out over the
+    // last ~15% — the settled pulse dot cross-fades in over that same tail
+    // window (see drawOverlay), so the handoff never pops.
     const linear = this.introWave.linear();
-    const fadeIn = Math.min(1, linear / 0.15);
-    const fadeOut = Math.min(1, (1 - linear) / 0.15);
+    const fadeIn = Math.min(1, linear / INTRO_HEAD_FADE);
+    const fadeOut = Math.min(1, (1 - linear) / INTRO_HEAD_FADE);
     const alpha = Math.max(0, Math.min(fadeIn, fadeOut));
     if (alpha <= 0) return;
 
-    const { scope, timeScale, yScale } = ctx;
-    const range = timeScale.getRange();
+    const { scope } = ctx;
 
     for (const head of heads) {
       for (let li = 0; li < this.stores.length; li++) {
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0 || !this.stores[li].isVisible()) continue;
 
-        const data = this.stores[li].getVisibleData(range.from, range.to);
-        if (data.length === 0 || head.time < data[0].time) continue;
-
-        const value = valueAtTime(data, head.time);
-        if (value === null) continue;
+        const anchor = this.introHeadAnchor(ctx, li, head);
+        if (anchor === null) continue;
 
         // Two pulse cycles over the whole intro — the head breathes while
         // it travels, then the settled pulse dot takes over.
         this.drawPulse({
           ctx: scope.context,
-          x: head.x,
-          y: yScale.valueToBitmapY(value),
-          color: this.resolveLayerColor(li, value),
+          x: anchor.x,
+          y: anchor.y,
+          color: this.resolveLayerColor(li, anchor.value),
           pixelRatio: scope.horizontalPixelRatio,
           phase: linear * 2,
           alpha: alpha * layerAlpha,
         });
       }
     }
+  }
+
+  /**
+   * Where a head dot sits for one layer: pinned to the polyline as it is
+   * actually drawn this frame. Interior anchors interpolate through
+   * {@link effectiveValue}, so live smoothing and the intro's own value
+   * transform are honored while data streams during the reveal. Past the
+   * last point the head parks on the trailing endpoint — the exact spot the
+   * settled pulse dot takes over — and before the first point it parks on
+   * the line's start. Without the clamps the head slides into the
+   * right-padding region beyond the line's end (the sweep front travels the
+   * visible range, not the data span) and jumps back on settle.
+   */
+  private introHeadAnchor(
+    ctx: SeriesRenderContext,
+    layerIndex: number,
+    head: { x: number; time: number },
+  ): { x: number; y: number; value: number } | null {
+    const { timeScale, yScale } = ctx;
+    const range = timeScale.getRange();
+    const data = this.stores[layerIndex].getVisibleData(range.from, range.to);
+    if (data.length === 0) return null;
+
+    const last = this.stores[layerIndex].last();
+    if (last !== undefined && head.time >= last.time) {
+      if (!Number.isFinite(last.value)) return null;
+
+      const endpoint = this.trailingEndpoint(ctx, layerIndex);
+      if (endpoint === null) return null;
+
+      return { x: endpoint.x, y: endpoint.y, value: last.value };
+    }
+
+    const first = data[0];
+    if (head.time <= first.time) {
+      if (!Number.isFinite(first.value)) return null;
+
+      const startValue = this.effectiveValue(ctx, layerIndex, first.time, first.value);
+
+      return { x: timeScale.timeToBitmapX(first.time), y: yScale.valueToBitmapY(startValue), value: first.value };
+    }
+
+    const value = valueAtTime(data, head.time, (p) => this.effectiveValue(ctx, layerIndex, p.time, p.value));
+    if (value === null) return null;
+
+    return { x: head.x, y: yScale.valueToBitmapY(value), value };
   }
 
   /**
@@ -1169,11 +1224,19 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // or `animations: false`) disables the halo entirely; per-series `pulse`
     // still controls whether the dot is ever drawn.
     // Suppressed while a clip-front intro is in flight — the head glow owns
-    // the dot until the reveal reaches the line's end. Value-transform-only
-    // intros (unfold) keep the pulse: the whole line is visible and the dot
-    // rides the transformed endpoint via the effectiveValue hook.
+    // the dot until the reveal reaches the line's end, then the pulse
+    // cross-fades in over the same tail window the head bell-fades out
+    // (both anchored to the trailing endpoint by then, so the handoff is
+    // seamless instead of a pop the frame the wave settles).
+    // Value-transform-only intros (unfold) keep the pulse: the whole line
+    // is visible and the dot rides the transformed endpoint via the
+    // effectiveValue hook.
     const clipIntro = this.introWave.active && this.introDirectives?.clip !== undefined;
-    if (this.hasPulse && pulseMs > 0 && !clipIntro) {
+    let introHandoff = 1;
+    if (clipIntro) {
+      introHandoff = Math.max(0, (this.introWave.linear() - (1 - INTRO_HEAD_FADE)) / INTRO_HEAD_FADE);
+    }
+    if (this.hasPulse && pulseMs > 0 && introHandoff > 0) {
       const stacking = this.options.stacking;
       for (let li = 0; li < this.stores.length; li++) {
         const layerAlpha = this.getLayerAlpha(li);
@@ -1196,7 +1259,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
             color,
             pixelRatio: size.horizontalPixelRatio,
             phase: pulsePhase,
-            alpha: layerAlpha,
+            alpha: layerAlpha * introHandoff,
           });
           continue;
         }
@@ -1274,7 +1337,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           color,
           pixelRatio: size.horizontalPixelRatio,
           phase: pulsePhase,
-          alpha: layerAlpha,
+          alpha: layerAlpha * introHandoff,
         });
       }
     }

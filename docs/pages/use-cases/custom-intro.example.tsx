@@ -17,14 +17,13 @@ const centerOut: LineIntroFn = (frame) => {
   const half = cx * eased;
 
   // Heads carry a `time` so the renderer can look up the Y value the head
-  // should sit on; map the two front X positions back into the time domain.
-  const toTime = (x: number) => frame.range.from + (x / frame.width) * (frame.range.to - frame.range.from);
-
+  // should sit on; `frame.xToTime` maps the two front X positions back into
+  // the time domain through the live time scale.
   return {
     clip: { fromX: cx - half, toX: cx + half },
     heads: [
-      { x: cx - half, time: toTime(cx - half) },
-      { x: cx + half, time: toTime(cx + half) },
+      { x: cx - half, time: frame.xToTime(cx - half) },
+      { x: cx + half, time: frame.xToTime(cx + half) },
     ],
   };
 };

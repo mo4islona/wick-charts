@@ -235,7 +235,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
 
-    const { scope, timeScale } = ctx;
+    const { scope, timeScale, yScale } = ctx;
 
     this.#pass = {
       painter: resolveBarPainter(this.options.barPainter),
@@ -260,8 +260,11 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       this.#introRange = range;
       this.#introDirectives = intro({
         progress: this.introWave.linear(),
-        width: scope.bitmapSize.width,
-        height: scope.bitmapSize.height,
+        // Plot-area extent, not the canvas bitmap — the canvas also carries
+        // the axis strips, so a width-based front (wipeIntro) would overshoot
+        // the data area.
+        width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+        height: yScale.getMediaHeight() * scope.verticalPixelRatio,
         range,
         timeToX: (time) => timeScale.timeToBitmapX(time),
       });

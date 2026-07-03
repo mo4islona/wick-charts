@@ -36,14 +36,19 @@ export interface LineIntroFrame {
   progress: number;
   /** Visible time range. */
   range: VisibleRange;
-  /** Pane width in bitmap pixels. */
+  /**
+   * Plot-area width in bitmap pixels — the span `timeToX` maps the visible
+   * range onto (excludes the Y-axis strip sharing the canvas).
+   */
   width: number;
-  /** Pane height in bitmap pixels. */
+  /** Plot-area height in bitmap pixels (excludes the X-axis strip). */
   height: number;
   /** The series' stacking mode — path-based intros usually degrade to a plain clip when stacked. */
   stacking: StackingMode;
   /** Time → bitmap X through the live time scale. */
   timeToX(time: number): number;
+  /** Bitmap X → time — the inverse of {@link timeToX}, for mapping a clip front back into the time domain. */
+  xToTime(x: number): number;
   /** Value → bitmap Y through the live Y scale. */
   valueToY(value: number): number;
   /** Number of layers in the series. */

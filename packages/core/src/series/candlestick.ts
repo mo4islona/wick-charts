@@ -471,8 +471,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       this.#introRange = range;
       this.#introDirectives = intro({
         progress: this.introWave.linear(),
-        width: scope.bitmapSize.width,
-        height: scope.bitmapSize.height,
+        // Plot-area extent, not the canvas bitmap — the canvas also carries
+        // the axis strips, so a width-based front (wipeIntro) would overshoot
+        // the data area.
+        width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+        height: yScale.getMediaHeight() * scope.verticalPixelRatio,
         range,
         timeToX: (time) => timeScale.timeToBitmapX(time),
       });

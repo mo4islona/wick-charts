@@ -11,11 +11,12 @@ const STEPS: Step[] = [
       <>
         The initial-load reveal isn't a preset you pick from — it's a <code>LineIntroFn</code> the renderer calls once
         per frame while the intro plays. It receives the frame (linear <code>progress</code> over the whole reveal
-        window, the visible <code>range</code>, pane <code>width</code>/<code>height</code>, live <code>timeToX</code>/
-        <code>valueToY</code> scales, memoized data accessors) and returns directives — a declarative description of
-        what the frame should look like. The renderer owns the drawing; your function owns the choreography. The shipped
-        styles (<code>unfoldIntro</code>, <code>sweepIntro</code>, <code>traceIntro</code>, <code>plotterIntro</code>)
-        are plain factories over this same contract, so a custom intro is their peer — not a second-class hook.
+        window, the visible <code>range</code>, plot-area <code>width</code>/<code>height</code>, live{' '}
+        <code>timeToX</code>/<code>xToTime</code>/<code>valueToY</code> scales, memoized data accessors) and returns
+        directives — a declarative description of what the frame should look like. The renderer owns the drawing; your
+        function owns the choreography. The shipped styles (<code>unfoldIntro</code>, <code>sweepIntro</code>,{' '}
+        <code>traceIntro</code>, <code>plotterIntro</code>) are plain factories over this same contract, so a custom
+        intro is their peer — not a second-class hook.
       </>
     ),
     code: `type LineIntroFn = (frame: LineIntroFrame) => LineIntroDirectives;\n\ninterface LineIntroDirectives {\n  clip?: { fromX?: number; toX?: number }; // reveal window, bitmap px\n  ghostAlpha?: number;                     // faint full-line pre-pass\n  heads?: Array<{ x: number; time: number }>; // glow dots on the front\n  value?: (args: LineIntroValueArgs) => number; // per-value transform\n}`,
@@ -32,7 +33,7 @@ const STEPS: Step[] = [
         sweep.
       </>
     ),
-    code: `const centerOut: LineIntroFn = (frame) => {\n  const eased = smoothstep(frame.progress);\n  const cx = frame.width / 2;\n  const half = cx * eased;\n\n  return {\n    clip: { fromX: cx - half, toX: cx + half },\n    heads: [\n      { x: cx - half, time: toTime(cx - half) },\n      { x: cx + half, time: toTime(cx + half) },\n    ],\n  };\n};`,
+    code: `const centerOut: LineIntroFn = (frame) => {\n  const eased = smoothstep(frame.progress);\n  const cx = frame.width / 2;\n  const half = cx * eased;\n\n  return {\n    clip: { fromX: cx - half, toX: cx + half },\n    heads: [\n      { x: cx - half, time: frame.xToTime(cx - half) },\n      { x: cx + half, time: frame.xToTime(cx + half) },\n    ],\n  };\n};`,
   },
   {
     heading: '03 — OR TRANSFORM THE VALUES',

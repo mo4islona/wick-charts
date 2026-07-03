@@ -19,9 +19,12 @@ import type { VisibleRange } from '../types';
 export interface WaveIntroFrame {
   /** Linear intro progress in `[0, 1]` over the whole reveal window. */
   progress: number;
-  /** Pane width in bitmap pixels. */
+  /**
+   * Plot-area width in bitmap pixels — the span the time scale maps the
+   * visible range onto (excludes the Y-axis strip sharing the canvas).
+   */
   width: number;
-  /** Pane height in bitmap pixels. */
+  /** Plot-area height in bitmap pixels (excludes the X-axis strip). */
   height: number;
   /** Visible time range. */
   range: VisibleRange;
