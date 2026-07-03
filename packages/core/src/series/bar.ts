@@ -1,4 +1,4 @@
-import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_SMOOTH } from '../animation/config';
+import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
 import { BaseMultiLayerSeries } from './base-multi-layer';
@@ -10,11 +10,12 @@ import type { SeriesRenderContext } from './types';
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs'> & {
+type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
   /** One resolver per layer; renderer-internal (theme default + `data` override), not a public option. */
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
+  introMs: number;
 };
 
 /** Caller-facing option input — the public surface plus the internal `colors`. */
@@ -33,6 +34,7 @@ const DEFAULT_OPTIONS: ResolvedBarOptions = {
   cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_BAR_ENTRY,
   smoothMs: DEFAULT_BAR_SMOOTH,
+  introMs: DEFAULT_BAR_INTRO,
 };
 
 function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): ResolvedBarOptions {
@@ -40,6 +42,7 @@ function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): Resolv
     ...options,
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_BAR_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_BAR_SMOOTH),
+    introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_BAR_INTRO),
   };
 }
 
@@ -118,6 +121,18 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   protected isEntryEnabled(): boolean {
     return (this.options.entryAnimation ?? 'fade-grow') !== 'none';
+  }
+
+  /**
+   * Per-bar progress = streaming entrance ∧ initial-load wave. The wave is
+   * a left-to-right stagger across the visible window; folding it in here
+   * animates every render path (off / stacked / percent) without touching
+   * their geometry code.
+   */
+  protected entranceProgress(ctx: SeriesRenderContext, layerIndex: number, time: number): number {
+    const entry = super.entranceProgress(ctx, layerIndex, time);
+
+    return Math.min(entry, this.introProgressAt(ctx, time));
   }
 
   applyTheme(theme: ChartTheme, _prev: ChartTheme): void {

@@ -33,6 +33,10 @@ export type {
   EdgeState,
   HoverInfo,
   LegendItem,
+  LineIntroDirectives,
+  LineIntroFn,
+  LineIntroFrame,
+  LineIntroValueArgs,
   LinePaintArgs,
   LinePainter,
   /** @deprecated Use {@link TimePoint} instead. */
@@ -129,6 +133,7 @@ export {
   parseAnimationTime,
   peachCream,
   perfHud,
+  plotterIntro,
   quietLight,
   registerBuiltinSeries,
   registerSeriesDefinition,
@@ -145,7 +150,10 @@ export {
   spring,
   steppedCurve,
   straightCurve,
+  sweepIntro,
+  traceIntro,
   tracePath,
+  unfoldIntro,
 } from '@wick-charts/core';
 
 export { BarSeries } from './BarSeries';

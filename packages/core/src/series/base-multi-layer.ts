@@ -1,4 +1,5 @@
 import { Animator } from '../animation/animator';
+import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
@@ -24,6 +25,7 @@ export interface CommonSeriesOptions {
   stacking: 'off' | 'normal' | 'percent';
   entryMs: number;
   smoothMs: number;
+  introMs: number;
 }
 
 /** Per-point entrance animation state — start wall-time so `render` can
@@ -93,6 +95,13 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * loops multiply the layer's alpha into `globalAlpha` per draw.
    */
   readonly #layerAlphaAnimators: Animator<number>[];
+  /**
+   * Initial-load reveal clock — armed once when the dataset transitions
+   * empty → non-empty in {@link setData}, shared across every layer so a
+   * multi-layer seed rides one wave. Subclasses read it through
+   * {@link introProgressAt} (per-element wave) or directly (line's sweep).
+   */
+  protected readonly introWave = new IntroWave();
 
   constructor(layerCount: number) {
     this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TData>());
@@ -163,8 +172,20 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     const store = this.stores[layerIndex];
     if (!store) return;
 
+    let hadData = false;
+    for (const s of this.stores) {
+      if (s.length > 0) hadData = true;
+    }
+
     const normalized = normalizeTimePointArray((data ?? []) as TimePointInput[]) as unknown as TData[];
     store.setData(normalized);
+
+    // First seed only (empty → non-empty): arm the initial reveal. Bulk
+    // re-seeds of a live series must never replay the intro — reconciler
+    // data swaps would strobe the chart.
+    if (!hadData && normalized.length > 0) {
+      this.introWave.arm(this.options.introMs);
+    }
 
     // Bulk replace — seed `displayedLast` to the new last value and clear any
     // in-flight chase / entrance entries so the next render paints the
@@ -311,6 +332,24 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
+   * Initial-load reveal progress for a datum, keyed by its normalized
+   * position across the *visible* time window — the wave sweeps whatever
+   * the user actually sees, regardless of how much history sits off-screen.
+   * `1` when no intro is in flight. Subclasses that animate per element
+   * (bar) fold this into their {@link entranceProgress} override; the line
+   * renders its own continuous sweep instead.
+   */
+  protected introProgressAt(ctx: SeriesRenderContext, time: number): number {
+    if (!this.introWave.active) return 1;
+
+    const range = ctx.timeScale.getRange();
+    const span = range.to - range.from;
+    const position = span > 0 ? (time - range.from) / span : 0;
+
+    return this.introWave.progressAt(position);
+  }
+
+  /**
    * Trailing data points whose entrance is still unsettled, oldest first.
    * Walks back from the store's last point and stops at the first settled
    * point — that point is the stable anchor a chained grow-lerp hangs off.
@@ -365,6 +404,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * `performance.now`) can drive progression deterministically.
    */
   protected tickAnimations(now: number): void {
+    this.introWave.tick(now);
     for (const a of this.#layerAlphaAnimators) a.tick(now);
 
     for (let li = 0; li < this.stores.length; li++) {
@@ -396,8 +436,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
   }
 
-  /** True while any layer has an active chase, unsettled entry, or alpha fade. */
+  /** True while any layer has an active chase, unsettled entry, alpha fade,
+   *  or the initial-load reveal is still sweeping. */
   get needsAnimation(): boolean {
+    if (this.introWave.active) return true;
+
     for (const a of this.#layerAlphaAnimators) {
       if (a.animating) return true;
     }
@@ -415,11 +458,13 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
-   * Abort in-flight per-point entrance animations on every layer. Live-value
-   * chase (`displayedLastValues`) is intentionally left alone — its motion
-   * is subtle and shouldn't jump when the viewport moves.
+   * Abort in-flight per-point entrance animations on every layer, including
+   * the initial-load reveal. Live-value chase (`displayedLastValues`) is
+   * intentionally left alone — its motion is subtle and shouldn't jump when
+   * the viewport moves.
    */
   cancelEntranceAnimations(): void {
+    this.introWave.finish();
     for (const map of this.entries) map.clear();
   }
 

@@ -1,3 +1,4 @@
+import type { LineIntroFn } from './series/line-intro';
 import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
 
 /**
@@ -220,6 +221,27 @@ export interface CandlestickSeriesOptions {
    */
   entryMs?: number | false;
   /**
+   * Initial-load reveal duration in milliseconds. On the first data seed
+   * (empty → non-empty) candles unfold in a left-to-right wave: each candle
+   * tweens for `introMs`, starts staggered across another `introMs`, so the
+   * full wave lasts ~2×. Uses the same visual style as `entryAnimation`.
+   * Default: `500`.
+   *
+   * ```
+   * // Per-series override:
+   * <CandlestickSeries options={{ introMs: 800 }} data={data} />
+   *
+   * // Chart-level default:
+   * <ChartContainer animations={{ series: { candlestick: { intro: 800 } } }}>
+   *   <CandlestickSeries data={data} />
+   * </ChartContainer>
+   * ```
+   *
+   * `false` or `0` disables the intro. Bulk re-seeds of a non-empty series
+   * never replay it. Skipped entirely under `prefers-reduced-motion`.
+   */
+  introMs?: number | false;
+  /**
    * How long the displayed OHLC takes to catch up to the actual last value
    * on every `updateLastPoint`. Default: `250` ms.
    *
@@ -330,6 +352,40 @@ export interface LineSeriesOptions {
    */
   entryMs?: number | false;
   /**
+   * Initial-load reveal duration in milliseconds. On the first data seed
+   * (empty → non-empty) the line draws itself left-to-right — stroke and
+   * area sweep in behind a glowing head that rides the reveal front. The
+   * full sweep lasts ~2× `introMs`. Default: `500`.
+   *
+   * ```
+   * // Per-series override:
+   * <LineSeries options={{ introMs: 800 }} data={data} />
+   *
+   * // Chart-level default:
+   * <ChartContainer animations={{ series: { line: { intro: 800 } } }}>
+   *   <LineSeries data={data} />
+   * </ChartContainer>
+   * ```
+   *
+   * `false` or `0` disables the intro. Bulk re-seeds of a non-empty series
+   * never replay it. Skipped entirely under `prefers-reduced-motion`.
+   */
+  introMs?: number | false;
+  /**
+   * Initial-load reveal choreography — a `LineIntroFn` called once per
+   * frame while the intro plays. The shipped styles are factories over the
+   * same contract: `sweepIntro()` (the default — left-to-right draw-on with
+   * a glowing head), `unfoldIntro()` (amplitude springs from the mean into
+   * shape), `traceIntro()` (faint ghost, then an ink sweep), `plotterIntro()`
+   * (head advances at constant path speed). Style is specific to the line
+   * series; there is no chart-level override for style — only for duration
+   * (`introMs`).
+   *
+   * @see LineIntroFn — the custom-fn contract (frame → directives).
+   * @see introMs — cross-linked duration for this animation.
+   */
+  introAnimation?: LineIntroFn;
+  /**
    * How long the displayed last value takes to catch up to the actual one
    * on every `updateLastPoint`. Default: `250` ms.
    *
@@ -439,6 +495,27 @@ export interface BarSeriesOptions {
    * @see BarSeriesOptions.entryAnimation
    */
   entryMs?: number | false;
+  /**
+   * Initial-load reveal duration in milliseconds. On the first data seed
+   * (empty → non-empty) bars grow from the baseline in a left-to-right
+   * wave: each bar tweens for `introMs`, starts staggered across another
+   * `introMs`, so the full wave lasts ~2×. Uses the same visual style as
+   * `entryAnimation`. Default: `500`.
+   *
+   * ```
+   * // Per-series override:
+   * <BarSeries options={{ introMs: 800 }} data={data} />
+   *
+   * // Chart-level default:
+   * <ChartContainer animations={{ series: { bar: { intro: 800 } } }}>
+   *   <BarSeries data={data} />
+   * </ChartContainer>
+   * ```
+   *
+   * `false` or `0` disables the intro. Bulk re-seeds of a non-empty series
+   * never replay it. Skipped entirely under `prefers-reduced-motion`.
+   */
+  introMs?: number | false;
   /**
    * How long the displayed bar value takes to catch up to the actual one
    * on every `updateLastPoint`. Default: `250` ms.
@@ -616,6 +693,27 @@ export interface PieSeriesOptions {
    * value.
    */
   animate?: boolean;
+  /**
+   * Initial-load reveal duration in milliseconds. On the first data seed
+   * (empty → non-empty) slices unfurl clockwise over this total duration,
+   * then the outside labels draw in. Default: `600`.
+   *
+   * ```
+   * // Per-series override:
+   * <PieSeries options={{ entryMs: 900 }} data={data} />
+   *
+   * // Chart-level default:
+   * <ChartContainer animations={{ series: { pie: { entry: 900 } } }}>
+   *   <PieSeries data={data} />
+   * </ChartContainer>
+   * ```
+   *
+   * `false` or `0` disables the intro (a chart-level
+   * `animations.series.pie: false` also force-disables it). Bulk re-seeds
+   * of a non-empty series never replay it. Skipped entirely under
+   * `prefers-reduced-motion`.
+   */
+  entryMs?: number | false;
   /**
    * Per-slice radial *depth* gradient — a subtle lightening from the slice
    * center toward its edge that gives the pie a soft 3D sheen. On by default.

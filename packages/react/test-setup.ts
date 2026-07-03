@@ -18,6 +18,32 @@ import { registerBuiltinSeries } from '../core/src/series/register-builtins';
 // registry, populate it once for every test file.
 registerBuiltinSeries();
 
+// Deterministic first paints: the initial-load intro (`IntroWave`) checks
+// `prefers-reduced-motion` at arm time and stays settled when it matches.
+// Report "reduce" for every test file so the thousands of existing
+// assertions on settled first-frame geometry remain valid. Intro-specific
+// tests override `globalThis.matchMedia` locally to exercise the wave.
+const nativeMatchMedia = typeof globalThis.matchMedia === 'function' ? globalThis.matchMedia.bind(globalThis) : null;
+
+function mediaQueryStub(query: string, matches: boolean): MediaQueryList {
+  return {
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  } as unknown as MediaQueryList;
+}
+
+globalThis.matchMedia = ((query: string): MediaQueryList => {
+  if (query.includes('prefers-reduced-motion')) return mediaQueryStub(query, true);
+
+  return nativeMatchMedia ? nativeMatchMedia(query) : mediaQueryStub(query, false);
+}) as typeof globalThis.matchMedia;
+
 type ResizeObserverCb = (entries: ResizeObserverEntry[], observer: ResizeObserver) => void;
 
 class MockResizeObserver implements ResizeObserver {

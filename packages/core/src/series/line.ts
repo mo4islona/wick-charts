@@ -1,4 +1,4 @@
-import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../animation/config';
+import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_INTRO, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
 import { decimateLineData } from '../data/decimation';
 import type { ChartTheme } from '../theme/types';
@@ -7,6 +7,7 @@ import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
+import { type LineIntroDirectives, type LineIntroFn, type LineIntroFrame, sweepIntro } from './line-intro';
 import type { CurveKind, PathSegment } from './painters/canvas-path';
 import { buildCurveSegments } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
@@ -18,11 +19,12 @@ import type { OverlayRenderContext, SeriesRenderContext } from './types';
  *  merge boundary, so downstream reads never see the disable sentinel). `colors`
  *  is renderer-internal (one resolver per layer, sourced from the theme palette
  *  and per-layer `data` overrides) — it is no longer a public option. */
-type ResolvedLineOptions = Omit<LineSeriesOptions, 'entryMs' | 'smoothMs' | 'pulseMs'> & {
+type ResolvedLineOptions = Omit<LineSeriesOptions, 'entryMs' | 'smoothMs' | 'pulseMs' | 'introMs'> & {
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
   pulseMs: number;
+  introMs: number;
 };
 
 /** Caller-facing option input — the public surface plus the internal `colors`. */
@@ -38,6 +40,7 @@ const DEFAULT_OPTIONS: ResolvedLineOptions = {
   entryMs: DEFAULT_LINE_ENTRY,
   smoothMs: DEFAULT_LINE_SMOOTH,
   pulseMs: DEFAULT_LINE_PULSE,
+  introMs: DEFAULT_LINE_INTRO,
 };
 
 /**
@@ -57,12 +60,46 @@ function normalize(input: LineSeriesOptions & { colors: ValueColor[] }): Resolve
     entryMs: input.entryMs === false ? 0 : (input.entryMs ?? DEFAULT_LINE_ENTRY),
     smoothMs: input.smoothMs === false ? 0 : (input.smoothMs ?? DEFAULT_LINE_SMOOTH),
     pulseMs: input.pulseMs === false ? 0 : (input.pulseMs ?? DEFAULT_LINE_PULSE),
+    introMs: input.introMs === false ? 0 : (input.introMs ?? DEFAULT_LINE_INTRO),
   };
 }
 
 /** Convert the stacked renderer's `[x, y]` tuples to {@link LinePoint}s. */
 function toPoints(xy: readonly [number, number][]): LinePoint[] {
   return xy.map(([x, y]) => ({ x, y }));
+}
+
+/**
+ * Linearly interpolated series value at `time` between its bracketing
+ * samples (binary search — `data` is time-sorted). `null` when the bracket
+ * contains a non-finite gap; edges clamp to the boundary sample.
+ */
+function valueAtTime(data: readonly TimePoint[], time: number): number | null {
+  if (data.length === 0) return null;
+  if (time <= data[0].time) return Number.isFinite(data[0].value) ? data[0].value : null;
+
+  const last = data[data.length - 1];
+  if (time >= last.time) return Number.isFinite(last.value) ? last.value : null;
+
+  let lo = 0;
+  let hi = data.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (data[mid].time <= time) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  const a = data[lo];
+  const b = data[hi];
+  if (!Number.isFinite(a.value) || !Number.isFinite(b.value)) return null;
+
+  const span = b.time - a.time;
+  if (span <= 0) return a.value;
+
+  return lerp(a.value, b.value, (time - a.time) / span);
 }
 
 /** Emit a pre-built segment list onto `ctx` left-to-right. The caller has
@@ -165,10 +202,225 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
 
+    if (!this.introWave.active) {
+      this.introDirectives = null;
+      this.renderBody(ctx);
+
+      return;
+    }
+
+    // Initial-load intro: the resolved LineIntroFn describes this frame
+    // declaratively (clip window / ghost pass / heads / value transform);
+    // the renderer executes the directives around the untouched body pass.
+    const directives = this.resolveIntro()(this.buildIntroFrame(ctx));
+    this.introDirectives = directives;
+
+    const { context } = ctx.scope;
+    const { width, height } = ctx.scope.bitmapSize;
+
+    // Ghost pre-pass: a faint stroke-only skeleton under the main pass, so
+    // the chart never reads as empty while a clip reveal runs. Area fill is
+    // left to the main pass — a translucent full-width fill would pre-spoil
+    // it.
+    const ghostAlpha = directives.ghostAlpha ?? 0;
+    if (ghostAlpha > 0) {
+      context.save();
+      context.globalAlpha *= ghostAlpha;
+      this.introGhostPass = true;
+      this.renderBody(ctx);
+      this.introGhostPass = false;
+      context.restore();
+    }
+
+    const clip = directives.clip;
+    const hasClip = clip !== undefined && (clip.fromX !== undefined || clip.toX !== undefined);
+    if (hasClip) {
+      const fromX = clip.fromX ?? 0;
+      const toX = clip.toX ?? width;
+      context.save();
+      context.beginPath();
+      context.rect(fromX, 0, Math.max(0, toX - fromX), height);
+      context.clip();
+    }
+
+    this.renderBody(ctx);
+
+    if (hasClip) context.restore();
+
+    if (directives.heads !== undefined && directives.heads.length > 0) {
+      this.drawIntroHeads(ctx, directives.heads);
+    }
+  }
+
+  private renderBody(ctx: SeriesRenderContext): void {
     if (this.options.stacking === 'off') {
       this.renderOff(ctx);
     } else {
       this.renderStacked(ctx, this.options.stacking === 'percent');
+    }
+  }
+
+  /** True while a ghost pre-pass is drawing — skips the area fill so the
+   *  translucent pass shows only the stroke skeleton. */
+  private introGhostPass = false;
+
+  /**
+   * Directives produced for the current intro frame. Kept between passes so
+   * the overlay (pulse dot) applies the same value transform the main pass
+   * drew with; `null` once the wave settles.
+   */
+  private introDirectives: LineIntroDirectives | null = null;
+
+  /** Default intro, built lazily — one instance per renderer. */
+  private defaultIntro: LineIntroFn | null = null;
+
+  private resolveIntro(): LineIntroFn {
+    const custom = this.options.introAnimation;
+    if (custom !== undefined) return custom;
+
+    if (this.defaultIntro === null) this.defaultIntro = sweepIntro();
+
+    return this.defaultIntro;
+  }
+
+  /**
+   * Frame context handed to the intro fn — progress plus memoized data
+   * accessors, so a directive-producing fn stays pure and cheap.
+   */
+  private buildIntroFrame(ctx: SeriesRenderContext): LineIntroFrame {
+    const { timeScale, yScale, scope } = ctx;
+    const range = timeScale.getRange();
+
+    const dataCache: Array<readonly TimePoint[] | undefined> = new Array(this.stores.length);
+    const meanCache: Array<number | null | undefined> = new Array(this.stores.length);
+    let pathCache: Array<{ x: number; y: number; time: number }> | null | undefined;
+
+    const layerData = (layerIndex: number): readonly TimePoint[] => {
+      let data = dataCache[layerIndex];
+      if (data === undefined) {
+        data = this.stores[layerIndex]?.getVisibleData(range.from, range.to) ?? [];
+        dataCache[layerIndex] = data;
+      }
+
+      return data;
+    };
+
+    return {
+      progress: this.introWave.linear(),
+      range,
+      width: scope.bitmapSize.width,
+      height: scope.bitmapSize.height,
+      stacking: this.options.stacking,
+      timeToX: (time) => timeScale.timeToBitmapX(time),
+      valueToY: (value) => yScale.valueToBitmapY(value),
+      layerCount: this.stores.length,
+      layerData,
+      layerMean: (layerIndex) => {
+        let mean = meanCache[layerIndex];
+        if (mean === undefined) {
+          let sum = 0;
+          let count = 0;
+          for (const d of layerData(layerIndex)) {
+            if (Number.isFinite(d.value)) {
+              sum += d.value;
+              count++;
+            }
+          }
+          mean = count > 0 ? sum / count : null;
+          meanCache[layerIndex] = mean;
+        }
+
+        return mean;
+      },
+      primaryPath: () => {
+        if (pathCache === undefined) {
+          pathCache = null;
+          for (let li = 0; li < this.stores.length; li++) {
+            if (this.getLayerAlpha(li) <= 0 || !this.stores[li].isVisible()) continue;
+
+            const finite = layerData(li).filter((d) => Number.isFinite(d.value));
+            if (finite.length < 2) continue;
+
+            pathCache = finite.map((d) => ({
+              x: timeScale.timeToBitmapX(d.time),
+              y: yScale.valueToBitmapY(d.value),
+              time: d.time,
+            }));
+            break;
+          }
+        }
+
+        return pathCache;
+      },
+    };
+  }
+
+  /**
+   * A custom/built-in intro's value transform rides this hook: every
+   * rendered value (stroke, area, stacked cumulative, trailing endpoint,
+   * overlay pulse) already flows through `effectiveValue`, so one override
+   * animates the whole geometry.
+   */
+  protected effectiveValue(
+    ctx: SeriesRenderContext | OverlayRenderContext,
+    layerIndex: number,
+    time: number,
+    rawValue: number,
+  ): number {
+    const value = super.effectiveValue(ctx, layerIndex, time, rawValue);
+
+    const transform = this.introWave.active ? this.introDirectives?.value : undefined;
+    if (transform === undefined) return value;
+
+    const range = ctx.timeScale.getRange();
+    const span = range.to - range.from;
+    const position = span > 0 ? Math.min(1, Math.max(0, (time - range.from) / span)) : 0;
+
+    return transform({ layerIndex, time, value, position });
+  }
+
+  /**
+   * Glowing pulse dots riding the intro's head anchors — the line reads as
+   * being plotted live, and hands off to the regular pulse dot the frame
+   * the reveal lands. Off-mode only: recomputing the stacked cumulative at
+   * an arbitrary head time isn't worth it for a one-second decoration.
+   */
+  private drawIntroHeads(ctx: SeriesRenderContext, heads: ReadonlyArray<{ x: number; time: number }>): void {
+    if (this.options.stacking !== 'off') return;
+
+    // Bell alpha: in over the first ~15% of the intro window, out over the last ~15%.
+    const linear = this.introWave.linear();
+    const fadeIn = Math.min(1, linear / 0.15);
+    const fadeOut = Math.min(1, (1 - linear) / 0.15);
+    const alpha = Math.max(0, Math.min(fadeIn, fadeOut));
+    if (alpha <= 0) return;
+
+    const { scope, timeScale, yScale } = ctx;
+    const range = timeScale.getRange();
+
+    for (const head of heads) {
+      for (let li = 0; li < this.stores.length; li++) {
+        const layerAlpha = this.getLayerAlpha(li);
+        if (layerAlpha <= 0 || !this.stores[li].isVisible()) continue;
+
+        const data = this.stores[li].getVisibleData(range.from, range.to);
+        if (data.length === 0 || head.time < data[0].time) continue;
+
+        const value = valueAtTime(data, head.time);
+        if (value === null) continue;
+
+        // Two pulse cycles over the whole intro — the head breathes while
+        // it travels, then the settled pulse dot takes over.
+        this.drawPulse({
+          ctx: scope.context,
+          x: head.x,
+          y: yScale.valueToBitmapY(value),
+          color: this.resolveLayerColor(li, value),
+          pixelRatio: scope.horizontalPixelRatio,
+          phase: linear * 2,
+          alpha: alpha * layerAlpha,
+        });
+      }
     }
   }
 
@@ -467,8 +719,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       // Area fill — one closed polygon per run, each dropped to the chart
       // baseline. Without per-run polygons, a single shared path would bleed
-      // fill across the gaps.
-      if (this.options.area.visible) {
+      // fill across the gaps. The 'trace' ghost pass draws stroke-only.
+      if (this.options.area.visible && !this.introGhostPass) {
         const bottomY = scope.bitmapSize.height;
         let grad: CanvasGradient;
         if (thresholdPaint) {
@@ -912,7 +1164,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // `pulseMs <= 0` at the chart level (`animations.series.line.pulse: false`
     // or `animations: false`) disables the halo entirely; per-series `pulse`
     // still controls whether the dot is ever drawn.
-    if (this.hasPulse && pulseMs > 0) {
+    // Suppressed while a clip-front intro is in flight — the head glow owns
+    // the dot until the reveal reaches the line's end. Value-transform-only
+    // intros (unfold) keep the pulse: the whole line is visible and the dot
+    // rides the transformed endpoint via the effectiveValue hook.
+    const clipIntro = this.introWave.active && this.introDirectives?.clip !== undefined;
+    if (this.hasPulse && pulseMs > 0 && !clipIntro) {
       const stacking = this.options.stacking;
       for (let li = 0; li < this.stores.length; li++) {
         const layerAlpha = this.getLayerAlpha(li);

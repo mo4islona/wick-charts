@@ -129,7 +129,7 @@ describe('resolveAnimationsConfig', () => {
 
   it('per-type false disables only that series type', () => {
     const resolved = resolveAnimationsConfig({ series: { line: false } });
-    expect(resolved.series.line).toEqual({ entryMs: 0, smoothMs: 0, pulseMs: 0 });
+    expect(resolved.series.line).toEqual({ entryMs: 0, smoothMs: 0, pulseMs: 0, introMs: 0 });
     expect(resolved.series.candlestick.entryMs).toBe(DEFAULT_CANDLESTICK_ENTRY);
   });
 
@@ -345,8 +345,8 @@ describe('overrides() never emits non-animation visual fields', () => {
   // `updateSeriesOptions` merges `{ ...userOptions, ...overrides(kind) }` with
   // overrides last. If overrides ever leaked a non-animation field, a parent
   // re-render would clobber the user's cornerRadius / painter / projectedFrom.
-  // Pin the emitted key set to the entry/smooth/pulse family only.
-  const ANIMATION_KEYS = ['entryMs', 'smoothMs', 'pulseMs'];
+  // Pin the emitted key set to the entry/smooth/pulse/intro family only.
+  const ANIMATION_KEYS = ['entryMs', 'smoothMs', 'pulseMs', 'introMs'];
   const VISUAL_FIELDS = ['cornerRadius', 'barPainter', 'candlePainter', 'linePainter', 'curve', 'projectedFrom'];
 
   for (const kind of ['bar', 'candlestick', 'line'] as const) {

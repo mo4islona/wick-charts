@@ -1,6 +1,7 @@
 import { Animator } from '../animation/animator';
-import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
+import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_INTRO, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
+import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { decimateOHLCData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
@@ -20,9 +21,10 @@ import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedCandlestickOptions = Omit<CandlestickSeriesOptions, 'entryMs' | 'smoothMs'> & {
+type ResolvedCandlestickOptions = Omit<CandlestickSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
   entryMs: number;
   smoothMs: number;
+  introMs: number;
 };
 
 /** Per-candle entrance state — start wall-time so progress is `(now - startTime) / entryMs`. */
@@ -125,6 +127,7 @@ const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   cornerRadius: DEFAULT_CORNER_RADIUS,
   entryMs: DEFAULT_CANDLESTICK_ENTRY,
   smoothMs: DEFAULT_CANDLESTICK_SMOOTH,
+  introMs: DEFAULT_CANDLESTICK_INTRO,
 };
 
 /** Per-render drawing context, resolved once in {@link CandlestickRenderer.render}
@@ -142,6 +145,7 @@ function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOption
     ...options,
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_CANDLESTICK_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_CANDLESTICK_SMOOTH),
+    introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_CANDLESTICK_INTRO),
   };
 }
 
@@ -174,6 +178,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     duration: 0,
     lerp: (a, b, t) => a + (b - a) * t,
   });
+  /** Initial-load reveal clock — armed on the first empty → non-empty seed;
+   *  candles unfold in a left-to-right wave across the visible window. */
+  protected readonly introWave = new IntroWave();
   /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
    *  positioned per candle via `ctx.translate`, instead of a fresh
    *  `createLinearGradient` for every body on every frame. */
@@ -204,7 +211,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   // --- SeriesRenderer interface implementation ------------------------------
 
   setData(data: unknown): void {
+    const hadData = this.store.length > 0;
     this.store.setData(normalizeOHLCArray((data ?? []) as OHLCInput[]));
+
+    // First seed only (empty → non-empty): arm the initial reveal. Bulk
+    // re-seeds of a live series must never replay the intro.
+    if (!hadData && this.store.length > 0) {
+      this.introWave.arm(this.options.introMs);
+    }
 
     // Bulk replace — seed `displayedLast` to the new last candle, drop any
     // in-flight chase and per-candle entries so the next render paints the
@@ -307,6 +321,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
    * fully-settled entrance entries. Called from `render()` once per frame.
    */
   private tickAnimations(now: number): void {
+    this.introWave.tick(now);
     this.#alphaAnimator.tick(now);
 
     const anim = this.#liveAnimator;
@@ -327,16 +342,22 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     }
   }
 
-  /** True while OHLC chase, any per-candle entrance, alpha fade, or the volume
-   *  scale is unsettled. */
+  /** True while OHLC chase, any per-candle entrance, the initial reveal,
+   *  alpha fade, or the volume scale is unsettled. */
   get needsAnimation(): boolean {
     return (
-      this.#alphaAnimator.animating || this.#liveAnimator !== null || this.entries.size > 0 || !this.#volScaleSettled
+      this.introWave.active ||
+      this.#alphaAnimator.animating ||
+      this.#liveAnimator !== null ||
+      this.entries.size > 0 ||
+      !this.#volScaleSettled
     );
   }
 
-  /** Abort in-flight per-candle entrance animations. Live-OHLC chase is left intact. */
+  /** Abort in-flight per-candle entrance animations, including the initial
+   *  reveal. Live-OHLC chase is left intact. */
   cancelEntranceAnimations(): void {
+    this.introWave.finish();
     this.entries.clear();
   }
 
@@ -433,22 +454,34 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // (bulls + bears) see a consistent value and we don't probe the entry
     // map twice per candle. `null` means no active entries this frame —
     // downstream branches read `entranceByTime?.get(time) ?? 1` and fast-path.
+    // The initial-load wave folds into the same map: each candle takes the
+    // min of its streaming entrance and its position-staggered intro.
     let entranceByTime: Map<number, number> | null = null;
-    if (this.entries.size > 0) {
+    const introActive = this.introWave.active;
+    if (this.entries.size > 0 || introActive) {
       const entryMs = this.options.entryMs;
       const now = performance.now();
+      const rangeSpan = range.to - range.from;
       for (const c of visibleData) {
+        let progress = 1;
+
         const state = this.entries.get(c.time);
-        if (state === undefined) continue;
+        if (state !== undefined && entryMs > 0) {
+          const elapsed = now - state.startTime;
+          const linear = Math.min(1, Math.max(0, elapsed / entryMs));
+          // Ease so the body/wick/volume unfold decelerates into place instead of
+          // moving at constant velocity and hard-stopping at settle — matches the
+          // line series' eased grow entrance.
+          if (linear < 1) progress = easeOutCubic(linear);
+        }
 
-        const elapsed = now - state.startTime;
-        const linear = entryMs <= 0 ? 1 : Math.min(1, Math.max(0, elapsed / entryMs));
-        if (linear >= 1) continue;
+        if (introActive) {
+          const position = rangeSpan > 0 ? (c.time - range.from) / rangeSpan : 0;
+          progress = Math.min(progress, this.introWave.progressAt(position));
+        }
 
-        // Ease so the body/wick/volume unfold decelerates into place instead of
-        // moving at constant velocity and hard-stopping at settle — matches the
-        // line series' eased grow entrance.
-        const progress = easeOutCubic(linear);
+        if (progress >= 1) continue;
+
         if (entranceByTime === null) entranceByTime = new Map();
         entranceByTime.set(c.time, progress);
       }
