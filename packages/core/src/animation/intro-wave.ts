@@ -25,8 +25,8 @@ import { easeInOutCubic, easeOutCubic } from './easing';
  */
 export class IntroWave {
   #durationMs = 0;
-  /** `0` = armed but awaiting the first tick to stamp the start. */
-  #startTime = 0;
+  /** `null` = armed but awaiting the first tick to stamp the start. */
+  #startTime: number | null = null;
   #done = true;
   /** Clock forwarded by the renderer's `tickAnimations` — keeps test
    *  harnesses (which stub `performance.now`) in control of progression. */
@@ -44,7 +44,7 @@ export class IntroWave {
     }
 
     this.#durationMs = durationMs;
-    this.#startTime = 0;
+    this.#startTime = null;
     this.#done = false;
   }
 
@@ -61,7 +61,7 @@ export class IntroWave {
     if (this.#done) return;
 
     this.#now = now;
-    if (this.#startTime === 0) this.#startTime = now;
+    if (this.#startTime === null) this.#startTime = now;
 
     if (now - this.#startTime >= this.#durationMs * 2) this.#done = true;
   }
@@ -72,7 +72,7 @@ export class IntroWave {
    */
   progressAt(position: number): number {
     if (this.#done) return 1;
-    if (this.#startTime === 0) return 0;
+    if (this.#startTime === null) return 0;
 
     const pos = clamp01(position);
     const delay = pos * this.#durationMs;
@@ -84,7 +84,7 @@ export class IntroWave {
   /** Eased reveal-front position in `[0, 1]` across the full wave window. */
   sweep(): number {
     if (this.#done) return 1;
-    if (this.#startTime === 0) return 0;
+    if (this.#startTime === null) return 0;
 
     const p = clamp01((this.#now - this.#startTime) / (this.#durationMs * 2));
 
@@ -95,7 +95,7 @@ export class IntroWave {
    *  to key off wall-clock position, e.g. the line head-glow bell curve. */
   linear(): number {
     if (this.#done) return 1;
-    if (this.#startTime === 0) return 0;
+    if (this.#startTime === null) return 0;
 
     return clamp01((this.#now - this.#startTime) / (this.#durationMs * 2));
   }

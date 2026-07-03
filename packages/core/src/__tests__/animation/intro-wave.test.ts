@@ -56,6 +56,18 @@ describe('IntroWave', () => {
     expect(wave.progressAt(0)).toBe(0);
   });
 
+  it('a first tick at now = 0 stamps the start (no sentinel collision)', () => {
+    const wave = new IntroWave();
+    wave.arm(500);
+    wave.tick(0);
+
+    wave.tick(400);
+    expect(wave.progressAt(0)).toBeGreaterThan(0);
+
+    wave.tick(1000);
+    expect(wave.active).toBe(false);
+  });
+
   it('staggers by position — earlier positions finish first', () => {
     const wave = new IntroWave();
     wave.arm(500);

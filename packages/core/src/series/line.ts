@@ -983,7 +983,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const useFade = style === 'fade' && layerHeadProgress[li] < 1;
       if (useFade) {
         context.save();
-        context.globalAlpha = layerHeadProgress[li];
+        // Multiply, don't assign — an outer pass (ghost pre-pass, series
+        // alpha) may already hold a reduced globalAlpha this fade composes
+        // with.
+        context.globalAlpha *= layerHeadProgress[li];
       }
 
       // Fill area between upper and lower with a per-slice vertical gradient
@@ -992,8 +995,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // baseline) but scoped to each slice so colors stay distinguishable and
       // every layer reads as its own "filled curve". Bounds are recomputed
       // per frame; CanvasGradient creation is cheap and slice bounds drift
-      // every streaming tick so a cache wouldn't hit.
-      if (this.options.area.visible) {
+      // every streaming tick so a cache wouldn't hit. The intro ghost pass
+      // draws stroke-only, same as renderOff.
+      if (this.options.area.visible && !this.introGhostPass) {
         let upperMinY = upperXY[0][1];
         let lowerMaxY = lowerXY[0][1];
         for (let i = 1; i < upperXY.length; i++) {

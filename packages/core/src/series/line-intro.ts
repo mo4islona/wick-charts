@@ -129,17 +129,19 @@ export function sweepIntro(options: { head?: boolean } = {}): LineIntroFn {
 /**
  * Amplitude unfold: every value lerps from its layer's visible mean toward
  * its real value with a soft ease-out-back overshoot, staggered
- * left-to-right by `stagger` (fraction of the window; default 0.35).
+ * left-to-right by `stagger` (fraction of the window; default 0.35,
+ * clamped to `[0, 0.9]` — at 1 the rightmost points would never finish
+ * their tween and snap on settle).
  */
 export function unfoldIntro(options: { stagger?: number } = {}): LineIntroFn {
-  const stagger = clamp01(options.stagger ?? 0.35);
+  const stagger = Math.min(clamp01(options.stagger ?? 0.35), 0.9);
 
   return (frame) => ({
     value: ({ layerIndex, value, position }) => {
       const anchor = frame.layerMean(layerIndex);
       if (anchor === null || !Number.isFinite(value)) return value;
 
-      const local = clamp01((frame.progress - stagger * position) / (1 - stagger || 1));
+      const local = clamp01((frame.progress - stagger * position) / (1 - stagger));
 
       return anchor + (value - anchor) * easeOutBack(local);
     },
@@ -207,4 +209,3 @@ export function traceIntro(options: { ghostAlpha?: number } = {}): LineIntroFn {
     return { clip: { toX: front.x }, heads: [front], ghostAlpha };
   };
 }
-
