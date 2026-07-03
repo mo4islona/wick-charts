@@ -79,6 +79,9 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     options?.threshold?.value,
     options?.threshold?.above,
     options?.threshold?.below,
+    options?.points?.visible,
+    options?.points?.radius,
+    options?.points?.color,
   ]);
 
   return null;
