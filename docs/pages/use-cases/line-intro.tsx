@@ -54,13 +54,13 @@ const VARIANTS: Variant[] = [
   {
     id: 'sweep',
     intro: sweepIntro(),
-    title: 'Sweep — sweepIntro() (default)',
+    title: 'Sweep — sweepIntro()',
     blurb: 'Left-to-right draw-on behind a clip edge; glowing head rides the front.',
   },
   {
     id: 'unfold',
     intro: unfoldIntro(),
-    title: 'Unfold — unfoldIntro()',
+    title: 'Unfold — unfoldIntro() (default)',
     blurb: 'The line is visible at once, flat at its mean — amplitude springs into shape with a soft overshoot.',
   },
   {

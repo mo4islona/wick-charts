@@ -374,12 +374,12 @@ export interface LineSeriesOptions {
   /**
    * Initial-load reveal choreography — a `LineIntroFn` called once per
    * frame while the intro plays. The shipped styles are factories over the
-   * same contract: `sweepIntro()` (the default — left-to-right draw-on with
-   * a glowing head), `unfoldIntro()` (amplitude springs from the mean into
-   * shape), `traceIntro()` (faint ghost, then an ink sweep), `plotterIntro()`
-   * (head advances at constant path speed). Style is specific to the line
-   * series; there is no chart-level override for style — only for duration
-   * (`introMs`).
+   * same contract: `unfoldIntro()` (the default — amplitude springs from
+   * the mean into shape), `sweepIntro()` (left-to-right draw-on with a
+   * glowing head), `traceIntro()` (faint ghost, then an ink sweep),
+   * `plotterIntro()` (head advances at constant path speed). Style is
+   * specific to the line series; there is no chart-level override for
+   * style — only for duration (`introMs`).
    *
    * @see LineIntroFn — the custom-fn contract (frame → directives).
    * @see introMs — cross-linked duration for this animation.

@@ -7,7 +7,7 @@ import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
-import { type LineIntroDirectives, type LineIntroFn, type LineIntroFrame, sweepIntro } from './line-intro';
+import { type LineIntroDirectives, type LineIntroFn, type LineIntroFrame, unfoldIntro } from './line-intro';
 import type { CurveKind, PathSegment } from './painters/canvas-path';
 import { buildCurveSegments } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
@@ -278,7 +278,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const custom = this.options.introAnimation;
     if (custom !== undefined) return custom;
 
-    if (this.defaultIntro === null) this.defaultIntro = sweepIntro();
+    if (this.defaultIntro === null) this.defaultIntro = unfoldIntro();
 
     return this.defaultIntro;
   }

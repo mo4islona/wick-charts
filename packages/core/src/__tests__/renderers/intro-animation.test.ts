@@ -4,7 +4,7 @@ import { TimeSeriesStore } from '../../data/store';
 import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { LineRenderer } from '../../series/line';
-import { type LineIntroFn, plotterIntro, traceIntro, unfoldIntro } from '../../series/line-intro';
+import { type LineIntroFn, plotterIntro, sweepIntro, traceIntro, unfoldIntro } from '../../series/line-intro';
 import { PieRenderer } from '../../series/pie';
 import type { OHLCData, PieSliceData, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
@@ -223,8 +223,8 @@ describe('intro animations — initial-load reveal', () => {
       return built;
     }
 
-    it('clips to the reveal front mid-intro and draws the head glow', () => {
-      const r = makeLine();
+    it('sweepIntro(): clips to the reveal front mid-intro and draws the head glow', () => {
+      const r = makeLine({ introAnimation: sweepIntro() });
       r.setData(POINTS);
       renderFrame(r); // stamps the wave start
 
@@ -243,7 +243,7 @@ describe('intro animations — initial-load reveal', () => {
     });
 
     it('stops clipping once the sweep settles', () => {
-      const r = makeLine();
+      const r = makeLine({ introAnimation: sweepIntro() });
       r.setData(POINTS);
       renderFrame(r);
 
@@ -255,7 +255,7 @@ describe('intro animations — initial-load reveal', () => {
     });
 
     it('suppresses the pulse dot while the intro sweep runs', () => {
-      const r = makeLine();
+      const r = makeLine({ introAnimation: sweepIntro() });
       r.setData(POINTS);
       renderFrame(r);
       advance(100);
@@ -270,6 +270,19 @@ describe('intro animations — initial-load reveal', () => {
       const after = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
       r.drawOverlay(after.overlayCtx());
       expect(after.spy.countOf('arc')).toBeGreaterThan(0);
+    });
+
+    it('defaults to unfoldIntro — the whole line is drawn with no clip mid-intro', () => {
+      const r = makeLine();
+      r.setData(POINTS);
+      renderFrame(r);
+
+      advance(300);
+      const { spy } = renderFrame(r);
+
+      expect(r.needsAnimation).toBe(true);
+      expect(spy.countOf('clip')).toBe(0);
+      expect(spy.countOf('stroke')).toBeGreaterThan(0);
     });
 
     it('introMs: 0 renders unclipped from the first frame', () => {

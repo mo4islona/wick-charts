@@ -10,12 +10,12 @@
  * owns the choreography.
  *
  * The shipped styles are plain factories over this same contract — the
- * default is exactly `sweepIntro()` — so a custom intro is a peer of the
+ * default is exactly `unfoldIntro()` — so a custom intro is a peer of the
  * built-ins, not a second-class hook:
  *
  * ```ts
  * // Built-in:
- * <LineSeries options={{ introAnimation: unfoldIntro() }} />
+ * <LineSeries options={{ introAnimation: traceIntro() }} />
  *
  * // Custom — center-out reveal:
  * const centerOut: LineIntroFn = (frame) => {
