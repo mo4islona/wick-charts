@@ -8,11 +8,10 @@ import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__test
 
 /**
  * Regression: `animations` used to tear down + rebuild the whole chart on
- * every reference change, even when the resolved values were identical (the
- * "most dangerous trap in the API", per CUSTOMIZATION.md). A deep-equal
- * guard in the `watch(() => props.animations, ...)` callback now skips the
- * rebuild for a same-value object; only a genuine value change still tears
- * down and rebuilds.
+ * every reference change, even when the resolved values were identical. A
+ * deep-equal guard in the `watch(() => props.animations, ...)` callback now
+ * skips the rebuild for a same-value object; only a genuine value change
+ * still tears down and rebuilds.
  */
 
 const ohlc = [

@@ -13,6 +13,7 @@ import {
 
 import { useChartInstance } from './context';
 import { useLatestFn } from './use-latest-fn';
+import { useStableOptions } from './use-stable-options';
 
 export interface CandlestickSeriesProps {
   /**
@@ -37,6 +38,10 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   // The core reads the intro fn live, per frame — hand it a stable wrapper so
   // a non-memoized inline fn neither re-fires the option effect nor goes stale.
   const introAnimation = useLatestFn(options?.introAnimation);
+  // Diff everything except `introAnimation` — its reference stability is
+  // already handled by the latch above, and a fresh inline fn there must not
+  // by itself count as a structural change (that's the whole point of the latch).
+  const stableOptions = useStableOptions(options ? { ...options, introAnimation: undefined } : options);
 
   useLayoutEffect(() => {
     const id = chart.addSeries(CandlestickSeriesDef, { ...options, introAnimation, id: idProp, label: layer.label });
@@ -57,31 +62,13 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
   }, [chart, data]);
 
   useEffect(() => {
-    if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, { ...options, introAnimation });
+    if (seriesRef.current && stableOptions) {
+      chart.updateSeriesOptions(seriesRef.current, { ...stableOptions, introAnimation });
     }
-  }, [
-    chart,
-    // Tuple bodies are new array refs on every render (preset `autoGradient()`
-    // output, inline literals, etc.) and would misfire `Object.is`. Collapse
-    // to a stable string instead.
-    Array.isArray(options?.up?.body) ? options.up.body.join(',') : options?.up?.body,
-    Array.isArray(options?.down?.body) ? options.down.body.join(',') : options?.down?.body,
-    options?.up?.wick,
-    options?.down?.wick,
-    options?.bodyWidthRatio,
-    options?.entryAnimation,
-    options?.entryMs,
-    options?.smoothMs,
-    options?.introMs,
-    // The latched wrapper changes identity only when the intro fn appears or
-    // disappears — fn body swaps flow through the wrapper without a re-apply.
-    introAnimation,
-    options?.cornerRadius,
-    // A registry-name string diffs by value; a raw painter diffs by reference.
-    // Never run through `join` (it would stringify a function to undefined).
-    options?.candlePainter,
-  ]);
+    // `stableOptions` diffs structurally, so a fresh `up.body` tuple ref (e.g.
+    // from `autoGradient()`) with the same values no longer re-fires this —
+    // no more manual `join(',')` collapse, and no field list to keep in sync.
+  }, [chart, stableOptions, introAnimation]);
 
   return null;
 }

@@ -4,6 +4,7 @@ import type { HeatmapCellData, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
+import { useStableOptions } from './use-stable-options';
 
 export interface HeatmapSeriesProps {
   /** Cells to render. A flat array of `{ x, y, value, color? }` entries. */
@@ -31,32 +32,15 @@ export function HeatmapSeries({ data, options, id: idProp }: HeatmapSeriesProps)
     };
   }, [chart, idProp]);
 
-  // Array/object options are often rebuilt inline on every host render — key
-  // the effect on their contents (joined keys / scalar subfields), not
-  // identity, so unrelated parent re-renders don't force a chart repaint.
-  const cellLabels = options?.cellLabels;
-  const cellLabelsObj = typeof cellLabels === 'object' ? cellLabels : null;
+  const stableOptions = useStableOptions(options);
 
   useEffect(() => {
-    if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, options);
+    if (seriesRef.current && stableOptions) {
+      chart.updateSeriesOptions(seriesRef.current, stableOptions);
     }
-  }, [
-    chart,
-    options?.colors?.join('\u0000'),
-    options?.min,
-    options?.max,
-    options?.gap,
-    options?.cornerRadius,
-    options?.axisLabels,
-    cellLabelsObj ? true : cellLabels,
-    cellLabelsObj?.fontSize,
-    cellLabelsObj?.format,
-    options?.columns?.join('\u0000'),
-    options?.rows?.join('\u0000'),
-    options?.entryMs,
-    options?.updateMs,
-  ]);
+    // `stableOptions` diffs structurally — a fresh `colors`/`columns`/`rows`
+    // array ref with the same values no longer re-applies every render.
+  }, [chart, stableOptions]);
 
   // `idProp` is a dependency because an id change remounts the series in the
   // effect above — the fresh renderer starts empty and needs the data

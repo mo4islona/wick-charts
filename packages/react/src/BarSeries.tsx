@@ -12,6 +12,7 @@ import {
 
 import { useChartInstance } from './context';
 import { useLatestFn } from './use-latest-fn';
+import { useStableOptions } from './use-stable-options';
 
 export interface BarSeriesProps {
   /**
@@ -37,6 +38,10 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   // The core reads the intro fn live, per frame — hand it a stable wrapper so
   // a non-memoized inline fn neither re-fires the option effect nor goes stale.
   const introAnimation = useLatestFn(options?.introAnimation);
+  // Diff everything except `introAnimation` — its reference stability is
+  // already handled by the latch above, and a fresh inline fn there must not
+  // by itself count as a structural change (that's the whole point of the latch).
+  const stableOptions = useStableOptions(options ? { ...options, introAnimation: undefined } : options);
 
   useLayoutEffect(() => {
     const id = chart.addSeries(BarSeriesDef, { ...options, introAnimation, layers: layerCount, id: idProp });
@@ -57,26 +62,12 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
   }, [chart, data]);
 
   useEffect(() => {
-    if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, { ...options, introAnimation });
+    if (seriesRef.current && stableOptions) {
+      chart.updateSeriesOptions(seriesRef.current, { ...stableOptions, introAnimation });
     }
-  }, [
-    chart,
-    options?.barWidthRatio,
-    options?.stacking,
-    options?.entryAnimation,
-    options?.entryMs,
-    options?.smoothMs,
-    options?.introMs,
-    // The latched wrapper changes identity only when the intro fn appears or
-    // disappears — fn body swaps flow through the wrapper without a re-apply.
-    introAnimation,
-    options?.cornerRadius,
-    options?.projectedFrom,
-    // A registry-name string diffs by value; a raw painter function diffs by
-    // reference (a new inline function re-applies next commit — documented).
-    options?.barPainter,
-  ]);
+    // `stableOptions` only changes identity when its structural content
+    // actually differs — a generic diff instead of a hand-maintained field list.
+  }, [chart, stableOptions, introAnimation]);
 
   return null;
 }
