@@ -13,6 +13,11 @@
 // `svelte/compiler` (walks the instance script for `export let` decls).
 // Both compilers ship as transitive deps of vite plugins already installed.
 //
+// It also verifies module-level parity: each wrapper's `export {...} from
+// '@wick-charts/core'` re-export block (types and values) must name the
+// same identifiers in all three packages, since they all wrap the same
+// engine — see `extractCoreReexports` below.
+//
 // Run via `pnpm api:check`.
 
 import { readFileSync } from 'node:fs';
@@ -41,7 +46,7 @@ const { parse: parseVueSfc } = requireFromVue('@vue/compiler-sfc');
 // preprocessor dance.
 
 /** Components that intentionally exist only in @wick-charts/react. */
-const REACT_ONLY = new Set(['Sparkline']);
+const REACT_ONLY = new Set(['Sparkline', 'EdgeLoader']);
 
 /**
  * Props on the React side that don't have a direct prop equivalent in
@@ -330,6 +335,68 @@ function stripOuterParens(type) {
   return type.slice(1, -1).trim();
 }
 
+// ── module-level export parity ──────────────────────────────────
+//
+// The component-prop diff above only covers what each framework's
+// component *declares as props* — it says nothing about whether a type or
+// utility that core exports (and one wrapper re-exports) is reachable from
+// the other two. `VisibleRangeSpec`/`MultiLayerData` drifted exactly this
+// way: core exported them, docs/props referenced them, but no wrapper
+// barrel re-exported them, so a consumer had no way to import the type
+// without reaching into the (private) core package.
+//
+// This section extracts the `export type {...} from '@wick-charts/core'`
+// and `export {...} from '@wick-charts/core'` re-export blocks from each
+// wrapper's `index.ts` and diffs the name sets. These blocks all wrap the
+// identical core engine, so — barring an explicit, intentional exception —
+// they should be identical across react/vue/svelte.
+
+/**
+ * Core-derived exports that are intentionally one-framework-only. Keyed by
+ * export name → the framework(s) where it's expected to be ABSENT (every
+ * other framework must have it).
+ */
+const CORE_EXPORT_EXCEPTIONS = new Map();
+
+/** Read the `export { ... } from '@wick-charts/core'` re-export blocks from a wrapper's index.ts. */
+function extractCoreReexports(filePath) {
+  const source = readFileSync(filePath, 'utf-8');
+  const sf = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+  const types = new Set();
+  const values = new Set();
+
+  ts.forEachChild(sf, (node) => {
+    if (!ts.isExportDeclaration(node)) return;
+    if (!node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) return;
+    if (node.moduleSpecifier.text !== '@wick-charts/core') return;
+    if (!node.exportClause || !ts.isNamedExports(node.exportClause)) return;
+
+    const bucket = node.isTypeOnly ? types : values;
+    for (const element of node.exportClause.elements) {
+      bucket.add(element.name.text);
+    }
+  });
+
+  return { types, values };
+}
+
+/** Diff two name sets, skipping names in `CORE_EXPORT_EXCEPTIONS` for either side. */
+function diffExportSet(reactNames, otherNames, otherFw, label) {
+  const issues = [];
+
+  for (const name of reactNames) {
+    if (CORE_EXPORT_EXCEPTIONS.get(name)?.includes(otherFw)) continue;
+    if (!otherNames.has(name)) issues.push(`- missing ${label} in ${otherFw}: ${name}`);
+  }
+  for (const name of otherNames) {
+    if (CORE_EXPORT_EXCEPTIONS.get(name)?.includes('react')) continue;
+    if (!reactNames.has(name)) issues.push(`+ extra ${label} in ${otherFw}: ${name}`);
+  }
+
+  return issues;
+}
+
 // ── main ─────────────────────────────────────────────────────────
 
 const manifestPath = resolve(ROOT, 'docs/data/api-manifest.json');
@@ -377,6 +444,18 @@ for (const [name, entry] of Object.entries(manifest.components)) {
   }
 }
 
+const reactExports = extractCoreReexports(resolve(ROOT, 'packages/react/src/index.ts'));
+const vueExports = extractCoreReexports(resolve(ROOT, 'packages/vue/src/index.ts'));
+const svelteExports = extractCoreReexports(resolve(ROOT, 'packages/svelte/src/index.ts'));
+
+const exportIssues = [
+  ...diffExportSet(reactExports.types, vueExports.types, 'vue', 'type'),
+  ...diffExportSet(reactExports.types, svelteExports.types, 'svelte', 'type'),
+  ...diffExportSet(reactExports.values, vueExports.values, 'vue', 'value'),
+  ...diffExportSet(reactExports.values, svelteExports.values, 'svelte', 'value'),
+];
+totalIssues += exportIssues.length;
+
 // ── reporting ────────────────────────────────────────────────────
 
 let allOk = true;
@@ -393,8 +472,17 @@ for (const result of componentResults) {
 }
 
 console.log('');
+if (exportIssues.length === 0) {
+  console.log('✓ module-level @wick-charts/core re-exports (react / vue / svelte)');
+} else {
+  allOk = false;
+  console.log('✗ module-level @wick-charts/core re-exports');
+  for (const issue of exportIssues) console.log(`    ${issue}`);
+}
+
+console.log('');
 if (allOk) {
-  console.log(`All ${componentResults.length} components in parity across react / vue / svelte.`);
+  console.log(`All ${componentResults.length} components + core re-exports in parity across react / vue / svelte.`);
   process.exit(0);
 } else {
   console.error(`${totalIssues} parity issue(s) detected.`);

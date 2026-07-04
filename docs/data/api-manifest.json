@@ -108,6 +108,27 @@
                 ]
               },
               {
+                "name": "introMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "500",
+                "deprecated": null,
+                "description": "Initial-load reveal duration in milliseconds. On the first data seed\n(empty → non-empty) the line draws itself left-to-right — stroke and\narea sweep in behind a glowing head that rides the reveal front. The\nfull sweep lasts ~2× `introMs`. Default: `500`.\n\n```\n// Per-series override:\n<LineSeries options={{ introMs: 800 }} data={data} />\n\n// Chart-level default:\n<ChartContainer animations={{ series: { line: { intro: 800 } } }}>\n  <LineSeries data={data} />\n</ChartContainer>\n```\n\n`false` or `0` disables the intro. Bulk re-seeds of a non-empty series\nnever replay it. Skipped entirely under `prefers-reduced-motion`.",
+                "see": []
+              },
+              {
+                "name": "introAnimation",
+                "type": "LineIntroFn",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Initial-load reveal choreography — a `LineIntroFn` called once per\nframe while the intro plays. The shipped styles are factories over the\nsame contract: `unfoldIntro()` (the default — amplitude springs from\nthe mean into shape), `sweepIntro()` (left-to-right draw-on with a\nglowing head), `traceIntro()` (faint ghost, then an ink sweep),\n`plotterIntro()` (head advances at constant path speed). Style is\nspecific to the line series; there is no chart-level override for\nstyle — only for duration (`introMs`).",
+                "see": [
+                  "LineIntroFn — the custom-fn contract (frame → directives).",
+                  "introMs — cross-linked duration for this animation."
+                ]
+              },
+              {
                 "name": "smoothMs",
                 "type": "number | false",
                 "optional": true,
@@ -170,6 +191,47 @@
                       "defaultValue": "the series' resolved color",
                       "deprecated": null,
                       "description": "Color below the threshold. Default: the series' resolved color.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "points",
+                "type": "{ visible: boolean; radius?: number; color?: string; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Dot markers at each data point. Hidden by default.\n\nDots ride the same animated geometry as the stroke (entrance unfurl,\nlive-value smoothing, stacked cumulative), so they glide with the line\ninstead of snapping. When the visible points sit too dense to read as\ndiscrete markers (average spacing under ~1.5 dot diameters, e.g. zoomed\nfar out), the dots are skipped for that frame — they'd merge into a fat\nline and hide the stroke. Zooming back in brings them back.\n\n```\n<LineSeries data={data} options={{ points: { visible: true } }} />\n```",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "visible",
+                      "type": "boolean",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Whether a dot is drawn at each data point.",
+                      "see": []
+                    },
+                    {
+                      "name": "radius",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "3",
+                      "deprecated": null,
+                      "description": "Dot radius in CSS pixels. Default: `3`.",
+                      "see": []
+                    },
+                    {
+                      "name": "color",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "the layer's resolved series color",
+                      "deprecated": null,
+                      "description": "Fill color override. Default: the layer's resolved series color.",
                       "see": []
                     }
                   ]
@@ -254,6 +316,26 @@
                 "see": [
                   "BarSeriesOptions.entryAnimation"
                 ]
+              },
+              {
+                "name": "introAnimation",
+                "type": "BarIntroFn",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Initial-load intro animation — a `BarIntroFn`, usually one of the\nshipped factories: `growIntro()` (the default), `springIntro()`,\n`riseIntro()`, `fadeIntro()`, `wipeIntro()`. Independent of\n`entryAnimation` — the intro plays once on the first data seed,\nstreaming entrances keep their own style.",
+                "see": [
+                  "introMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "introMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "500",
+                "deprecated": null,
+                "description": "Initial-load reveal duration in milliseconds. On the first data seed\n(empty → non-empty) bars reveal in a left-to-right wave: each bar\ntweens for `introMs`, starts staggered across another `introMs`, so\nthe full wave lasts ~2×. The visual style is picked by\n`introAnimation`. Default: `500`.\n\n```\n// Per-series override:\n<BarSeries options={{ introMs: 800 }} data={data} />\n\n// Chart-level default:\n<ChartContainer animations={{ series: { bar: { intro: 800 } } }}>\n  <BarSeries data={data} />\n</ChartContainer>\n```\n\n`false` or `0` disables the intro. Bulk re-seeds of a non-empty series\nnever replay it. Skipped entirely under `prefers-reduced-motion`.",
+                "see": []
               },
               {
                 "name": "smoothMs",
@@ -434,6 +516,26 @@
                 "see": [
                   "CandlestickSeriesOptions.entryAnimation"
                 ]
+              },
+              {
+                "name": "introAnimation",
+                "type": "CandleIntroFn",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Initial-load intro animation — a `CandleIntroFn`, usually one of the\nshipped factories: `candleUnfoldIntro()` (the default),\n`wickBodyIntro()`, `riseIntro()`, `fadeIntro()`. Independent of\n`entryAnimation` — the intro plays once on the first data seed,\nstreaming entrances keep their own style.",
+                "see": [
+                  "introMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "introMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "500",
+                "deprecated": null,
+                "description": "Initial-load reveal duration in milliseconds. On the first data seed\n(empty → non-empty) candles reveal in a left-to-right wave: each candle\ntweens for `introMs`, starts staggered across another `introMs`, so the\nfull wave lasts ~2×. The visual style is picked by `introAnimation`.\nDefault: `500`.\n\n```\n// Per-series override:\n<CandlestickSeries options={{ introMs: 800 }} data={data} />\n\n// Chart-level default:\n<ChartContainer animations={{ series: { candlestick: { intro: 800 } } }}>\n  <CandlestickSeries data={data} />\n</ChartContainer>\n```\n\n`false` or `0` disables the intro. Bulk re-seeds of a non-empty series\nnever replay it. Skipped entirely under `prefers-reduced-motion`.",
+                "see": []
               },
               {
                 "name": "smoothMs",
@@ -681,6 +783,15 @@
                 "defaultValue": "false",
                 "deprecated": null,
                 "description": "When `true`, enables pie motion effects: the outside-label entrance\ndraw-in on mount / data swap, and the hover-explode slice offset.\nDefault: `false` — labels paint fully on the first frame and hovered\nslices stay in place (hover feedback is left to the tooltip / legend /\ncursor). Enable for presentations where the motion adds narrative\nvalue.",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "600",
+                "deprecated": null,
+                "description": "Initial-load reveal duration in milliseconds. On the first data seed\n(empty → non-empty) slices unfurl clockwise over this total duration,\nthen the outside labels draw in. Default: `600`.\n\n```\n// Per-series override:\n<PieSeries options={{ entryMs: 900 }} data={data} />\n\n// Chart-level default:\n<ChartContainer animations={{ series: { pie: { entry: 900 } } }}>\n  <PieSeries data={data} />\n</ChartContainer>\n```\n\n`false` or `0` disables the intro (a chart-level\n`animations.series.pie: false` also force-disables it). Bulk re-seeds\nof a non-empty series never replay it. Skipped entirely under\n`prefers-reduced-motion`.",
                 "see": []
               },
               {
@@ -3138,7 +3249,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Animation control. `true` / omitted uses built-in defaults; `false`\ndisables every category. Per-series options on `<LineSeries>` /\n`<CandlestickSeries>` / `<BarSeries>` override these chart-level\ndefaults unless the category here is explicitly `false`.\n\n**Init-only by reference identity.** A new `animations` object\nrecreates the underlying `ChartInstance` (and its canvas). Wrap the\nvalue in `useMemo(() => ({...}), [deps])` so an unstable parent\nrender doesn't tear down the chart every commit. In dev mode the\ncontainer emits a console warning when it detects >3 recreates / s.",
+          "description": "Animation control. `true` / omitted uses built-in defaults; `false`\ndisables every category. Per-series options on `<LineSeries>` /\n`<CandlestickSeries>` / `<BarSeries>` override these chart-level\ndefaults unless the category here is explicitly `false`.\n\n**Init-only, but diffed by value, not reference.** A same-value inline\nobject literal is a no-op — only a genuine change to the resolved\nconfig recreates the underlying `ChartInstance` (and its canvas), since\nthe animation engine doesn't support live reconfiguration yet. Still\nworth a stable reference (`useMemo(() => ({...}), [deps])`) to avoid the\nper-render deep-equal check, but forgetting it no longer tears the chart\ndown. In dev mode the container emits a console warning if it detects\n>3 *genuine* recreates/s.",
           "see": [],
           "nested": {
             "name": "AnimationsConfig",
@@ -3291,7 +3402,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -3302,7 +3413,7 @@
                   "props": [
                     {
                       "name": "line",
-                      "type": "false | { entry?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }",
+                      "type": "false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }",
                       "optional": true,
                       "defaultValue": null,
                       "deprecated": null,
@@ -3318,6 +3429,15 @@
                             "defaultValue": "250ms",
                             "deprecated": null,
                             "description": "Per-point entrance duration. `false` disables the entrance\n(equivalent to `entryAnimation: 'none'`).",
+                            "see": []
+                          },
+                          {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Initial-load reveal — the line draws itself left-to-right\non the first data seed, with a glowing head riding the\nreveal front. The value is the per-element wave duration;\nthe full sweep lasts ~2×. `false` / `0` disables the intro.",
                             "see": []
                           },
                           {
@@ -3343,7 +3463,7 @@
                     },
                     {
                       "name": "candlestick",
-                      "type": "false | { entry?: AnimationTime; smooth?: AnimationTime; }",
+                      "type": "false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }",
                       "optional": true,
                       "defaultValue": null,
                       "deprecated": null,
@@ -3362,6 +3482,15 @@
                             "see": []
                           },
                           {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Initial-load reveal — candles unfold in a left-to-right\nwave on the first data seed. The value is the per-candle\nwave duration; the full wave lasts ~2×. `false` / `0`\ndisables the intro.",
+                            "see": []
+                          },
+                          {
                             "name": "smooth",
                             "type": "AnimationTime",
                             "optional": true,
@@ -3375,7 +3504,7 @@
                     },
                     {
                       "name": "bar",
-                      "type": "false | { entry?: AnimationTime; smooth?: AnimationTime; }",
+                      "type": "false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }",
                       "optional": true,
                       "defaultValue": null,
                       "deprecated": null,
@@ -3391,6 +3520,15 @@
                             "defaultValue": "250ms",
                             "deprecated": null,
                             "description": "Per-bar entrance duration. `false` disables the entrance\n(equivalent to `entryAnimation: 'none'`).",
+                            "see": []
+                          },
+                          {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Initial-load reveal — bars grow from the baseline in a\nleft-to-right wave on the first data seed. The value is the\nper-bar wave duration; the full wave lasts ~2×. `false` /\n`0` disables the intro.",
                             "see": []
                           },
                           {
@@ -3411,7 +3549,7 @@
                       "optional": true,
                       "defaultValue": null,
                       "deprecated": null,
-                      "description": "Pie segment entry/update tweens. Parsed at config-time; the actual\nwiring lands in a later phase — providing a value here today is a\nno-op but the shape is stable.",
+                      "description": "Pie segment entry/update tweens. `false` disables the slice\nentry sweep (`update` is still parse-only; wiring lands in a\nlater phase).",
                       "see": [],
                       "nested": {
                         "name": "",
@@ -3420,9 +3558,9 @@
                             "name": "entry",
                             "type": "AnimationTime",
                             "optional": true,
-                            "defaultValue": "250ms",
+                            "defaultValue": "600ms",
                             "deprecated": null,
-                            "description": "Slice grow-in duration on first paint.",
+                            "description": "Initial-load reveal — slices unfurl clockwise over this\ntotal duration on the first data seed, then the outside\nlabels chain in. `false` / `0` disables the intro.",
                             "see": []
                           },
                           {
@@ -3481,7 +3619,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Enable runtime performance instrumentation. Off by default.\n\n- `true` — attach a {@link PerfMonitor } and render a visible HUD overlay on this chart.\n- `{ hud: true, windowMs, maxSamples, ... }` — same, with monitor options.\n- `{ hud: false, monitor }` — attach to an existing monitor without rendering the HUD.\n\nOnly read at mount; changing this prop after the chart is created is ignored.",
+          "description": "Runtime performance instrumentation. Off by default — pass a config\nfactory, not a plain object (that pulls the perf module into your bundle\nonly when you actually use it):\n\n- `perfHud()` — attach a {@link PerfMonitor } and render a visible HUD overlay on this chart.\n- `perfHud({ windowMs, maxSamples, ... })` — same, with monitor options.\n- `perfHud(existingMonitor)` — attach a visible HUD to an already-created monitor.\n- a raw {@link PerfMonitor } instance — instrumentation without the HUD.\n\nOnly read at mount; changing this prop after the chart is created is ignored.",
           "see": []
         },
         {
@@ -3491,6 +3629,33 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Fired after the user releases a pan/zoom gesture that pulled the viewport\npast a data edge by more than ~10% of the visible range. Hosts typically\nrespond by prefetching more history.\n\nFor threshold-based prefetch (load *before* the user fully overshoots),\nuse `<EdgeLoader>` instead — that component subscribes to `viewportChange`\nand arms when the visible range nears the data edge.\n\nCaptured at mount only; changing the prop identity later is ignored.",
+          "see": []
+        },
+        {
+          "name": "onPointClick",
+          "type": "(info: PointClickInfo) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired on a click (or tap) on the chart canvas that isn't the tail end of\na pan drag. `info.spatialHit` resolves a pie/heatmap/custom-spatial\nseries directly under the pointer; for a time-series series, resolve the\npoint yourself from `info.time` (`chart.getDataAtTime` /\n`buildHoverSnapshots`). Live — the latest callback is always used.",
+          "see": []
+        },
+        {
+          "name": "onPointDoubleClick",
+          "type": "(info: PointClickInfo) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired on a double-click on the chart canvas. The chart also responds by\ncalling `fitContent()`. Live — the latest callback is always used.",
+          "see": []
+        },
+        {
+          "name": "onSeriesHover",
+          "type": "(hit: SeriesHoverInfo | null) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired when the spatially-hovered series/index changes (pie, heatmap, or\na custom spatial kind) — `null` when the pointer leaves every hit area.\nLive — the latest callback is always used.",
           "see": []
         },
         {
@@ -4176,6 +4341,59 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Render-prop escape hatch. Receives the resolved value, pixel position, and\ndirection metadata. Replaces the built-in badge + dashed line entirely.",
+          "see": []
+        }
+      ]
+    },
+    "EdgeLoader": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/EdgeLoader.tsx",
+      "alias": null,
+      "description": "Subscribes to the chart's viewport and triggers a fetch when the visible\nrange nears the chosen data edge. Handles the boilerplate every load-on-scroll\nsite otherwise has to re-implement: arming after first user pan, deduping\nvia Promise tracking, and exposing the boundary's pixel coordinate so a\nloader can be anchored to \"the wall of available history\".\n\nPlace as a child of `<ChartContainer>`.",
+      "props": [
+        {
+          "name": "side",
+          "type": "EdgeSide",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Which edge to watch.",
+          "see": []
+        },
+        {
+          "name": "threshold",
+          "type": "number",
+          "optional": true,
+          "defaultValue": "5",
+          "deprecated": null,
+          "description": "Bars from the edge that arms the trigger. Multiplied by the chart's data\ninterval. Default `5`.",
+          "see": []
+        },
+        {
+          "name": "onTrigger",
+          "type": "() => void | Promise<unknown>",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Called when the visible range moves within {@link EdgeLoaderProps.threshold}\nbars of the data edge. Returning a Promise toggles `isLoading` for its\nlifetime. **Resolve with `false`** to signal \"no more data\" — the loader\nstops watching and switches the optional canvas indicator to its\n`'no-data'` state. Any other resolve value (including `undefined`) means\n\"keep watching for the next near-edge event\".",
+          "see": []
+        },
+        {
+          "name": "indicator",
+          "type": "'canvas' | 'custom'",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "- `'canvas'` (default): drive the chart's built-in canvas spinner via\n  {@link ChartInstance.setEdgeState }. Renders inside the chart area at\n  the data boundary.\n- `'custom'`: skip the canvas indicator. Use the render-prop `children`\n  to draw your own DOM/SVG loader.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(args: EdgeLoaderRenderArgs) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Optional render-prop. Receives the live edge state — render whatever\npositioned overlay you want, or return `null`.",
           "see": []
         }
       ]

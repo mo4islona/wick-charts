@@ -50,6 +50,8 @@ const COMPONENTS = [
   { name: 'HeatmapTooltip', file: 'packages/react/src/ui/HeatmapTooltip.tsx', kind: 'subcomponent' },
   { name: 'NumberFlow', file: 'packages/react/src/ui/NumberFlow.tsx', kind: 'subcomponent' },
   { name: 'YLabel', file: 'packages/react/src/ui/YLabel.tsx', kind: 'subcomponent' },
+  // React-only — no Vue/Svelte port yet (see REACT_ONLY in check-api-parity.mjs).
+  { name: 'EdgeLoader', file: 'packages/react/src/EdgeLoader.tsx', kind: 'subcomponent' },
 ];
 
 const tsconfigPath = resolve(ROOT, 'tsconfig.json');
