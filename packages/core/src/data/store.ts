@@ -10,6 +10,11 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   private _visible = true;
   private cachedRange: { from: number; to: number } | null = null;
   private cachedResult: T[] = [];
+  // Dev-only, warn-once-per-instance: these two conditions are almost always
+  // a persistent bug in the caller's feed (not a one-off), so a per-call
+  // warning would just spam the console on every tick.
+  private warnedUnsorted = false;
+  private warnedOutOfOrderAppend = false;
 
   setVisible(visible: boolean): void {
     this._visible = visible;
@@ -27,6 +32,15 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
         break;
       }
     }
+
+    if (!sorted && process.env.NODE_ENV !== 'production' && !this.warnedUnsorted) {
+      this.warnedUnsorted = true;
+      console.warn(
+        '[wick-charts] data is not sorted by time — re-sorting on every setData() call is wasted work. ' +
+          'Sort your feed by `time` ascending before passing it in.',
+      );
+    }
+
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
     this.cachedRange = null;
     this.emit('update');
@@ -34,6 +48,14 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   append(point: T): void {
     if (this.data.length > 0 && point.time <= this.data[this.data.length - 1].time) {
+      if (process.env.NODE_ENV !== 'production' && !this.warnedOutOfOrderAppend) {
+        this.warnedOutOfOrderAppend = true;
+        console.warn(
+          `[wick-charts] append() received time ${point.time}, not after the last point's time ` +
+            `${this.data[this.data.length - 1].time} — treating it as an overwrite of the last point instead of ` +
+            'a new one. If you meant to append, check your feed for out-of-order or duplicate timestamps.',
+        );
+      }
       this.updateLast(point);
       return;
     }

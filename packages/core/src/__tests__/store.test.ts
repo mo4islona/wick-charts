@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../data/store';
 
@@ -100,5 +100,62 @@ describe('TimeSeriesStore', () => {
     });
     s.append({ time: 2000, value: 2 });
     expect(called).toBe(true);
+  });
+
+  describe('dev-only data warnings', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('warns once when setData receives unsorted timestamps', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const s = makeStore();
+
+      s.setData([
+        { time: 3000, value: 30 },
+        { time: 1000, value: 10 },
+      ]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('not sorted by time');
+
+      // Every subsequent unsorted setData on the SAME instance stays silent.
+      s.setData([
+        { time: 3000, value: 30 },
+        { time: 1000, value: 10 },
+      ]);
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not warn when setData receives already-sorted timestamps', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const s = makeStore();
+
+      s.setData([
+        { time: 1000, value: 10 },
+        { time: 2000, value: 20 },
+      ]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it('warns once when append receives an out-of-order timestamp (downgraded to updateLast)', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const s = makeStore([{ time: 2000, value: 10 }]);
+
+      s.append({ time: 1000, value: 99 });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0][0]).toContain('treating it as an overwrite');
+
+      // A second out-of-order append on the same instance stays silent.
+      s.append({ time: 500, value: 1 });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not warn when append receives a genuinely later timestamp', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const s = makeStore([{ time: 1000, value: 10 }]);
+
+      s.append({ time: 2000, value: 20 });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
   });
 });
