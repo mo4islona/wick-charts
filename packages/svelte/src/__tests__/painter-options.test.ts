@@ -2,7 +2,7 @@ import { cleanup, render } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import type { CanvasRecorder } from '../../../core/src/__tests__/helpers/recording-context';
+import type { CanvasRecorder } from '../../../core/src/testing/recording-context';
 import PainterOptionsHarness from './PainterOptionsHarness.svelte';
 
 /**

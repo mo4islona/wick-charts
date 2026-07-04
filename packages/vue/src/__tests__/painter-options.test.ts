@@ -10,7 +10,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
 
-import type { CanvasRecorder } from '../../../core/src/__tests__/helpers/recording-context';
+import type { CanvasRecorder } from '../../../core/src/testing/recording-context';
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
 /**

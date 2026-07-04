@@ -8,8 +8,8 @@ import {
   straightCurve,
 } from '../../series/painters/builtins';
 import type { CornerMask, LinePoint, PaintEnv } from '../../series/painters/types';
+import { createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
-import { createRecordingContext } from '../helpers/recording-context';
 
 const ALL: CornerMask = { tl: true, tr: true, br: true, bl: true };
 const TOP: CornerMask = { tl: true, tr: true, br: false, bl: false };

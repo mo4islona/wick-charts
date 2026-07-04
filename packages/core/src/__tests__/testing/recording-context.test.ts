@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { createFakeCanvas } from './fake-canvas';
-import { createRecordingContext } from './recording-context';
+import { createRecordingContext } from '../../testing/recording-context';
+import { createFakeCanvas } from '../helpers/fake-canvas';
 
 describe('createRecordingContext', () => {
   it('records method calls with their arguments', () => {
