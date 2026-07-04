@@ -61,6 +61,7 @@ export type {
   LineSeriesOptions,
   MarkerConfig,
   MarkerShape,
+  MultiLayerData,
   NavigatorCandlePoint,
   NavigatorControllerParams,
   NavigatorData,
@@ -117,6 +118,7 @@ export type {
   ValueFormatter,
   ValueTickGenerator,
   VisibleRange,
+  VisibleRangeSpec,
   WaveIntroDirectives,
   WaveIntroElement,
   WaveIntroFn,
@@ -225,7 +227,7 @@ export {
   useVisibleRange,
   useYRange,
 } from './store-bridge';
-export { ThemeProvider, useTheme } from './ThemeContext';
+export { ThemeProvider, useTheme, useThemeOptional } from './ThemeContext';
 export { Crosshair } from './ui/Crosshair';
 export type { HeatmapTooltipProps } from './ui/HeatmapTooltip';
 export { HeatmapTooltip } from './ui/HeatmapTooltip';
