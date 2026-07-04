@@ -28,7 +28,9 @@ import {
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
 
+/** Visual theme. Live — changing this at runtime updates all themed elements. */
 export let theme: ChartTheme = catppuccin.theme;
+/** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
 export let axis: AxisConfig | undefined = undefined;
 /**
  * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
@@ -55,14 +57,19 @@ export let viewport: { maxVisibleBars?: number; initialRange?: VisibleRangeSpec 
  * use `viewport.initialRange` instead.
  */
 export let visibleRange: VisibleRangeSpec | undefined = undefined;
-/** Show the chart background gradient. Defaults to true. */
+/** Show the chart background gradient. Live. Defaults to true. */
 export let gradient: boolean = true;
-/** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+/**
+ * Enable zoom, pan, and crosshair interactions. Defaults to true.
+ *
+ * Mount-only — core has no `setInteractive`, so changing this prop after
+ * mount is ignored.
+ */
 export let interactive: boolean | undefined = undefined;
-/** Background grid configuration. Default: `{ visible: true }`. */
+/** Background grid configuration. Live. Default: `{ visible: true }`. */
 export let grid: { visible: boolean } | undefined = undefined;
 /**
- * How `<Title>` and `<InfoBar>` are positioned relative to the canvas.
+ * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
  * - `'overlay'` (default): absolute overlays on top of the canvas.
  * - `'inline'`: flex siblings above the canvas — the canvas (and grid) shift down.
  */
@@ -127,6 +134,7 @@ export let onVisibleRangeChange: ((range: VisibleRange) => void) | undefined = u
  * chart. Live — the latest callback is always used.
  */
 export let onCrosshairMove: ((position: CrosshairPosition | null) => void) | undefined = undefined;
+/** Inline style for the chart's outer wrapper element. Live. */
 export let style: string = '';
 
 let containerEl: HTMLDivElement;

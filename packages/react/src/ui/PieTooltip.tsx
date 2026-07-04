@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 're
 
 import {
   type ChartInstance,
+  type ChartTheme,
   type HoverInfo,
   type ValueFormatter,
   computeTooltipPosition,
@@ -69,6 +70,7 @@ export function PieTooltip({ seriesId, format = formatCompact, children }: PieTo
         y={crosshair.mediaY}
         chartWidth={mediaSize.width}
         chartHeight={mediaSize.height}
+        theme={theme}
       >
         {children({ info, format })}
       </CustomPieTooltip>
@@ -130,20 +132,22 @@ export function PieTooltip({ seriesId, format = formatCompact, children }: PieTo
 }
 
 // Custom slot content has unknown dimensions — measure the container, then
-// position it. Matches the pattern in `Tooltip` (PR #39) so user-rendered pie
-// tooltips flip/clamp correctly near edges instead of overflowing with the
-// hardcoded 160×70 defaults.
+// position it. Matches `CustomFloatingTooltip` in `Tooltip.tsx`: same glass
+// panel styling, so a render-prop pie tooltip looks like the built-in one
+// instead of a bare, unstyled box.
 function CustomPieTooltip({
   x,
   y,
   chartWidth,
   chartHeight,
+  theme,
   children,
 }: {
   x: number;
   y: number;
   chartWidth: number;
   chartHeight: number;
+  theme: ChartTheme;
   children: ReactNode;
 }) {
   const nodeRef = useRef<HTMLDivElement | null>(null);
@@ -189,6 +193,16 @@ function CustomPieTooltip({
         left: position.left,
         top: position.top,
         pointerEvents: 'none',
+        background: theme.tooltip.background,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        border: `1px solid ${theme.tooltip.borderColor}`,
+        borderRadius: 8,
+        padding: '10px 14px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)',
+        fontFamily: theme.typography.fontFamily,
+        fontSize: theme.typography.fontSize,
+        color: theme.tooltip.textColor,
         zIndex: 10,
         width: 'max-content',
         maxWidth: chartWidth,

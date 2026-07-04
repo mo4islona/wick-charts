@@ -114,6 +114,29 @@ describe('PieTooltip', () => {
     expect(captured!.label).toBe('Beta');
   });
 
+  it('children render-prop container gets the same glass panel styling as the default UI (Tooltip parity)', () => {
+    mounted = mountChart(
+      <>
+        <PieSeries id={id} data={slices} />
+        <PieTooltip seriesId={id}>{({ info }) => <div data-testid="t">{info.label}</div>}</PieTooltip>
+      </>,
+      { width: 400, height: 400 },
+    );
+    mounted.dispatchMouse('mousemove', { clientX: 200, clientY: 250 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
+
+    const content = mounted.container.querySelector<HTMLElement>('[data-testid="t"]');
+    const container = content?.parentElement as HTMLElement;
+    expect(container).toBeDefined();
+    // Previously this container was a bare positioned div with none of the
+    // built-in tooltip's glass styling — a render-prop consumer had to
+    // reimplement background/blur/border themselves to match. Now it matches
+    // <Tooltip>'s CustomFloatingTooltip container.
+    expect(container.style.background).not.toBe('');
+    expect(container.style.borderRadius).toBe('8px');
+    expect(container.style.border).not.toBe('');
+  });
+
   it('custom slot: pre-measurement frame hides the tooltip (data-measured=false, visibility hidden)', () => {
     mounted = mountChart(
       <>

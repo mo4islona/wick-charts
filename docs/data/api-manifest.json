@@ -248,6 +248,15 @@
           "deprecated": null,
           "description": "Stable series ID — same value across remounts.",
           "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
         }
       ]
     },
@@ -392,6 +401,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
           "see": []
         }
       ]
@@ -574,6 +592,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
           "see": []
         }
       ]
@@ -896,6 +923,15 @@
           "deprecated": null,
           "description": "Stable series ID — same value across remounts.",
           "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
         }
       ]
     },
@@ -1057,6 +1093,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
           "see": []
         }
       ]
@@ -1972,12 +2017,12 @@
           "see": []
         },
         {
-          "name": "formatValue",
-          "type": "(value: number) => string",
+          "name": "format",
+          "type": "ValueFormatter",
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Custom format for the value",
+          "description": "Custom format for the value. Same shape as ValueFormatter used elsewhere in the API.",
           "see": []
         },
         {
@@ -2148,7 +2193,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Visual theme. Changing this at runtime will update all themed elements.",
+          "description": "Visual theme. Live — changing this at runtime updates all themed elements.",
           "see": [],
           "nested": {
             "name": "ChartTheme",
@@ -2993,7 +3038,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Grouped axis configuration (Y/X visibility, bounds, sizing).",
+          "description": "Grouped axis configuration (Y/X visibility, bounds, sizing). Live.",
           "see": [],
           "nested": {
             "name": "AxisConfig",
@@ -3089,7 +3134,7 @@
           "optional": true,
           "defaultValue": "{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }",
           "deprecated": null,
-          "description": "Viewport padding around the plot area. Applied on mount only — changing\nthis prop after mount is ignored. Set every side to `0` for an\nedge-to-edge sparkline.",
+          "description": "Viewport padding around the plot area. Live — a later change re-applies\nvia `chart.setPadding`. Set every side to `0` for an edge-to-edge\nsparkline.",
           "see": [],
           "nested": {
             "name": "",
@@ -3194,12 +3239,21 @@
           }
         },
         {
+          "name": "visibleRange",
+          "type": "VisibleRangeSpec",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Controlled visible range. Same shape as the imperative\n`chart.setVisibleRange` — a bar count, an explicit `{from, to}` window, or\n`{from, bars}`. Every reference/value change applies via\n`chart.setVisibleRange`, so pair it with onVisibleRangeChange for a\ntwo-way binding; a same-value literal (compared structurally) is a no-op,\nso an inline object from a parent re-render doesn't re-apply.\n\nFor a one-shot initial window that isn't re-applied on every prop change,\nuse `viewport.initialRange` instead.",
+          "see": []
+        },
+        {
           "name": "gradient",
           "type": "boolean",
           "optional": true,
           "defaultValue": "to true",
           "deprecated": null,
-          "description": "Show the chart background gradient. Defaults to true.",
+          "description": "Show the chart background gradient. Live. Defaults to true.",
           "see": []
         },
         {
@@ -3208,7 +3262,7 @@
           "optional": true,
           "defaultValue": "to true",
           "deprecated": null,
-          "description": "Enable zoom, pan, and crosshair interactions. Defaults to true.",
+          "description": "Enable zoom, pan, and crosshair interactions. Defaults to true.\n\nMount-only — core has no `setInteractive`, so changing this prop after\nmount is ignored.",
           "see": []
         },
         {
@@ -3217,7 +3271,7 @@
           "optional": true,
           "defaultValue": "{ visible: true }",
           "deprecated": null,
-          "description": "Background grid configuration. Default: `{ visible: true }`.",
+          "description": "Background grid configuration. Live. Default: `{ visible: true }`.",
           "see": [],
           "nested": {
             "name": "",
@@ -3240,7 +3294,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "How `<Title>` and `<InfoBar>` are positioned relative to the canvas.\n- `'overlay'` (default): absolute overlays on top of the canvas — the grid\n  and Y-axis labels render full-height behind the header strip.\n- `'inline'`: flex siblings above the canvas — the canvas (and grid) are\n  shifted down by the measured header height, so nothing renders behind\n  the title. The chart background still spans the full container.",
+          "description": "How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.\n- `'overlay'` (default): absolute overlays on top of the canvas — the grid\n  and Y-axis labels render full-height behind the header strip.\n- `'inline'`: flex siblings above the canvas — the canvas (and grid) are\n  shifted down by the measured header height, so nothing renders behind\n  the title. The chart background still spans the full container.",
           "see": []
         },
         {
@@ -3659,12 +3713,39 @@
           "see": []
         },
         {
+          "name": "onReady",
+          "type": "(chart: ChartInstance) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired once the underlying `ChartInstance` is constructed — on mount, and\nagain if the chart is ever rebuilt (a genuine `animations` value change).\nUse this to reach for imperative APIs the declarative props don't cover\nyet. Live — the latest callback is always used for the next rebuild.",
+          "see": []
+        },
+        {
+          "name": "onVisibleRangeChange",
+          "type": "(range: VisibleRange) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired whenever the committed visible range changes — pan, zoom,\n`fitContent()`, a data update that shifts the tail-scroll window, or a\n`visibleRange` prop change. Live — the latest callback is always used.",
+          "see": []
+        },
+        {
+          "name": "onCrosshairMove",
+          "type": "(position: CrosshairPosition | null) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired on every crosshair move, with `null` when the pointer leaves the\nchart. Live — the latest callback is always used.",
+          "see": []
+        },
+        {
           "name": "style",
           "type": "CSSProperties",
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Inline style for the chart's outer wrapper element.",
+          "description": "Inline style for the chart's outer wrapper element. Live.",
           "see": []
         },
         {
@@ -3673,7 +3754,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Extra class for the chart's outer wrapper element.",
+          "description": "Extra class for the chart's outer wrapper element. Live.",
           "see": []
         }
       ]
@@ -3812,6 +3893,15 @@
           "defaultValue": "'toggle'",
           "deprecated": null,
           "description": "Click behavior for the built-in UI. Default: `'toggle'`. Ignored when children is provided.",
+          "see": []
+        },
+        {
+          "name": "onToggle",
+          "type": "(info: LegendToggleInfo) => void",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Fired after a click changes series visibility — via the built-in UI or a\ncustom children render-prop calling `item.toggle()`/`isolate()`\ndirectly. Live — the latest callback is always used.",
           "see": []
         },
         {

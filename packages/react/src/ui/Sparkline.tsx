@@ -4,6 +4,7 @@ import {
   type AxisBound,
   type ChartTheme,
   type TimePointInput,
+  type ValueFormatter,
   formatCompact,
   normalizeTime,
   resolveCandlestickBodyColor,
@@ -42,8 +43,8 @@ export interface SparklineProps {
   variant?: SparklineVariant;
   /** Where to show the value label */
   valuePosition?: SparklineValuePosition;
-  /** Custom format for the value */
-  formatValue?: (value: number) => string;
+  /** Custom format for the value. Same shape as {@link ValueFormatter} used elsewhere in the API. */
+  format?: ValueFormatter;
   /** Label text above the value */
   label?: string;
   /** Sublabel text below the value (defaults to the change %) */
@@ -103,7 +104,7 @@ export function Sparkline({
   theme,
   variant = 'line',
   valuePosition = 'right',
-  formatValue = formatCompact,
+  format = formatCompact,
   label,
   sublabel,
   color,
@@ -220,7 +221,7 @@ export function Sparkline({
           fontVariantNumeric: 'tabular-nums',
         }}
       >
-        {formatValue(lastValue)}
+        {format(lastValue)}
       </div>
       {sublabel !== undefined ? (
         <div
