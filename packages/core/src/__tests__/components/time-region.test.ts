@@ -74,15 +74,15 @@ describe('renderTimeRegion', () => {
     expect(spy.countOf('stroke')).toBe(1);
   });
 
-  it('draws the label in a pill, text in the theme label color', () => {
+  it('draws the label in an annotation chip, text in the theme ink', () => {
     const spy = renderRegion({ from: 20, to: 60, label: 'anomaly window' });
 
     const text = spy.callsOf('fillText');
     expect(text).toHaveLength(1);
     expect(text[0].args[0]).toBe('anomaly window');
-    expect(text[0].fillStyle).toBe(catppuccin.theme.yLabel.textColor);
+    expect(text[0].fillStyle).toBe(catppuccin.theme.tooltip.textColor);
 
-    // The pill (a rounded-rect fill) precedes the text.
+    // The chip plate (a fill) precedes the text.
     expect(spy.matchesSequence(['fill', 'fillText'])).toBe(true);
   });
 

@@ -106,12 +106,21 @@ export function AnnotationsDemo({ theme }: { theme: ChartTheme }) {
   const metric = useMemo(buildMetric, []);
   const [shape, setShape] = useState<MarkerShape>('arrow-down');
   const [ongoing, setOngoing] = useState(false);
+  const [labeled, setLabeled] = useState(true);
 
   const timeAt = (i: number) => metric[i].time;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <Controls theme={theme} shape={shape} onShape={setShape} ongoing={ongoing} onOngoing={setOngoing} />
+      <Controls
+        theme={theme}
+        shape={shape}
+        onShape={setShape}
+        ongoing={ongoing}
+        onOngoing={setOngoing}
+        labeled={labeled}
+        onLabeled={setLabeled}
+      />
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <ChartContainer theme={theme} style={{ width: '100%', height: '100%' }}>
@@ -146,10 +155,25 @@ export function AnnotationsDemo({ theme }: { theme: ChartTheme }) {
           <ReferenceLine value={LIMIT} label={`limit ${LIMIT}`} color="#f0a83c" />
           <ReferenceLine time={timeAt(DEPLOY_I)} label="deploy v2.1.0" color="#cba6f7" />
 
-          {/* Markers — pin the moments, snapped to the metric line. */}
-          <Marker time={timeAt(PEAK_I)} seriesId="metric" shape={shape} pulse={ongoing} label="peak" color="#f0556a" />
+          {/* Markers — pin the moments, snapped to the metric line. With a
+              label the marker renders as a callout chip (the tail replaces an
+              arrow glyph); bare markers show the raw glyph. */}
+          <Marker
+            time={timeAt(PEAK_I)}
+            seriesId="metric"
+            shape={shape}
+            pulse={ongoing}
+            label={labeled ? 'peak' : undefined}
+            color="#f0556a"
+          />
           {!ongoing && (
-            <Marker time={timeAt(WINDOW_TO_I)} seriesId="metric" shape="dot" label="settled" color="#46b78f" />
+            <Marker
+              time={timeAt(WINDOW_TO_I)}
+              seriesId="metric"
+              shape="dot"
+              label={labeled ? 'settled' : undefined}
+              color="#46b78f"
+            />
           )}
 
           <Tooltip />
@@ -168,9 +192,11 @@ interface ControlsProps {
   onShape: (next: MarkerShape) => void;
   ongoing: boolean;
   onOngoing: (next: boolean) => void;
+  labeled: boolean;
+  onLabeled: (next: boolean) => void;
 }
 
-function Controls({ theme, shape, onShape, ongoing, onOngoing }: ControlsProps) {
+function Controls({ theme, shape, onShape, ongoing, onOngoing, labeled, onLabeled }: ControlsProps) {
   const border = hexToRgba(theme.tooltip.textColor, 0.18);
   const muted = hexToRgba(theme.tooltip.textColor, 0.7);
 
@@ -214,6 +240,25 @@ function Controls({ theme, shape, onShape, ongoing, onOngoing }: ControlsProps) 
           );
         })}
       </div>
+
+      <button
+        type="button"
+        onClick={() => onLabeled(!labeled)}
+        aria-pressed={labeled}
+        style={{
+          padding: '5px 12px',
+          border: `1px solid ${border}`,
+          borderRadius: 6,
+          background: labeled ? hexToRgba(theme.tooltip.textColor, 0.08) : 'transparent',
+          color: labeled ? theme.tooltip.textColor : muted,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          fontSize: 'inherit',
+          fontWeight: labeled ? 500 : 400,
+        }}
+      >
+        {labeled ? 'labels — callout chips' : 'no labels — bare glyphs'}
+      </button>
 
       <button
         type="button"
