@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LineRenderer } from '../../series/line';
-import type { CanvasRecorder } from '../helpers/recording-context';
+import type { CanvasRecorder } from '../../testing/recording-context';
 import { buildRenderContext } from '../helpers/render-context';
 
 // Strictly increasing, positive — a valid stacked input where every monotone

@@ -4,7 +4,7 @@ import { type RenderResult, act, render } from '@testing-library/react';
 import type { ChartInstance } from '@wick-charts/core';
 import { ChartContainer, useChartInstance } from '@wick-charts/react';
 
-import type { CanvasRecorder } from '../../../../core/src/__tests__/helpers/recording-context';
+import type { CanvasRecorder } from '../../../../core/src/testing/recording-context';
 import type { ChartContainerProps } from '../../ChartContainer';
 import { flushAllRaf, installRaf, uninstallRaf } from './raf';
 

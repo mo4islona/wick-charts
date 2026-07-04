@@ -177,6 +177,14 @@ export type {
   SnapshotSort,
 } from './snapshots';
 export { buildHoverSnapshots, buildLastSnapshots } from './snapshots';
+// Testing — a working canvas 2D context + draw-call recorder for a
+// consumer's own jsdom/happy-dom test suite. Not part of the charting API;
+// re-exported here (rather than kept under a private `__tests__/helpers`
+// path) so `@wick-charts/react/testing` (and any future Vue/Svelte
+// equivalent) can build on it without depending on this repo's own
+// internal test infrastructure.
+export type { CanvasRecorder, RecordedCall, RecordingContext } from './testing/recording-context';
+export { createRecordingContext } from './testing/recording-context';
 // Data
 export type { ThemeConfig, ThemePreset } from './theme/palettes';
 export { autoGradient, createTheme, isDarkBg } from './theme/palettes';

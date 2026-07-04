@@ -2,9 +2,9 @@ import type { BitmapCoordinateSpace } from '../../canvas-manager';
 import { XScale } from '../../scales/x-scale';
 import { YScale } from '../../scales/y-scale';
 import type { OverlayRenderContext, SeriesRenderContext } from '../../series/types';
+import { type CanvasRecorder, createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
 import type { ChartTheme } from '../../theme/types';
-import { type CanvasRecorder, createRecordingContext } from './recording-context';
 
 export interface BuildContextOptions {
   /** Viewport X range in data units. Defaults to [0, 100]. */

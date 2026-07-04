@@ -14,7 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartInstance } from '../chart';
-import type { CanvasRecorder } from './helpers/recording-context';
+import type { CanvasRecorder } from '../testing/recording-context';
 
 /** `test-setup.ts` attaches a recording spy to every canvas 2D context. */
 type SpiedCanvas = HTMLCanvasElement & { __spy?: CanvasRecorder };

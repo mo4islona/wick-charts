@@ -8,9 +8,9 @@ import {
   renderMiniCandlestick,
   renderMiniLine,
 } from '../../navigator/render';
+import { createRecordingContext } from '../../testing/recording-context';
 import { resolveCandlestickBodyColor } from '../../theme/resolve';
 import type { ChartTheme } from '../../theme/types';
-import { createRecordingContext } from '../helpers/recording-context';
 
 const MEDIA_W = 200;
 const MEDIA_H = 60;

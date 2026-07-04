@@ -19,9 +19,16 @@ export default defineConfig({
     // WeakMap helpers, costing ~10% raw size and a call on every access.
     target: 'es2022',
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      // `testing` is a second, independent entry point (`@wick-charts/react/
+      // testing`) — a jsdom/happy-dom canvas+ResizeObserver+matchMedia mock
+      // for consumers' own test suites. Not imported by `index.ts`, so it
+      // needs its own entry to end up in the output at all.
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        testing: resolve(__dirname, 'src/testing.ts'),
+      },
       formats: ['es', 'cjs'],
-      fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
+      fileName: (format, entryName) => `${entryName}.${format === 'es' ? 'js' : 'cjs'}`,
     },
     rollupOptions: {
       external: ['react', 'react-dom', 'react/jsx-runtime'],
@@ -39,7 +46,7 @@ export default defineConfig({
         },
         {
           format: 'cjs',
-          entryFileNames: 'index.cjs',
+          entryFileNames: '[name].cjs',
           banner: "'use client';",
         },
       ],

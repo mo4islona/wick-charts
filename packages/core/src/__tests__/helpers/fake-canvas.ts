@@ -1,4 +1,4 @@
-import { type CanvasRecorder, createRecordingContext } from './recording-context';
+import { type CanvasRecorder, createRecordingContext } from '../../testing/recording-context';
 
 /**
  * Minimal `HTMLCanvasElement`-shaped object for node-environment renderer tests.

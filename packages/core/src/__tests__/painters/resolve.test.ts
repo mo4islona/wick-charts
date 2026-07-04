@@ -9,8 +9,8 @@ import {
 } from '../../series/painters/builtins';
 import { resolveBarPainter, resolveCandlePainter, resolveLinePainter } from '../../series/painters/resolve';
 import type { BarPaintArgs, PaintEnv } from '../../series/painters/types';
+import { createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
-import { createRecordingContext } from '../helpers/recording-context';
 
 function makeEnv(ctx: CanvasRenderingContext2D): PaintEnv {
   return { ctx, theme: catppuccin.theme, horizontalPixelRatio: 2, verticalPixelRatio: 2 };
