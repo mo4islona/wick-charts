@@ -30,7 +30,9 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 
 const props = withDefaults(
   defineProps<{
+    /** Visual theme. Live — changing this at runtime updates all themed elements. */
     theme?: ChartTheme;
+    /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
     axis?: AxisConfig;
     /**
      * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
@@ -78,14 +80,19 @@ const props = withDefaults(
      * change, use `viewport.initialRange` instead.
      */
     visibleRange?: VisibleRangeSpec;
-    /** Show the chart background gradient. Defaults to true. */
+    /** Show the chart background gradient. Live. Defaults to true. */
     gradient?: boolean;
-    /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+    /**
+     * Enable zoom, pan, and crosshair interactions. Defaults to true.
+     *
+     * Mount-only — core has no `setInteractive`, so changing this prop after
+     * mount is ignored.
+     */
     interactive?: boolean;
-    /** Background grid configuration. Default: `{ visible: true }`. */
+    /** Background grid configuration. Live. Default: `{ visible: true }`. */
     grid?: { visible: boolean };
     /**
-     * How `<Title>` and `<InfoBar>` are positioned relative to the canvas.
+     * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
      * - `'overlay'` (default): absolute overlays on top of the canvas.
      * - `'inline'`: flex siblings above the canvas — the canvas (and grid) shift down.
      */

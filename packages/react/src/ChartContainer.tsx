@@ -42,14 +42,14 @@ import { slotOf } from './ui/slot';
 export interface ChartContainerProps {
   /** Series components and UI overlays (Tooltip, TimeAxis, etc.) rendered inside the chart. */
   children?: ReactNode;
-  /** Visual theme. Changing this at runtime will update all themed elements. */
+  /** Visual theme. Live — changing this at runtime updates all themed elements. */
   theme?: ChartTheme;
-  /** Grouped axis configuration (Y/X visibility, bounds, sizing). */
+  /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
   axis?: AxisConfig;
   /**
-   * Viewport padding around the plot area. Applied on mount only — changing
-   * this prop after mount is ignored. Set every side to `0` for an
-   * edge-to-edge sparkline.
+   * Viewport padding around the plot area. Live — a later change re-applies
+   * via `chart.setPadding`. Set every side to `0` for an edge-to-edge
+   * sparkline.
    *
    * @default `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`
    */
@@ -107,17 +107,22 @@ export interface ChartContainerProps {
    * use `viewport.initialRange` instead.
    */
   visibleRange?: VisibleRangeSpec;
-  /** Show the chart background gradient. Defaults to true. */
+  /** Show the chart background gradient. Live. Defaults to true. */
   gradient?: boolean;
-  /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
+  /**
+   * Enable zoom, pan, and crosshair interactions. Defaults to true.
+   *
+   * Mount-only — core has no `setInteractive`, so changing this prop after
+   * mount is ignored.
+   */
   interactive?: boolean;
-  /** Background grid configuration. Default: `{ visible: true }`. */
+  /** Background grid configuration. Live. Default: `{ visible: true }`. */
   grid?: {
     /** Whether the background grid is rendered. Default: `true`. */
     visible: boolean;
   };
   /**
-   * How `<Title>` and `<InfoBar>` are positioned relative to the canvas.
+   * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
    * - `'overlay'` (default): absolute overlays on top of the canvas — the grid
    *   and Y-axis labels render full-height behind the header strip.
    * - `'inline'`: flex siblings above the canvas — the canvas (and grid) are
@@ -203,9 +208,9 @@ export interface ChartContainerProps {
    * chart. Live — the latest callback is always used.
    */
   onCrosshairMove?: (position: CrosshairPosition | null) => void;
-  /** Inline style for the chart's outer wrapper element. */
+  /** Inline style for the chart's outer wrapper element. Live. */
   style?: CSSProperties;
-  /** Extra class for the chart's outer wrapper element. */
+  /** Extra class for the chart's outer wrapper element. Live. */
   className?: string;
 }
 

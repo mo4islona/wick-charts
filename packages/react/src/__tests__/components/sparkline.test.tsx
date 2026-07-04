@@ -139,6 +139,17 @@ describe('Sparkline', () => {
     expect(host.textContent).not.toContain('BTC');
   });
 
+  it('format overrides the default value formatting', () => {
+    act(() => {
+      render(<Sparkline data={data} theme={catppuccin.theme} valuePosition="right" format={(v) => `$${v}!!`} />, {
+        container: host,
+      });
+    });
+    act(() => flushAllRaf());
+
+    expect(host.textContent).toContain(`$${data[data.length - 1].value}!!`);
+  });
+
   it('yRange clamps the vertical spread of the line', () => {
     function lineToYSpread(node: ReactElement): number {
       // Fresh child container per render — RTL caches one React root per

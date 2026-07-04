@@ -128,7 +128,7 @@ $: tooltipPos = (() => {
     <div
       use:measureOnResize
       data-measured={measuredSize ? 'true' : 'false'}
-      style="position:absolute;left:{tooltipPos.left}px;top:{tooltipPos.top}px;pointer-events:none;z-index:10;width:max-content;max-width:{mediaSize.width}px;box-sizing:border-box;visibility:{measuredSize
+      style="position:absolute;left:{tooltipPos.left}px;top:{tooltipPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.typography.fontSize}px;color:{theme.tooltip.textColor};z-index:10;width:max-content;max-width:{mediaSize.width}px;box-sizing:border-box;visibility:{measuredSize
         ? 'visible'
         : 'hidden'};"
     >
