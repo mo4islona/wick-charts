@@ -2,6 +2,9 @@ import type { YRange } from '../types';
 import { type ValueFormatter, formatCompact } from '../utils/format';
 import { AxisTickTracker } from './tick-tracker';
 
+/** Custom tick-value generator — replaces the built-in {1,2,5}×10^k resolution entirely when installed. */
+export type ValueTickGenerator = (range: YRange) => number[];
+
 /**
  * Smallest {1,2,5}×10^k tick interval that is >= `minSpacing`. Ceiling snap
  * at any magnitude (handles 1e-20 through 1e20 without a lookup table).
@@ -65,6 +68,8 @@ export class YScale {
 
   /** Custom formatter (driven by `<YAxis format=…>`). */
   private customFormat: ValueFormatter | null = null;
+  /** Custom tick generator — bypasses {1,2,5}×10^k resolution in `niceTickValues` when set. */
+  private customTickGenerator: ValueTickGenerator | null = null;
 
   private get labelCountHint(): number | null {
     return this.labelCountHintValue;
@@ -112,6 +117,16 @@ export class YScale {
     return this.customFormat;
   }
 
+  /**
+   * Install (or clear) a custom tick-value generator. When set, it replaces
+   * {1,2,5}×10^k resolution entirely — `niceTickValues` calls it directly
+   * with the current range.
+   */
+  setTickGenerator(fn: ValueTickGenerator | null): void {
+    this.customTickGenerator = fn;
+    this.resetHysteresis();
+  }
+
   /** Convert a value to a Y position in CSS (media) pixels. */
   valueToY(value: number): number {
     const range = this.max - this.min;
@@ -140,6 +155,8 @@ export class YScale {
    * chart height. Pure read — resolution happens in `update()`.
    */
   niceTickValues(): number[] {
+    if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
+
     if (this.resolvedInterval == null) return [];
 
     const interval = this.resolvedInterval;

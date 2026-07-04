@@ -9,7 +9,6 @@ import {
   buildLastSnapshots,
   formatCompact,
   formatPriceAdaptive,
-  formatTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -175,7 +174,9 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
         pointerEvents: 'none',
       }}
     >
-      <span style={{ color: theme.axis.textColor, marginRight: 2 }}>{formatTime(displayTime, dataInterval)}</span>
+      <span style={{ color: theme.axis.textColor, marginRight: 2 }}>
+        {chart.timeScale.formatX(displayTime, dataInterval)}
+      </span>
       {snapshots.map((s) => {
         const isOHLC = 'open' in s.data;
         if (isOHLC) {

@@ -202,5 +202,66 @@ describe('TimeScale', () => {
       expect(ticks.length).toBeLessThanOrEqual(50);
       expect(Number.isFinite(tickInterval)).toBe(true);
     });
+
+    it('a custom tick generator replaces tier resolution entirely', () => {
+      const s = makeScale(0, DAY * 10, 800, 1);
+      s.setTickGenerator(({ from, to }) => [from, (from + to) / 2, to]);
+      const { ticks, tickInterval } = s.niceTickValues(HOUR);
+      expect(ticks).toEqual([0, DAY * 5, DAY * 10]);
+      expect(tickInterval).toBe(DAY * 5);
+
+      s.setTickGenerator(null);
+      const builtin = s.niceTickValues(HOUR);
+      expect(builtin.ticks).not.toEqual(ticks);
+    });
+
+    it('caps a custom tick generator at MAX_TICKS (50)', () => {
+      const s = makeScale(0, DAY * 100, 800, 1);
+      s.setTickGenerator(({ from, to }) => Array.from({ length: 200 }, (_, i) => from + i * ((to - from) / 200)));
+      const { ticks } = s.niceTickValues(HOUR);
+      expect(ticks.length).toBe(50);
+    });
+  });
+
+  describe('format / locale / timezone', () => {
+    it('falls back to the built-in formatTime when no custom formatter is installed', () => {
+      const s = new XScale();
+      expect(s.getFormat()).toBeNull();
+      const ts = Date.UTC(2018, 5, 15, 15, 4);
+      s.setTimeZone('UTC');
+      expect(s.formatX(ts, HOUR)).toBe('15:04');
+    });
+
+    it('setFormat installs a custom formatter that wins over locale/timeZone', () => {
+      const s = new XScale();
+      s.setTimeZone('UTC');
+      s.setFormat((ts, interval) => `custom:${ts}:${interval}`);
+      expect(s.getFormat()).not.toBeNull();
+      expect(s.formatX(1000, HOUR)).toBe(`custom:1000:${HOUR}`);
+
+      s.setFormat(null);
+      expect(s.getFormat()).toBeNull();
+    });
+
+    it('setLocale / getLocale round-trip and affect formatX', () => {
+      const s = new XScale();
+      expect(s.getLocale()).toBeUndefined();
+      s.setLocale('de-DE');
+      s.setTimeZone('UTC');
+      expect(s.getLocale()).toBe('de-DE');
+      expect(s.formatX(Date.UTC(2018, 5, 15), DAY)).toMatch(/Juni/);
+    });
+
+    it('setTimeZone / getTimeZone round-trip and affect formatX', () => {
+      const s = new XScale();
+      expect(s.getTimeZone()).toBeUndefined();
+      const midnightUtc = Date.UTC(2018, 5, 15, 0, 30);
+      s.setTimeZone('UTC');
+      const utc = s.formatX(midnightUtc, HOUR);
+      s.setTimeZone('Asia/Tokyo');
+      expect(s.getTimeZone()).toBe('Asia/Tokyo');
+      const tokyo = s.formatX(midnightUtc, HOUR);
+      expect(utc).not.toBe(tokyo);
+    });
   });
 });

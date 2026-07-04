@@ -18,7 +18,10 @@ import {
   type ChartOptions,
   type ChartTheme,
   type EdgeReachedInfo,
+  type PointClickInfo,
+  type SeriesHoverInfo,
   type VisibleRangeSpec,
+  deepEqual,
 } from '@wick-charts/core';
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
@@ -114,19 +117,25 @@ export interface ChartContainerProps {
    * `<CandlestickSeries>` / `<BarSeries>` override these chart-level
    * defaults unless the category here is explicitly `false`.
    *
-   * **Init-only by reference identity.** A new `animations` object
-   * recreates the underlying `ChartInstance` (and its canvas). Wrap the
-   * value in `useMemo(() => ({...}), [deps])` so an unstable parent
-   * render doesn't tear down the chart every commit. In dev mode the
-   * container emits a console warning when it detects >3 recreates / s.
+   * **Init-only, but diffed by value, not reference.** A same-value inline
+   * object literal is a no-op — only a genuine change to the resolved
+   * config recreates the underlying `ChartInstance` (and its canvas), since
+   * the animation engine doesn't support live reconfiguration yet. Still
+   * worth a stable reference (`useMemo(() => ({...}), [deps])`) to avoid the
+   * per-render deep-equal check, but forgetting it no longer tears the chart
+   * down. In dev mode the container emits a console warning if it detects
+   * >3 *genuine* recreates/s.
    */
   animations?: boolean | AnimationsConfig;
   /**
-   * Enable runtime performance instrumentation. Off by default.
+   * Runtime performance instrumentation. Off by default — pass a config
+   * factory, not a plain object (that pulls the perf module into your bundle
+   * only when you actually use it):
    *
-   * - `true` — attach a {@link PerfMonitor} and render a visible HUD overlay on this chart.
-   * - `{ hud: true, windowMs, maxSamples, ... }` — same, with monitor options.
-   * - `{ hud: false, monitor }` — attach to an existing monitor without rendering the HUD.
+   * - `perfHud()` — attach a {@link PerfMonitor} and render a visible HUD overlay on this chart.
+   * - `perfHud({ windowMs, maxSamples, ... })` — same, with monitor options.
+   * - `perfHud(existingMonitor)` — attach a visible HUD to an already-created monitor.
+   * - a raw {@link PerfMonitor} instance — instrumentation without the HUD.
    *
    * Only read at mount; changing this prop after the chart is created is ignored.
    */
@@ -143,6 +152,25 @@ export interface ChartContainerProps {
    * Captured at mount only; changing the prop identity later is ignored.
    */
   onEdgeReached?: (info: EdgeReachedInfo) => void;
+  /**
+   * Fired on a click (or tap) on the chart canvas that isn't the tail end of
+   * a pan drag. `info.spatialHit` resolves a pie/heatmap/custom-spatial
+   * series directly under the pointer; for a time-series series, resolve the
+   * point yourself from `info.time` (`chart.getDataAtTime` /
+   * `buildHoverSnapshots`). Live — the latest callback is always used.
+   */
+  onPointClick?: (info: PointClickInfo) => void;
+  /**
+   * Fired on a double-click on the chart canvas. The chart also responds by
+   * calling `fitContent()`. Live — the latest callback is always used.
+   */
+  onPointDoubleClick?: (info: PointClickInfo) => void;
+  /**
+   * Fired when the spatially-hovered series/index changes (pie, heatmap, or
+   * a custom spatial kind) — `null` when the pointer leaves every hit area.
+   * Live — the latest callback is always used.
+   */
+  onSeriesHover?: (hit: SeriesHoverInfo | null) => void;
   /** Inline style for the chart's outer wrapper element. */
   style?: CSSProperties;
   /** Extra class for the chart's outer wrapper element. */
@@ -246,6 +274,9 @@ export function ChartContainer({
   perf,
   animations,
   onEdgeReached,
+  onPointClick,
+  onPointDoubleClick,
+  onSeriesHover,
   style,
   className,
 }: ChartContainerProps) {
@@ -254,12 +285,33 @@ export function ChartContainer({
   const perfRef = useRef(perf);
   // Same mount-only capture for the edge callback — the chart binds it once.
   const onEdgeReachedRef = useRef(onEdgeReached);
+  // Live callback refs — updated every render (not just at mount), read from
+  // a single stable listener registered once the chart exists. Unlike
+  // `onEdgeReachedRef` above, a fresh inline callback here is picked up on
+  // the next event without re-subscribing or recreating the chart.
+  const onPointClickRef = useRef(onPointClick);
+  onPointClickRef.current = onPointClick;
+  const onPointDoubleClickRef = useRef(onPointDoubleClick);
+  onPointDoubleClickRef.current = onPointDoubleClick;
+  const onSeriesHoverRef = useRef(onSeriesHover);
+  onSeriesHoverRef.current = onSeriesHover;
   const contextTheme = useThemeOptional();
   const resolvedTheme = theme ?? contextTheme ?? undefined;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartInstance | null>(null);
   const [_, setRevision] = useState(0);
+
+  // Deep-compare latch: a fresh inline `animations` literal has a new
+  // reference every render but usually the same values. Reassign the ref
+  // only when the structural content actually differs, so `stableAnimations`
+  // keeps its old reference (and the rebuild effect below doesn't re-fire)
+  // across renders that don't really change anything.
+  const animationsIdentityRef = useRef(animations);
+  if (!deepEqual(animationsIdentityRef.current, animations)) {
+    animationsIdentityRef.current = animations;
+  }
+  const stableAnimations = animationsIdentityRef.current;
 
   // Dev-only: warn when `animations` reference identity changes more than
   // three times per second. The most common cause is a parent re-rendering
@@ -268,18 +320,12 @@ export function ChartContainer({
   const recreateStampsRef = useRef<number[]>([]);
 
   // useLayoutEffect — synchronous, runs before paint. Re-runs when
-  // `animations` changes by reference: chart-level animation timings, the
-  // Y transition factory and per-series timings are init-only contracts
-  // in Phase 2, so a new `animations` object is a full rebuild.
-  //
-  // TODO(api): this identity-based init-only contract is fragile — any
-  // streaming caller that forgets to wrap `animations` in useMemo gets
-  // a destroy+recreate on every tick (see docs/pages/stress/streaming.tsx
-  // for the worked example: ~30 rebuilds/sec at 32ms intervals). Either
-  // diff structurally here, or split the init-only sub-fields (the Y
-  // transition factory and per-series timings) into a separate prop with
-  // a name that signals "stable identity required", so the common
-  // chart-level timings can stay live-updatable.
+  // `stableAnimations` changes by reference — which, thanks to the deep-equal
+  // latch above, only happens when the resolved values actually differ, not
+  // on every render of a caller that passes a fresh inline object literal.
+  // Chart-level animation timings, the Y transition factory, and per-series
+  // timings are still init-only contracts in Phase 2, so a genuine value
+  // change is still a full rebuild.
   useLayoutEffect(() => {
     if (!containerRef.current) return;
 
@@ -291,7 +337,7 @@ export function ChartContainer({
     if (interactive !== undefined) options.interactive = interactive;
     if (grid !== undefined) options.grid = grid;
     if (perfRef.current !== undefined) options.perf = perfRef.current;
-    if (animations !== undefined) options.animations = animations;
+    if (stableAnimations !== undefined) options.animations = stableAnimations;
     if (onEdgeReachedRef.current) options.onEdgeReached = onEdgeReachedRef.current;
     chartRef.current = new ChartInstance(containerRef.current, options);
 
@@ -303,8 +349,9 @@ export function ChartContainer({
       if (stamps.length > 3) {
         console.warn(
           '[wick-charts] <ChartContainer> recreated the chart >3 times in the last second. ' +
-            'The `animations` prop is init-only — wrap it in useMemo(() => ({...}), [deps]) ' +
-            'so a stable reference identity prevents tear-down on every render.',
+            'The `animations` prop is init-only — its resolved value is genuinely changing on ' +
+            'every render (a deep-equal check already ignores same-value object literals). ' +
+            'Wrap it in useMemo(() => ({...}), [deps]) so it only changes when you mean it to.',
         );
       }
     }
@@ -319,7 +366,7 @@ export function ChartContainer({
       chartRef.current?.destroy();
       chartRef.current = null;
     };
-  }, [animations]);
+  }, [stableAnimations]);
 
   useEffect(() => {
     if (chartRef.current && resolvedTheme) {
@@ -376,6 +423,23 @@ export function ChartContainer({
   }, [grid?.visible]);
 
   const chart = chartRef.current;
+
+  useEffect(() => {
+    if (!chart) return;
+
+    const handleClick = (info: PointClickInfo) => onPointClickRef.current?.(info);
+    const handleDoubleClick = (info: PointClickInfo) => onPointDoubleClickRef.current?.(info);
+    const handleSeriesHover = (hit: SeriesHoverInfo | null) => onSeriesHoverRef.current?.(hit);
+    chart.on('pointClick', handleClick);
+    chart.on('pointDoubleClick', handleDoubleClick);
+    chart.on('seriesHover', handleSeriesHover);
+
+    return () => {
+      chart.off('pointClick', handleClick);
+      chart.off('pointDoubleClick', handleDoubleClick);
+      chart.off('seriesHover', handleSeriesHover);
+    };
+  }, [chart]);
 
   const { titleEl, legendEl, pieLegendEl, tooltipLegendEl, navigatorEl, overlay } = siftContainerChildren(children);
   const legendPosition = legendEl?.props.position ?? 'bottom';
@@ -527,6 +591,10 @@ export function ChartContainer({
         flexDirection: 'column',
         width: '100%',
         height: '100%',
+        // `height: 100%` resolves to 0 when the parent has no defined height
+        // (the common copy-paste-into-an-empty-div case) — a floor keeps the
+        // chart visible instead of silently collapsing. Override via `style`.
+        minHeight: '240px',
         overflow: 'hidden',
         background: backgroundStyle,
         ...style,

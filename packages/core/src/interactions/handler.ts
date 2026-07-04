@@ -10,6 +10,7 @@ import { ZoomHandler } from './zoom';
 interface InteractionEvents {
   crosshairMove: (pos: CrosshairPosition | null) => void;
   click: (pos: CrosshairPosition) => void;
+  dblclick: (pos: CrosshairPosition) => void;
 }
 
 /** Euclidean finger spread. Using only the X projection (the old behavior)
@@ -21,6 +22,11 @@ function touchDistance(a: Touch, b: Touch): number {
 
   return Math.hypot(dx, dy);
 }
+
+/** A pointer that travels further than this between down and up reads as a drag, not a click. */
+const CLICK_MOVE_TOLERANCE = 5;
+/** A touch held longer than this reads as a long-press, not a tap. */
+const TAP_MAX_DURATION_MS = 500;
 
 export class InteractionHandler extends EventEmitter<InteractionEvents> {
   private zoom: ZoomHandler;
@@ -47,6 +53,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     canvas.addEventListener('mousemove', this.onMouseMove);
     canvas.addEventListener('mouseup', this.onMouseUp);
     canvas.addEventListener('mouseleave', this.onMouseLeave);
+    canvas.addEventListener('click', this.onClick);
     canvas.addEventListener('dblclick', this.onDblClick);
 
     canvas.addEventListener('touchstart', this.onTouchStart, { passive: false });
@@ -65,6 +72,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     // emitting a bogus edgeReached along the way).
     this.zoom.cancelPendingRebound();
     this.pan.handleMouseDown(e);
+    this.downClient = { x: e.clientX, y: e.clientY };
   };
 
   private onMouseMove = (e: MouseEvent): void => {
@@ -83,13 +91,29 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.emit('crosshairMove', null);
   };
 
-  private onDblClick = (): void => {
-    // Handled externally via chart.fitContent()
+  // Pointer-down origin (mouse or the single touch that started a tap),
+  // used to tell a click/tap from a drag that happened to end over the canvas.
+  private downClient: { x: number; y: number } | null = null;
+
+  private onClick = (e: MouseEvent): void => {
+    if (this.movedBeyondClickTolerance(e.clientX, e.clientY)) return;
+    this.emit('click', this.posFromOffset(e.offsetX, e.offsetY));
   };
+
+  private onDblClick = (e: MouseEvent): void => {
+    this.emit('dblclick', this.posFromOffset(e.offsetX, e.offsetY));
+  };
+
+  private movedBeyondClickTolerance(clientX: number, clientY: number): boolean {
+    if (!this.downClient) return false;
+
+    return Math.hypot(clientX - this.downClient.x, clientY - this.downClient.y) > CLICK_MOVE_TOLERANCE;
+  }
 
   // Touch handling
   private lastTouchDist = 0;
   private touchCount = 0;
+  private touchDownTime = 0;
 
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
@@ -102,6 +126,8 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
         button: 0,
         clientX: e.touches[0].clientX,
       } as MouseEvent);
+      this.downClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      this.touchDownTime = Date.now();
     } else if (e.touches.length === 2) {
       this.lastTouchDist = touchDistance(e.touches[0], e.touches[1]);
     }
@@ -132,9 +158,24 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
 
   private onTouchEnd = (e: TouchEvent): void => {
     if (e.touches.length === 0) {
+      // Native 'click' never fires here — `preventDefault()` on touchstart/move
+      // (needed to block scroll/pinch-zoom) suppresses the browser's synthetic
+      // click after a tap, so a short, low-movement single-finger touch is
+      // synthesized into 'click' by hand. Double-tap → dblclick is not
+      // synthesized (no matching native gesture to mirror).
+      const tap = e.changedTouches[0];
+      if (this.touchCount === 1 && tap && !this.movedBeyondClickTolerance(tap.clientX, tap.clientY)) {
+        const elapsed = Date.now() - this.touchDownTime;
+        if (elapsed <= TAP_MAX_DURATION_MS) {
+          const rect = this.canvas.getBoundingClientRect();
+          this.emit('click', this.posFromOffset(tap.clientX - rect.left, tap.clientY - rect.top));
+        }
+      }
+
       this.pan.handleMouseUp();
       this.touchCount = 0;
       this.lastTouchDist = 0;
+      this.downClient = null;
       this.emit('crosshairMove', null);
 
       return;
@@ -150,6 +191,11 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       this.touchCount = 1;
       this.lastTouchDist = 0;
       this.pan.handleMouseDown({ button: 0, clientX: e.touches[0].clientX } as MouseEvent);
+      // A pinch never counts as a tap candidate — re-arm from here so lifting
+      // the remaining finger right away doesn't fall back on the stale origin
+      // recorded before the pinch started.
+      this.downClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      this.touchDownTime = Date.now();
     }
   };
 
@@ -157,18 +203,21 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.pan.handleMouseUp();
     this.touchCount = 0;
     this.lastTouchDist = 0;
+    this.downClient = null;
     this.emit('crosshairMove', null);
   };
 
-  private emitCrosshair(offsetX: number, offsetY: number): void {
-    const time = this.timeScale.xToTime(offsetX);
-    const y = this.yScale.yToValue(offsetY);
-    this.emit('crosshairMove', {
+  private posFromOffset(offsetX: number, offsetY: number): CrosshairPosition {
+    return {
       mediaX: offsetX,
       mediaY: offsetY,
-      time,
-      y,
-    });
+      time: this.timeScale.xToTime(offsetX),
+      y: this.yScale.yToValue(offsetY),
+    };
+  }
+
+  private emitCrosshair(offsetX: number, offsetY: number): void {
+    this.emit('crosshairMove', this.posFromOffset(offsetX, offsetY));
   }
 
   destroy(): void {
@@ -178,6 +227,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.canvas.removeEventListener('mousemove', this.onMouseMove);
     this.canvas.removeEventListener('mouseup', this.onMouseUp);
     this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
+    this.canvas.removeEventListener('click', this.onClick);
     this.canvas.removeEventListener('dblclick', this.onDblClick);
     this.canvas.removeEventListener('touchstart', this.onTouchStart);
     this.canvas.removeEventListener('touchmove', this.onTouchMove);

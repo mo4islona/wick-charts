@@ -120,6 +120,25 @@ describe('Vue <ChartContainer> ported props', () => {
     wrapper.unmount();
   });
 
+  it('interactive is on by default (no prop passed) — InteractionHandler installs the crosshair cursor', async () => {
+    // Regression: Vue's type-based `defineProps` casts an absent
+    // Boolean-typed prop to `false`, not `undefined` — without an explicit
+    // `interactive: true` default in withDefaults(), every chart that didn't
+    // pass `:interactive="true"` silently got zero pan/zoom/crosshair/click.
+    const App = defineComponent({
+      setup() {
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc })]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const overlay = host.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+    expect(overlay.style.cursor).toBe('crosshair');
+
+    wrapper.unmount();
+  });
+
   it('interactive=false reaches the underlying ChartInstance constructor', async () => {
     // Read the constructed chart through the public `useChartInstance` bridge
     // and probe `chart.dispatchPanStart`-style behaviour indirectly via
@@ -178,7 +197,8 @@ describe('Vue <ChartContainer> ported props', () => {
 
     const Baseline = defineComponent({
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: lineData }), h(Probe)]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: lineData }), h(Probe)]);
       },
     });
     const baseline = mount(Baseline, { attachTo: host });

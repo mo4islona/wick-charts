@@ -1,5 +1,3 @@
-import { formatTime } from '@wick-charts/core';
-
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 
@@ -58,7 +56,7 @@ export function Crosshair() {
           ...labelStyle,
         }}
       >
-        {formatTime(position.time, tickInterval)}
+        {chart.timeScale.formatX(position.time, tickInterval)}
       </div>
     </>
   );

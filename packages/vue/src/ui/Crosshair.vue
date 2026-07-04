@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { formatTime } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
@@ -79,7 +78,7 @@ const labelStyle = computed(() => ({
         ...labelStyle,
       }"
     >
-      {{ formatTime(position.time, tickInterval) }}
+      {{ chart.timeScale.formatX(position.time, tickInterval) }}
     </div>
   </template>
 </template>

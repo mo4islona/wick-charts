@@ -6,8 +6,11 @@ import {
   type ChartOptions,
   type ChartTheme,
   type EdgeReachedInfo,
+  type PointClickInfo,
+  type SeriesHoverInfo,
   type VisibleRangeSpec,
   catppuccin,
+  deepEqual,
 } from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
@@ -79,10 +82,10 @@ const props = withDefaults(
      * `<CandlestickSeries>` / `<BarSeries>` override these chart-level
      * defaults unless the category here is explicitly `false`.
      *
-     * **Init-only by reference identity.** A new `animations` reference
-     * recreates the underlying `ChartInstance`. Hoist the object outside
-     * the render scope — an inline literal tears the chart down on every
-     * re-render.
+     * **Init-only, but diffed by value, not reference.** A same-value
+     * inline object literal is a no-op — only a genuine change to the
+     * resolved config recreates the underlying `ChartInstance`, since the
+     * animation engine doesn't support live reconfiguration yet.
      */
     animations?: boolean | AnimationsConfig;
     /**
@@ -97,10 +100,35 @@ const props = withDefaults(
      * the prop identity later is ignored.
      */
     onEdgeReached?: (info: EdgeReachedInfo) => void;
+    /**
+     * Fired on a click (or tap) on the chart canvas that isn't the tail end
+     * of a pan drag. `info.spatialHit` resolves a pie/heatmap/custom-spatial
+     * series directly under the pointer; for a time-series series, resolve
+     * the point yourself from `info.time` (`chart.getDataAtTime` /
+     * `buildHoverSnapshots`). Live — the latest callback is always used.
+     */
+    onPointClick?: (info: PointClickInfo) => void;
+    /**
+     * Fired on a double-click on the chart canvas. The chart also responds
+     * by calling `fitContent()`. Live — the latest callback is always used.
+     */
+    onPointDoubleClick?: (info: PointClickInfo) => void;
+    /**
+     * Fired when the spatially-hovered series/index changes (pie, heatmap,
+     * or a custom spatial kind) — `null` when the pointer leaves every hit
+     * area. Live — the latest callback is always used.
+     */
+    onSeriesHover?: (hit: SeriesHoverInfo | null) => void;
   }>(),
   {
     theme: () => catppuccin.theme,
     gradient: true,
+    // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+    // `false` (not `undefined`) — without this explicit default, every chart
+    // that didn't pass `:interactive="true"` silently got zero pan/zoom/
+    // crosshair/click interactivity. `gradient` dodges the same trap only
+    // because it already had a default.
+    interactive: true,
     headerLayout: 'overlay',
   },
 );
@@ -189,6 +217,12 @@ onMounted(async () => {
   if (props.animations !== undefined) options.animations = props.animations;
   chart.value = new ChartInstance(containerRef.value, options);
 
+  // `props` is a reactive proxy — reading `props.onPointClick` here always
+  // sees the caller's latest callback, no ref-latch needed the way React does.
+  chart.value.on('pointClick', (info) => props.onPointClick?.(info));
+  chart.value.on('pointDoubleClick', (info) => props.onPointDoubleClick?.(info));
+  chart.value.on('seriesHover', (hit) => props.onSeriesHover?.(hit));
+
   await nextTick();
   syncHeaderObserver();
 });
@@ -236,9 +270,11 @@ watch(
   },
 );
 
-// Init-only: post-mount `animations` reference change tears down the
-// instance and rebuilds with the new config. Reference equality matters
-// — passing an inline literal recreates on every render.
+// Init-only: a post-mount `animations` VALUE change tears down the instance
+// and rebuilds with the new config. `deepEqual` (not reference equality)
+// gates the rebuild — a caller's brand-new inline literal with the same
+// values is a no-op, since Vue's `watch` fires this callback on every
+// reference change regardless of content.
 //
 // Children get the chart via `useChartInstance()` which snapshots
 // `chartRef.value` once at setup time. To force them to re-setup against
@@ -247,9 +283,12 @@ watch(
 // Vue commits the unmount before the new ChartInstance is constructed.
 // When `chart.value` becomes the new instance, the slot re-mounts and
 // every child's `setup()` runs again against the fresh chart.
+let lastAnimations = props.animations;
 watch(
   () => props.animations,
   async (next) => {
+    if (deepEqual(next, lastAnimations)) return;
+    lastAnimations = next;
     if (!chart.value || !containerRef.value) return;
     chart.value.destroy();
     chart.value = null;
@@ -265,6 +304,9 @@ watch(
     if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
     if (next !== undefined) opts.animations = next;
     chart.value = new ChartInstance(containerRef.value, opts);
+    chart.value.on('pointClick', (info) => props.onPointClick?.(info));
+    chart.value.on('pointDoubleClick', (info) => props.onPointDoubleClick?.(info));
+    chart.value.on('seriesHover', (hit) => props.onSeriesHover?.(hit));
   },
 );
 
@@ -289,7 +331,7 @@ const rootStyle = computed(() => {
   const background = props.gradient ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)` : bg;
 
   return (
-    'position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; ' +
+    'position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 240px; overflow: hidden; ' +
     `background: ${background}`
   );
 });

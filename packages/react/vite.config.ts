@@ -33,10 +33,14 @@ export default defineConfig({
           preserveModules: true,
           preserveModulesRoot: resolve(__dirname, 'src'),
           entryFileNames: '[name].js',
+          // Every module here uses hooks/canvas — mark the package client-only
+          // so importing it from a Next.js Server Component doesn't crash.
+          banner: "'use client';",
         },
         {
           format: 'cjs',
           entryFileNames: 'index.cjs',
+          banner: "'use client';",
         },
       ],
     },

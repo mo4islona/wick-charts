@@ -10,7 +10,6 @@ import {
   formatCompact,
   formatDate,
   formatPriceAdaptive,
-  formatTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
@@ -178,7 +177,8 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
         letterSpacing: '0.02em',
       }"
     >
-      {{ formatDate(displayTime) }} {{ formatTime(displayTime, dataInterval) }}
+      {{ formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() }) }}
+      {{ chart.timeScale.formatX(displayTime, dataInterval) }}
     </div>
 
     <template v-for="s in snapshots" :key="s.id">

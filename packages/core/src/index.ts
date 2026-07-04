@@ -26,7 +26,9 @@ export { snap } from './animation/y-range-snap';
 // Axis helpers
 export type { MountAxisLabelsOptions } from './axis/dom-labels';
 export { mountAxisLabels } from './axis/dom-labels';
-export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart';
+// Bitmap-space geometry a custom series' `render(ctx)` draws into — see `ctx.scope`.
+export type { BitmapCoordinateSpace } from './canvas-manager';
+export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, PointClickInfo, SeriesHoverInfo } from './chart';
 export { ChartInstance } from './chart';
 // Markers — point annotations (event markers) pinned to time/value, drawn on the
 // overlay layer. Kept out of the series model, so excluded from tooltips, the
@@ -73,6 +75,12 @@ export { PerfMonitor, perfHud } from './perf';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
+// Scales — a custom series' `render(ctx)` reads `ctx.timeScale` / `ctx.yScale`
+// to project data into pixel space; exported so its signature type-checks.
+export type { TimeFormatter, TimeTickGenerator } from './scales/x-scale';
+export { XScale } from './scales/x-scale';
+export type { ValueTickGenerator } from './scales/y-scale';
+export { YScale } from './scales/y-scale';
 // Series definitions — pass one to `chart.addSeries(def, options)` so the
 // chart stays renderer-agnostic and unused series types tree-shake out. The
 // string form (`addSeries('line', ...)`) requires a one-time
@@ -137,7 +145,22 @@ export type {
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
 export { registerBuiltinSeries } from './series/register-builtins';
-export type { HoverInfo, SeriesKind, SliceInfo, SpatialSeriesKind } from './series/types';
+// The full renderer contract — everything reachable from `SeriesDefinition.create()`'s
+// return type, so a custom series (e.g. scatter) can be written with zero deep imports.
+export type {
+  BaseSeriesRenderer,
+  CustomSpatialSeriesRenderer,
+  HeatmapSeriesRenderer,
+  HoverInfo,
+  OverlayRenderContext,
+  PieSeriesRenderer,
+  RenderPadding,
+  SeriesKind,
+  SeriesRenderContext,
+  SeriesRenderer,
+  SliceInfo,
+  TimeSeriesRenderer,
+} from './series/types';
 export { isTimeSeriesRenderer } from './series/types';
 export type {
   WaveIntroDirectives,
@@ -225,6 +248,8 @@ export type {
 } from './types';
 // Utils
 export { mixColors, sampleRamp } from './utils/color';
+export { deepEqual } from './utils/deep-equal';
 export type { TooltipField, TooltipFormatter, ValueFormatter } from './utils/format';
 export { formatCompact, formatPriceAdaptive } from './utils/format';
+export type { TimeFormatOptions } from './utils/time';
 export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';

@@ -13,7 +13,6 @@ import {
   formatCompact,
   formatDate,
   formatPriceAdaptive,
-  formatTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
@@ -159,7 +158,8 @@ $: floatingPos = (() => {
       <div
         style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
-        {formatDate(displayTime)} {formatTime(displayTime, dataInterval)}
+        {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}
+        {chart.timeScale.formatX(displayTime, dataInterval)}
       </div>
 
       {#each snapshots as s (s.id)}

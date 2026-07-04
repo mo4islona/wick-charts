@@ -81,6 +81,19 @@ export interface ChartOptions {
   };
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
+  /**
+   * BCP 47 locale applied to the built-in time-axis / tooltip / crosshair
+   * date-time formatting (e.g. `'de-DE'`). Default: `'en-US'`. Live —
+   * `chart.setLocale()` updates it after construction. Ignored for a series
+   * that installs a custom formatter via `chart.timeScale.setFormat()`.
+   */
+  locale?: string;
+  /**
+   * IANA timezone applied to the same built-in date-time formatting (e.g.
+   * `'America/New_York'`). Default: the browser's local timezone. Live —
+   * `chart.setTimeZone()` updates it after construction.
+   */
+  timeZone?: string;
   /** Background grid configuration. Default: `{ visible: true }`. */
   grid?: { visible: boolean };
   /**

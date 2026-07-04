@@ -1,5 +1,5 @@
 import type { XRange } from '../types';
-import { niceTimeIntervals } from '../utils/time';
+import { type TimeFormatOptions, formatTime, niceTimeIntervals } from '../utils/time';
 import { AxisTickTracker } from './tick-tracker';
 
 /** Hard cap on generated ticks — defence-in-depth against pathological inputs. */
@@ -7,6 +7,12 @@ const MAX_TICKS = 50;
 
 /** Default minimum pixel gap between adjacent X labels when no config is supplied. */
 const DEFAULT_MIN_LABEL_SPACING = 80;
+
+/** Custom time-tick formatter, mirroring {@link YScale}'s `ValueFormatter` contract. */
+export type TimeFormatter = (timestamp: number, interval: number) => string;
+
+/** Custom tick-value generator — replaces the built-in `niceTimeIntervals` tier resolution entirely when installed. */
+export type TimeTickGenerator = (range: XRange, dataInterval: number) => number[];
 
 export class XScale {
   /**
@@ -25,6 +31,13 @@ export class XScale {
   // Label density knobs — written by <TimeAxis labelCount=… minLabelSpacing=…>.
   private labelCountHintValue: number | null = null;
   private minSpacingValue: number | null = null;
+
+  /** Custom formatter (driven by `setFormat` / a future `<TimeAxis format=…>`). */
+  private customFormat: TimeFormatter | null = null;
+  /** Custom tick generator — bypasses tier resolution in `niceTickValues` when set. */
+  private customTickGenerator: TimeTickGenerator | null = null;
+  private localeValue: string | undefined;
+  private timeZoneValue: string | undefined;
 
   private resolvedInterval: number | null = null;
   private lastInterval: number | null = null;
@@ -78,6 +91,55 @@ export class XScale {
     this.resolveInterval();
   }
 
+  /** Install (or clear) a custom tick-label formatter. */
+  setFormat(fn: TimeFormatter | null): void {
+    this.customFormat = fn;
+  }
+
+  /** Read back the currently installed formatter — null when the built-in is active. */
+  getFormat(): TimeFormatter | null {
+    return this.customFormat;
+  }
+
+  /**
+   * Install (or clear) a custom tick-value generator. When set, it replaces
+   * `niceTimeIntervals` tier resolution entirely — `niceTickValues` calls it
+   * directly with the current range and reports its own tick spacing.
+   */
+  setTickGenerator(fn: TimeTickGenerator | null): void {
+    this.customTickGenerator = fn;
+    this.resetHysteresis();
+  }
+
+  /** BCP 47 locale applied to the built-in formatter. Ignored while a custom `setFormat` is installed. */
+  setLocale(locale: string | undefined): void {
+    this.localeValue = locale;
+  }
+
+  getLocale(): string | undefined {
+    return this.localeValue;
+  }
+
+  /** IANA timezone applied to the built-in formatter. Ignored while a custom `setFormat` is installed. */
+  setTimeZone(timeZone: string | undefined): void {
+    this.timeZoneValue = timeZone;
+  }
+
+  getTimeZone(): string | undefined {
+    return this.timeZoneValue;
+  }
+
+  /**
+   * Format a tick timestamp for display. A custom formatter (via
+   * {@link setFormat}) wins; otherwise falls back to the built-in
+   * `formatTime`, applying the installed locale/timezone.
+   */
+  formatX(timestamp: number, interval: number): string {
+    if (this.customFormat) return this.customFormat(timestamp, interval);
+
+    return formatTime(timestamp, interval, { locale: this.localeValue, timeZone: this.timeZoneValue });
+  }
+
   private resetHysteresis(): void {
     this.lastInterval = null;
     this.lastWant = null;
@@ -122,6 +184,13 @@ export class XScale {
    */
   niceTickValues(dataInterval: number): { ticks: number[]; tickInterval: number } {
     if (this.to <= this.from) return { ticks: [], tickInterval: 0 };
+
+    if (this.customTickGenerator) {
+      const ticks = this.customTickGenerator({ from: this.from, to: this.to }, dataInterval).slice(0, MAX_TICKS);
+      const tickInterval = ticks.length >= 2 ? ticks[1] - ticks[0] : dataInterval;
+
+      return { ticks, tickInterval };
+    }
 
     // Back-compat: if a caller hands a different dataInterval than was cached
     // via update(), re-resolve rather than returning a stale tick list.
