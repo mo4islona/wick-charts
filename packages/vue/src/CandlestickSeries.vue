@@ -5,13 +5,21 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
-const props = defineProps<{
-  /** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
-  data: CandlestickData;
-  options?: Partial<CandlestickSeriesOptions>;
-  /** Stable series ID — same value across remounts. */
-  id?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
+    data: CandlestickData;
+    options?: Partial<CandlestickSeriesOptions>;
+    /** Stable series ID — same value across remounts. */
+    id?: string;
+    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+    visible?: boolean;
+  }>(),
+  // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+  // `false` (not `undefined`) without an explicit default — see the
+  // `interactive` fix in ChartContainer.vue for the full explanation.
+  { visible: true },
+);
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
@@ -37,6 +45,7 @@ onMounted(() => {
   // below only fires on subsequent `data` prop mutations. Explicitly apply
   // the first value here so components with static data render immediately.
   applyData(id, props.data);
+  chart.setSeriesVisible(id, props.visible);
 });
 
 onUnmounted(() => {
@@ -61,6 +70,13 @@ watch(
     }
   },
   { deep: true },
+);
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (seriesId.value) chart.setSeriesVisible(seriesId.value, visible);
+  },
 );
 </script>
 

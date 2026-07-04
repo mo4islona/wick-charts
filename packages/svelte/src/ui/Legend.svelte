@@ -9,6 +9,14 @@ export interface LegendItemOverride {
   label: string;
   color: string;
 }
+
+/** Payload for `onToggle` — one entry per user click, regardless of built-in vs custom rendering. */
+export interface LegendToggleInfo {
+  /** The clicked item's id (matches `LegendItem.id`). */
+  id: string;
+  /** Which interaction produced this change. */
+  action: 'toggle' | 'isolate' | 'unisolate';
+}
 </script>
 
 <script lang="ts">
@@ -24,6 +32,8 @@ export interface LegendItemOverride {
   export let position: 'bottom' | 'right' = 'bottom';
   /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
   export let mode: LegendMode = 'toggle';
+  /** Fired after a click changes series visibility — via the built-in UI or a custom slot calling `item.toggle()`/`isolate()` directly. */
+  export let onToggle: ((info: LegendToggleInfo) => void) | undefined = undefined;
 
   const chartStore = getChartContext();
   const themeStore = getThemeContext();
@@ -79,6 +89,7 @@ export interface LegendItemOverride {
       } else {
         c.setSeriesVisible(seriesId, !c.isSeriesVisible(seriesId));
       }
+      onToggle?.({ id, action: 'toggle' });
     };
 
     // Read `isolatedId` live — closing over the component-level `let`, not a
@@ -98,6 +109,7 @@ export interface LegendItemOverride {
           }
         });
         isolatedId = null;
+        onToggle?.({ id, action: 'unisolate' });
 
         return;
       }
@@ -116,6 +128,7 @@ export interface LegendItemOverride {
         }
       });
       isolatedId = id;
+      onToggle?.({ id, action: 'isolate' });
     };
 
     return { id, seriesId, layerIndex, label, color, isDisabled, toggle, isolate };

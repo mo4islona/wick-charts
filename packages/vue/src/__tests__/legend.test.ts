@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { BarSeries, ChartContainer, Legend, LineSeries, catppuccin } from '@wick-charts/vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
@@ -89,7 +89,8 @@ describe('Vue <Legend> parity', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries, Legend },
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(Legend), h(LineSeries, { data: twoLayerLine })]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(Legend), h(LineSeries, { data: twoLayerLine })]);
       },
     });
 
@@ -105,7 +106,8 @@ describe('Vue <Legend> parity', () => {
     const App = defineComponent({
       components: { ChartContainer, LineSeries, Legend },
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: twoLayerLine }), h(Legend)]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: twoLayerLine }), h(Legend)]);
       },
     });
 
@@ -238,6 +240,58 @@ describe('Vue <Legend> parity', () => {
     // After toggle, the slot re-ran — re-read to see the updated disabled state.
     const first = itemsRef[0] as unknown as { isDisabled: boolean };
     expect(first.isDisabled).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('onToggle fires with the clicked item id and action on a plain toggle click', async () => {
+    const onToggle = vi.fn();
+    const App = defineComponent({
+      components: { ChartContainer, LineSeries, Legend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(LineSeries, { id: 'line', data: [twoLayerLine[0]] }),
+            h(Legend, { onToggle }),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const button = host.querySelector('[data-legend] button') as HTMLButtonElement;
+    button.click();
+    await settle();
+
+    expect(onToggle).toHaveBeenCalledWith({ id: 'line', action: 'toggle' });
+    wrapper.unmount();
+  });
+
+  it('onToggle fires isolate then unisolate for two clicks in solo mode', async () => {
+    const onToggle = vi.fn();
+    const App = defineComponent({
+      components: { ChartContainer, BarSeries, Legend },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(BarSeries, { data: threeLayerBars }),
+            h(Legend, { mode: 'solo', onToggle }),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const buttons = () => host.querySelectorAll('[data-legend] button');
+    (buttons()[1] as HTMLButtonElement).click();
+    await settle();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'isolate' }));
+
+    (buttons()[1] as HTMLButtonElement).click();
+    await settle();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'unisolate' }));
+
     wrapper.unmount();
   });
 

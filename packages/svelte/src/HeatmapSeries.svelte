@@ -10,6 +10,8 @@ export let data: HeatmapCellData[];
 export let options: Partial<HeatmapSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;
+/** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+export let visible: boolean = true;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
@@ -18,6 +20,7 @@ onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
   seriesId = chart.addSeries(HeatmapSeriesDef, { ...options, id });
+  chart.setSeriesVisible(seriesId, visible);
 });
 
 onDestroy(() => {
@@ -39,6 +42,13 @@ $: {
   const chart = $chartStore;
   if (seriesId && chart && options) {
     chart.updateSeriesOptions(seriesId, options);
+  }
+}
+
+$: {
+  const chart = $chartStore;
+  if (seriesId && chart) {
+    chart.setSeriesVisible(seriesId, visible);
   }
 }
 </script>

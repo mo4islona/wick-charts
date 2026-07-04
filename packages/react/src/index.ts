@@ -233,7 +233,7 @@ export type { HeatmapTooltipProps } from './ui/HeatmapTooltip';
 export { HeatmapTooltip } from './ui/HeatmapTooltip';
 export type { InfoBarProps, InfoBarRenderContext } from './ui/InfoBar';
 export { InfoBar } from './ui/InfoBar';
-export type { LegendItemOverride, LegendProps } from './ui/Legend';
+export type { LegendItemOverride, LegendProps, LegendToggleInfo } from './ui/Legend';
 // Legend
 export { Legend } from './ui/Legend';
 // Markers — point annotations (event markers)

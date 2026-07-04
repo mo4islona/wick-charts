@@ -31,6 +31,14 @@ export interface LegendRenderContext {
   readonly items: readonly LegendItem[];
 }
 
+/** Payload for {@link LegendProps.onToggle} — one entry per user click, regardless of built-in vs custom rendering. */
+export interface LegendToggleInfo {
+  /** The clicked item's id (matches {@link LegendItem.id}). */
+  id: string;
+  /** Which interaction produced this change. */
+  action: 'toggle' | 'isolate' | 'unisolate';
+}
+
 export interface LegendProps {
   /**
    * Static override for auto-detected items. Renders a non-interactive legend
@@ -41,6 +49,12 @@ export interface LegendProps {
   position?: 'bottom' | 'right';
   /** Click behavior for the built-in UI. Default: `'toggle'`. Ignored when {@link children} is provided. */
   mode?: LegendMode;
+  /**
+   * Fired after a click changes series visibility — via the built-in UI or a
+   * custom {@link children} render-prop calling `item.toggle()`/`isolate()`
+   * directly. Live — the latest callback is always used.
+   */
+  onToggle?: (info: LegendToggleInfo) => void;
   /**
    * Render-prop escape hatch. Receives the computed `items` (each carrying
    * its own `toggle()` / `isolate()` closures) and fully replaces the
@@ -54,9 +68,10 @@ interface BuildArgs {
   chart: ChartInstance;
   isolatedIdRef: { current: string | null };
   setIsolatedId: (v: string | null) => void;
+  onToggleRef: { current: ((info: LegendToggleInfo) => void) | undefined };
 }
 
-function buildLegendItems({ chart, isolatedIdRef, setIsolatedId }: BuildArgs): LegendItem[] {
+function buildLegendItems({ chart, isolatedIdRef, setIsolatedId, onToggleRef }: BuildArgs): LegendItem[] {
   const items: LegendItem[] = [];
   const seriesIds = chart.getSeriesIds();
 
@@ -77,6 +92,7 @@ function buildLegendItems({ chart, isolatedIdRef, setIsolatedId }: BuildArgs): L
             chart,
             isolatedIdRef,
             setIsolatedId,
+            onToggleRef,
           }),
         );
       }
@@ -97,6 +113,7 @@ function buildLegendItems({ chart, isolatedIdRef, setIsolatedId }: BuildArgs): L
           chart,
           isolatedIdRef,
           setIsolatedId,
+          onToggleRef,
         }),
       );
     }
@@ -115,10 +132,11 @@ interface MakeItemArgs {
   chart: ChartInstance;
   isolatedIdRef: { current: string | null };
   setIsolatedId: (v: string | null) => void;
+  onToggleRef: { current: ((info: LegendToggleInfo) => void) | undefined };
 }
 
 function makeItem(args: MakeItemArgs): LegendItem {
-  const { id, seriesId, layerIndex, label, color, isDisabled, chart, isolatedIdRef, setIsolatedId } = args;
+  const { id, seriesId, layerIndex, label, color, isDisabled, chart, isolatedIdRef, setIsolatedId, onToggleRef } = args;
 
   const toggle = () => {
     if (layerIndex !== undefined) {
@@ -126,6 +144,7 @@ function makeItem(args: MakeItemArgs): LegendItem {
     } else {
       chart.setSeriesVisible(seriesId, !chart.isSeriesVisible(seriesId));
     }
+    onToggleRef.current?.({ id, action: 'toggle' });
   };
 
   const isolate = () => {
@@ -143,6 +162,7 @@ function makeItem(args: MakeItemArgs): LegendItem {
       // sees the unisolated state even before React's re-render commits.
       isolatedIdRef.current = null;
       setIsolatedId(null);
+      onToggleRef.current?.({ id, action: 'unisolate' });
 
       return;
     }
@@ -162,12 +182,13 @@ function makeItem(args: MakeItemArgs): LegendItem {
     });
     isolatedIdRef.current = id;
     setIsolatedId(id);
+    onToggleRef.current?.({ id, action: 'isolate' });
   };
 
   return { id, seriesId, layerIndex, label, color, isDisabled, toggle, isolate };
 }
 
-export function Legend({ items, position = 'bottom', mode = 'toggle', children }: LegendProps) {
+export function Legend({ items, position = 'bottom', mode = 'toggle', onToggle, children }: LegendProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const [isolatedId, setIsolatedId] = useState<string | null>(null);
@@ -178,6 +199,10 @@ export function Legend({ items, position = 'bottom', mode = 'toggle', children }
   // `isolatedId` even when the component hasn't re-rendered yet.
   const isolatedIdRef = useRef(isolatedId);
   isolatedIdRef.current = isolatedId;
+  // Live callback ref — the built-in toggle/isolate closures are memoized
+  // (`useMemo` below) but must always call the latest `onToggle`.
+  const onToggleRef = useRef(onToggle);
+  onToggleRef.current = onToggle;
 
   useLayoutEffect(() => {
     const onOverlayChange = () => setBumpSignal((n) => n + 1);
@@ -195,7 +220,7 @@ export function Legend({ items, position = 'bottom', mode = 'toggle', children }
   }, [chart]);
 
   const legendItems = useMemo(
-    () => buildLegendItems({ chart, isolatedIdRef, setIsolatedId }),
+    () => buildLegendItems({ chart, isolatedIdRef, setIsolatedId, onToggleRef }),
     // biome-ignore lint/correctness/useExhaustiveDependencies: `bumpSignal` is the subscription signal; isolatedId triggers the opacity-only refresh
     [chart, isolatedId, bumpSignal],
   );

@@ -25,9 +25,11 @@ export interface LineSeriesProps {
   options?: Partial<LineSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
+  /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
 }
 
-export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
+export function LineSeries({ data, options, id: idProp, visible }: LineSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
@@ -69,6 +71,16 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     // of individual option fields — a new option added to `LineSeriesOptions`
     // is covered automatically instead of silently failing to re-apply.
   }, [chart, stableOptions, introAnimation]);
+
+  useEffect(() => {
+    const id = seriesRef.current;
+    if (!id) return;
+
+    chart.setSeriesVisible(id, visible ?? true);
+    // `idProp` re-applies the flag against the freshly (re)created series —
+    // an id change remounts the series in the effect above, which resets
+    // visibility to its default.
+  }, [chart, visible, idProp]);
 
   return null;
 }

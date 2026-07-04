@@ -2,6 +2,11 @@
 import type { LegendItem, TimePoint } from '@wick-charts/core';
 import { BarSeries, ChartContainer, Legend, LineSeries, catppuccin } from '@wick-charts/svelte';
 
+interface LegendToggleInfo {
+  id: string;
+  action: 'toggle' | 'isolate' | 'unisolate';
+}
+
 /**
  * Variants exercise the Legend parity behaviors:
  *   - `ordered-line`   : Legend before LineSeries, to prove seriesChange
@@ -16,6 +21,7 @@ import { BarSeries, ChartContainer, Legend, LineSeries, catppuccin } from '@wick
 export let variant: 'ordered-line' | 'toggle-line' | 'solo-bars' | 'right-position' | 'custom-slot' = 'ordered-line';
 export let lineData: TimePoint[][] = [[]];
 export let barData: TimePoint[][] = [[]];
+export let onToggle: ((info: LegendToggleInfo) => void) | undefined = undefined;
 
 function capture(items: readonly LegendItem[]) {
   (window as unknown as { __legendCapture__?: readonly LegendItem[] }).__legendCapture__ = items;
@@ -28,10 +34,10 @@ function capture(items: readonly LegendItem[]) {
     <LineSeries data={lineData} />
   {:else if variant === 'toggle-line'}
     <LineSeries data={lineData} />
-    <Legend />
+    <Legend {onToggle} />
   {:else if variant === 'solo-bars'}
     <BarSeries data={barData} />
-    <Legend mode="solo" />
+    <Legend mode="solo" {onToggle} />
   {:else if variant === 'right-position'}
     <LineSeries data={lineData} />
     <Legend position="right" />

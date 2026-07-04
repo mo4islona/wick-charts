@@ -5,12 +5,20 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
-const props = defineProps<{
-  data: PieSliceData[];
-  options?: Partial<PieSeriesOptions>;
-  /** Stable series ID — same value across remounts. */
-  id?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    data: PieSliceData[];
+    options?: Partial<PieSeriesOptions>;
+    /** Stable series ID — same value across remounts. */
+    id?: string;
+    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+    visible?: boolean;
+  }>(),
+  // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+  // `false` (not `undefined`) without an explicit default — see the
+  // `interactive` fix in ChartContainer.vue for the full explanation.
+  { visible: true },
+);
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
@@ -22,6 +30,7 @@ onMounted(() => {
   if (props.data.length > 0) {
     chart.setSeriesData(id, props.data);
   }
+  chart.setSeriesVisible(id, props.visible);
 });
 
 onUnmounted(() => {
@@ -45,6 +54,13 @@ watch(
     }
   },
   { deep: true },
+);
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (seriesId.value) chart.setSeriesVisible(seriesId.value, visible);
+  },
 );
 </script>
 

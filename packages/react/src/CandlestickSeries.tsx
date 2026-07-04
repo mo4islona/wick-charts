@@ -26,9 +26,11 @@ export interface CandlestickSeriesProps {
   options?: Partial<CandlestickSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
+  /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
 }
 
-export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeriesProps) {
+export function CandlestickSeries({ data, options, id: idProp, visible }: CandlestickSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState>(EMPTY_SYNC_STATE);
@@ -69,6 +71,16 @@ export function CandlestickSeries({ data, options, id: idProp }: CandlestickSeri
     // from `autoGradient()`) with the same values no longer re-fires this —
     // no more manual `join(',')` collapse, and no field list to keep in sync.
   }, [chart, stableOptions, introAnimation]);
+
+  useEffect(() => {
+    const id = seriesRef.current;
+    if (!id) return;
+
+    chart.setSeriesVisible(id, visible ?? true);
+    // `idProp` re-applies the flag against the freshly (re)created series —
+    // an id change remounts the series in the effect above, which resets
+    // visibility to its default.
+  }, [chart, visible, idProp]);
 
   return null;
 }

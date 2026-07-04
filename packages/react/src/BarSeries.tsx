@@ -26,9 +26,11 @@ export interface BarSeriesProps {
   options?: Partial<BarSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
+  /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
 }
 
-export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
+export function BarSeries({ data, options, id: idProp, visible }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
@@ -68,6 +70,16 @@ export function BarSeries({ data, options, id: idProp }: BarSeriesProps) {
     // `stableOptions` only changes identity when its structural content
     // actually differs — a generic diff instead of a hand-maintained field list.
   }, [chart, stableOptions, introAnimation]);
+
+  useEffect(() => {
+    const id = seriesRef.current;
+    if (!id) return;
+
+    chart.setSeriesVisible(id, visible ?? true);
+    // `idProp` re-applies the flag against the freshly (re)created series —
+    // an id change remounts the series in the effect above, which resets
+    // visibility to its default.
+  }, [chart, visible, idProp]);
 
   return null;
 }

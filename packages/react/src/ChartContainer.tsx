@@ -17,9 +17,11 @@ import {
   ChartInstance,
   type ChartOptions,
   type ChartTheme,
+  type CrosshairPosition,
   type EdgeReachedInfo,
   type PointClickInfo,
   type SeriesHoverInfo,
+  type VisibleRange,
   type VisibleRangeSpec,
   deepEqual,
 } from '@wick-charts/core';
@@ -93,6 +95,18 @@ export interface ChartContainerProps {
      */
     initialRange?: VisibleRangeSpec;
   };
+  /**
+   * Controlled visible range. Same shape as the imperative
+   * `chart.setVisibleRange` — a bar count, an explicit `{from, to}` window, or
+   * `{from, bars}`. Every reference/value change applies via
+   * `chart.setVisibleRange`, so pair it with {@link onVisibleRangeChange} for a
+   * two-way binding; a same-value literal (compared structurally) is a no-op,
+   * so an inline object from a parent re-render doesn't re-apply.
+   *
+   * For a one-shot initial window that isn't re-applied on every prop change,
+   * use `viewport.initialRange` instead.
+   */
+  visibleRange?: VisibleRangeSpec;
   /** Show the chart background gradient. Defaults to true. */
   gradient?: boolean;
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
@@ -171,6 +185,24 @@ export interface ChartContainerProps {
    * Live — the latest callback is always used.
    */
   onSeriesHover?: (hit: SeriesHoverInfo | null) => void;
+  /**
+   * Fired once the underlying `ChartInstance` is constructed — on mount, and
+   * again if the chart is ever rebuilt (a genuine `animations` value change).
+   * Use this to reach for imperative APIs the declarative props don't cover
+   * yet. Live — the latest callback is always used for the next rebuild.
+   */
+  onReady?: (chart: ChartInstance) => void;
+  /**
+   * Fired whenever the committed visible range changes — pan, zoom,
+   * `fitContent()`, a data update that shifts the tail-scroll window, or a
+   * `visibleRange` prop change. Live — the latest callback is always used.
+   */
+  onVisibleRangeChange?: (range: VisibleRange) => void;
+  /**
+   * Fired on every crosshair move, with `null` when the pointer leaves the
+   * chart. Live — the latest callback is always used.
+   */
+  onCrosshairMove?: (position: CrosshairPosition | null) => void;
   /** Inline style for the chart's outer wrapper element. */
   style?: CSSProperties;
   /** Extra class for the chart's outer wrapper element. */
@@ -273,10 +305,14 @@ export function ChartContainer({
   headerLayout = 'overlay',
   perf,
   animations,
+  visibleRange,
   onEdgeReached,
   onPointClick,
   onPointDoubleClick,
   onSeriesHover,
+  onReady,
+  onVisibleRangeChange,
+  onCrosshairMove,
   style,
   className,
 }: ChartContainerProps) {
@@ -295,6 +331,12 @@ export function ChartContainer({
   onPointDoubleClickRef.current = onPointDoubleClick;
   const onSeriesHoverRef = useRef(onSeriesHover);
   onSeriesHoverRef.current = onSeriesHover;
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  const onVisibleRangeChangeRef = useRef(onVisibleRangeChange);
+  onVisibleRangeChangeRef.current = onVisibleRangeChange;
+  const onCrosshairMoveRef = useRef(onCrosshairMove);
+  onCrosshairMoveRef.current = onCrosshairMove;
   const contextTheme = useThemeOptional();
   const resolvedTheme = theme ?? contextTheme ?? undefined;
 
@@ -340,6 +382,7 @@ export function ChartContainer({
     if (stableAnimations !== undefined) options.animations = stableAnimations;
     if (onEdgeReachedRef.current) options.onEdgeReached = onEdgeReachedRef.current;
     chartRef.current = new ChartInstance(containerRef.current, options);
+    onReadyRef.current?.(chartRef.current);
 
     if (process.env.NODE_ENV !== 'production') {
       const now = performance.now();
@@ -430,16 +473,40 @@ export function ChartContainer({
     const handleClick = (info: PointClickInfo) => onPointClickRef.current?.(info);
     const handleDoubleClick = (info: PointClickInfo) => onPointDoubleClickRef.current?.(info);
     const handleSeriesHover = (hit: SeriesHoverInfo | null) => onSeriesHoverRef.current?.(hit);
+    const handleCrosshairMove = (position: CrosshairPosition | null) => onCrosshairMoveRef.current?.(position);
+    const handleVisibleRangeChange = () => onVisibleRangeChangeRef.current?.(chart.getVisibleRange());
     chart.on('pointClick', handleClick);
     chart.on('pointDoubleClick', handleDoubleClick);
     chart.on('seriesHover', handleSeriesHover);
+    chart.on('crosshairMove', handleCrosshairMove);
+    chart.on('viewportChange', handleVisibleRangeChange);
+    chart.on('dataUpdate', handleVisibleRangeChange);
+    chart.on('seriesChange', handleVisibleRangeChange);
 
     return () => {
       chart.off('pointClick', handleClick);
       chart.off('pointDoubleClick', handleDoubleClick);
       chart.off('seriesHover', handleSeriesHover);
+      chart.off('crosshairMove', handleCrosshairMove);
+      chart.off('viewportChange', handleVisibleRangeChange);
+      chart.off('dataUpdate', handleVisibleRangeChange);
+      chart.off('seriesChange', handleVisibleRangeChange);
     };
   }, [chart]);
+
+  // Controlled visible range: only re-apply when the resolved value actually
+  // differs from what we last applied ourselves, so feeding the range from
+  // `onVisibleRangeChange` back into this prop (the standard two-way-binding
+  // shape) doesn't re-trigger `setVisibleRange` with an unchanged spec on
+  // every render.
+  const lastAppliedVisibleRangeRef = useRef<VisibleRangeSpec | undefined>(undefined);
+  useEffect(() => {
+    if (!chart || visibleRange === undefined) return;
+    if (deepEqual(lastAppliedVisibleRangeRef.current, visibleRange)) return;
+
+    lastAppliedVisibleRangeRef.current = visibleRange;
+    chart.setVisibleRange(visibleRange);
+  }, [chart, visibleRange]);
 
   const { titleEl, legendEl, pieLegendEl, tooltipLegendEl, navigatorEl, overlay } = siftContainerChildren(children);
   const legendPosition = legendEl?.props.position ?? 'bottom';
