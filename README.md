@@ -40,7 +40,7 @@ import {
 
 function Chart({ data }) {
   return (
-    <ChartContainer style={{ height: 400 }}>
+    <ChartContainer>
       <CandlestickSeries data={data} />
       <Tooltip />
       <Crosshair />
@@ -65,7 +65,7 @@ const props = defineProps(['data']);
 </script>
 
 <template>
-  <ChartContainer style="height: 400px">
+  <ChartContainer>
     <CandlestickSeries :data="props.data" />
     <Tooltip />
     <Crosshair />
@@ -90,7 +90,7 @@ const props = defineProps(['data']);
   export let data = [];
 </script>
 
-<ChartContainer style="height: 400px">
+<ChartContainer>
   <CandlestickSeries {data} />
   <Tooltip />
   <Crosshair />
@@ -108,6 +108,21 @@ Every component, prop, type, and slot context lives in the docs site:
 [wick-charts.eeff.io/api/chart-container](https://wick-charts.eeff.io/api/chart-container)
 
 Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series), [Line](https://wick-charts.eeff.io/api/line-series), [Bar](https://wick-charts.eeff.io/api/bar-series), [Pie](https://wick-charts.eeff.io/api/pie-series), [Sparkline](https://wick-charts.eeff.io/api/sparkline)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip), [InfoBar](https://wick-charts.eeff.io/api/info-bar), [Crosshair](https://wick-charts.eeff.io/api/crosshair), [Legend](https://wick-charts.eeff.io/api/legend), [YAxis](https://wick-charts.eeff.io/api/y-axis), [XAxis](https://wick-charts.eeff.io/api/x-axis), [Navigator](https://wick-charts.eeff.io/api/navigator), …).
+
+## No framework? Use the engine directly
+
+`ChartInstance` and every series/theme/painter has no framework dependency — it's a plain canvas engine that each of `@wick-charts/react`, `@wick-charts/vue`, and `@wick-charts/svelte` bundles and re-exports in full. Any one of them is a supported vanilla entry point; you don't need React/Vue/Svelte installed to use it this way (`sideEffects: false` + per-module ESM means the framework-specific components tree-shake out when unused):
+
+```ts
+import { CandlestickSeriesDef, ChartInstance, registerBuiltinSeries } from '@wick-charts/react';
+
+registerBuiltinSeries();
+const chart = new ChartInstance(document.getElementById('chart')!);
+const seriesId = chart.addSeries(CandlestickSeriesDef, {});
+chart.setSeriesData(seriesId, data);
+```
+
+There's no separate `@wick-charts/core` package on npm — the three framework packages are the supported way to install the engine.
 
 ## Bundle size
 
