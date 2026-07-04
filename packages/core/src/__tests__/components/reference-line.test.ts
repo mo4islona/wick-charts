@@ -69,13 +69,13 @@ describe('renderReferenceLine', () => {
     expect(stroke.lineWidth).toBe(2);
   });
 
-  it('draws the label in a pill, text in the theme label color', () => {
+  it('draws the label in an annotation chip, text in the theme ink', () => {
     const spy = renderLine({ orientation: 'horizontal', coord: 50, label: 'alert' });
 
     const text = spy.callsOf('fillText');
     expect(text).toHaveLength(1);
     expect(text[0].args[0]).toBe('alert');
-    expect(text[0].fillStyle).toBe(catppuccin.theme.yLabel.textColor);
+    expect(text[0].fillStyle).toBe(catppuccin.theme.tooltip.textColor);
   });
 
   it('draws nothing when a horizontal line sits outside the Y viewport', () => {

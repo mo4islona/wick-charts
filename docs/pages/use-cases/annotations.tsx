@@ -11,9 +11,11 @@ const STEPS: Step[] = [
       <>
         A <code>&lt;Marker&gt;</code> pins a single moment to the chart — "deploy shipped", "peak", "released". Give it
         an explicit <code>value</code>, <strong>or</strong> a <code>seriesId</code> and it snaps to that series' value
-        at <code>time</code>, riding the curve. <code>shape</code> is{' '}
-        <code>'dot' | 'circle' | 'arrow-up' | 'arrow-down'</code>; <code>pulse</code> reuses the live line halo;{' '}
-        <code>label</code> draws a text pill.
+        at <code>time</code>, riding the curve. <code>label</code> draws a callout chip whose tail points at the anchor.
+        The tail replaces an arrow glyph — a labeled <code>arrow-down</code> floats the callout above the anchor,{' '}
+        <code>arrow-up</code> below it — while <code>dot</code> / <code>circle</code> keep their glyph under the
+        callout. Bare markers draw the raw glyph; flip <em>labels</em> off above the chart to compare.{' '}
+        <code>pulse</code> reuses the live line halo.
       </>
     ),
     code: `<Marker time={peakMs} seriesId="metric" shape="arrow-down" pulse={true} label="peak" color="#f0556a" />`,
@@ -68,7 +70,8 @@ export function AnnotationsPage({ theme }: { theme: ChartTheme }) {
           reference lines draw the baseline, the limit, and the deploy that set it off.
         </p>
         <p style={{ margin: '8px 0 0', color: muted }}>
-          Change the marker shape, or toggle the window between ongoing and settled.
+          Change the marker shape, strip the labels down to bare glyphs, or toggle the window between ongoing and
+          settled.
         </p>
       </div>
 

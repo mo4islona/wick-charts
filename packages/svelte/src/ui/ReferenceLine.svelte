@@ -9,9 +9,9 @@ import { getChartContext } from '../context';
 export let value: number | undefined = undefined;
 /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`. */
 export let time: TimeValue | undefined = undefined;
-/** Line and label-pill color. Default: the theme line color. */
+/** Line and label-chip accent color. Default: the theme line color. */
 export let color: string | undefined = undefined;
-/** Optional text label drawn in a pill at the line's near end. */
+/** Optional text label drawn in an annotation chip at the line's near end. */
 export let label: string | undefined = undefined;
 /** Dash style. Default: `'dashed'`. */
 export let style: ReferenceLineStyle | undefined = undefined;

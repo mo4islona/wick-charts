@@ -703,7 +703,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return this.#theme.line.color;
   }
 
-  #drawMarkers(scope: BitmapCoordinateSpace): void {
+  #drawMarkers(scope: BitmapCoordinateSpace, plotWidth: number, plotHeight: number): void {
     if (this.#markers.length === 0) return;
 
     // Share one halo phase across markers, off the same clock and period the line pulse uses.
@@ -727,6 +727,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           label: marker.label,
         },
         phase,
+        plotWidth,
+        plotHeight,
       });
     }
   }
@@ -2817,7 +2819,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#drawLines(scope, chartBitmapWidth, chartBitmapHeight);
 
       // Point annotations (event markers): above series overlays, below edge indicators.
-      this.#drawMarkers(scope);
+      this.#drawMarkers(scope, chartBitmapWidth, chartBitmapHeight);
 
       // Edge indicators last — they paint over any series overlay that happened
       // to land in the overshoot area.

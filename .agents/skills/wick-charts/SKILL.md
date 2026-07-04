@@ -142,9 +142,9 @@ Placed as children of `ChartContainer`.
 
 - `time` — ms or `Date`.
 - `value` — Y as a data value. **Omit it and pass `seriesId`** to snap Y to that series' nearest point at `time` (removes the "what Y do I use" problem).
-- `shape` — `'dot' | 'circle' | 'arrow-up' | 'arrow-down'` (default `'dot'`; arrows point their tip at the anchor).
+- `shape` — `'dot' | 'circle' | 'arrow-up' | 'arrow-down'` (default `'dot'`). On a bare marker, arrows point their tip at the anchor.
 - `pulse` — reuse the line halo animation (default `false`).
-- `label` — optional text pill next to the glyph.
+- `label` — optional text, drawn as a callout chip whose tail points at the anchor. The tail replaces an arrow glyph — a labeled arrow shape only picks the callout's side (above for `arrow-down`, below for `arrow-up`, auto-flips at plot edges) — while `dot` / `circle` keep their glyph under the callout.
 - `color` — override; falls back to the series color (when `seriesId` is set), then the theme line color.
 
 Render as many `<Marker>`s as you need. Prop set is identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addMarker(config) → id`, `chart.updateMarker(id, config)`, `chart.removeMarker(id)`.

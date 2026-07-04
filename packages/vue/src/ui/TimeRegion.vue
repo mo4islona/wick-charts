@@ -11,9 +11,9 @@ const props = defineProps<{
   to?: TimeRegionEnd;
   /** Band fill — any CSS color, typically translucent. Default: a faint tint of `color`. */
   fill?: string;
-  /** Optional text label drawn in a pill at the top of the band. */
+  /** Optional text label drawn in an annotation chip at the top of the band. */
   label?: string;
-  /** Edge-line and label-pill accent. Default: the theme's muted axis text color. */
+  /** Edge-line and label-chip accent. Default: the theme's muted axis text color. */
   color?: string;
 }>();
 

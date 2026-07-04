@@ -18,7 +18,7 @@ export interface MarkerProps {
   shape?: MarkerShape;
   /** Reuse the line pulse halo around the anchor. Default: `false`. */
   pulse?: boolean;
-  /** Optional text label drawn in a pill next to the anchor. */
+  /** Optional text label drawn as a callout chip whose tail points at the anchor. */
   label?: string;
   /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
   color?: string;

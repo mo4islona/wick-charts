@@ -9,9 +9,9 @@ export interface ReferenceLineProps {
   value?: number;
   /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}. */
   time?: TimeValue;
-  /** Line and label-pill color. Default: the theme line color. */
+  /** Line and label-chip accent color. Default: the theme line color. */
   color?: string;
-  /** Optional text label drawn in a pill at the line's near end. */
+  /** Optional text label drawn in an annotation chip at the line's near end. */
   label?: string;
   /** Dash style. Default: `'dashed'`. */
   style?: ReferenceLineStyle;

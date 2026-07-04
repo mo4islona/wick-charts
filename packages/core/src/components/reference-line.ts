@@ -1,9 +1,9 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
-import { fillRoundedRect } from '../series/painters/canvas-path';
 import type { ChartTheme } from '../theme/types';
 import type { TimeValue } from '../types';
+import { drawChip, measureChip } from './annotation-chip';
 
 /** Dash pattern of a {@link ReferenceLineConfig}. */
 export type ReferenceLineStyle = 'solid' | 'dashed';
@@ -21,9 +21,9 @@ export interface ReferenceLineConfig {
   value?: number;
   /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link value}. */
   time?: TimeValue;
-  /** Line and label-pill color. Default: the theme line color. */
+  /** Line and label-chip accent color. Default: the theme line color. */
   color?: string;
-  /** Optional text label drawn in a pill at the line's near end. */
+  /** Optional text label drawn in an annotation chip at the line's near end. */
   label?: string;
   /** Dash style. Default: `'dashed'`. */
   style?: ReferenceLineStyle;
@@ -49,11 +49,8 @@ export interface ResolvedReferenceLine {
 
 /** Dash on / off length in media pixels (matches the grid's dashed style). */
 const DASH_MEDIA = 4;
-/** Gap from the plot edge to the label pill, in media pixels. */
+/** Gap from the plot edge to the label chip, in media pixels. */
 const LABEL_INSET_MEDIA = 6;
-/** Horizontal / vertical padding inside the label pill, in media pixels. */
-const LABEL_PAD_X_MEDIA = 6;
-const LABEL_PAD_Y_MEDIA = 3;
 
 export interface RenderReferenceLineArgs {
   scope: BitmapCoordinateSpace;
@@ -135,49 +132,29 @@ interface LineLabelArgs {
 }
 
 /**
- * A pill carrying the label, pinned to the line's near end: top-left for a
- * horizontal line (riding just inside the left edge, centered on the line),
- * top-right of the stroke for a vertical line.
+ * An annotation chip carrying the label, pinned to the line's near end:
+ * top-left for a horizontal line (riding just inside the left edge, centered
+ * on the line), top-right of the stroke for a vertical line.
  */
 function drawLineLabel({ context, theme, line, timeScale, yScale, plotWidth, hpr, vpr }: LineLabelArgs): void {
   const label = line.label;
   if (label === undefined) return;
 
-  const fontPx = theme.yLabel.fontSize * hpr;
-  context.font = `${fontPx}px ${theme.typography.fontFamily}`;
-  context.textAlign = 'left';
-  context.textBaseline = 'middle';
-
-  const padX = LABEL_PAD_X_MEDIA * hpr;
-  const padY = LABEL_PAD_Y_MEDIA * vpr;
+  const { width, height } = measureChip({ context, theme, label, hpr, vpr });
   const inset = LABEL_INSET_MEDIA * hpr;
   const insetV = LABEL_INSET_MEDIA * vpr;
-  const textWidth = context.measureText(label).width;
-  const pillWidth = textWidth + padX * 2;
-  const pillHeight = fontPx + padY * 2;
 
-  let pillX: number;
-  let pillY: number;
+  let chipX: number;
+  let chipY: number;
   if (line.orientation === 'horizontal') {
-    pillX = inset;
-    pillY = yScale.valueToBitmapY(line.coord) - pillHeight / 2;
+    chipX = inset;
+    chipY = yScale.valueToBitmapY(line.coord) - height / 2;
   } else {
-    // Keep the pill inside the plot when the line sits near the right edge.
+    // Keep the chip inside the plot when the line sits near the right edge.
     const x = timeScale.timeToBitmapX(line.coord);
-    pillX = Math.min(x + inset, plotWidth - pillWidth - inset);
-    pillY = insetV;
+    chipX = Math.min(x + inset, plotWidth - width - inset);
+    chipY = insetV;
   }
 
-  context.fillStyle = line.color;
-  fillRoundedRect(context, {
-    x: pillX,
-    y: pillY,
-    width: pillWidth,
-    height: pillHeight,
-    radius: 3 * hpr,
-    corners: { tl: true, tr: true, br: true, bl: true },
-  });
-
-  context.fillStyle = theme.yLabel.textColor;
-  context.fillText(label, pillX + padX, pillY + pillHeight / 2);
+  drawChip({ context, theme, color: line.color, label, x: chipX, y: chipY, width, height, hpr, vpr });
 }
