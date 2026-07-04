@@ -109,7 +109,6 @@ const TOTAL_PANELS = GROUPS.reduce((sum, group) => sum + group.panels.length, 0)
 const FIRST_PANEL_ID = GROUPS[0].panels[0].id;
 
 const GROUP_BY_PANEL_ID = new Map<string, StressGroup>();
-const CATEGORY_BY_GROUP_ID = new Map<GroupId, StressCategory>();
 // A group's heading (now a full-size section header) can be taller than the
 // gap between it and the previous group's last panel — so the scrollspy
 // also tracks each group's own landmark, not just panels, and resolves it
@@ -120,13 +119,13 @@ const FIRST_PANEL_ID_BY_GROUP_LANDMARK = new Map<string, string>();
 
 for (const category of CATEGORIES) {
   for (const group of category.groups) {
-    CATEGORY_BY_GROUP_ID.set(group.id, category);
     FIRST_PANEL_ID_BY_GROUP_LANDMARK.set(`group-${group.id}`, group.panels[0].id);
     for (const panel of group.panels) GROUP_BY_PANEL_ID.set(panel.id, group);
   }
 }
 
 const ACTIVE_PANEL_STORAGE_KEY = 'wick-charts:stress-test:panel';
+const CATEGORY_STORAGE_KEY = 'wick-charts:stress-test:category';
 
 function readPersistedPanelId(): string | null {
   try {
@@ -135,6 +134,17 @@ function readPersistedPanelId(): string | null {
     // localStorage may be unavailable (private mode, sandboxed iframe).
     return null;
   }
+}
+
+function readPersistedCategoryId(): string {
+  try {
+    const stored = window.localStorage.getItem(CATEGORY_STORAGE_KEY);
+    if (CATEGORIES.some((c) => c.id === stored)) return stored as string;
+  } catch {
+    // localStorage may be unavailable (private mode, sandboxed iframe).
+  }
+
+  return CATEGORIES[0].id;
 }
 
 type YEngineLabel = 'hermite' | 'spring' | 'snap';
@@ -150,6 +160,7 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
   const [yEngineLabel, setYEngineLabel] = useState<YEngineLabel>('hermite');
   const yEngine = useMemo(() => Y_ENGINE_FACTORIES[yEngineLabel](), [yEngineLabel]);
   const [activePanelId, setActivePanelId] = useState<string>(() => readPersistedPanelId() ?? FIRST_PANEL_ID);
+  const [categoryId, setCategoryId] = useState<string>(readPersistedCategoryId);
   const [headerHeight, setHeaderHeight] = useState(72);
 
   const surface = useMemo(() => themeSurfaceVars(theme), [theme]);
@@ -174,7 +185,11 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
     const header = headerRef.current;
     if (!header) return;
 
-    const observer = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height));
+    // `entry.contentRect` excludes padding and border — the header has both,
+    // so it under-reports the header's real rendered height. Everything downstream
+    // (the nav rail's sticky `top`/`maxHeight`, the scroll-margin var) needs the
+    // full border-box height instead, or it sticks partway under the header.
+    const observer = new ResizeObserver(() => setHeaderHeight(header.getBoundingClientRect().height));
     observer.observe(header);
 
     return () => observer.disconnect();
@@ -206,7 +221,21 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
     function recompute(): void {
       if (suppressScrollspyRef.current) return;
 
-      const bandTop = headerHeight + 16;
+      // A generous margin below the header, not a tight one: `scrollToId`
+      // lands a target only ~8px under the header for a clean visual gap,
+      // so a tight band here left the two computations fighting over a
+      // few px of rounding — a jump would land, then the very next
+      // recompute would flip back to the landmark just before it.
+      //
+      // `el.getBoundingClientRect().top` is viewport-absolute, but this page
+      // isn't always flush against the viewport's top edge — the docs site
+      // wraps it in its own chrome above `container`. Without adding
+      // `container`'s own top, the trigger line sits too high by exactly
+      // that offset, so a panel near the end of the scrollable area (which
+      // can't be pulled up any further to cross a too-high line) never
+      // registers as "current" — the spy falls back to an earlier landmark
+      // and overwrites whatever panel was just selected or restored.
+      const bandTop = container.getBoundingClientRect().top + headerHeight + 40;
       let current = landmarks[0];
       for (const el of landmarks) {
         if (el.getBoundingClientRect().top > bandTop) break;
@@ -237,6 +266,14 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
       // localStorage write failed — non-critical; in-memory state still works.
     }
   }, [activePanelId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CATEGORY_STORAGE_KEY, categoryId);
+    } catch {
+      // localStorage write failed — non-critical; in-memory state still works.
+    }
+  }, [categoryId]);
 
   // Keep the highlighted tree entry inside the rail's own scroll area. Done
   // by hand (not `scrollIntoView`) because the rail sits inside a
@@ -285,8 +322,8 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
     container.scrollTo({ top, behavior: 'smooth' });
   }
 
-  const activeGroup = GROUP_BY_PANEL_ID.get(activePanelId) ?? GROUPS[0];
-  const activeCategory = CATEGORY_BY_GROUP_ID.get(activeGroup.id) ?? CATEGORIES[0];
+  const visibleCategory = CATEGORIES.find((c) => c.id === categoryId) ?? CATEGORIES[0];
+  const activeGroup = GROUP_BY_PANEL_ID.get(activePanelId) ?? visibleCategory.groups[0];
 
   return (
     <div
@@ -386,120 +423,146 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
             paddingRight: 6,
           }}
         >
-          {CATEGORIES.map((category) => (
-            <div key={category.id} style={{ display: 'grid', gap: 2 }}>
-              <span
-                style={{
-                  fontSize: 11,
-                  letterSpacing: 1.2,
-                  textTransform: 'uppercase',
-                  color: category.id === activeCategory.id ? accent : theme.axis.textColor,
-                  opacity: category.id === activeCategory.id ? 1 : 0.6,
-                  padding: '3px 8px',
-                }}
-              >
-                {category.label}
-              </span>
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              zIndex: 1,
+              background: theme.background,
+              paddingBottom: 10,
+              borderBottom: `1px solid ${theme.tooltip.borderColor}`,
+            }}
+          >
+            <select
+              value={visibleCategory.id}
+              onChange={(e) => {
+                const category = CATEGORIES.find((c) => c.id === e.target.value);
+                const firstGroup = category?.groups[0];
+                if (!category || !firstGroup) return;
 
-              {category.groups.map((g) => {
-                const groupActive = g.id === activeGroup.id;
+                setCategoryId(category.id);
+                setActivePanelId(firstGroup.panels[0].id);
+                containerRef.current?.scrollTo({ top: 0 });
+              }}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                fontSize: 12.5,
+                fontFamily: mono,
+                color: theme.tooltip.textColor,
+                background: theme.tooltip.background,
+                border: `1px solid ${theme.tooltip.borderColor}`,
+                borderRadius: 6,
+                cursor: 'pointer',
+              }}
+            >
+              {CATEGORIES.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                return (
-                  <div key={g.id} style={{ display: 'grid', gap: 1 }}>
-                    <button
-                      type="button"
-                      onClick={() => scrollToId(`group-${g.id}`, g.panels[0].id)}
-                      title={g.hint}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        textAlign: 'left',
-                        padding: '7px 8px',
-                        fontSize: 13.5,
-                        fontFamily: mono,
-                        color: groupActive ? theme.tooltip.textColor : theme.axis.textColor,
-                        background: groupActive ? `color-mix(in oklab, ${accent} 14%, transparent)` : 'transparent',
-                        border: 'none',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <span>{g.label}</span>
-                      <span style={{ opacity: 0.5, fontVariantNumeric: 'tabular-nums' }}>{g.panels.length}</span>
-                    </button>
+          <div style={{ display: 'grid', gap: 1 }}>
+            {visibleCategory.groups.map((g) => {
+              const groupActive = g.id === activeGroup.id;
 
-                    <div style={{ display: 'grid', paddingLeft: 20 }}>
-                      {g.panels.map((p) => {
-                        const panelActive = p.id === activePanelId;
-
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            data-panel={p.id}
-                            onClick={() => scrollToId(`stress-${p.id}`, p.id)}
-                            title={p.hint}
-                            style={{
-                              textAlign: 'left',
-                              padding: '4px 10px',
-                              fontSize: 12.5,
-                              fontFamily: mono,
-                              color: panelActive ? accent : theme.axis.textColor,
-                              opacity: panelActive ? 1 : 0.75,
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {p.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div style={{ display: 'grid', gap: 32, minWidth: 0 }}>
-          {CATEGORIES.map((category) => (
-            <div key={category.id} style={{ display: 'grid', gap: 20 }}>
-              {category.groups.map((g) => (
-                <div
-                  key={g.id}
-                  id={`group-${g.id}`}
-                  style={{ display: 'grid', gap: 10, scrollMarginTop: 'var(--stress-scroll-offset, 80px)' }}
-                >
-                  <div
+              return (
+                <div key={g.id} style={{ display: 'grid', gap: 1 }}>
+                  <button
+                    type="button"
+                    onClick={() => scrollToId(`group-${g.id}`, g.panels[0].id)}
+                    title={g.hint}
                     style={{
                       display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 10,
-                      borderBottom: `1px solid ${theme.tooltip.borderColor}`,
-                      paddingBottom: 8,
+                      justifyContent: 'space-between',
+                      textAlign: 'left',
+                      padding: '7px 8px',
+                      fontSize: 13.5,
+                      fontFamily: mono,
+                      color: groupActive ? theme.tooltip.textColor : theme.axis.textColor,
+                      background: groupActive ? `color-mix(in oklab, ${accent} 14%, transparent)` : 'transparent',
+                      border: 'none',
+                      borderRadius: 6,
+                      cursor: 'pointer',
                     }}
                   >
-                    <h3 style={{ margin: 0, fontSize: 20, fontWeight: 650, color: theme.tooltip.textColor }}>
-                      {g.label}
-                    </h3>
-                    <span style={{ fontSize: 13, color: theme.axis.textColor, opacity: 0.6 }}>
-                      {category.label} · {g.hint}
-                    </span>
-                  </div>
+                    <span>{g.label}</span>
+                    <span style={{ opacity: 0.5, fontVariantNumeric: 'tabular-nums' }}>{g.panels.length}</span>
+                  </button>
 
-                  <StressPanels
-                    panels={g.panels}
-                    theme={theme}
-                    perfHud={perfHud ? perfHudConfig : undefined}
-                    yEngine={yEngine}
-                    yEngineLabel={yEngineLabel}
-                  />
+                  <div style={{ display: 'grid', paddingLeft: 20 }}>
+                    {g.panels.map((p) => {
+                      const panelActive = p.id === activePanelId;
+
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          data-panel={p.id}
+                          onClick={() => scrollToId(`stress-${p.id}`, p.id)}
+                          title={p.hint}
+                          style={{
+                            textAlign: 'left',
+                            padding: '4px 10px',
+                            fontSize: 12.5,
+                            fontFamily: mono,
+                            color: panelActive ? accent : theme.axis.textColor,
+                            opacity: panelActive ? 1 : 0.75,
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {p.title}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              ))}
+              );
+            })}
+          </div>
+        </nav>
+
+        <div style={{ display: 'grid', gap: 20, minWidth: 0 }}>
+          {visibleCategory.groups.map((g) => (
+            <div
+              key={g.id}
+              id={`group-${g.id}`}
+              style={{ display: 'grid', gap: 10, scrollMarginTop: 'var(--stress-scroll-offset, 80px)' }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 10,
+                  borderBottom: `1px solid ${theme.tooltip.borderColor}`,
+                  paddingBottom: 8,
+                }}
+              >
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 650, color: theme.tooltip.textColor }}>{g.label}</h3>
+                <span style={{ fontSize: 13, color: theme.axis.textColor, opacity: 0.6 }}>{g.hint}</span>
+              </div>
+
+              <StressPanels
+                panels={g.panels}
+                theme={theme}
+                perfHud={perfHud ? perfHudConfig : undefined}
+                yEngine={yEngine}
+                yEngineLabel={yEngineLabel}
+              />
             </div>
           ))}
+
+          {/* Without this, the last panel in a category can't scroll far
+              enough to reach the "start" alignment scrollIntoView/scrollToId
+              ask for — the container simply runs out of room below it. It
+              then sits stranded mid-viewport, past the scrollspy's trigger
+              band, so the spy immediately overrides the just-selected panel
+              with whatever landmark IS above the band. */}
+          <div aria-hidden="true" style={{ height: '100vh' }} />
         </div>
       </div>
     </div>
