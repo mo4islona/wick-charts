@@ -5,13 +5,21 @@ import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useChartInstance } from './context';
 
-const props = defineProps<{
-  /** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
-  data: MultiLayerData;
-  options?: Partial<LineSeriesOptions>;
-  /** Stable series ID — same value across remounts. */
-  id?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    /** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
+    data: MultiLayerData;
+    options?: Partial<LineSeriesOptions>;
+    /** Stable series ID — same value across remounts. */
+    id?: string;
+    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+    visible?: boolean;
+  }>(),
+  // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+  // `false` (not `undefined`) without an explicit default — see the
+  // `interactive` fix in ChartContainer.vue for the full explanation.
+  { visible: true },
+);
 
 const chart = useChartInstance();
 const seriesId = ref<string | null>(null);
@@ -35,6 +43,7 @@ onMounted(() => {
   prevSync = new Array(layerCount).fill(EMPTY_SYNC_STATE);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   applyData(id, props.data);
+  chart.setSeriesVisible(id, props.visible);
 });
 
 onUnmounted(() => {
@@ -59,6 +68,13 @@ watch(
     }
   },
   { deep: true },
+);
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (seriesId.value) chart.setSeriesVisible(seriesId.value, visible);
+  },
 );
 </script>
 

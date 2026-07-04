@@ -13,10 +13,12 @@ export interface PieSeriesProps {
   options?: Partial<PieSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
+  /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
 }
 
 /** Pie chart series. Set `options.innerRadiusRatio` > 0 for donut. */
-export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
+export function PieSeries({ data, options, id: idProp, visible }: PieSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
@@ -44,6 +46,16 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
       chart.setSeriesData(seriesRef.current, data);
     }
   }, [chart, data]);
+
+  useEffect(() => {
+    const id = seriesRef.current;
+    if (!id) return;
+
+    chart.setSeriesVisible(id, visible ?? true);
+    // `idProp` re-applies the flag against the freshly (re)created series —
+    // an id change remounts the series in the effect above, which resets
+    // visibility to its default.
+  }, [chart, visible, idProp]);
 
   return null;
 }

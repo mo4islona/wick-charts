@@ -1,7 +1,7 @@
 import { render } from '@testing-library/svelte';
 import type { LegendItem } from '@wick-charts/core';
 import { tick } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import LegendHarness from './LegendHarness.svelte';
 
@@ -185,6 +185,42 @@ describe('Svelte <Legend> parity', () => {
     expect(captured!.length).toBe(twoLayerLine.length);
     expect(typeof captured![0].toggle).toBe('function');
     expect(typeof captured![0].isolate).toBe('function');
+
+    unmount();
+  });
+
+  it('onToggle fires with the clicked item id and action on a plain toggle click', async () => {
+    const onToggle = vi.fn();
+    const { unmount } = render(LegendHarness, {
+      props: { variant: 'toggle-line', lineData: [twoLayerLine[0]], onToggle },
+    });
+    await settle();
+
+    const button = document.body.querySelector('[data-legend] button') as HTMLButtonElement;
+    button.click();
+    await settle();
+
+    const seriesId = onToggle.mock.calls[0]?.[0]?.id;
+    expect(onToggle).toHaveBeenCalledWith({ id: seriesId, action: 'toggle' });
+
+    unmount();
+  });
+
+  it('onToggle fires isolate then unisolate for two clicks in solo mode', async () => {
+    const onToggle = vi.fn();
+    const { unmount } = render(LegendHarness, {
+      props: { variant: 'solo-bars', barData: threeLayerBars, onToggle },
+    });
+    await settle();
+
+    const buttons = () => document.body.querySelectorAll('[data-legend] button');
+    (buttons()[1] as HTMLButtonElement).click();
+    await settle();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'isolate' }));
+
+    (buttons()[1] as HTMLButtonElement).click();
+    await settle();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'unisolate' }));
 
     unmount();
   });

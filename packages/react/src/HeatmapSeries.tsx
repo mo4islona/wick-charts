@@ -13,13 +13,15 @@ export interface HeatmapSeriesProps {
   options?: Partial<HeatmapSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
+  /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
 }
 
 /**
  * Matrix heatmap series. Cells map `(x, y)` category keys onto a sequential
  * color ramp derived from the theme (override via `options.colors`).
  */
-export function HeatmapSeries({ data, options, id: idProp }: HeatmapSeriesProps) {
+export function HeatmapSeries({ data, options, id: idProp, visible }: HeatmapSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
 
@@ -50,6 +52,16 @@ export function HeatmapSeries({ data, options, id: idProp }: HeatmapSeriesProps)
       chart.setSeriesData(seriesRef.current, data);
     }
   }, [chart, idProp, data]);
+
+  useEffect(() => {
+    const id = seriesRef.current;
+    if (!id) return;
+
+    chart.setSeriesVisible(id, visible ?? true);
+    // `idProp` re-applies the flag against the freshly (re)created series —
+    // an id change remounts the series in the effect above, which resets
+    // visibility to its default.
+  }, [chart, visible, idProp]);
 
   return null;
 }

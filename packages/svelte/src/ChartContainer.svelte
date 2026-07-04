@@ -5,9 +5,11 @@ import {
   ChartInstance,
   type ChartOptions,
   type ChartTheme,
+  type CrosshairPosition,
   type EdgeReachedInfo,
   type PointClickInfo,
   type SeriesHoverInfo,
+  type VisibleRange,
   type VisibleRangeSpec,
   catppuccin,
   deepEqual,
@@ -41,6 +43,18 @@ export let padding: { top?: number; bottom?: number; right?: number | { interval
  * this prop after the chart is created is ignored.
  */
 export let viewport: { maxVisibleBars?: number; initialRange?: VisibleRangeSpec } | undefined = undefined;
+/**
+ * Controlled visible range. Same shape as the imperative
+ * `chart.setVisibleRange` — a bar count, an explicit `{from, to}` window, or
+ * `{from, bars}`. Every reference/value change applies via
+ * `chart.setVisibleRange`, so pair it with `onVisibleRangeChange` for a
+ * two-way binding; a same-value literal (compared structurally) is a no-op,
+ * so an inline object doesn't re-apply on every render.
+ *
+ * For a one-shot initial window that isn't re-applied on every prop change,
+ * use `viewport.initialRange` instead.
+ */
+export let visibleRange: VisibleRangeSpec | undefined = undefined;
 /** Show the chart background gradient. Defaults to true. */
 export let gradient: boolean = true;
 /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
@@ -96,6 +110,23 @@ export let onPointDoubleClick: ((info: PointClickInfo) => void) | undefined = un
  * Live — the latest callback is always used.
  */
 export let onSeriesHover: ((hit: SeriesHoverInfo | null) => void) | undefined = undefined;
+/**
+ * Fired once the underlying `ChartInstance` is constructed — on mount, and
+ * again if the chart is ever rebuilt (a genuine `animations` value change).
+ * Live — the latest callback is always used for the next rebuild.
+ */
+export let onReady: ((chart: ChartInstance) => void) | undefined = undefined;
+/**
+ * Fired whenever the committed visible range changes — pan, zoom,
+ * `fitContent()`, a data update that shifts the tail-scroll window, or a
+ * `visibleRange` prop change. Live — the latest callback is always used.
+ */
+export let onVisibleRangeChange: ((range: VisibleRange) => void) | undefined = undefined;
+/**
+ * Fired on every crosshair move, with `null` when the pointer leaves the
+ * chart. Live — the latest callback is always used.
+ */
+export let onCrosshairMove: ((position: CrosshairPosition | null) => void) | undefined = undefined;
 export let style: string = '';
 
 let containerEl: HTMLDivElement;
@@ -167,6 +198,21 @@ function syncHeaderObserver() {
   resizeObserver.observe(headerEl);
 }
 
+// Read the exported `let` directly (not a frozen mount-time const) so each
+// call sees the caller's latest callback, mirroring Vue's reactive-props
+// read. Shared between the mount path and the animations-triggered rebuild
+// below so the two don't drift.
+function subscribeDeclarativeEvents(target: ChartInstance): void {
+  target.on('pointClick', (info) => onPointClick?.(info));
+  target.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
+  target.on('seriesHover', (hit) => onSeriesHover?.(hit));
+  target.on('crosshairMove', (position) => onCrosshairMove?.(position));
+  const emitVisibleRangeChange = () => onVisibleRangeChange?.(target.getVisibleRange());
+  target.on('viewportChange', emitVisibleRangeChange);
+  target.on('dataUpdate', emitVisibleRangeChange);
+  target.on('seriesChange', emitVisibleRangeChange);
+}
+
 onMount(() => {
   const options: ChartOptions = {};
   if (axis) options.axis = axis;
@@ -180,12 +226,8 @@ onMount(() => {
   if (animations !== undefined) options.animations = animations;
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
-
-  // Read the exported `let` directly (not a frozen mount-time const) so each
-  // call sees the caller's latest callback, mirroring Vue's reactive-props read.
-  instance.on('pointClick', (info) => onPointClick?.(info));
-  instance.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
-  instance.on('seriesHover', (hit) => onSeriesHover?.(hit));
+  subscribeDeclarativeEvents(instance);
+  onReady?.(instance);
 
   void tick().then(() => {
     titleAnchorStore.set(titleAnchorEl);
@@ -262,14 +304,33 @@ async function rebuildChartFromAnimations() {
   if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) opts.animations = animations;
   instance = new ChartInstance(containerEl, opts);
-  instance.on('pointClick', (info) => onPointClick?.(info));
-  instance.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
-  instance.on('seriesHover', (hit) => onSeriesHover?.(hit));
+  subscribeDeclarativeEvents(instance);
   chartStore.set(instance);
+  onReady?.(instance);
 }
 $: if (instance && !deepEqual(animations, lastAnimations)) {
   lastAnimations = animations;
   rebuildChartFromAnimations();
+}
+
+// Controlled visible range: only re-apply when the resolved value actually
+// differs from what we last applied ourselves, so feeding the range from
+// `onVisibleRangeChange` back into this prop (the standard two-way-binding
+// shape) doesn't re-trigger `setVisibleRange` with an unchanged spec on
+// every render.
+let lastAppliedVisibleRange: VisibleRangeSpec | undefined;
+async function applyControlledVisibleRange(target: ChartInstance, next: VisibleRangeSpec) {
+  lastAppliedVisibleRange = next;
+  // On the chart's first tick, a series child (e.g. `<CandlestickSeries>`)
+  // hasn't mounted and seeded its data yet, so the engine is still on the
+  // placeholder `dataInterval` (60s) — a `{from, to}` spec sized for the
+  // real interval would fail the 2-bar-minimum guard. Awaiting a tick lets
+  // the child's data-seed (and its `detectInterval` call) land first.
+  await tick();
+  target.setVisibleRange(next);
+}
+$: if (instance && visibleRange !== undefined && !deepEqual(lastAppliedVisibleRange, visibleRange)) {
+  applyControlledVisibleRange(instance, visibleRange);
 }
 
 // Re-apply padding on any input that affects it — including `headerExtra`,

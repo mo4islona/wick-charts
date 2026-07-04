@@ -1,7 +1,7 @@
 import { fireEvent } from '@testing-library/react';
 import type { LegendItem } from '@wick-charts/core';
 import { BarSeries, CandlestickSeries, Legend, LineSeries } from '@wick-charts/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
 
@@ -131,6 +131,48 @@ describe('Legend', () => {
     expect(mounted.chart.isLayerVisible(seriesId, 0)).toBe(true);
     expect(mounted.chart.isLayerVisible(seriesId, 1)).toBe(true);
     expect(mounted.chart.isLayerVisible(seriesId, 2)).toBe(true);
+  });
+
+  it('onToggle fires with the clicked item id and action on a plain toggle click', () => {
+    const data = [
+      [
+        { time: 1, value: 1 },
+        { time: 2, value: 2 },
+      ],
+    ];
+    const onToggle = vi.fn();
+    mounted = mountChart(
+      <>
+        <LineSeries id="line" data={data} />
+        <Legend onToggle={onToggle} />
+      </>,
+    );
+
+    const firstItem = mounted.container.querySelectorAll('[data-legend] > div')[0] as HTMLElement;
+    fireEvent.click(firstItem);
+    mounted.flushScheduler();
+
+    expect(onToggle).toHaveBeenCalledWith({ id: 'line', action: 'toggle' });
+  });
+
+  it('onToggle fires isolate then unisolate for two clicks in isolate mode', () => {
+    const threeLayers = [[{ time: 1, value: 10 }], [{ time: 1, value: 100 }], [{ time: 1, value: 1000 }]];
+    const onToggle = vi.fn();
+    mounted = mountChart(
+      <>
+        <BarSeries data={threeLayers} />
+        <Legend mode="isolate" onToggle={onToggle} />
+      </>,
+    );
+
+    const secondItem = () => mounted!.container.querySelectorAll('[data-legend] > div')[1] as HTMLElement;
+    fireEvent.click(secondItem());
+    mounted.flushScheduler();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'isolate' }));
+
+    fireEvent.click(secondItem());
+    mounted.flushScheduler();
+    expect(onToggle).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'unisolate' }));
   });
 
   it('renders nothing when no series are registered', () => {
