@@ -59,25 +59,55 @@ describe('syncSeriesLayer', () => {
     const next = syncSeriesLayer({ chart, id: 'a', data, prev: EMPTY_SYNC_STATE });
 
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
-    expect(next).toEqual({ len: 3, firstTime: 1, lastTime: 3 });
+    expect(next).toEqual({ len: 3, firstTime: 1, lastTime: 3, data });
   });
 
-  it('updates the last point when length and timestamps are unchanged', () => {
+  it('updates the last point when length/timestamps are unchanged and the middle is proven unchanged', () => {
     const chart = mockChart();
-    const data = [point(1), point(2), point(3)];
-    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3 };
+    const prevData = [point(1), point(2), point(3)];
+    const data = [point(1), point(2), point(30)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: prevData };
 
     const next = syncSeriesLayer({ chart, id: 'a', data, prev });
 
-    expect(chart.updateData).toHaveBeenCalledWith('a', point(3), undefined);
+    expect(chart.updateData).toHaveBeenCalledWith('a', point(30), undefined);
     expect(chart.setSeriesData).not.toHaveBeenCalled();
     expect(next.len).toBe(3);
+  });
+
+  it('falls back to setSeriesData when a middle value changed despite matching first/last timestamps', () => {
+    // Regression: a same-length replacement with an edited middle point used
+    // to take the cheap updateData(last) path whenever the boundary
+    // timestamps still matched — silently leaving the edited middle stale on
+    // screen. Proving the middle is unchanged before taking that path fixes it.
+    const chart = mockChart();
+    const prevData = [point(1), point(2), point(3)];
+    const data = [point(1), { time: 2, value: 999 }, point(3)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: prevData };
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+    expect(chart.updateData).not.toHaveBeenCalled();
+  });
+
+  it('falls back to setSeriesData on the very first same-length sync (no prior data to prove the middle against)', () => {
+    const chart = mockChart();
+    const data = [point(1), point(2), point(3)];
+    // `prev.len` matches but `prev.data` is null (e.g. state constructed by
+    // hand rather than returned from a prior syncSeriesLayer call).
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: null };
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+    expect(chart.updateData).not.toHaveBeenCalled();
   });
 
   it('appends when a few new points are added (under the bulk threshold)', () => {
     const chart = mockChart();
     const data = [point(1), point(2), point(3), point(4)];
-    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3 };
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: null };
 
     syncSeriesLayer({ chart, id: 'a', data, prev });
 
@@ -87,7 +117,7 @@ describe('syncSeriesLayer', () => {
 
   it('bulk-replaces when more than 20 new points arrive in one tick', () => {
     const chart = mockChart();
-    const prev: SeriesSyncState = { len: 1, firstTime: 0, lastTime: 0 };
+    const prev: SeriesSyncState = { len: 1, firstTime: 0, lastTime: 0, data: null };
     const data = Array.from({ length: 30 }, (_, i) => point(i));
 
     syncSeriesLayer({ chart, id: 'a', data, prev });
@@ -99,7 +129,7 @@ describe('syncSeriesLayer', () => {
   it('rolling-window slide uses appendData + keepLast (no Y-snapping setSeriesData)', () => {
     const chart = mockChart();
     // Same length, but the window slid forward one step: head dropped, tail added.
-    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3 };
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: null };
     const data = [point(2), point(3), point(4)];
 
     const next = syncSeriesLayer({ chart, id: 'a', data, prev });
@@ -107,12 +137,12 @@ describe('syncSeriesLayer', () => {
     expect(chart.appendData).toHaveBeenCalledWith('a', point(4), undefined);
     expect(chart.keepLast).toHaveBeenCalledWith('a', 3, undefined);
     expect(chart.setSeriesData).not.toHaveBeenCalled();
-    expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4 });
+    expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4, data });
   });
 
   it('wraps the rolling-window append + trim in one chart.batch (single onDataChanged pass)', () => {
     const chart = mockChart();
-    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3 };
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: null };
 
     syncSeriesLayer({ chart, id: 'a', data: [point(2), point(3), point(4)], prev });
 
@@ -126,7 +156,7 @@ describe('syncSeriesLayer', () => {
 
   it('wraps a multi-point tail burst in one chart.batch (one engine retarget per commit)', () => {
     const chart = mockChart();
-    const prev: SeriesSyncState = { len: 1, firstTime: 1, lastTime: 1 };
+    const prev: SeriesSyncState = { len: 1, firstTime: 1, lastTime: 1, data: null };
 
     syncSeriesLayer({ chart, id: 'a', data: [point(1), point(2), point(3), point(4)], prev });
 
@@ -136,12 +166,12 @@ describe('syncSeriesLayer', () => {
 
   it('clears the series and resets state on empty data', () => {
     const chart = mockChart();
-    const prev: SeriesSyncState = { len: 10, firstTime: 0, lastTime: 9 };
+    const prev: SeriesSyncState = { len: 10, firstTime: 0, lastTime: 9, data: null };
 
     const next = syncSeriesLayer({ chart, id: 'a', data: [], prev });
 
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', [], undefined);
-    expect(next).toEqual({ len: 0, firstTime: null, lastTime: null });
+    expect(next).toEqual({ len: 0, firstTime: null, lastTime: null, data: [] });
   });
 
   it('full-replaces after a clear → refill (no stale append index)', () => {
@@ -165,7 +195,7 @@ describe('syncSeriesLayer', () => {
       chart,
       id: 'a',
       data: [point(1), point(2)],
-      prev: { len: 1, firstTime: 1, lastTime: 1 },
+      prev: { len: 1, firstTime: 1, lastTime: 1, data: null },
       layerIndex: 2,
     });
     expect(chart.appendData).toHaveBeenCalledWith('a', point(2), 2);

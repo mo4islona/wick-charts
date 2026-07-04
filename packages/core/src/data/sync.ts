@@ -15,10 +15,17 @@ export interface SeriesSyncState {
   firstTime: number | null;
   /** Normalized timestamp of the last point, or `null` before any data. */
   lastTime: number | null;
+  /**
+   * The previous sync's point array, retained (not copied) only so a
+   * same-length, same-boundary-timestamp update can prove the middle didn't
+   * change before taking the cheap last-point-only path. `null` before any
+   * data.
+   */
+  data: readonly (OHLCInput | TimePointInput)[] | null;
 }
 
 /** Initial state for a layer that has never been synced. */
-export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, lastTime: null };
+export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, lastTime: null, data: null };
 
 /**
  * Only fall back to a full `setSeriesData` replace when more than this many
@@ -28,6 +35,37 @@ export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, last
  * tick; history loads deliberately exceed this.
  */
 const BULK_THRESHOLD = 20;
+
+/** Field-wise equality for one data point — every key except `time` compares by strict equality; `time` normalizes first so a `Date` and its equivalent ms number still match. */
+function pointEquals<T extends OHLCInput | TimePointInput>(a: T, b: T): boolean {
+  if (normalizeTime(a.time) !== normalizeTime(b.time)) return false;
+
+  const aKeys = Object.keys(a) as (keyof T)[];
+  const bKeys = Object.keys(b) as (keyof T)[];
+  if (aKeys.length !== bKeys.length) return false;
+
+  return aKeys.every((key) => key === 'time' || a[key] === b[key]);
+}
+
+/**
+ * Whether every point except the last is unchanged from the previous sync —
+ * the precondition for the cheap `updateData(last)` path. Without this check,
+ * a same-length replacement with matching first/last timestamps but edited
+ * values in between would silently leave the middle stale on screen (only
+ * the last point would repaint).
+ */
+function middleUnchanged<T extends OHLCInput | TimePointInput>(
+  prevData: readonly (OHLCInput | TimePointInput)[] | null,
+  data: readonly T[],
+): boolean {
+  if (!prevData || prevData.length !== data.length) return false;
+
+  for (let i = 0; i < data.length - 1; i++) {
+    if (!pointEquals(prevData[i] as T, data[i])) return false;
+  }
+
+  return true;
+}
 
 /** True for a {@link SeriesLayer} object — an object (not array) carrying a `data` array. */
 function isSeriesLayer<T>(x: unknown): x is SeriesLayer<T> {
@@ -139,7 +177,11 @@ export interface SyncSeriesLayerArgs<T extends OHLCInput | TimePointInput> {
  *   - rolling-window slide (same length, head dropped + tail appended) →
  *     `appendData` + `keepLast` (eases — no Y snap),
  *   - bulk load / shrink / window shift → `setSeriesData`,
- *   - in-place last-point update (same length, same timestamps) → `updateData`,
+ *   - in-place last-point update (same length, same boundary timestamps,
+ *     and every point but the last proven unchanged) → `updateData`,
+ *   - same length but a middle value edited underneath matching boundary
+ *     timestamps → `setSeriesData` (can't cheaply patch an arbitrary middle
+ *     point, and skipping it would leave stale values on screen),
  *   - tail growth → `appendData` per new point.
  *
  * Stateless: returns the new state for the caller to persist. Shared by the
@@ -153,7 +195,7 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
   if (data.length === 0) {
     chart.setSeriesData(id, [], layerIndex);
 
-    return { len: 0, firstTime: null, lastTime: null };
+    return { len: 0, firstTime: null, lastTime: null, data: [] };
   }
 
   const firstTime = normalizeTime(data[0].time);
@@ -174,7 +216,11 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
   } else if (prev.len === 0 || data.length < prev.len || added > BULK_THRESHOLD || shifted) {
     chart.setSeriesData(id, data, layerIndex);
   } else if (data.length === prev.len) {
-    chart.updateData(id, data[data.length - 1], layerIndex);
+    if (middleUnchanged(prev.data, data)) {
+      chart.updateData(id, data[data.length - 1], layerIndex);
+    } else {
+      chart.setSeriesData(id, data, layerIndex);
+    }
   } else {
     // Tail growth — a burst of ≤ BULK_THRESHOLD points in one commit. Batched:
     // every point still seeds its own entrance animator, but the engine
@@ -186,5 +232,5 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
     });
   }
 
-  return { len: data.length, firstTime, lastTime };
+  return { len: data.length, firstTime, lastTime, data };
 }
