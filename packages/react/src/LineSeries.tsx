@@ -65,6 +65,7 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
     options?.area?.visible,
     (options as { areaFill?: boolean } | undefined)?.areaFill,
     options?.pulse,
+    options?.pulseMs,
     options?.stacking,
     options?.entryAnimation,
     options?.entryMs,

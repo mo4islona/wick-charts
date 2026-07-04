@@ -9,7 +9,6 @@ import {
   buildLastSnapshots,
   formatCompact,
   formatPriceAdaptive,
-  formatTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
@@ -140,7 +139,7 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
       <slot v-if="hasCustomSlot" :snapshots="snapshots" :time="displayTime" :is-hover="isHover" />
       <template v-else>
         <span :style="{ color: theme.axis.textColor, marginRight: '2px' }">
-          {{ formatTime(displayTime, dataInterval) }}
+          {{ chart.timeScale.formatX(displayTime, dataInterval) }}
         </span>
         <template v-for="s in snapshots" :key="s.id">
           <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">

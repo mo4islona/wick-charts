@@ -159,8 +159,8 @@ export interface ChartLayout {
   xAxisHeight: number;
 }
 
-/** Supported primary series types. */
-export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap';
+/** Primary series types. Open-ended — a custom {@link SeriesDefinition} picks any string that isn't a built-in. */
+export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap' | (string & {});
 
 /**
  * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).

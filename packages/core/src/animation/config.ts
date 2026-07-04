@@ -597,9 +597,15 @@ export class AnimationConfig {
       return { entryMs, updateMs };
     }
 
-    const { entryMs, smoothMs, introMs } = this.series.bar;
+    if (kind === 'bar') {
+      const { entryMs, smoothMs, introMs } = this.series.bar;
 
-    return { entryMs, smoothMs, introMs };
+      return { entryMs, smoothMs, introMs };
+    }
+
+    // A custom series kind owns its own option defaults — chart-level
+    // `animations.series.*` only names the five built-ins.
+    return {};
   }
 
   /**
@@ -633,6 +639,11 @@ export class AnimationConfig {
       if (entryMs === 0) out.entryMs = 0;
       if (updateMs === 0) out.updateMs = 0;
 
+      return out;
+    }
+
+    if (kind !== 'candlestick' && kind !== 'bar') {
+      // A custom series kind isn't named by `animations.series.*` — no forced override.
       return out;
     }
 

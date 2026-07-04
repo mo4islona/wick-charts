@@ -278,4 +278,23 @@ describe('YScale', () => {
     const s = makeScale(10, 20, 400);
     expect(s.getRange()).toEqual({ min: 10, max: 20 });
   });
+
+  describe('setTickGenerator', () => {
+    it('replaces {1,2,5}×10^k resolution entirely when installed', () => {
+      const s = makeScale(0, 100, 400);
+      const builtin = s.niceTickValues();
+
+      s.setTickGenerator(({ min, max }) => [min, (min + max) / 2, max]);
+      expect(s.niceTickValues()).toEqual([0, 50, 100]);
+
+      s.setTickGenerator(null);
+      expect(s.niceTickValues()).toEqual(builtin);
+    });
+
+    it('caps a custom tick generator at MAX_TICKS (50)', () => {
+      const s = makeScale(0, 1000, 400);
+      s.setTickGenerator(({ min, max }) => Array.from({ length: 200 }, (_, i) => min + i * ((max - min) / 200)));
+      expect(s.niceTickValues().length).toBe(50);
+    });
+  });
 });

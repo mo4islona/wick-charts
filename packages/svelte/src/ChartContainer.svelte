@@ -6,8 +6,11 @@ import {
   type ChartOptions,
   type ChartTheme,
   type EdgeReachedInfo,
+  type PointClickInfo,
+  type SeriesHoverInfo,
   type VisibleRangeSpec,
   catppuccin,
+  deepEqual,
 } from '@wick-charts/core';
 import { onDestroy, onMount, tick } from 'svelte';
 
@@ -56,10 +59,10 @@ export let headerLayout: 'overlay' | 'inline' = 'overlay';
  * `<CandlestickSeries>` / `<BarSeries>` override these chart-level
  * defaults unless the category here is explicitly `false`.
  *
- * **Init-only by reference identity.** A new `animations` reference
- * recreates the underlying `ChartInstance`. Hoist it to a stable
- * binding (e.g. `const animations = {...}`) — passing inline literals
- * tears the chart down on every re-render.
+ * **Init-only, but diffed by value, not reference.** A same-value inline
+ * object literal is a no-op — only a genuine change to the resolved config
+ * recreates the underlying `ChartInstance`, since the animation engine
+ * doesn't support live reconfiguration yet.
  */
 export let animations: boolean | AnimationsConfig | undefined = undefined;
 /**
@@ -74,6 +77,25 @@ export let perf: PerfOption | undefined = undefined;
  * the prop identity later is ignored.
  */
 export let onEdgeReached: ((info: EdgeReachedInfo) => void) | undefined = undefined;
+/**
+ * Fired on a click (or tap) on the chart canvas that isn't the tail end of a
+ * pan drag. `info.spatialHit` resolves a pie/heatmap/custom-spatial series
+ * directly under the pointer; for a time-series series, resolve the point
+ * yourself from `info.time` (`chart.getDataAtTime` / `buildHoverSnapshots`).
+ * Live — the latest callback is always used.
+ */
+export let onPointClick: ((info: PointClickInfo) => void) | undefined = undefined;
+/**
+ * Fired on a double-click on the chart canvas. The chart also responds by
+ * calling `fitContent()`. Live — the latest callback is always used.
+ */
+export let onPointDoubleClick: ((info: PointClickInfo) => void) | undefined = undefined;
+/**
+ * Fired when the spatially-hovered series/index changes (pie, heatmap, or a
+ * custom spatial kind) — `null` when the pointer leaves every hit area.
+ * Live — the latest callback is always used.
+ */
+export let onSeriesHover: ((hit: SeriesHoverInfo | null) => void) | undefined = undefined;
 export let style: string = '';
 
 let containerEl: HTMLDivElement;
@@ -159,6 +181,12 @@ onMount(() => {
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
 
+  // Read the exported `let` directly (not a frozen mount-time const) so each
+  // call sees the caller's latest callback, mirroring Vue's reactive-props read.
+  instance.on('pointClick', (info) => onPointClick?.(info));
+  instance.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
+  instance.on('seriesHover', (hit) => onSeriesHover?.(hit));
+
   void tick().then(() => {
     titleAnchorStore.set(titleAnchorEl);
     infoBarAnchorStore.set(infoBarAnchorEl);
@@ -203,9 +231,11 @@ $: if (instance && grid !== undefined) {
   instance.setGrid(grid);
 }
 
-// Init-only: post-mount `animations` identity changes tear down the
-// instance and rebuild with the new config. Reference equality matters
-// — callers that pass an inline literal will recreate on every render.
+// Init-only: a post-mount `animations` VALUE change tears down the instance
+// and rebuilds with the new config. `deepEqual` (not reference equality)
+// gates the rebuild — a caller's brand-new inline literal with the same
+// values is a no-op, since Svelte re-runs this reactive block on every
+// reference change regardless of content.
 //
 // Children inside the `{#if $chartStore}` block grab the chart store
 // snapshot in their own setup. To force them to re-mount against the
@@ -232,9 +262,12 @@ async function rebuildChartFromAnimations() {
   if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) opts.animations = animations;
   instance = new ChartInstance(containerEl, opts);
+  instance.on('pointClick', (info) => onPointClick?.(info));
+  instance.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
+  instance.on('seriesHover', (hit) => onSeriesHover?.(hit));
   chartStore.set(instance);
 }
-$: if (instance && animations !== lastAnimations) {
+$: if (instance && !deepEqual(animations, lastAnimations)) {
   lastAnimations = animations;
   rebuildChartFromAnimations();
 }
@@ -264,6 +297,7 @@ $: gradientBg = (() => {
   style:flex-direction="column"
   style:width="100%"
   style:height="100%"
+  style:min-height="240px"
   style:overflow="hidden"
   style:background={gradientBg}
 >

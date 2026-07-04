@@ -16,7 +16,6 @@
 import type { ChartInstance } from '../chart';
 import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
-import { formatTime } from '../utils/time';
 
 export interface MountAxisLabelsOptions {
   readonly chart: ChartInstance;
@@ -55,7 +54,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   }
 
   function formatLabel(value: number, tickInterval: number): string {
-    if (axis === 'x') return formatTime(value, tickInterval);
+    if (axis === 'x') return chart.timeScale.formatX(value, tickInterval);
 
     return chart.yScale.formatY(value);
   }

@@ -39,7 +39,7 @@ export interface MountedChart {
   triggerResize(width?: number, height?: number): void;
   dispatchWheel(init: WheelEventInit, target?: EventTarget): void;
   dispatchMouse(
-    type: 'mousedown' | 'mousemove' | 'mouseup' | 'mouseleave',
+    type: 'mousedown' | 'mousemove' | 'mouseup' | 'mouseleave' | 'click' | 'dblclick',
     init: MouseEventInit,
     target?: EventTarget,
   ): void;

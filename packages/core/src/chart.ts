@@ -38,7 +38,13 @@ import { RenderScheduler } from './render-scheduler';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
-import { type HoverInfo, type SeriesRenderer, type SliceInfo, isTimeSeriesRenderer } from './series/types';
+import {
+  type HoverInfo,
+  type SeriesKind,
+  type SeriesRenderer,
+  type SliceInfo,
+  isTimeSeriesRenderer,
+} from './series/types';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
 import type {
@@ -65,9 +71,43 @@ import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart/options';
 
+/**
+ * Payload for `pointClick` / `pointDoubleClick`. `spatialHit` resolves a
+ * no-time-axis series (pie, heatmap, or a custom spatial kind) directly
+ * under the pointer — for time-series series (line/bar/candlestick, or a
+ * custom time-axis kind), resolve the point yourself from `time`, e.g. via
+ * `buildHoverSnapshots(chart, { time: info.time, cacheKey: '…' })` or
+ * `chart.getDataAtTime(seriesId, info.time)`.
+ */
+export interface PointClickInfo {
+  mediaX: number;
+  mediaY: number;
+  time: number;
+  y: number;
+  spatialHit: { seriesId: string; index: number } | null;
+}
+
+/** Which spatial series (pie, heatmap, or a custom spatial kind) is currently hovered, and its slice/cell info. */
+export interface SeriesHoverInfo {
+  seriesId: string;
+  index: number;
+  info: HoverInfo | null;
+}
+
 /** Events emitted by {@link ChartInstance}. */
 interface ChartEvents {
   crosshairMove: (pos: CrosshairPosition | null) => void;
+  /** Fired on a click (or tap) on the chart canvas that isn't the tail end of a pan drag. */
+  pointClick: (info: PointClickInfo) => void;
+  /** Fired on a double-click on the chart canvas. Chart also responds by calling `fitContent()`. */
+  pointDoubleClick: (info: PointClickInfo) => void;
+  /**
+   * Fired when the spatially-hovered series/index changes (pie, heatmap, or
+   * a custom spatial kind) — `null` when the pointer leaves every hit area.
+   * Time-series series have no pixel geometry to hover this way; read
+   * `crosshairMove` + `getDataAtTime`/`buildHoverSnapshots` for those.
+   */
+  seriesHover: (hit: SeriesHoverInfo | null) => void;
   viewportChange: () => void;
   dataUpdate: () => void;
   seriesChange: () => void;
@@ -382,6 +422,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
     this.timeScale = new XScale();
     this.yScale = new YScale();
+    this.timeScale.setLocale(options?.locale);
+    this.timeScale.setTimeZone(options?.timeZone);
 
     const ticksMs = this.#animationsConfig.axis.ticksMs;
     this.timeScale.tickTracker.setFadeMs(ticksMs);
@@ -431,6 +473,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       // Generic spatial-hover dispatch — any renderer that implements hitTest+setHoverIndex opts in.
       this.#updateHover(pos);
+    });
+
+    this.#interactions?.on('click', (pos) => {
+      this.emit('pointClick', { ...pos, spatialHit: this.#spatialHitAt(pos) });
+    });
+
+    this.#interactions?.on('dblclick', (pos) => {
+      this.fitContent();
+      this.emit('pointDoubleClick', { ...pos, spatialHit: this.#spatialHitAt(pos) });
     });
   }
 
@@ -1340,18 +1391,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Filter `getSeriesIds()` by renderer type. `'pie'` / `'heatmap'` return
-   * that spatial kind, `'time'` returns line/bar/candlestick.
+   * Filter `getSeriesIds()` by renderer type. A concrete kind (`'pie'`,
+   * `'heatmap'`, a custom kind, …) returns series of that exact kind;
+   * `'time'` returns every time-axis series (line/bar/candlestick and any
+   * custom time-series kind).
    *
    * - `opts.visibleOnly` — exclude series with `isSeriesVisible=false`; for
    *   multi-layer series also exclude when every layer is hidden.
    * - `opts.singleLayerOnly` — exclude series with more than one layer.
    *   Useful for YLabel fallback priority (stick to a single line first).
    */
-  getSeriesIdsByType(
-    type: 'pie' | 'time' | 'heatmap',
-    opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean },
-  ): string[] {
+  getSeriesIdsByType(type: SeriesKind | 'time', opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean }): string[] {
     const visibleOnly = opts?.visibleOnly === true;
     const singleLayerOnly = opts?.singleLayerOnly === true;
     const result: string[] = [];
@@ -1501,6 +1551,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   getTheme(): ChartTheme {
     return this.#theme;
+  }
+
+  /** BCP 47 locale applied to the built-in time-axis / tooltip / crosshair formatting. */
+  setLocale(locale: string | undefined): void {
+    this.timeScale.setLocale(locale);
+    this.#bumpOverlayVersion();
+  }
+
+  getLocale(): string | undefined {
+    return this.timeScale.getLocale();
+  }
+
+  /** IANA timezone applied to the same built-in date-time formatting. */
+  setTimeZone(timeZone: string | undefined): void {
+    this.timeScale.setTimeZone(timeZone);
+    this.#bumpOverlayVersion();
+  }
+
+  getTimeZone(): string | undefined {
+    return this.timeScale.getTimeZone();
   }
 
   /** Update axis configuration and re-render. */
@@ -1676,6 +1746,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       bottom: vpad.bottom * size.verticalPixelRatio,
     };
     let changed = false;
+    let hovered: SeriesHoverInfo | null = null;
     for (const entry of this.#series) {
       if (!entry.renderer.hitTest || !entry.renderer.setHoverIndex) continue;
       let index = -1;
@@ -1687,8 +1758,40 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (entry.renderer.setHoverIndex(index)) {
         changed = true;
       }
+      if (index >= 0 && !hovered) {
+        hovered = { seriesId: entry.id, index, info: entry.renderer.getHoverInfo?.(this.#theme) ?? null };
+      }
     }
-    if (changed) this.#mainScheduler.markDirty();
+    if (changed) {
+      this.#mainScheduler.markDirty();
+      this.emit('seriesHover', hovered);
+    }
+  }
+
+  /**
+   * Read-only counterpart to {@link #updateHover} for `pointClick` — same
+   * capability-probed `hitTest` scan, but doesn't touch `setHoverIndex` (a
+   * click shouldn't move the hover state the last pointer move already set).
+   * Returns the first spatial series (pie, heatmap, or a custom spatial kind)
+   * whose `hitTest` claims the position, or `null` if none does.
+   */
+  #spatialHitAt(pos: CrosshairPosition): { seriesId: string; index: number } | null {
+    const size = this.#canvasManager.size;
+    const vpad = this.#padding;
+    const padding = {
+      top: vpad.top * size.verticalPixelRatio,
+      bottom: vpad.bottom * size.verticalPixelRatio,
+    };
+    const bx = pos.mediaX * size.horizontalPixelRatio;
+    const by = pos.mediaY * size.verticalPixelRatio;
+
+    for (const entry of this.#series) {
+      if (!entry.renderer.hitTest) continue;
+      const index = entry.renderer.hitTest(bx, by, size.bitmap.width, size.bitmap.height, padding);
+      if (index >= 0) return { seriesId: entry.id, index };
+    }
+
+    return null;
   }
 
   /**

@@ -75,14 +75,12 @@ export interface HoverInfo {
 
 export type SliceInfo = HoverInfo;
 
-/** Discriminant for the {@link SeriesRenderer} union. */
-export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap';
-
-/** Kinds with no time axis — they own their own layout inside the bitmap. */
-export type SpatialSeriesKind = 'pie' | 'heatmap';
-
-/** Runtime mirror of {@link SpatialSeriesKind} — drives {@link isTimeSeriesRenderer}. */
-const SPATIAL_SERIES_KINDS: readonly SpatialSeriesKind[] = ['pie', 'heatmap'];
+/**
+ * Discriminant for the {@link SeriesRenderer} union. Open-ended — a custom
+ * series (see {@link CustomSpatialSeriesRenderer} / {@link TimeSeriesRenderer})
+ * picks any string that isn't one of the built-ins.
+ */
+export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap' | (string & {});
 
 /**
  * Members shared by every series renderer, regardless of whether it owns a
@@ -278,7 +276,7 @@ export interface BaseSeriesRenderer {
  * pinned to layer 0 (see {@link BaseMultiLayerSeries}).
  */
 export interface TimeSeriesRenderer extends BaseSeriesRenderer {
-  readonly kind: 'candlestick' | 'line' | 'bar';
+  readonly kind: 'candlestick' | 'line' | 'bar' | (string & {});
 
   /** Earliest/latest sample time across all owned layers, or null when empty. */
   getTimeBounds(): { first: number; last: number } | null;
@@ -305,17 +303,33 @@ export interface HeatmapSeriesRenderer extends BaseSeriesRenderer {
 }
 
 /**
- * Every series renderer is one of these. Discriminated on `kind`: narrow with
- * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
- * (pie, heatmap) have no time-series queries.
+ * A custom spatial renderer with no time axis — implement this (rather than
+ * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer}, which are reserved
+ * for the built-ins) when writing a new non-time-axis series from scratch,
+ * e.g. a radar or treemap chart. Pick any `kind` that isn't a built-in one.
  */
-export type SeriesRenderer = TimeSeriesRenderer | PieSeriesRenderer | HeatmapSeriesRenderer;
+export interface CustomSpatialSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: string;
+}
 
 /**
- * Narrow a renderer to the time-axis variant. The chart's viewport, crosshair,
- * interval detection, and Y autoscale all dispatch through this guard so a new
- * spatial kind only needs to be added here, not at every call site.
+ * Every series renderer is one of these. Discriminated on `kind`: narrow with
+ * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
+ * (pie, heatmap, and any custom spatial kind) have no time-series queries.
+ */
+export type SeriesRenderer =
+  | TimeSeriesRenderer
+  | PieSeriesRenderer
+  | HeatmapSeriesRenderer
+  | CustomSpatialSeriesRenderer;
+
+/**
+ * Narrow a renderer to the time-axis variant. A capability check, not a
+ * `kind` allowlist — any renderer implementing the required time-series
+ * queries (own a `getTimeBounds()`) counts, including custom series kinds.
+ * The chart's viewport, crosshair, interval detection, and Y autoscale all
+ * dispatch through this guard.
  */
 export function isTimeSeriesRenderer(renderer: SeriesRenderer): renderer is TimeSeriesRenderer {
-  return !(SPATIAL_SERIES_KINDS as readonly string[]).includes(renderer.kind);
+  return typeof (renderer as { getTimeBounds?: unknown }).getTimeBounds === 'function';
 }

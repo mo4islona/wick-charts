@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   detectInterval,
+  formatDate,
   formatTime,
   niceTimeIntervals,
   normalizeOHLCArray,
@@ -146,5 +147,44 @@ describe('formatTime', () => {
   it('still formats month/day for sub-year day-scale intervals', () => {
     const out = formatTime(ts, DAY);
     expect(out).toMatch(/^[A-Z][a-z]{2} \d+$/);
+  });
+
+  it('applies a custom locale', () => {
+    const out = formatTime(ts, DAY, { locale: 'de-DE' });
+    // German month abbreviation for June is "Juni", not "Jun".
+    expect(out).toMatch(/Juni/);
+  });
+
+  it('applies a custom timeZone', () => {
+    const midnightUtc = Date.UTC(2018, 5, 15, 0, 30);
+    const utc = formatTime(midnightUtc, HOUR, { timeZone: 'UTC' });
+    const tokyo = formatTime(midnightUtc, HOUR, { timeZone: 'Asia/Tokyo' });
+    expect(utc).not.toBe(tokyo);
+  });
+
+  it('defaults hour12 to false (24-hour clock), preserved from the original hardcoded behavior', () => {
+    const afternoon = Date.UTC(2018, 5, 15, 15, 4);
+    expect(formatTime(afternoon, HOUR, { timeZone: 'UTC' })).toBe('15:04');
+  });
+
+  it('opts into a 12-hour clock via hour12', () => {
+    const afternoon = Date.UTC(2018, 5, 15, 15, 4);
+    expect(formatTime(afternoon, HOUR, { timeZone: 'UTC', hour12: true })).toMatch(/3:04\s*PM/i);
+  });
+});
+
+describe('formatDate', () => {
+  const ts = Date.UTC(2018, 5, 15);
+
+  it('applies a custom locale', () => {
+    expect(formatDate(ts, { locale: 'de-DE', timeZone: 'UTC' })).toMatch(/Juni/);
+  });
+
+  it('applies a custom timeZone', () => {
+    const nearMidnight = Date.UTC(2018, 5, 15, 23, 30);
+    const utc = formatDate(nearMidnight, { timeZone: 'UTC' });
+    const tokyo = formatDate(nearMidnight, { timeZone: 'Asia/Tokyo' });
+    // Tokyo is UTC+9 — 23:30 UTC on the 15th is already the 16th in Tokyo.
+    expect(utc).not.toBe(tokyo);
   });
 });

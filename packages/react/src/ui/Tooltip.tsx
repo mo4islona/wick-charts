@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
+  type ChartInstance,
   type ChartTheme,
   type OHLCData,
   type SeriesSnapshot,
@@ -11,7 +12,6 @@ import {
   formatCompact,
   formatDate,
   formatPriceAdaptive,
-  formatTime,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -111,6 +111,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
 
   return (
     <FloatingTooltip
+      chart={chart}
       snapshots={snapshots}
       displayTime={crosshair.time}
       x={crosshair.mediaX}
@@ -200,6 +201,7 @@ function CustomFloatingTooltip({
 }
 
 function FloatingTooltip({
+  chart,
   snapshots,
   displayTime,
   x,
@@ -210,6 +212,7 @@ function FloatingTooltip({
   dataInterval,
   format,
 }: {
+  chart: ChartInstance;
   snapshots: readonly SeriesSnapshot[];
   displayTime: number;
   x: number;
@@ -270,7 +273,8 @@ function FloatingTooltip({
           letterSpacing: '0.02em',
         }}
       >
-        {formatDate(displayTime)} {formatTime(displayTime, dataInterval)}
+        {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}{' '}
+        {chart.timeScale.formatX(displayTime, dataInterval)}
       </div>
 
       {snapshots.map((s) => {
@@ -278,9 +282,7 @@ function FloatingTooltip({
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
           const isUp = ohlc.close >= ohlc.open;
-          const valColor = resolveCandlestickBodyColor(
-            isUp ? theme.candlestick.up.body : theme.candlestick.down.body,
-          );
+          const valColor = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
               <TooltipRow label="Open" color={valColor} display={format(ohlc.open, 'open')} />

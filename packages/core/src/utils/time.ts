@@ -36,28 +36,47 @@ export function detectInterval(times: number[]): number {
   return diffs[Math.floor(diffs.length / 2)];
 }
 
-export function formatTime(timestamp: number, interval: number): string {
+/** Locale / timezone override for {@link formatTime} / {@link formatDate}. Any field omitted keeps the built-in default. */
+export interface TimeFormatOptions {
+  /** BCP 47 locale tag (e.g. `'de-DE'`). Default: `'en-US'`. */
+  locale?: string;
+  /** IANA timezone name (e.g. `'America/New_York'`). Default: the browser's local timezone. */
+  timeZone?: string;
+  /** 12-hour clock. Default: `false` (24-hour), preserved from the original hardcoded behavior. */
+  hour12?: boolean;
+}
+
+export function formatTime(timestamp: number, interval: number, opts?: TimeFormatOptions): string {
   const d = new Date(timestamp);
+  const locale = opts?.locale ?? 'en-US';
+  const timeZone = opts?.timeZone;
+  const hour12 = opts?.hour12 ?? false;
   if (interval >= YEAR) {
-    return d.toLocaleDateString('en-US', { year: 'numeric' });
+    return d.toLocaleDateString(locale, { year: 'numeric', timeZone });
   }
   if (interval >= DAY) {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', timeZone });
   }
   if (interval >= HOUR) {
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12, timeZone });
   }
-  return d.toLocaleTimeString('en-US', {
+  return d.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hour12,
+    timeZone,
   });
 }
 
-export function formatDate(timestamp: number): string {
+export function formatDate(timestamp: number, opts?: TimeFormatOptions): string {
   const d = new Date(timestamp);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return d.toLocaleDateString(opts?.locale ?? 'en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: opts?.timeZone,
+  });
 }
 
 export function niceTimeIntervals(interval: number): number[] {

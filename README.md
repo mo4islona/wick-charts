@@ -40,7 +40,7 @@ import {
 
 function Chart({ data }) {
   return (
-    <ChartContainer>
+    <ChartContainer style={{ height: 400 }}>
       <CandlestickSeries data={data} />
       <Tooltip />
       <Crosshair />
@@ -65,7 +65,7 @@ const props = defineProps(['data']);
 </script>
 
 <template>
-  <ChartContainer>
+  <ChartContainer style="height: 400px">
     <CandlestickSeries :data="props.data" />
     <Tooltip />
     <Crosshair />
@@ -90,7 +90,7 @@ const props = defineProps(['data']);
   export let data = [];
 </script>
 
-<ChartContainer>
+<ChartContainer style="height: 400px">
   <CandlestickSeries {data} />
   <Tooltip />
   <Crosshair />

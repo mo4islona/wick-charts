@@ -5,13 +5,13 @@ import { ChartContainer, LineSeries, TimeAxis, Title, YAxis } from '@wick-charts
 
 import type { PanelCtx, StressPanel } from './panel';
 
-// TODO(chart-core): every panel here memoizes its `animations` prop by hand
-// because <ChartContainer> treats `animations` as init-only by reference
-// identity (packages/react/src/ChartContainer.tsx — useLayoutEffect dep). On
-// streaming panels the parent re-renders on every tick, so an inline literal
-// caused destroy+new ChartInstance ~30×/s and the visible jitter. The library
-// should accept structural equality (or split out the init-only sub-fields)
-// so callers don't have to remember this dance.
+// Historical note: every panel here memoizes its `animations` prop by hand.
+// <ChartContainer> used to treat `animations` as init-only by reference
+// identity, so on streaming panels (parent re-renders every tick) an inline
+// literal caused destroy+new ChartInstance ~30×/s and visible jitter.
+// <ChartContainer> now deep-diffs `animations` and only rebuilds on a real
+// value change, so this memoization is no longer required — kept anyway as
+// good practice (and to avoid re-allocating the object every tick).
 
 const INTERVAL = 60_000;
 
