@@ -12,6 +12,7 @@ import {
 
 import { useChartInstance } from './context';
 import { useLatestFn } from './use-latest-fn';
+import { useStableOptions } from './use-stable-options';
 
 export interface LineSeriesProps {
   /**
@@ -36,6 +37,10 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   // The core reads the intro fn live, per frame — hand it a stable wrapper so
   // a non-memoized inline fn neither re-fires the option effect nor goes stale.
   const introAnimation = useLatestFn(options?.introAnimation);
+  // Diff everything except `introAnimation` — its reference stability is
+  // already handled by the latch above, and a fresh inline fn there must not
+  // by itself count as a structural change (that's the whole point of the latch).
+  const stableOptions = useStableOptions(options ? { ...options, introAnimation: undefined } : options);
 
   useLayoutEffect(() => {
     const id = chart.addSeries(LineSeriesDef, { ...options, introAnimation, layers: layerCount, id: idProp });
@@ -56,34 +61,14 @@ export function LineSeries({ data, options, id: idProp }: LineSeriesProps) {
   }, [chart, data]);
 
   useEffect(() => {
-    if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, { ...options, introAnimation });
+    if (seriesRef.current && stableOptions) {
+      chart.updateSeriesOptions(seriesRef.current, { ...stableOptions, introAnimation });
     }
-  }, [
-    chart,
-    options?.strokeWidth,
-    options?.area?.visible,
-    (options as { areaFill?: boolean } | undefined)?.areaFill,
-    options?.pulse,
-    options?.pulseMs,
-    options?.stacking,
-    options?.entryAnimation,
-    options?.entryMs,
-    options?.smoothMs,
-    options?.introMs,
-    // The latched wrapper changes identity only when the intro fn appears or
-    // disappears — fn body swaps flow through the wrapper without a re-apply.
-    introAnimation,
-    options?.curve,
-    // A registry-name string diffs by value; a raw painter diffs by reference.
-    options?.linePainter,
-    options?.threshold?.value,
-    options?.threshold?.above,
-    options?.threshold?.below,
-    options?.points?.visible,
-    options?.points?.radius,
-    options?.points?.color,
-  ]);
+    // `stableOptions` only changes identity when its structural content
+    // actually differs, so this generic diff replaces a hand-maintained list
+    // of individual option fields — a new option added to `LineSeriesOptions`
+    // is covered automatically instead of silently failing to re-apply.
+  }, [chart, stableOptions, introAnimation]);
 
   return null;
 }

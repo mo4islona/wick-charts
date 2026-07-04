@@ -7,10 +7,9 @@ import AnimationsHarness from './AnimationsHarness.svelte';
 
 /**
  * Regression: `animations` used to tear down + rebuild the whole chart on
- * every reference change, even when the resolved values were identical (the
- * "most dangerous trap in the API", per CUSTOMIZATION.md). A `deepEqual`
- * guard on the reactive rebuild block now skips the rebuild for a same-value
- * object; only a genuine value change still tears down and rebuilds.
+ * every reference change, even when the resolved values were identical. A
+ * `deepEqual` guard on the reactive rebuild block now skips the rebuild for a
+ * same-value object; only a genuine value change still tears down and rebuilds.
  */
 
 const candlestickData = [

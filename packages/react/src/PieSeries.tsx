@@ -4,6 +4,7 @@ import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
 import { PieSeriesDef } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
+import { useStableOptions } from './use-stable-options';
 
 export interface PieSeriesProps {
   /** Slices to render. A flat array of `{ label, value, color? }` entries. */
@@ -28,30 +29,15 @@ export function PieSeries({ data, options, id: idProp }: PieSeriesProps) {
     };
   }, [chart, idProp]);
 
+  const stableOptions = useStableOptions(options);
+
   useEffect(() => {
-    if (seriesRef.current && options) {
-      chart.updateSeriesOptions(seriesRef.current, options);
+    if (seriesRef.current && stableOptions) {
+      chart.updateSeriesOptions(seriesRef.current, stableOptions);
     }
-  }, [
-    chart,
-    options?.innerRadiusRatio,
-    options?.padAngle,
-    options?.animate,
-    options?.entryMs,
-    options?.gradient,
-    options?.shadow,
-    options?.innerShadow,
-    options?.colors,
-    options?.sliceLabels?.mode,
-    options?.sliceLabels?.content,
-    options?.sliceLabels?.fontSize,
-    options?.sliceLabels?.minSliceAngle,
-    options?.sliceLabels?.elbowLen,
-    options?.sliceLabels?.legPad,
-    options?.sliceLabels?.labelGap,
-    options?.sliceLabels?.distance,
-    options?.sliceLabels?.railWidth,
-  ]);
+    // `stableOptions` diffs structurally — a fresh `sliceLabels`/`colors`
+    // object or array ref with the same values no longer re-applies every render.
+  }, [chart, stableOptions]);
 
   useLayoutEffect(() => {
     if (seriesRef.current) {

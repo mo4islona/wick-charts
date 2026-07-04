@@ -7,10 +7,9 @@ import { mountChart } from '../helpers/mount-chart';
 /**
  * Regression: `animations` used to tear down + rebuild the whole chart on
  * every render whose caller passed a fresh inline object literal — even
- * when the resolved values were identical (the "most dangerous trap in the
- * API", per CUSTOMIZATION.md). A deep-equal latch now keeps the rebuild
- * effect's dependency stable across same-value literals; only a genuine
- * value change should still tear down and rebuild.
+ * when the resolved values were identical. A deep-equal latch now keeps the
+ * rebuild effect's dependency stable across same-value literals; only a
+ * genuine value change should still tear down and rebuild.
  */
 describe('ChartContainer animations deep-diff (not teardown-per-render)', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
