@@ -15,7 +15,7 @@ export let seriesId: string | undefined = undefined;
 export let shape: MarkerShape | undefined = undefined;
 /** Reuse the line pulse halo around the anchor. Default: `false`. */
 export let pulse: boolean | undefined = undefined;
-/** Optional text label drawn in a pill next to the anchor. */
+/** Optional text label drawn as a callout chip whose tail points at the anchor. */
 export let label: string | undefined = undefined;
 /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
 export let color: string | undefined = undefined;

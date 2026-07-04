@@ -1,9 +1,9 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
-import { fillRoundedRect } from '../series/painters/canvas-path';
 import type { ChartTheme } from '../theme/types';
 import type { TimeValue } from '../types';
 import { hexToRgba } from '../utils/color';
+import { drawChip, measureChip } from './annotation-chip';
 
 /**
  * Right edge of a {@link TimeRegionConfig}. A concrete time closes the band;
@@ -29,9 +29,9 @@ export interface TimeRegionConfig {
   to?: TimeRegionEnd;
   /** Band fill — any CSS color, typically translucent. Default: a faint tint of `color`. */
   fill?: string;
-  /** Optional text label drawn in a pill at the top of the band. */
+  /** Optional text label drawn in an annotation chip at the top of the band. */
   label?: string;
-  /** Edge-line and label-pill accent. Default: the theme's muted axis text color. */
+  /** Edge-line and label-chip accent. Default: the theme's muted axis text color. */
   color?: string;
 }
 
@@ -48,11 +48,8 @@ export interface ResolvedTimeRegion {
 
 /** Alpha applied to the accent color for the band's delineating edge lines. */
 const EDGE_ALPHA = 0.5;
-/** Gap from the top of the plot and the visible left edge to the label pill, in media pixels. */
+/** Gap from the top of the plot and the visible left edge to the label chip, in media pixels. */
 const LABEL_INSET_MEDIA = 6;
-/** Horizontal / vertical padding inside the label pill, in media pixels. */
-const LABEL_PAD_X_MEDIA = 6;
-const LABEL_PAD_Y_MEDIA = 3;
 
 export interface RenderTimeRegionArgs {
   scope: BitmapCoordinateSpace;
@@ -121,37 +118,25 @@ interface RegionLabelArgs {
   vpr: number;
 }
 
-/** A small pill at the top-left of the visible band carrying the region's label. */
+/** An annotation chip at the top-left of the visible band carrying the region's label. */
 function drawRegionLabel({ context, theme, region, left, hpr, vpr }: RegionLabelArgs): void {
   const label = region.label;
   if (label === undefined) return;
 
-  const fontPx = theme.yLabel.fontSize * hpr;
-  context.font = `${fontPx}px ${theme.typography.fontFamily}`;
-  context.textAlign = 'left';
-  context.textBaseline = 'middle';
+  const { width, height } = measureChip({ context, theme, label, hpr, vpr });
 
-  const padX = LABEL_PAD_X_MEDIA * hpr;
-  const padY = LABEL_PAD_Y_MEDIA * vpr;
-  const inset = LABEL_INSET_MEDIA * hpr;
-  const textWidth = context.measureText(label).width;
-
-  const pillX = left + inset;
-  const pillY = LABEL_INSET_MEDIA * vpr;
-  const pillHeight = fontPx + padY * 2;
-
-  context.fillStyle = region.color;
-  fillRoundedRect(context, {
-    x: pillX,
-    y: pillY,
-    width: textWidth + padX * 2,
-    height: pillHeight,
-    radius: 3 * hpr,
-    corners: { tl: true, tr: true, br: true, bl: true },
+  drawChip({
+    context,
+    theme,
+    color: region.color,
+    label,
+    x: left + LABEL_INSET_MEDIA * hpr,
+    y: LABEL_INSET_MEDIA * vpr,
+    width,
+    height,
+    hpr,
+    vpr,
   });
-
-  context.fillStyle = theme.yLabel.textColor;
-  context.fillText(label, pillX + padX, pillY + pillHeight / 2);
 }
 
 /** Resolve a region's accent color and fill, applying theme-derived defaults. */

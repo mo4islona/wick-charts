@@ -11,9 +11,9 @@ export let from: TimeValue;
 export let to: TimeRegionEnd | undefined = undefined;
 /** Band fill — any CSS color, typically translucent. Default: a faint tint of `color`. */
 export let fill: string | undefined = undefined;
-/** Optional text label drawn in a pill at the top of the band. */
+/** Optional text label drawn in an annotation chip at the top of the band. */
 export let label: string | undefined = undefined;
-/** Edge-line and label-pill accent. Default: the theme's muted axis text color. */
+/** Edge-line and label-chip accent. Default: the theme's muted axis text color. */
 export let color: string | undefined = undefined;
 
 const chartStore = getChartContext();

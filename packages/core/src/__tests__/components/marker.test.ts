@@ -26,6 +26,8 @@ function renderAt(marker: Partial<ResolvedMarker> & { shape: MarkerShape }, phas
     theme: built.ctx.theme,
     marker: resolved,
     phase,
+    plotWidth: 800,
+    plotHeight: 400,
   });
 
   return built.spy;
@@ -90,15 +92,41 @@ describe('renderMarker', () => {
     expect(baseYs).toEqual([209, 209]);
   });
 
-  it('label: draws the text in the theme label color, offset from the glyph', () => {
+  it('label: a callout chip centered above the anchor, text in the theme ink', () => {
     const spy = renderAt({ shape: 'dot', label: 'broke' });
 
     const text = spy.callsOf('fillText');
     expect(text).toHaveLength(1);
     expect(text[0].args[0]).toBe('broke');
-    // textX = bx(400) + glyphHalfWidth(4) + gap(6) + padX(6) = 416; y = anchor.
-    expect(text[0].args.slice(1)).toEqual([416, 200]);
-    expect(text[0].fillStyle).toBe(catppuccin.theme.yLabel.textColor);
+    expect(text[0].fillStyle).toBe(catppuccin.theme.tooltip.textColor);
+
+    // Centered on the anchor X, floated above the anchor Y.
+    const [, textX, textY] = text[0].args;
+    expect(textX).toBe(400);
+    expect(textY).toBeLessThan(200);
+
+    // The glyph still marks the anchor under the callout.
+    expect(spy.countOf('arc')).toBe(1);
+  });
+
+  it('labeled arrow: the callout tail replaces the glyph, its tip on the anchor', () => {
+    const spy = renderAt({ shape: 'arrow-down', label: 'peak' });
+
+    // No standalone triangle — the callout outline is the only path, and its
+    // tail apex lands exactly on the anchor point.
+    const tailTip = spy.callsOf('lineTo').filter((c) => c.args[0] === 400 && c.args[1] === 200);
+    expect(tailTip).toHaveLength(1);
+
+    const text = spy.callsOf('fillText');
+    expect(text).toHaveLength(1);
+    expect(text[0].args[0]).toBe('peak');
+  });
+
+  it('labeled arrow-up: the callout hangs below the anchor', () => {
+    const spy = renderAt({ shape: 'arrow-up', label: 'dip' });
+
+    const [, , textY] = spy.callsOf('fillText')[0].args;
+    expect(textY).toBeGreaterThan(200);
   });
 
   it('does not draw when the anchor is non-finite', () => {
@@ -110,6 +138,8 @@ describe('renderMarker', () => {
       theme: built.ctx.theme,
       marker: { time: 50, value: Number.NaN, color: RED, shape: 'dot', pulse: false },
       phase: 0,
+      plotWidth: 800,
+      plotHeight: 400,
     });
 
     expect(built.spy.countOf('arc')).toBe(0);
