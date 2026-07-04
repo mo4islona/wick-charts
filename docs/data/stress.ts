@@ -4,7 +4,7 @@
  * they produce intentionally-broken data (nulls, NaN, unsorted, duplicates).
  */
 
-import type { OHLCData, TimePoint } from '@wick-charts/react';
+import type { HeatmapCellData, OHLCData, TimePoint } from '@wick-charts/react';
 
 import { DEMO_INTERVAL, generateOHLCData } from '../data';
 
@@ -229,4 +229,61 @@ export function generateThinCandles(count: number, price = 50_000): OHLCData[] {
   }
 
   return out;
+}
+
+// Deterministic PRNG (mulberry32) so stress heatmaps paint identically on
+// every load — visual-regression panels must not shift between sessions.
+function mulberry32(seed: number): () => number {
+  let a = seed;
+
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export interface HeatmapGridSpec {
+  cols: number;
+  rows: number;
+  /** PRNG seed — vary it to get a different (but stable) pattern. */
+  seed?: number;
+  /** Value ceiling; cells land in [0, scale]. */
+  scale?: number;
+}
+
+/** Dense `cols × rows` grid with deterministic values and C1…/R1… keys. */
+export function generateHeatmapGrid(spec: HeatmapGridSpec): HeatmapCellData[] {
+  const { cols, rows, seed = 1, scale = 100 } = spec;
+  const rand = mulberry32(seed);
+  const data: HeatmapCellData[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      data.push({ x: `C${col + 1}`, y: `R${row + 1}`, value: Math.round(scale * rand()) });
+    }
+  }
+
+  return data;
+}
+
+/** Grid with non-finite values planted on the diagonal — the ramp-indexing guard. */
+export function poisonedHeatmapGrid(): HeatmapCellData[] {
+  const data = generateHeatmapGrid({ cols: 6, rows: 4, seed: 11 });
+  const poison = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+  for (let i = 0; i < poison.length; i++) {
+    const cell = data.find((d) => d.x === `C${i + 1}` && d.y === `R${i + 1}`);
+    if (cell) cell.value = poison[i];
+  }
+
+  return data;
+}
+
+/** Dense grid with ~40% of the cells deterministically removed. */
+export function sparseHeatmapGrid(): HeatmapCellData[] {
+  const rand = mulberry32(23);
+
+  return generateHeatmapGrid({ cols: 8, rows: 5, seed: 5 }).filter(() => rand() >= 0.4);
 }

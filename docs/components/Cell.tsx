@@ -11,7 +11,7 @@ export function Cell({
   theme,
   style,
 }: {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   theme: ChartTheme;
   style?: React.CSSProperties;
 }) {
