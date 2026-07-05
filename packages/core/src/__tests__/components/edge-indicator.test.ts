@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderEdgeIndicator } from '../../components/edge-indicator';
 import { buildRenderContext } from '../helpers/render-context';
@@ -9,6 +9,7 @@ function renderFor(state: 'idle' | 'loading' | 'no-data' | 'has-more', side: 'le
     scope: built.ctx.scope,
     timeScale: built.timeScale,
     theme: built.ctx.theme,
+    chartMediaWidth: 800,
     chartMediaHeight: 400,
     boundaryTime: side === 'right' ? 100 : 0,
     side,
@@ -41,6 +42,7 @@ describe('renderEdgeIndicator', () => {
       scope: built.ctx.scope,
       timeScale: built.timeScale,
       theme: built.ctx.theme,
+      chartMediaWidth: 800,
       chartMediaHeight: 400,
       boundaryTime: 100,
       side: 'right',
@@ -64,6 +66,137 @@ describe('renderEdgeIndicator', () => {
     const textCalls = spy.calls.filter((c) => c.method === 'fillText');
     expect(textCalls).toHaveLength(1);
     expect(textCalls[0].args?.[0]).toBe('No more data');
+  });
+
+  it('loading state calls a custom indicator instead of the built-in dots, when provided', () => {
+    const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    const customIndicator = vi.fn();
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 800,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'right',
+      state: 'loading',
+      now: 123,
+      customIndicator,
+    });
+
+    expect(customIndicator).toHaveBeenCalledTimes(1);
+    const arg = customIndicator.mock.calls[0][0];
+    expect(arg.chartMediaHeight).toBe(400);
+    expect(arg.now).toBe(123);
+    expect(built.spy.calls.filter((c) => c.method === 'arc')).toHaveLength(0);
+  });
+
+  it('passes side and the resolved edge value Y through to the custom indicator, only when it is present', () => {
+    const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    const customIndicator = vi.fn();
+    const resolveEdgeAnchor = vi.fn(() => ({ valueY: 42, seriesKind: 'candlestick' as const }));
+    const resolveEdgeBarSpacing = vi.fn(() => 18);
+
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 800,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'left',
+      state: 'loading',
+      now: 0,
+      customIndicator,
+      resolveEdgeAnchor,
+      resolveEdgeBarSpacing,
+    });
+
+    expect(resolveEdgeAnchor).toHaveBeenCalledTimes(1);
+    expect(resolveEdgeBarSpacing).toHaveBeenCalledTimes(1);
+    const arg = customIndicator.mock.calls[0][0];
+    expect(arg.side).toBe('left');
+    expect(arg.edgeValueY).toBe(42);
+    expect(arg.seriesKind).toBe('candlestick');
+    expect(arg.barSpacing).toBe(18);
+
+    // The built-in spinner path never touches either resolver — cheap to omit.
+    resolveEdgeAnchor.mockClear();
+    resolveEdgeBarSpacing.mockClear();
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 800,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'left',
+      state: 'loading',
+      now: 0,
+      resolveEdgeAnchor,
+      resolveEdgeBarSpacing,
+    });
+    expect(resolveEdgeAnchor).not.toHaveBeenCalled();
+    expect(resolveEdgeBarSpacing).not.toHaveBeenCalled();
+  });
+
+  it('normalizes a null resolveEdgeAnchor / resolveEdgeBarSpacing result to undefined', () => {
+    const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    const customIndicator = vi.fn();
+
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 800,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'right',
+      state: 'loading',
+      now: 0,
+      customIndicator,
+      resolveEdgeAnchor: () => null,
+      resolveEdgeBarSpacing: () => null,
+    });
+
+    const arg = customIndicator.mock.calls[0][0];
+    expect(arg.edgeValueY).toBeUndefined();
+    expect(arg.seriesKind).toBeUndefined();
+    expect(arg.barSpacing).toBeUndefined();
+  });
+
+  it('clamps the custom indicator zone width to the available chart width', () => {
+    const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+    const wide = vi.fn();
+    const narrow = vi.fn();
+
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 800,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'right',
+      state: 'loading',
+      now: 0,
+      customIndicator: wide,
+    });
+    renderEdgeIndicator({
+      scope: built.ctx.scope,
+      timeScale: built.timeScale,
+      theme: built.ctx.theme,
+      chartMediaWidth: 60,
+      chartMediaHeight: 400,
+      boundaryTime: 100,
+      side: 'right',
+      state: 'loading',
+      now: 0,
+      customIndicator: narrow,
+    });
+
+    expect(wide.mock.calls[0][0].chartMediaWidth).toBe(150);
+    expect(narrow.mock.calls[0][0].chartMediaWidth).toBe(60);
   });
 
   it('no-data label sits on the interior side of the boundary', () => {

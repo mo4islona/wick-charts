@@ -30,6 +30,13 @@ export { mountAxisLabels } from './axis/dom-labels';
 export type { BitmapCoordinateSpace } from './canvas-manager';
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, PointClickInfo, SeriesHoverInfo } from './chart';
 export { ChartInstance } from './chart';
+// Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
+// — same shape as the series intro animations. Drives the `loading` visual an
+// `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`
+// falls back to the built-in three-dot spinner. `skeletonLoadingIndicator`
+// is a peer of a custom fn, not a privileged default.
+export type { LoadingIndicatorArgs, LoadingIndicatorFn } from './components/loading-indicator';
+export { skeletonLoadingIndicator } from './components/loading-indicator';
 // Markers — point annotations (event markers) pinned to time/value, drawn on the
 // overlay layer. Kept out of the series model, so excluded from tooltips, the
 // legend, and Y-range autoscale. Add via `chart.addMarker(config)`.

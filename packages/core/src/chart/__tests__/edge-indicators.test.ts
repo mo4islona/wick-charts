@@ -10,7 +10,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { buildRenderContext } from '../../__tests__/helpers/render-context';
 import type { EdgeSide, EdgeState } from '../../components/edge-indicator';
-import { type EdgeIndicatorContext, drawEdgeIndicators, resolveEdgeBoundary } from '../edge-indicators';
+import {
+  type EdgeIndicatorContext,
+  drawEdgeIndicators,
+  resolveEdgeAnchorValue,
+  resolveEdgeBoundary,
+} from '../edge-indicators';
 
 function buildCtx(opts: {
   edgeStates: Record<EdgeSide, EdgeState>;
@@ -22,11 +27,15 @@ function buildCtx(opts: {
     spy: built.spy,
     ctx: {
       scope: built.ctx.scope,
+      chartMediaWidth: 800,
       chartMediaHeight: 400,
       timeScale: built.timeScale,
       theme: built.ctx.theme,
       edgeStates: opts.edgeStates,
+      edgeIndicatorFns: { left: null, right: null },
       resolveBoundary: opts.resolveBoundary,
+      resolveEdgeAnchor: () => null,
+      resolveEdgeBarSpacing: () => null,
     },
   };
 }
@@ -119,5 +128,23 @@ describe('drawEdgeIndicators', () => {
 
     // Two spinners → six arcs.
     expect(spy.countOf('arc')).toBe(6);
+  });
+});
+
+describe('resolveEdgeAnchorValue', () => {
+  const candle = { time: 1000, open: 10, high: 12, low: 8, close: 11 };
+
+  it('continues from open when loading older history (left)', () => {
+    expect(resolveEdgeAnchorValue('left', candle)).toBe(10);
+  });
+
+  it('continues from close when loading newer data (right)', () => {
+    expect(resolveEdgeAnchorValue('right', candle)).toBe(11);
+  });
+
+  it('uses the single value field for a line/bar point regardless of side', () => {
+    const point = { time: 1000, value: 42 };
+    expect(resolveEdgeAnchorValue('left', point)).toBe(42);
+    expect(resolveEdgeAnchorValue('right', point)).toBe(42);
   });
 });

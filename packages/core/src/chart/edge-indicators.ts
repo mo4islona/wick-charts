@@ -7,20 +7,38 @@
 
 import type { CanvasManager } from '../canvas-manager';
 import { type EdgeSide, type EdgeState, renderEdgeIndicator } from '../components/edge-indicator';
+import type { LoadingIndicatorFn } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
+import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
+import type { OHLCData, TimePoint } from '../types';
 
 export interface EdgeIndicatorContext {
   scope: Parameters<Parameters<CanvasManager['useOverlayLayer']>[0]>[0];
+  chartMediaWidth: number;
   chartMediaHeight: number;
   timeScale: XScale;
   theme: ChartTheme;
   edgeStates: Record<EdgeSide, EdgeState>;
+  /** Per-side custom `loading` painter, same contract as the series intro animations. `null` falls back to the built-in dots. */
+  edgeIndicatorFns: Record<EdgeSide, LoadingIndicatorFn | null>;
   /**
    * Resolve a side's anchor time. Returns `null` when neither a cached
    * overshoot nor a current data edge is available.
    */
   resolveBoundary(side: EdgeSide): number | null;
+  /**
+   * Resolve the boundary point's Y position and series kind on the primary
+   * visible time series, for a custom indicator that wants to start exactly
+   * where the real chart leaves off and match its shape.
+   */
+  resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): { valueY: number; seriesKind: SeriesKind } | null;
+  /**
+   * Resolve the media-pixel spacing between adjacent bars at the chart's
+   * current zoom level, for a custom indicator that wants to size its
+   * placeholder shapes to match the real bars.
+   */
+  resolveEdgeBarSpacing(): number | null;
 }
 
 export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
@@ -36,11 +54,15 @@ export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
       scope: ctx.scope,
       timeScale: ctx.timeScale,
       theme: ctx.theme,
+      chartMediaWidth: ctx.chartMediaWidth,
       chartMediaHeight: ctx.chartMediaHeight,
       boundaryTime,
       side,
       state,
       now,
+      customIndicator: ctx.edgeIndicatorFns[side],
+      resolveEdgeAnchor: () => ctx.resolveEdgeAnchor(side, boundaryTime),
+      resolveEdgeBarSpacing: () => ctx.resolveEdgeBarSpacing(),
     });
   }
 }
@@ -60,4 +82,17 @@ export function resolveEdgeBoundary(
   if (cached !== null) return cached;
 
   return side === 'left' ? (dataBounds.first ?? null) : (dataBounds.last ?? null);
+}
+
+/**
+ * Pick the value a `loading` continuation indicator should anchor to at the
+ * boundary point — the field that reads as "immediately preceding" the
+ * overshoot zone. `left` (loading older history) continues from `open` (the
+ * value the boundary candle opened at); `right` (loading newer data)
+ * continues from `close`. A `TimePoint` (line/bar) has only one field.
+ */
+export function resolveEdgeAnchorValue(side: EdgeSide, point: OHLCData | TimePoint): number {
+  if ('close' in point) return side === 'left' ? point.open : point.close;
+
+  return point.value;
 }
