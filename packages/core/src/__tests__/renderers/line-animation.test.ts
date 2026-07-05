@@ -139,6 +139,36 @@ describe('LineRenderer — animation', () => {
     expect(displayed(r)).toEqual(liveBefore);
   });
 
+  it('getStackedLastValue reports the eased in-flight value during a grow entrance, not the raw target', () => {
+    // A freshly-appended point takes entryMs to visually travel from the
+    // previous point's position to its own — but before this fix, last-value
+    // queries (tooltip, YLabel) reported the raw target from frame 1,
+    // `entryMs` ahead of where the marker had actually animated to.
+    const r = new LineRenderer(3, { stacking: 'normal', entryMs: 1000 });
+    r.setData([{ time: 10, value: 10 }], 0);
+    r.setData([{ time: 10, value: 20 }], 1);
+    r.setData([{ time: 10, value: 30 }], 2);
+    renderFrame(r); // settle initial frame — no unsettled entries from a bulk seed
+
+    r.appendPoint({ time: 20, value: 50 }, 0);
+    r.appendPoint({ time: 20, value: 60 }, 1);
+    r.appendPoint({ time: 20, value: 70 }, 2);
+    advance(160); // 16% through the 1000ms entrance
+    renderFrame(r);
+
+    const midFlight = r.getStackedLastValue()?.value ?? 0;
+    const previousTotal = 10 + 20 + 30;
+    const finalTotal = 50 + 60 + 70;
+    expect(midFlight).toBeGreaterThan(previousTotal);
+    expect(midFlight).toBeLessThan(finalTotal);
+
+    for (let i = 0; i < 80; i++) {
+      advance(16);
+      renderFrame(r);
+    }
+    expect(r.getStackedLastValue()?.value).toBeCloseTo(finalTotal, 0);
+  });
+
   describe('stacked mode live-tracking', () => {
     it('normal stacking: the rendered upper edge Y tracks the smoothed layer-1 value', () => {
       const r = new LineRenderer(2, { stacking: 'normal', area: { visible: false } });
@@ -225,6 +255,58 @@ describe('LineRenderer — animation', () => {
 
       expect(Math.abs(lowestPath - expectedSmoothedY)).toBeLessThan(2);
       expect(Math.abs(lowestPath - expectedRawY)).toBeGreaterThan(2);
+    });
+  });
+
+  describe('crosshair dots (drawOverlay)', () => {
+    it("stacked, ragged append: the live-tracked dot lands on the eased position, not the raw target — and holds a lagging sibling's value forward", () => {
+      // Layer 0 ticks a new point at t=30; layer 1 (a slower-cadence
+      // sibling) has no sample there yet. The crosshair dot for layer 0
+      // must (a) sum layer 1's held-forward value instead of treating it as
+      // 0, and (b) sit at the eased in-flight position, not jump straight
+      // to the raw final target `entryMs` before the line visually arrives.
+      const r = new LineRenderer(2, { stacking: 'normal', area: { visible: false }, entryMs: 1000 });
+      r.setData(
+        [
+          { time: 10, value: 10 },
+          { time: 20, value: 20 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 10 },
+          { time: 20, value: 20 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 15 }, 0);
+      advance(300); // 30% through the 1000ms entrance
+
+      const { overlayCtx, timeScale, yScale, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 40 },
+        yRange: { min: 0, max: 60 },
+      });
+      r.drawOverlay(overlayCtx({ mediaX: 0, mediaY: 0, time: 30, y: 0 }));
+
+      const arcs = spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThan(0);
+
+      const rawFinalX = timeScale.timeToBitmapX(30);
+      const rawFinalY = yScale.valueToBitmapY(15 + 20); // zero-filled would be y(15)
+      const heldZeroFillY = yScale.valueToBitmapY(15);
+
+      // No dot should already be parked at the raw un-animated final spot.
+      const atRawFinal = arcs.filter(
+        (c) => Math.abs((c.args[0] as number) - rawFinalX) < 1 && Math.abs((c.args[1] as number) - rawFinalY) < 1,
+      );
+      expect(atRawFinal.length).toBe(0);
+
+      // No dot should show the zero-filled (pre-fix) total either.
+      const atZeroFilled = arcs.filter((c) => Math.abs((c.args[1] as number) - heldZeroFillY) < 1);
+      expect(atZeroFilled.length).toBe(0);
     });
   });
 
@@ -448,6 +530,71 @@ describe('LineRenderer — animation', () => {
         (c) => Math.abs((c.args[0] as number) - X30) < 0.5 && Math.abs((c.args[1] as number) - yZero) < 0.5,
       );
       expect(matches.length).toBeGreaterThan(0);
+    });
+
+    it("ragged append: a settled layer's top edge must not tear away from an actively-growing sibling's shared boundary", () => {
+      // Layer 0 (bottom) ticks a new point; layer 1 (top) does not — it's a
+      // slower-cadence sibling holding its last value forward. Layer 1's own
+      // top edge has no unsettled entry (it never appended anything), so it
+      // used to snap straight to its raw final X/Y while the shared boundary
+      // below it (drawn as layer 0's growing upper edge, mirrored as layer
+      // 1's lower edge) kept lerping — a visible diagonal tear at the right
+      // edge. Both edges must now ease in lockstep.
+      const r = new LineRenderer(2, {
+        stacking: 'normal',
+        area: { visible: true },
+        entryAnimation: 'grow',
+        entryMs: 1000,
+        colors: ['#111', '#222'],
+      });
+      r.setData(
+        [
+          { time: 10, value: 10 },
+          { time: 20, value: 20 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 10, value: 10 },
+          { time: 20, value: 20 },
+        ],
+        1,
+      );
+      renderFrame(r);
+
+      r.appendPoint({ time: 30, value: 15 }, 0);
+      advance(300); // mid-entrance for layer 0's new point only
+      renderFrame(r);
+
+      const { ctx, spy } = buildRenderContext({
+        timeRange: { from: 0, to: 40 },
+        yRange: { min: 0, max: 60 },
+      });
+      r.render(ctx);
+
+      // Each layer's own top-edge tip: find its stroke path by walking back
+      // from the matching stroke() call (strokeStyle is assigned right
+      // before stroke(), so the moveTo/lineTo calls that built the path
+      // still carry the previous layer's strokeStyle) and take its last
+      // vertex's X.
+      const calls = spy.calls;
+      const tipX = (strokeColor: string): number => {
+        const strokeIdx = calls.findIndex((c) => c.method === 'stroke' && c.strokeStyle === strokeColor);
+        expect(strokeIdx).toBeGreaterThanOrEqual(0);
+        let pathStart = strokeIdx;
+        while (calls[pathStart].method !== 'beginPath') pathStart--;
+        const pts = calls.slice(pathStart, strokeIdx).filter((c) => c.method === 'lineTo' || c.method === 'moveTo');
+
+        return pts[pts.length - 1].args[0] as number;
+      };
+
+      // Layer 0's own top edge doubles as the shared boundary (layer 1's
+      // lower edge); layer 1's own top edge is a distinct boundary higher
+      // up. Different Y is expected — but both are new-column tips this
+      // frame, so their X must ease in lockstep, never one settled at the
+      // raw X30 while the other still lags toward it.
+      expect(Math.abs(tipX('#111') - tipX('#222'))).toBeLessThan(0.5);
     });
   });
 

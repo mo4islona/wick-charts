@@ -160,6 +160,19 @@ describe('ChartInstance.getStackedLastValue', () => {
     chart.setSeriesData(id, [{ time: 1, value: -3 }], 1);
     expect(chart.getStackedLastValue(id)?.value).toBe(4);
   });
+
+  it('ragged stream: a layer that hasn’t ticked as recently as its siblings still contributes its last known value, not 0', () => {
+    // Each layer streams independently (e.g. one WebSocket tick per symbol) —
+    // layer 1 is one tick behind layer 0 at read time. The stacked top must
+    // hold layer 1's last reading (20) rather than dropping it to 0 the
+    // instant layer 0 ticks past it.
+    const id = chart.addSeries('line', { layers: 2, stacking: 'normal', entryMs: 0 });
+    chart.setSeriesData(id, [{ time: 1, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 1, value: 20 }], 1);
+    chart.appendData(id, { time: 2, value: 15 }, 0);
+
+    expect(chart.getStackedLastValue(id)?.value).toBe(35);
+  });
 });
 
 describe('ChartInstance.getLayerSnapshots (real layerIndex + sample time)', () => {

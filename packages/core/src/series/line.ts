@@ -391,6 +391,50 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   /**
+   * Extends the base last-value query with the 'grow' entrance's value-space
+   * equivalent of {@link chainedTailPositions}'s eased position lerp — the Y
+   * scale is affine, so lerping the *value* by the same eased progress and
+   * mapping it through `yScale` afterward lands on the identical pixel the
+   * renderer paints. Without this, a tooltip/YLabel query would report a
+   * freshly-appended point's raw value the instant it lands, `entryMs`
+   * before the marker visually arrives there.
+   */
+  protected snapshotValue(layerIndex: number, time: number, rawValue: number): number {
+    const base = super.snapshotValue(layerIndex, time, rawValue);
+    if ((this.options.entryAnimation ?? 'grow') !== 'grow') return base;
+
+    return this.chainedTailValues(layerIndex)?.get(time) ?? base;
+  }
+
+  /** Value-space counterpart of {@link chainedTailPositions} — see {@link snapshotValue}. */
+  private chainedTailValues(layerIndex: number): Map<number, number> | null {
+    const chain = this.unsettledTail(layerIndex);
+    if (chain.length === 0) return null;
+
+    const all = this.stores[layerIndex].getAll();
+    const anchorIdx = all.length - 1 - chain.length;
+    if (anchorIdx < 0) return null;
+
+    const anchor = all[anchorIdx];
+    if (!Number.isFinite(anchor.value)) return null;
+
+    let prevValue = this.liveValue(layerIndex, anchor.time, anchor.value);
+    const values = new Map<number, number>();
+    for (let k = 0; k < chain.length; k++) {
+      const point = all[anchorIdx + 1 + k];
+      if (!Number.isFinite(point.value)) return null;
+
+      const eased = easeOutCubic(chain[k].progress);
+      const targetValue = this.liveValue(layerIndex, point.time, point.value);
+      const value = lerp(prevValue, targetValue, eased);
+      values.set(point.time, value);
+      prevValue = value;
+    }
+
+    return values;
+  }
+
+  /**
    * Glowing pulse dots riding the intro's head anchors — the line reads as
    * being plotted live, and hands off to the regular pulse dot the frame
    * the reveal lands. Off-mode only: recomputing the stacked cumulative at
@@ -491,11 +535,89 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    * unsettled or any value in the chain (anchor included) is non-finite —
    * callers fall back to raw geometry, mirroring the old NaN guard.
    */
+  /**
+   * Stacked cumulative value for `layerIndex` at `queryT`, alpha-weighted
+   * and reduced through {@link effectiveValue} — the single source of truth
+   * shared by {@link renderStacked}'s geometry and the overlay's crosshair /
+   * pulse dots, so they can never disagree. Any OTHER layer without a
+   * sample exactly at `queryT` holds its nearest earlier value forward
+   * instead of contributing 0: ragged streams tick independently, so a
+   * lagging sibling shouldn't zero out the moment another layer ticks past
+   * it (see `renderStacked`'s `valueMaps` comment for the full rationale).
+   */
+  private stackedValueAt(ctx: SeriesRenderContext | OverlayRenderContext, layerIndex: number, queryT: number): number {
+    const percent = this.options.stacking === 'percent';
+    const valueAt = (lj: number): number => {
+      const alpha = this.getLayerAlpha(lj);
+      if (alpha <= 0) return 0;
+
+      const data = this.stores[lj].getAll();
+      if (data.length === 0 || queryT < data[0].time) return 0;
+
+      const v = valueAtTime(data, queryT, (p) => this.effectiveValue(ctx, lj, p.time, p.value));
+
+      return v === null ? 0 : v * alpha;
+    };
+
+    let total = 0;
+    if (percent) {
+      for (let lj = 0; lj < this.stores.length; lj++) total += valueAt(lj);
+    }
+
+    let running = 0;
+    for (let lj = 0; lj <= layerIndex; lj++) {
+      const v = valueAt(lj);
+      running += percent && total > 0 ? (v / total) * 100 : v;
+    }
+
+    return running;
+  }
+
+  /**
+   * Bitmap position for layer `li`'s stacked boundary at time `t`, chain-
+   * lerped through that layer's own still-unsettled trailing entries when
+   * `t` is its current live tip — a single dot has no shared edge to tear,
+   * so (unlike `renderStacked`'s polygon boundaries) gating off the layer's
+   * own entrance state is enough. Falls back to the raw settled position
+   * for historical points or when the 'grow' entrance is disabled.
+   */
+  private stackedPositionAt(
+    ctx: SeriesRenderContext | OverlayRenderContext,
+    li: number,
+    t: number,
+  ): { x: number; y: number } {
+    const { timeScale, yScale } = ctx;
+    const x = timeScale.timeToBitmapX(t);
+    const y = yScale.valueToBitmapY(this.stackedValueAt(ctx, li, t));
+
+    const lastT = this.stores[li].last()?.time;
+    if ((this.options.entryAnimation ?? 'grow') !== 'grow' || t !== lastT) return { x, y };
+
+    const chain = this.unsettledTail(li);
+    const all = this.stores[li].getAll();
+    const anchorIdx = all.length - 1 - chain.length;
+    if (chain.length === 0 || anchorIdx < 0) return { x, y };
+
+    const anchor = all[anchorIdx];
+    let px = timeScale.timeToBitmapX(anchor.time);
+    let py = yScale.valueToBitmapY(this.stackedValueAt(ctx, li, anchor.time));
+    for (let k = 0; k < chain.length; k++) {
+      const point = all[anchorIdx + 1 + k];
+      const eased = easeOutCubic(chain[k].progress);
+      const targetX = timeScale.timeToBitmapX(point.time);
+      const targetY = yScale.valueToBitmapY(this.stackedValueAt(ctx, li, point.time));
+      px = lerp(px, targetX, eased);
+      py = lerp(py, targetY, eased);
+    }
+
+    return { x: px, y: py };
+  }
+
   private chainedTailPositions(
     ctx: SeriesRenderContext | OverlayRenderContext,
     layerIndex: number,
   ): Map<number, { x: number; y: number }> | null {
-    const chain = this.unsettledTail(ctx, layerIndex);
+    const chain = this.unsettledTail(layerIndex);
     if (chain.length === 0) return null;
 
     const all = this.stores[layerIndex].getAll();
@@ -695,7 +817,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const last = data[data.length - 1];
       const storeLast = this.stores[li].last();
       const lastIsLive = storeLast !== undefined && last.time === storeLast.time;
-      const progress = lastIsLive ? this.entranceProgress(ctx, li, last.time) : 1;
+      const progress = lastIsLive ? this.entranceProgress(li, last.time) : 1;
       const trailingFade = lastIsLive && style === 'fade' && progress < 1;
       const endpoint = (lastIsLive ? this.trailingEndpoint(ctx, li) : null) ?? {
         x: timeScale.timeToBitmapX(last.time),
@@ -894,14 +1016,29 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const times = Array.from(timeSet).sort((a, b) => a - b);
     if (times.length < 2) return;
 
-    // Value × alpha per layer. Layers mid-fade shrink their contribution to
-    // the stacked cumulative smoothly over `toggleMs`, in lockstep with the
-    // Y-axis Hermite easing to the post-toggle bounds. effectiveValue keeps
-    // updateLastPoint smoothing for the trailing bar even inside the stack.
+    // Value × alpha per layer, evaluated at every shared time column — not
+    // just the columns the layer itself has a sample at. Layers stream
+    // independently (a "ragged" feed: each series ticks on its own cadence),
+    // so a layer that hasn't reached the newest column yet must hold its
+    // last known value there instead of contributing 0 — zero-filling would
+    // momentarily collapse the whole stack toward whichever single layer
+    // just ticked, then snap back out once the others catch up. Times before
+    // a layer's own first point still contribute 0 — that layer genuinely
+    // hasn't started. effectiveValue keeps updateLastPoint smoothing for the
+    // trailing edge even inside the stack; layers mid-fade shrink their
+    // contribution smoothly over `toggleMs` via alpha.
     const valueMaps: Map<number, number>[] = layers.map((layer, li) => {
       const m = new Map<number, number>();
+      if (layer.length === 0) return m;
+
       const alpha = this.getLayerAlpha(li);
-      for (const d of layer) m.set(d.time, this.effectiveValue(ctx, li, d.time, d.value) * alpha);
+      const firstTime = layer[0].time;
+      for (const t of times) {
+        if (t < firstTime) continue;
+
+        const v = valueAtTime(layer, t, (p) => this.effectiveValue(ctx, li, p.time, p.value));
+        if (v !== null) m.set(t, v * alpha);
+      }
 
       return m;
     });
@@ -928,9 +1065,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
     }
 
-    // Per-layer chained entrance progress. Stacked geometry owns its own draw
-    // loop, so we can't reuse renderOff's chained tail — we lerp the trailing
-    // segments directly off the cumulative arrays.
+    // Per-layer chained entrance progress — drives the 'fade' alpha ramp
+    // only, so gating it off each layer's own unsettled tail is fine (fade
+    // never repositions geometry, so there's no shared edge to tear).
     //
     // Animation only fires when the layer's still-unsettled tail points (see
     // {@link BaseMultiLayerSeries.unsettledTail}) occupy the trailing slots of
@@ -940,15 +1077,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const style = this.options.entryAnimation ?? 'grow';
     const timeIdx = new Map<number, number>();
     for (let i = 0; i < times.length; i++) timeIdx.set(times[i], i);
-    // Eased per-link progress of each layer's gated entrance chain, oldest
-    // first. Empty = fully settled.
-    const layerChains: number[][] = Array.from({ length: this.stores.length }, () => []);
-    // Raw progress of the newest link — drives the 'fade' alpha ramp.
+    // Raw progress of each layer's newest unsettled link — drives the
+    // 'fade' alpha ramp.
     const layerHeadProgress: number[] = new Array(this.stores.length).fill(1);
     for (let li = 0; li < this.stores.length; li++) {
       if (this.getLayerAlpha(li) <= 0) continue;
 
-      const chain = this.unsettledTail(ctx, li);
+      const chain = this.unsettledTail(li);
       const len = chain.length;
       if (len === 0) continue;
 
@@ -961,17 +1096,40 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
       if (!gated) continue;
 
-      // The chain's anchor (the settled point the oldest link grows from)
-      // must occupy the slot immediately before the chain — otherwise the
-      // lerp would re-shape a stable earlier segment instead of just
-      // unfurling the new tip.
-      const all = this.stores[li].getAll();
-      const anchorIdx = all.length - 1 - len;
-      if (anchorIdx < 0) continue;
-      if (timeIdx.get(all[anchorIdx].time) !== times.length - len - 1) continue;
-
-      layerChains[li] = chain.map((c) => easeOutCubic(c.progress));
       layerHeadProgress[li] = chain[len - 1].progress;
+    }
+
+    // Shared per-column 'grow' entrance progress, oldest first. A stacked
+    // boundary is drawn twice — once as the layer above it's lower edge,
+    // once as the layer below it's upper edge — so gating growth off
+    // whichever single layer happens to own the new point (the old
+    // per-layer approach) tears the shared edge apart the instant a
+    // sibling's mirrored edge is still growing while this layer's own edge
+    // already sits at its raw final position (visible as a diagonal seam at
+    // the live edge in a ragged multi-layer stream). A time column is
+    // "growing" if ANY visible layer has a real, still-unsettled entry
+    // there; every layer's geometry at that column eases in lockstep using
+    // the slowest (minimum) progress among them, so no boundary ever tears.
+    const growChain: number[] = [];
+    if (style === 'grow') {
+      for (let ti = times.length - 1; ti >= 0; ti--) {
+        const t = times[ti];
+        let minProgress = 1;
+        let found = false;
+        for (let li = 0; li < this.stores.length; li++) {
+          if (this.getLayerAlpha(li) <= 0) continue;
+          if (this.entries[li]?.get(t) === undefined) continue;
+
+          const progress = this.entranceProgress(li, t);
+          if (progress >= 1) continue;
+
+          found = true;
+          if (progress < minProgress) minProgress = progress;
+        }
+        if (!found) break;
+
+        growChain.unshift(easeOutCubic(minProgress));
+      }
     }
 
     // Chain-lerp the trailing entries of an XY array: each link lerps from
@@ -1021,21 +1179,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       const lastValue = this.stores[li].last()?.value ?? 0;
       const color = this.resolveLayerColor(li, lastValue);
-      const upperChain = layerChains[li];
-      // The lower edge is the shared boundary with the nearest VISIBLE layer
-      // below — whichever slice draws this same boundary as its upper edge.
-      // Mirror that layer's entrance chain (not `layerChains[li - 1]`,
-      // which belongs to a hidden intermediate layer) so the two edges
-      // grow-lerp identically and tile pixel-exactly. Hidden layers contribute
-      // 0 to cumulative, so the boundary's data position is unchanged either way.
-      let belowVisibleLi = -1;
-      for (let bl = li - 1; bl >= 0; bl--) {
-        if (this.getLayerAlpha(bl) > 0) {
-          belowVisibleLi = bl;
-          break;
-        }
-      }
-      const lowerChain = belowVisibleLi >= 0 ? layerChains[belowVisibleLi] : [];
 
       const isBottomVisible = li === bottomVisibleLi;
       // The next visible slice above the bottom-most smoothly hands off
@@ -1061,7 +1204,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         lowerXY.push([timeScale.timeToBitmapX(times[ti]), lowerY]);
       }
-      if (style === 'grow') applyGrowChain(lowerXY, lowerChain);
+      // The bottom-most visible slice's lower edge is the constant canvas
+      // baseline (Y never varies with data), not a shared data boundary —
+      // lerping its X would animate a seam that isn't actually growing.
+      if (style === 'grow' && !isBottomVisible) applyGrowChain(lowerXY, growChain);
 
       // Upper edge = alpha-weighted cumulative. For the bottom-most slice
       // during a fade we additionally lerp it down to bitmapBottom so the
@@ -1075,12 +1221,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
         upperXY.push([timeScale.timeToBitmapX(times[ti]), upperY]);
       }
-      if (style === 'grow') applyGrowChain(upperXY, upperChain);
+      if (style === 'grow') applyGrowChain(upperXY, growChain);
 
       // Upper-edge curve segments, shared by the area fill and the stroke so the
       // stroked line sits exactly on the filled slice's top edge.
       const upperPoints = toPoints(upperXY);
-      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && upperChain.length > 0);
+      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && growChain.length > 0);
 
       const useFade = style === 'fade' && layerHeadProgress[li] < 1;
       if (useFade) {
@@ -1132,7 +1278,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           // shares the exact path with the slice below's upper edge (no sliver
           // gap between adjacent fills).
           const lowerPoints = toPoints(lowerXY);
-          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && lowerChain.length > 0);
+          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && growChain.length > 0);
           const lowerLast = lowerPoints[lowerPoints.length - 1];
           context.lineTo(lowerLast.x, lowerLast.y);
           replaySegmentsReversed(context, lowerPoints, lowerSegs);
@@ -1204,51 +1350,28 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const stacking = this.options.stacking;
       const r = 4 * size.horizontalPixelRatio;
 
-      const layerValues: number[] = [];
-      const layerTimes: (number | null)[] = [];
       for (let li = 0; li < this.stores.length; li++) {
-        const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
-        if (!closest) {
-          layerValues.push(0);
-          layerTimes.push(null);
-        } else {
-          layerValues.push(closest.value);
-          layerTimes.push(closest.time);
-        }
-      }
-
-      const displayValues: number[] = [];
-      if (stacking === 'off') {
-        for (const v of layerValues) displayValues.push(v);
-      } else {
-        // Alpha-weighted contribution so crosshair dots align with the same
-        // alpha-weighted cumulative renderStacked draws (a fading layer
-        // contributes a shrinking share, not a binary in/out).
-        let total = 0;
-        if (stacking === 'percent') {
-          for (let li = 0; li < layerValues.length; li++) {
-            total += layerValues[li] * this.getLayerAlpha(li);
-          }
-        }
-        let running = 0;
-        for (let li = 0; li < layerValues.length; li++) {
-          const v = layerValues[li] * this.getLayerAlpha(li);
-          running += stacking === 'percent' && total > 0 ? (v / total) * 100 : v;
-          displayValues.push(running);
-        }
-      }
-
-      for (let li = 0; li < this.stores.length; li++) {
-        const t = layerTimes[li];
-        if (t === null) continue;
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0) continue;
 
+        const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
+        if (!closest) continue;
+
         // Resolve the dot at the layer's raw value under the cursor so a
         // value-fn color matches the segment the crosshair is on.
-        const color = this.resolveLayerColor(li, layerValues[li]);
-        const px = timeScale.timeToBitmapX(t);
-        const py = yScale.valueToBitmapY(displayValues[li]);
+        const color = this.resolveLayerColor(li, closest.value);
+
+        // Routes through `effectiveValue` / the entrance chain (via
+        // `stackedPositionAt`) so the dot lands exactly where the
+        // stroke/fill is actually drawn this frame — not the raw target,
+        // `entryMs` before the geometry visually catches up to it.
+        const { x: px, y: py } =
+          stacking === 'off'
+            ? {
+                x: timeScale.timeToBitmapX(closest.time),
+                y: yScale.valueToBitmapY(this.effectiveValue(ctx, li, closest.time, closest.value)),
+              }
+            : this.stackedPositionAt(ctx, li, closest.time);
 
         const dotFaded = layerAlpha < 1;
         if (dotFaded) {
@@ -1324,71 +1447,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           continue;
         }
 
-        // Stacked: pulse Y must match renderStacked's cumulative at this layer's
-        // last time. During a 'grow' entrance the pulse also lerps in lockstep
-        // with the rendered trailing segment.
+        // Stacked: pulse position must match renderStacked's cumulative at
+        // this layer's last time, chain-lerped in lockstep with the
+        // rendered trailing segment during a 'grow' entrance.
         const last = this.stores[li].last();
         if (!last) continue;
 
-        const t = last.time;
-        const percent = stacking === 'percent';
-
-        // Mirror renderStacked: each layer's contribution at `queryT` is
-        // effectiveValue × getLayerAlpha so the pulse glides with the same
-        // alpha-weighted cumulative the area below it is drawing.
-        const cumulativeAt = (queryT: number): number => {
-          const valueAt = (lj: number): number => {
-            const alpha = this.getLayerAlpha(lj);
-            if (alpha <= 0) return 0;
-
-            const point = lj === li && queryT === t ? last : this.stores[lj].findNearest(queryT, 0);
-            if (!point || point.time !== queryT) return 0;
-
-            return this.effectiveValue(ctx, lj, queryT, point.value) * alpha;
-          };
-          let total = 0;
-          if (percent) {
-            for (let lj = 0; lj < this.stores.length; lj++) {
-              total += valueAt(lj);
-            }
-          }
-          let running = 0;
-          for (let lj = 0; lj <= li; lj++) {
-            const v = valueAt(lj);
-            running += percent && total > 0 ? (v / total) * 100 : v;
-          }
-
-          return running;
-        };
-
-        let pulseX = timeScale.timeToBitmapX(t);
-        let pulseY = yScale.valueToBitmapY(cumulativeAt(t));
-
-        const appendStyle = this.options.entryAnimation ?? 'grow';
-        if (appendStyle === 'grow') {
-          // Chain-lerp through every still-unsettled tail point (cumulative Y
-          // per link) so the dot glides in lockstep with the chained line
-          // head — including when appends outpace entryMs and several
-          // entrances overlap.
-          const chain = this.unsettledTail(ctx, li);
-          const all = this.stores[li].getAll();
-          const anchorIdx = all.length - 1 - chain.length;
-          if (chain.length > 0 && anchorIdx >= 0) {
-            const anchor = all[anchorIdx];
-            let px = timeScale.timeToBitmapX(anchor.time);
-            let py = yScale.valueToBitmapY(cumulativeAt(anchor.time));
-            for (let k = 0; k < chain.length; k++) {
-              const point = all[anchorIdx + 1 + k];
-              const eased = easeOutCubic(chain[k].progress);
-              const targetX = timeScale.timeToBitmapX(point.time);
-              const targetY = yScale.valueToBitmapY(cumulativeAt(point.time));
-              px = lerp(px, targetX, eased);
-              py = lerp(py, targetY, eased);
-            }
-            pulseX = px;
-            pulseY = py;
-          }
-        }
+        const { x: pulseX, y: pulseY } = this.stackedPositionAt(ctx, li, last.time);
 
         this.drawPulse({
           ctx: scope.context,

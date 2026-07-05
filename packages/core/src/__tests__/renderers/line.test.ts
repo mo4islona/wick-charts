@@ -296,6 +296,52 @@ describe('LineRenderer.drawOverlay', () => {
     }
   });
 
+  it('stacked rendering holds a lagging layer at its last value instead of zero-filling ragged columns', () => {
+    // Layers stream independently (each series ticks on its own cadence).
+    // Layer 0 has a point at t=30 that layer 1 hasn't reached yet — layer 1's
+    // own last point is still at t=20. Prior bug: valueMaps only mapped a
+    // layer's own sample times, so layer 1 contributed 0 at t=30 instead of
+    // holding its last known value (2), collapsing the stack top from 5 to 3
+    // for that column, then snapping back once layer 1 caught up.
+    const r = new LineRenderer(2, {
+      area: { visible: false },
+      stacking: 'normal',
+      entryAnimation: 'none',
+      colors: ['#111', '#222'],
+    });
+    r.setData(
+      [
+        { time: 10, value: 1 },
+        { time: 20, value: 2 },
+        { time: 30, value: 3 },
+      ],
+      0,
+    );
+    r.setData(
+      [
+        { time: 10, value: 1 },
+        { time: 20, value: 2 },
+      ],
+      1,
+    );
+    const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 40 }, yRange: { min: 0, max: 10 } });
+    r.render(ctx);
+
+    // Layer 1 ('#222') is the topmost slice — its upper edge at t=30 must sit
+    // at cumulative 5 (3 + 2 held), not 3 (3 + 0 zero-filled). `strokeStyle`
+    // is assigned right before `stroke()`, so the moveTo/lineTo calls that
+    // *built* the path still carry the previous layer's strokeStyle — locate
+    // the path by walking back from the matching `stroke()` call instead.
+    const calls = spy.calls;
+    const strokeIdx = calls.findIndex((c) => c.method === 'stroke' && c.strokeStyle === '#222');
+    expect(strokeIdx).toBeGreaterThanOrEqual(0);
+    let pathStart = strokeIdx;
+    while (calls[pathStart].method !== 'beginPath') pathStart--;
+    const pathCalls = calls.slice(pathStart, strokeIdx).filter((c) => c.method === 'lineTo' || c.method === 'moveTo');
+    const tip = pathCalls[pathCalls.length - 1];
+    expect(tip?.args[1]).toBeCloseTo(ctx.yScale.valueToBitmapY(5), 5);
+  });
+
   it('area fill closes a separate polygon per finite run (no cross-gap spill)', () => {
     // With area.visible: true and gaps in the data, each finite run must be
     // its own closed fill polygon anchored to the baseline. If the fill

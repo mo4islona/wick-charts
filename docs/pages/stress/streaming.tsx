@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TimePoint } from '@wick-charts/react';
-import { ChartContainer, LineSeries, TimeAxis, Title, YAxis } from '@wick-charts/react';
+import { ChartContainer, Crosshair, LineSeries, TimeAxis, Title, Tooltip, YAxis } from '@wick-charts/react';
 
 import type { PanelCtx, StressPanel } from './panel';
 
@@ -609,7 +609,96 @@ function BackgroundTabRecovery({ theme, perfHud, yEngine }: PanelCtx) {
   );
 }
 
+/**
+ * Repro for the stacked-live-tick bug report: 6 unnamed layers stream a new
+ * point independently — each on its own timer, like one WebSocket tick per
+ * symbol — so most frames render with some layers ahead of others (a
+ * "ragged" stream). Tooltip + Crosshair are mounted so the value-lookup-vs-
+ * render divergence is visible. `entryMs`/`smoothMs` bumped well above
+ * defaults to slow the transition down enough to eyeball frame-by-frame.
+ */
+const STACK_LAYER_COUNT = 6;
+const STACK_TICK_BASE_MS = 1_200;
+const STACK_TICK_JITTER_MS = 900;
+
+function makeStackSeed(start: number, count: number): TimePoint[][] {
+  return Array.from({ length: STACK_LAYER_COUNT }, (_, li) =>
+    Array.from({ length: count }, (_, i) => ({
+      time: start + i * INTERVAL,
+      value: 20 + li * 15 + Math.sin(i / 4 + li) * 6,
+    })),
+  );
+}
+
+function StackedLiveTick({ theme, perfHud, yEngine }: PanelCtx) {
+  const seed = useMemo(() => makeStackSeed(Date.now() - 30 * INTERVAL, 30), []);
+  const [layers, setLayers] = useState<TimePoint[][]>(seed);
+  const animations = useMemo(() => ({ axis: { y: { curve: yEngine } } }), [yEngine]);
+
+  const appendLayer = (li: number) => {
+    setLayers((prev) => {
+      const layer = prev[li];
+      const last = layer[layer.length - 1];
+      const next: TimePoint = {
+        time: last.time + INTERVAL,
+        value: 20 + li * 15 + Math.sin(layer.length / 4 + li) * 6 + (Math.random() - 0.5) * 3,
+      };
+
+      return prev.map((l, i) => (i === li ? [...l, next] : l));
+    });
+  };
+
+  useEffect(() => {
+    // Independent timer per layer, each with its own random jitter — no two
+    // layers tick in lockstep, so the trailing edge is ragged almost every
+    // frame, matching a feed where each series updates on its own cadence.
+    const timeouts: Array<ReturnType<typeof setTimeout>> = [];
+    let cancelled = false;
+
+    const scheduleNext = (li: number) => {
+      const delay = STACK_TICK_BASE_MS + Math.random() * STACK_TICK_JITTER_MS;
+      timeouts[li] = setTimeout(() => {
+        if (cancelled) return;
+        appendLayer(li);
+        scheduleNext(li);
+      }, delay);
+    };
+
+    for (let li = 0; li < STACK_LAYER_COUNT; li++) scheduleNext(li);
+
+    return () => {
+      cancelled = true;
+      for (const t of timeouts) clearTimeout(t);
+    };
+  }, []);
+
+  return (
+    <ChartContainer
+      theme={theme}
+      perf={perfHud?.()}
+      animations={animations}
+      viewport={{ initialRange: { from: seed[0][0].time, bars: 40 } }}
+    >
+      <Title sub="6 layers, stacking: normal, each layer ticks on its own independent cadence">
+        Stacked live tick (ragged)
+      </Title>
+      <LineSeries data={layers} options={{ stacking: 'normal', entryMs: 900, smoothMs: 900 }} />
+      <Tooltip />
+      <Crosshair />
+      <YAxis />
+      <TimeAxis />
+    </ChartContainer>
+  );
+}
+
 export const streamingPanels: readonly StressPanel[] = [
+  {
+    id: 'stream-stacked-live-tick',
+    title: 'Stacked live tick — ragged (6 layers)',
+    hint: 'Each layer ticks on its own independent cadence (no lockstep). Watch: tooltip timing vs. marker animation, fill snapping toward whichever layer just ticked, and edges shooting during the entrance.',
+    render: (ctx) => <StackedLiveTick {...ctx} />,
+    minHeight: 360,
+  },
   {
     id: 'stream-warmup-compare',
     title: 'Warm-up vs scroll threshold',
