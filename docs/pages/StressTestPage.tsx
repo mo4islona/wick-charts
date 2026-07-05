@@ -218,7 +218,7 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
     // reached while walking the array in order.
     const landmarks = Array.from(container.querySelectorAll<HTMLElement>('[id^="stress-"], [id^="group-"]'));
 
-    function recompute(): void {
+    const recompute = (): void => {
       if (suppressScrollspyRef.current) return;
 
       // A generous margin below the header, not a tight one: `scrollToId`
@@ -246,7 +246,7 @@ export function StressTestPage({ theme }: { theme: ChartTheme }) {
         ? (FIRST_PANEL_ID_BY_GROUP_LANDMARK.get(current.id) ?? FIRST_PANEL_ID)
         : current.id.replace(/^stress-/, '');
       setActivePanelId(panelId);
-    }
+    };
 
     const observer = new IntersectionObserver(recompute, {
       root: container,
