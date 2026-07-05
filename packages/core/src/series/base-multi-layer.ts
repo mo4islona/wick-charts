@@ -315,9 +315,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   /**
    * Per-point entrance progress in `[0, 1]`. Reads the local entry registry,
    * returning `1` for a settled or absent entry (which matches the visual
-   * default: nothing to fade in).
+   * default: nothing to fade in). Takes no render context — progress is a
+   * pure function of wall time — so tooltip/last-value queries (which have
+   * no context to hand) can read it too.
    */
-  protected entranceProgress(_ctx: SeriesRenderContext, layerIndex: number, time: number): number {
+  protected entranceProgress(layerIndex: number, time: number): number {
     const state = this.entries[layerIndex]?.get(time);
     if (state === undefined) return 1;
 
@@ -360,14 +362,14 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * on every append. Renderers lerp each chain link from the previous
    * link's *rendered* position instead, so geometry stays continuous.
    */
-  protected unsettledTail(ctx: SeriesRenderContext, layerIndex: number): Array<{ time: number; progress: number }> {
+  protected unsettledTail(layerIndex: number): Array<{ time: number; progress: number }> {
     const all = this.stores[layerIndex]?.getAll();
     if (!all || all.length < 2) return [];
 
     const tail: Array<{ time: number; progress: number }> = [];
     // Index 0 has no predecessor to grow from — never part of a chain.
     for (let i = all.length - 1; i >= 1; i--) {
-      const progress = this.entranceProgress(ctx, layerIndex, all[i].time);
+      const progress = this.entranceProgress(layerIndex, all[i].time);
       if (progress >= 1) break;
 
       tail.unshift({ time: all[i].time, progress });
@@ -384,6 +386,17 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * happened yet.
    */
   protected effectiveValue(_ctx: SeriesRenderContext, layerIndex: number, time: number, rawValue: number): number {
+    return this.liveValue(layerIndex, time, rawValue);
+  }
+
+  /**
+   * The ctx-independent core of {@link effectiveValue} — used directly by the
+   * tooltip/last-value query methods below, which have no render context to
+   * hand a subclass's ctx-dependent override (e.g. Line's intro value
+   * transform). Those queries only need the live smoothing/chase this base
+   * method already provides, never the intro's positional transform.
+   */
+  protected liveValue(layerIndex: number, time: number, rawValue: number): number {
     const lastT = this.stores[layerIndex]?.last()?.time;
     if (lastT !== undefined && time === lastT) {
       return this.displayedLastValues[layerIndex] ?? rawValue;
@@ -393,6 +406,17 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     if (pinned !== null && pinned.time === time) return pinned.anim.current;
 
     return rawValue;
+  }
+
+  /**
+   * Value a last-value/tooltip query should report for `time` — defaults to
+   * {@link liveValue}. Distinct from `liveValue` so a subclass can layer its
+   * *entrance* animation's value-space equivalent on top (see Line's
+   * override) without that lerp feeding back into `effectiveValue`, which
+   * the renderer's own per-point draws use as an unlerp'd target.
+   */
+  protected snapshotValue(layerIndex: number, time: number, rawValue: number): number {
+    return this.liveValue(layerIndex, time, rawValue);
   }
 
   // --- Animation lifecycle --------------------------------------------------
@@ -558,7 +582,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       results.push({
         layerIndex: li,
         time: closest.time,
-        value: closest.value,
+        // Routes through the same live/pinned-chase smoothing the renderer
+        // paints, so hovering the live edge mid-animation doesn't jump ahead
+        // to the raw target before the on-screen marker gets there.
+        value: this.snapshotValue(li, closest.time, closest.value),
         // Resolve the layer's color at the hovered datum's value so a value-fn
         // colors the tooltip dot to match the bar / segment under the cursor.
         color: this.resolveLayerColor(li, closest.value),
@@ -572,20 +599,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     if (this.stores.length <= 1) {
       const last = this.stores[0]?.last();
 
-      return last ? { value: last.value, isLive: true } : null;
+      return last ? { value: this.snapshotValue(0, last.time, last.value), isLive: true } : null;
     }
-
-    // Stacked renderers draw the top edge as the cumulative sum of visible
-    // layers at the *last shared time*. Mirrors renderStacked's cumulative
-    // construction but evaluated at a single time point.
-    let lastTime = -Infinity;
-    for (const s of this.stores) {
-      if (!s.isVisible()) continue;
-
-      const l = s.last();
-      if (l && l.time > lastTime) lastTime = l.time;
-    }
-    if (lastTime === -Infinity) return null;
 
     const stacking = this.options.stacking;
     if (stacking === 'off') {
@@ -596,19 +611,33 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         if (!this.stores[i].isVisible()) continue;
 
         const last = this.stores[i].last();
-        if (last) return { value: last.value, isLive: true };
+        if (last) return { value: this.snapshotValue(i, last.time, last.value), isLive: true };
       }
 
       return null;
     }
 
+    // Stacked renderers draw the top edge as the cumulative sum of visible
+    // layers' most-recently-known values, mirroring renderStacked's
+    // hold-last-value handling of ragged streams: a layer that hasn't ticked
+    // as recently as its siblings still contributes its last reading instead
+    // of dropping to 0, which would otherwise collapse the whole stack toward
+    // whichever single layer just ticked.
+    let sawAny = false;
     const values: number[] = [];
-    for (const s of this.stores) {
-      if (!s.isVisible()) continue;
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
 
-      const l = s.last();
-      values.push(l && l.time === lastTime ? l.value : 0);
+      const l = this.stores[li].last();
+      if (!l) {
+        values.push(0);
+        continue;
+      }
+
+      sawAny = true;
+      values.push(this.snapshotValue(li, l.time, l.value));
     }
+    if (!sawAny) return null;
 
     const totals = sumStack(values);
     const value = stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
@@ -629,7 +658,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       results.push({
         layerIndex: li,
         time: last.time,
-        value: last.value,
+        value: this.snapshotValue(li, last.time, last.value),
         color: this.resolveLayerColor(li, last.value),
       });
     }

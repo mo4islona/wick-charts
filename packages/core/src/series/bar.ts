@@ -343,7 +343,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         // threshold value-fn doesn't flicker hues while the bar grows.
         const raw = this.effectiveValue(ctx, 0, d.time, d.value);
         const value = this.introValue({ layerIndex: 0, time: d.time, value: raw });
-        const progress = this.entranceProgress(ctx, 0, d.time);
+        const progress = this.entranceProgress(0, d.time);
         const isProjected = this.isProjectedTime(d.time);
         const cx = timeScale.timeToBitmapX(d.time);
         // One resolver per layer: a value-fn (the theme default) paints by sign
@@ -430,7 +430,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         for (let i = 0; i < entries.length; i++) {
           const { layer, value } = entries[i];
           const color = this.resolveLayerColor(layer, value);
-          const progress = this.entranceProgress(ctx, layer, time);
+          const progress = this.entranceProgress(layer, time);
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);
             const barHeight = Math.max(1, zeroY - topY);
@@ -538,7 +538,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         const raw = Number.isFinite(d.value) ? d.value : 0;
         let value = this.effectiveValue(ctx, li, d.time, raw) * alpha;
         if (growEntrance && !this.isProjectedTime(d.time)) {
-          value *= this.entranceProgress(ctx, li, d.time);
+          value *= this.entranceProgress(li, d.time);
         }
 
         // The intro's value directive bakes growth into the stacked values
@@ -588,7 +588,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           else baseNegative += v;
         }
 
-        const progress = this.entranceProgress(ctx, li, time);
+        const progress = this.entranceProgress(li, time);
         const isProjected = this.isProjectedTime(time);
         const roundEdge: RoundEdge =
           raw > 0
