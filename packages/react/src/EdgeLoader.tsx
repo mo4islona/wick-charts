@@ -1,8 +1,9 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-import type { EdgeSide } from '@wick-charts/core';
+import type { EdgeSide, LoadingIndicatorFn } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
+import { useLatestFn } from './use-latest-fn';
 
 /** Argument shape passed to the {@link EdgeLoader} render-prop. */
 export interface EdgeLoaderRenderArgs {
@@ -44,10 +45,15 @@ export interface EdgeLoaderProps {
    * - `'canvas'` (default): drive the chart's built-in canvas spinner via
    *   {@link ChartInstance.setEdgeState}. Renders inside the chart area at
    *   the data boundary.
-   * - `'custom'`: skip the canvas indicator. Use the render-prop `children`
-   *   to draw your own DOM/SVG loader.
+   * - `'custom'`: skip the canvas indicator entirely. Use the render-prop
+   *   `children` to draw your own DOM/SVG loader.
+   * - A {@link LoadingIndicatorFn}: keep the canvas indicator, but swap its
+   *   painter — the built-in `skeletonLoadingIndicator` (from
+   *   `@wick-charts/core`) or a custom one, same pluggable-function
+   *   contract either way. Drawn in a clipped stage anchored at the data
+   *   boundary, inside the overshoot zone.
    */
-  indicator?: 'canvas' | 'custom';
+  indicator?: 'canvas' | 'custom' | LoadingIndicatorFn;
   /**
    * Optional render-prop. Receives the live edge state — render whatever
    * positioned overlay you want, or return `null`.
@@ -85,6 +91,22 @@ export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas
   // (where visible === data) doesn't fire the loader on mount.
   const armed = useRef(false);
 
+  // A pluggable-fn `indicator` still drives the canvas spinner (`setEdgeState`) —
+  // it just swaps which painter draws it. Latched so a fresh inline function
+  // doesn't churn the effect below on every render; `usesCanvas` collapses
+  // both canvas-driving forms into one stable boolean for the same reason.
+  const indicatorFn = typeof indicator === 'function' ? indicator : undefined;
+  const latchedIndicatorFn = useLatestFn(indicatorFn);
+  const usesCanvas = indicator === 'canvas' || indicatorFn !== undefined;
+
+  // Register/unregister the custom painter independently of the trigger
+  // state machine below — swapping it shouldn't rebind the viewport listener.
+  useEffect(() => {
+    chart.setEdgeIndicator(side, latchedIndicatorFn ?? null);
+
+    return () => chart.setEdgeIndicator(side, null);
+  }, [chart, side, latchedIndicatorFn]);
+
   useEffect(() => {
     if (!hasMore) return;
 
@@ -101,7 +123,7 @@ export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas
 
       inflight.current = true;
       setIsLoading(true);
-      if (indicator === 'canvas') chart.setEdgeState(side, 'loading');
+      if (usesCanvas) chart.setEdgeState(side, 'loading');
 
       // biome-ignore lint/suspicious/noConfusingVoidType: matches onTrigger's return type exactly
       let result: void | Promise<unknown>;
@@ -110,7 +132,7 @@ export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas
       } catch (err) {
         inflight.current = false;
         setIsLoading(false);
-        if (indicator === 'canvas') chart.setEdgeState(side, 'idle');
+        if (usesCanvas) chart.setEdgeState(side, 'idle');
         throw err;
       }
 
@@ -119,8 +141,8 @@ export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas
         setIsLoading(false);
         if (value === false) {
           setHasMore(false);
-          if (indicator === 'canvas') chart.setEdgeState(side, 'no-data');
-        } else if (indicator === 'canvas') {
+          if (usesCanvas) chart.setEdgeState(side, 'no-data');
+        } else if (usesCanvas) {
           chart.setEdgeState(side, 'idle');
         }
       };
@@ -165,15 +187,15 @@ export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas
       chart.off('viewportChange', onChange);
       chart.off('overlayChange', onChange);
     };
-  }, [chart, side, threshold, indicator, hasMore]);
+  }, [chart, side, threshold, usesCanvas, hasMore]);
 
   // Reset the canvas indicator when this loader unmounts so a remount with a
   // fresh side / threshold doesn't inherit stale state.
   useEffect(() => {
     return () => {
-      if (indicator === 'canvas') chart.setEdgeState(side, 'idle');
+      if (usesCanvas) chart.setEdgeState(side, 'idle');
     };
-  }, [chart, side, indicator]);
+  }, [chart, side, usesCanvas]);
 
   if (!children) return null;
 

@@ -4470,11 +4470,11 @@
         },
         {
           "name": "indicator",
-          "type": "'canvas' | 'custom'",
+          "type": "'canvas' | 'custom' | LoadingIndicatorFn",
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "- `'canvas'` (default): drive the chart's built-in canvas spinner via\n  {@link ChartInstance.setEdgeState }. Renders inside the chart area at\n  the data boundary.\n- `'custom'`: skip the canvas indicator. Use the render-prop `children`\n  to draw your own DOM/SVG loader.",
+          "description": "- `'canvas'` (default): drive the chart's built-in canvas spinner via\n  {@link ChartInstance.setEdgeState }. Renders inside the chart area at\n  the data boundary.\n- `'custom'`: skip the canvas indicator entirely. Use the render-prop\n  `children` to draw your own DOM/SVG loader.\n- A LoadingIndicatorFn: keep the canvas indicator, but swap its\n  painter — the built-in `skeletonLoadingIndicator` (from\n  `@wick-charts/core`) or a custom one, same pluggable-function\n  contract either way. Drawn in a clipped stage anchored at the data\n  boundary, inside the overshoot zone.",
           "see": []
         },
         {

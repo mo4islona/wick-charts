@@ -1,6 +1,8 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
+import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
+import type { LoadingIndicatorFn } from './loading-indicator';
 
 /** Radius of each spinner dot, in media pixels. */
 const DOT_RADIUS_MEDIA = 3;
@@ -16,6 +18,8 @@ const NO_DATA_LABEL_SIZE_MEDIA = 11;
 const NO_DATA_LABEL_INSET_MEDIA = 10;
 /** Vertical inset for the no-data label from the top of the chart area, in media pixels. */
 const NO_DATA_LABEL_Y_MEDIA = 18;
+/** Width of the pluggable `loading` indicator's clipped stage, in media pixels. */
+const CUSTOM_INDICATOR_ZONE_MEDIA = 150;
 
 export type EdgeSide = 'left' | 'right';
 export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
@@ -24,6 +28,8 @@ export interface EdgeIndicatorContext {
   scope: BitmapCoordinateSpace;
   timeScale: XScale;
   theme: ChartTheme;
+  /** Chart area width in media pixels — bounds how wide the pluggable `loading` zone can be. */
+  chartMediaWidth: number;
   /** Chart area height in media pixels (excludes the X-axis band).
    * Renderers multiply by `scope.verticalPixelRatio` to convert to bitmap units. */
   chartMediaHeight: number;
@@ -35,6 +41,26 @@ export interface EdgeIndicatorContext {
   state: EdgeState;
   /** Animation timestamp for the spinner. Typically `performance.now()`. */
   now: number;
+  /**
+   * Custom painter for the `loading` state — same pluggable-function
+   * contract as the series intro animations. `null`/absent falls back to
+   * the built-in three-dot spinner. Has no effect on the `no-data` state.
+   */
+  customIndicator?: LoadingIndicatorFn | null;
+  /**
+   * Resolves the boundary point's Y position and series kind on the primary
+   * visible time series, for a custom indicator that wants to start exactly
+   * where the real chart leaves off and match its shape. Only called when
+   * `customIndicator` is present — cheap to omit otherwise.
+   */
+  resolveEdgeAnchor?: () => { valueY: number; seriesKind: SeriesKind } | null;
+  /**
+   * Resolves the media-pixel spacing between adjacent bars at the chart's
+   * current zoom level, for a custom indicator that wants to size its
+   * placeholder shapes to match the real bars. Only called when
+   * `customIndicator` is present.
+   */
+  resolveEdgeBarSpacing?: () => number | null;
 }
 
 /** Draw the edge indicator for the given side/state. A no-op for `idle` / `has-more`. */
@@ -46,12 +72,69 @@ export function renderEdgeIndicator(ctx: EdgeIndicatorContext): void {
   if (!Number.isFinite(boundaryX)) return;
 
   if (state === 'loading') {
-    drawLoadingSpinner(ctx, boundaryX);
+    if (ctx.customIndicator) {
+      drawCustomLoadingIndicator(ctx, boundaryX, ctx.customIndicator);
+    } else {
+      drawLoadingSpinner(ctx, boundaryX);
+    }
     return;
   }
   if (state === 'no-data') {
     drawNoDataMarker(ctx, boundaryX);
   }
+}
+
+/**
+ * Clips a stage anchored at the data boundary — extending into the overshoot
+ * zone, away from the data — and hands the caller's {@link LoadingIndicatorFn}
+ * a fresh local origin at the stage's near edge. Reuses the same contract the
+ * full-plot presets already satisfy: `chartMediaWidth` becomes the stage
+ * width instead of the whole plot, everything else is unchanged.
+ */
+function drawCustomLoadingIndicator(
+  {
+    scope,
+    theme,
+    chartMediaWidth,
+    chartMediaHeight,
+    side,
+    now,
+    resolveEdgeAnchor,
+    resolveEdgeBarSpacing,
+  }: EdgeIndicatorContext,
+  boundaryX: number,
+  indicator: LoadingIndicatorFn,
+): void {
+  const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
+  const zoneWidth = Math.min(CUSTOM_INDICATOR_ZONE_MEDIA, chartMediaWidth);
+  const zoneStart = side === 'right' ? boundaryX : boundaryX - zoneWidth;
+
+  context.save();
+  context.beginPath();
+  context.rect(
+    zoneStart * horizontalPixelRatio,
+    0,
+    zoneWidth * horizontalPixelRatio,
+    chartMediaHeight * verticalPixelRatio,
+  );
+  context.clip();
+  context.translate(zoneStart * horizontalPixelRatio, 0);
+
+  const anchor = resolveEdgeAnchor?.() ?? null;
+  const barSpacing = resolveEdgeBarSpacing?.() ?? undefined;
+  indicator({
+    scope,
+    theme,
+    chartMediaWidth: zoneWidth,
+    chartMediaHeight,
+    now,
+    side,
+    edgeValueY: anchor?.valueY,
+    seriesKind: anchor?.seriesKind,
+    barSpacing,
+  });
+
+  context.restore();
 }
 
 /**

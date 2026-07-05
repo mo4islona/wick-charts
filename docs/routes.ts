@@ -21,6 +21,7 @@ export type Route =
   | 'use-cases/custom-renders'
   | 'use-cases/custom-intro'
   | 'use-cases/annotations'
+  | 'use-cases/data-loading'
   | 'use-cases/theme'
   | 'api/line-series'
   | 'api/bar-series'
@@ -115,6 +116,7 @@ const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
   { route: 'use-cases/custom-intro', label: 'Custom intro animation', title: 'Custom intro animation' },
   { route: 'use-cases/annotations', label: 'Annotations', title: 'Annotations' },
+  { route: 'use-cases/data-loading', label: 'Data loading', title: 'Data loading' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level

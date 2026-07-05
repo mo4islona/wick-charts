@@ -6,6 +6,7 @@ import type { Route } from '../../routes';
 import { AnnotationsPage } from './annotations';
 import { CustomIntroPage } from './custom-intro';
 import { CustomRendersPage } from './custom-renders';
+import { DataLoadingPage } from './data-loading';
 import { MultiChartSyncPage } from './multi-chart-sync';
 import { RealtimeDataPage } from './realtime-data';
 
@@ -21,6 +22,7 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/custom-renders': CustomRendersPage,
   'use-cases/custom-intro': CustomIntroPage,
   'use-cases/annotations': AnnotationsPage,
+  'use-cases/data-loading': DataLoadingPage,
 };
 
 export function UseCasesRoutePage({ route, theme }: { route: Route; theme: ChartTheme }) {

@@ -1,7 +1,7 @@
 import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
-import { drawEdgeIndicators, resolveEdgeBoundary } from './chart/edge-indicators';
+import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
 import { computeFitToData } from './chart/fit-to-data';
 import { getLastValue, getPreviousClose, getStackedLastValue } from './chart/last-value';
 import {
@@ -22,6 +22,7 @@ import { resolvePaddingTime } from './chart/viewport-padding';
 import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
+import type { LoadingIndicatorFn } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
 import {
   type ReferenceLineConfig,
@@ -258,6 +259,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #edgeBoundaries: Record<EdgeSide, number | null> = { left: null, right: null };
   /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
   #onEdgeReached?: (info: EdgeReachedInfo) => void;
+  /** Per-side custom painter for the edge `loading` spinner. `null` falls back to the built-in dots. */
+  #edgeIndicatorFns: Record<EdgeSide, LoadingIndicatorFn | null> = { left: null, right: null };
 
   /** Nesting depth for batch updates. Suppresses recomputes while > 0. */
   #batchDepth = 0;
@@ -1722,6 +1725,54 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * Swap the painter used for a side's `loading` spinner — the same
+   * pluggable-function contract as the series intro animations. `null`
+   * (default) falls back to the built-in three-dot spinner. Takes effect
+   * immediately if that side is currently in the `loading` state.
+   */
+  setEdgeIndicator(side: EdgeSide, indicator: LoadingIndicatorFn | null): void {
+    this.#edgeIndicatorFns[side] = indicator;
+    if (this.#edgeStates[side] === 'loading') this.#overlayScheduler.markDirty();
+  }
+
+  /**
+   * Resolve the boundary point's Y position and series kind on the primary
+   * visible time series, for a custom edge indicator that wants to start
+   * exactly where the real chart leaves off and match its shape (candle vs.
+   * plain bar/line). `left` continues from the first visible candle's
+   * `open` (the value immediately preceding the boundary); `right` from the
+   * last visible candle's `close`.
+   */
+  #resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): { valueY: number; seriesKind: SeriesKind } | null {
+    const singleLayer = this.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true });
+    const seriesId = singleLayer[0] ?? this.getSeriesIdsByType('time', { visibleOnly: true })[0];
+    if (!seriesId) return null;
+
+    const point = this.getDataAtTime(seriesId, boundaryTime);
+    if (!point) return null;
+
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry) return null;
+
+    return {
+      valueY: this.yScale.valueToY(resolveEdgeAnchorValue(side, point)),
+      seriesKind: entry.renderer.kind,
+    };
+  }
+
+  /**
+   * Resolve the media-pixel spacing between adjacent bars at the chart's
+   * current zoom level, for a custom edge indicator that wants to size its
+   * placeholder shapes to match the real bars that will render once data
+   * lands. `null` when the viewport has no meaningful span yet.
+   */
+  #resolveEdgeBarSpacing(): number | null {
+    const spacing = this.timeScale.barWidthMedia(this.#dataInterval);
+
+    return Number.isFinite(spacing) && spacing > 0 ? spacing : null;
+  }
+
+  /**
    * Notify chart that a YLabel overlay is mounted / unmounted. Currently a
    * no-op — placeholder for the right-padding reflow that will adjust the
    * chart area to make room for the badge.
@@ -2773,11 +2824,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (edgeVisible) {
         drawEdgeIndicators({
           scope,
+          chartMediaWidth: size.media.width - this.yAxisWidth,
           chartMediaHeight: size.media.height - this.xAxisHeight,
           timeScale: this.timeScale,
           theme: this.#theme,
           edgeStates: this.#edgeStates,
+          edgeIndicatorFns: this.#edgeIndicatorFns,
           resolveBoundary: (side) => resolveEdgeBoundary(side, this.#edgeBoundaries[side], this.getDataBounds()),
+          resolveEdgeAnchor: (side, boundaryTime) => this.#resolveEdgeAnchor(side, boundaryTime),
+          resolveEdgeBarSpacing: () => this.#resolveEdgeBarSpacing(),
         });
       }
 
