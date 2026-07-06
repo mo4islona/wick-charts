@@ -76,6 +76,40 @@ describe('syncSeriesLayer', () => {
     expect(next.len).toBe(3);
   });
 
+  it('re-synced identical array reference is a no-op (no bulk replace, no snap)', () => {
+    // Regression: hosts that pass a layer literal (`data={{ color, data }}`)
+    // re-fire the data effect on every render even when the inner points
+    // array is unchanged. Classifying that re-fire used to fall through to a
+    // bulk `setSeriesData` (middleUnchanged refuses to compare an array to
+    // itself), which snapped the viewport mid-ease — one visible X jump per
+    // host re-render during streaming.
+    const chart = mockChart();
+    const data = [point(1), point(2), point(3)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data };
+
+    const next = syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+    expect(chart.updateData).not.toHaveBeenCalled();
+    expect(chart.appendData).not.toHaveBeenCalled();
+    expect(next).toBe(prev);
+  });
+
+  it('same array reference with in-place tail growth still appends', () => {
+    // Pushing into the same array is a legal mutation pattern — the length
+    // delta proves new points exist, so the same-reference no-op must not
+    // swallow it.
+    const chart = mockChart();
+    const data = [point(1), point(2)];
+    const prev: SeriesSyncState = { len: 2, firstTime: 1, lastTime: 2, data };
+    data.push(point(3));
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.appendData).toHaveBeenCalledWith('a', point(3), undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+  });
+
   it('falls back to setSeriesData when a middle value changed despite matching first/last timestamps', () => {
     // Regression: a same-length replacement with an edited middle point used
     // to take the cheap updateData(last) path whenever the boundary

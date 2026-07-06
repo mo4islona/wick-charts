@@ -236,6 +236,15 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
     return { len: 0, firstTime: null, lastTime: null, data: [] };
   }
 
+  // Re-fired sync with the very same array and no length change: the host
+  // re-rendered with a fresh wrapper around unchanged points (an inline
+  // `{ color, data }` layer literal re-fires the data effect every render).
+  // There is nothing to diff — `middleUnchanged` can't prove anything against
+  // the array itself, so classification would fall through to a bulk
+  // `setSeriesData`, and that snaps both axes mid-ease: one visible viewport
+  // jump per host re-render during streaming.
+  if (prev.data === data && prev.len === data.length) return prev;
+
   const firstTime = normalizeTime(data[0].time);
   const lastTime = normalizeTime(data[data.length - 1].time);
   const shifted = prev.firstTime !== null && prev.firstTime !== firstTime;
