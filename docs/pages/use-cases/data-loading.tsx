@@ -85,6 +85,17 @@ const dashLoader: LoadingIndicatorFn = ({ scope, chartMediaWidth, chartMediaHeig
 
 <EdgeLoader side="left" onTrigger={loadOlder} indicator={dashLoader} />`;
 
+const REVEAL_SNIPPET = `// Default: prepended candles fade in as a wave from the data
+// boundary into the new history. Same contract as introAnimation —
+// any factory reading el.progress works, or write your own.
+<CandlestickSeries
+  data={data}
+  options={{ historyReveal: riseIntro(), historyRevealMs: 600 }}
+/>
+
+// Opt out — new history appears instantly:
+<CandlestickSeries data={data} options={{ historyReveal: 'none' }} />`;
+
 const STEPS: Step[] = [
   {
     heading: '01 — SWAP THE SPINNER',
@@ -111,6 +122,20 @@ const STEPS: Step[] = [
       </>
     ),
     code: CUSTOM_INDICATOR_SNIPPET,
+  },
+  {
+    heading: '03 — THE ARRIVAL IS ANIMATED TOO',
+    body: (
+      <>
+        When the fetched history lands, the loading indicator fades out and the new candles reveal in a wave that
+        travels from the data boundary into the past — no snap, no pop. The choreography is the{' '}
+        <code>historyReveal</code> series option: the same pluggable-function contract as <code>introAnimation</code>{' '}
+        (<code>fadeIntro</code> is the default; <code>riseIntro</code>, <code>candleUnfoldIntro</code> and custom fns
+        work unchanged), with the wave's stagger anchored at the boundary. Lines back-fill behind a clip front (
+        <code>backfillSweepIntro</code>) instead.
+      </>
+    ),
+    code: REVEAL_SNIPPET,
   },
 ];
 
