@@ -97,6 +97,12 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
 
   private onClick = (e: MouseEvent): void => {
     if (this.movedBeyondClickTolerance(e.clientX, e.clientY)) return;
+
+    // `detail` is the click count: the second click of a double-click carries
+    // `detail === 2`. Suppress it so double-click-to-fit (`onDblClick`) doesn't
+    // also fire a second `pointClick` on top of the first.
+    if (e.detail > 1) return;
+
     this.emit('click', this.posFromOffset(e.offsetX, e.offsetY));
   };
 
@@ -114,6 +120,11 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   private lastTouchDist = 0;
   private touchCount = 0;
   private touchDownTime = 0;
+  // True once a gesture has ever held two fingers (a pinch). A pinch is never a
+  // tap, even after it decays to one finger, so this gates tap synthesis in
+  // onTouchEnd — otherwise lifting both fingers in quick succession would
+  // synthesize a phantom 'click'.
+  private gestureHadTwoFingers = false;
 
   private onTouchStart = (e: TouchEvent): void => {
     e.preventDefault();
@@ -128,8 +139,10 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       } as MouseEvent);
       this.downClient = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       this.touchDownTime = Date.now();
+      this.gestureHadTwoFingers = false;
     } else if (e.touches.length === 2) {
       this.lastTouchDist = touchDistance(e.touches[0], e.touches[1]);
+      this.gestureHadTwoFingers = true;
     }
   };
 
@@ -163,8 +176,14 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       // click after a tap, so a short, low-movement single-finger touch is
       // synthesized into 'click' by hand. Double-tap → dblclick is not
       // synthesized (no matching native gesture to mirror).
+      // A pinch (even one that decayed to a single finger) is never a tap.
       const tap = e.changedTouches[0];
-      if (this.touchCount === 1 && tap && !this.movedBeyondClickTolerance(tap.clientX, tap.clientY)) {
+      if (
+        this.touchCount === 1 &&
+        !this.gestureHadTwoFingers &&
+        tap &&
+        !this.movedBeyondClickTolerance(tap.clientX, tap.clientY)
+      ) {
         const elapsed = Date.now() - this.touchDownTime;
         if (elapsed <= TAP_MAX_DURATION_MS) {
           const rect = this.canvas.getBoundingClientRect();
@@ -176,6 +195,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       this.touchCount = 0;
       this.lastTouchDist = 0;
       this.downClient = null;
+      this.gestureHadTwoFingers = false;
       this.emit('crosshairMove', null);
 
       return;
@@ -204,6 +224,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.touchCount = 0;
     this.lastTouchDist = 0;
     this.downClient = null;
+    this.gestureHadTwoFingers = false;
     this.emit('crosshairMove', null);
   };
 
