@@ -1,4 +1,4 @@
-import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH } from '../animation/config';
+import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH, DEFAULT_HISTORY_REVEAL } from '../animation/config';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
 import { type BarIntroDirectives, growIntro } from './bar-intro';
@@ -7,16 +7,18 @@ import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import type { SeriesRenderContext } from './types';
+import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
+type ResolvedBarOptions = Omit<BarSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs' | 'historyRevealMs'> & {
   /** One resolver per layer; renderer-internal (theme default + `data` override), not a public option. */
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
   introMs: number;
+  historyRevealMs: number;
 };
 
 /** Caller-facing option input — the public surface plus the internal `colors`. */
@@ -36,6 +38,7 @@ const DEFAULT_OPTIONS: ResolvedBarOptions = {
   entryMs: DEFAULT_BAR_ENTRY,
   smoothMs: DEFAULT_BAR_SMOOTH,
   introMs: DEFAULT_BAR_INTRO,
+  historyRevealMs: DEFAULT_HISTORY_REVEAL,
 };
 
 function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): ResolvedBarOptions {
@@ -44,11 +47,16 @@ function normalize(options: BarSeriesOptions & { colors: ValueColor[] }): Resolv
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_BAR_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_BAR_SMOOTH),
     introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_BAR_INTRO),
+    historyRevealMs: options.historyRevealMs === false ? 0 : (options.historyRevealMs ?? DEFAULT_HISTORY_REVEAL),
   };
 }
 
 /** Fallback intro when the option is unset — stateless, safe to share. */
 const DEFAULT_INTRO = growIntro();
+
+/** Fallback history reveal — a soft staggered fade from the data boundary.
+ *  Calmer than the grow: load-more fires repeatedly while the user pans. */
+const DEFAULT_HISTORY_REVEAL_FN = fadeIntro();
 
 /** The free end the renderer decided to round for a given bar / segment. The
  *  renderer owns this — only it knows the draw mode (single / overlap / stacked /
@@ -122,6 +130,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   /** Visible range captured alongside {@link #introDirectives} — positions
    *  the per-bar wave stagger. */
   #introRange: { from: number; to: number } | null = null;
+  /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
+  #historyDirectives: BarIntroDirectives | null = null;
 
   constructor(layerCount: number, options?: BarOptionsInput) {
     super(layerCount);
@@ -152,15 +162,41 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   /**
+   * Stagger position + eased wave progress for the history reveal's
+   * callbacks — position anchored at the data boundary (`0` there, `1` at
+   * the deepest prepended point). `null` for bars outside the prepended
+   * span or when no reveal is in flight this frame.
+   */
+  #historyWaveAt(time: number): { position: number; progress: number } | null {
+    const range = this.historyRange;
+    if (this.#historyDirectives === null || range === null || time >= range.to) return null;
+
+    const span = range.to - range.from;
+    const raw = span > 0 ? (range.to - time) / span : 0;
+    const position = Math.min(1, Math.max(0, raw));
+
+    return { position, progress: this.historyWave.progressAt(position) };
+  }
+
+  /**
    * Apply the intro's `value` directive to one rendered value. Scaling here
    * (before geometry and stacking) grows the bar from the baseline on every
    * render path — off / stacked / percent — without touching their geometry
    * code. Projected (forecast) bars stay settled, like streaming entrances.
+   * A bar inside an in-flight history reveal is owned by the reveal's value
+   * directive instead.
    */
   private introValue(args: { layerIndex: number; time: number; value: number }): number {
+    if (this.isProjectedTime(args.time)) return args.value;
+
+    const historyValue = this.#historyDirectives?.value;
+    if (historyValue !== undefined) {
+      const wave = this.#historyWaveAt(args.time);
+      if (wave !== null) return historyValue({ ...args, ...wave });
+    }
+
     const value = this.#introDirectives?.value;
     if (value === undefined) return args.value;
-    if (this.isProjectedTime(args.time)) return args.value;
 
     const wave = this.#introWaveAt(args.time);
     if (wave === null) return args.value;
@@ -270,6 +306,24 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       });
     }
 
+    // History-reveal directives — same contract, localized frame: `range` is
+    // the prepended span, `width` its bitmap width. Stagger and clip both
+    // anchor at the data boundary.
+    this.#historyDirectives = null;
+    const historyRange = this.historyRange;
+    if (this.historyWave.active && historyRange !== null) {
+      const reveal = this.options.historyReveal ?? DEFAULT_HISTORY_REVEAL_FN;
+      if (reveal !== 'none') {
+        this.#historyDirectives = reveal({
+          progress: this.historyWave.linear(),
+          width: Math.abs(timeScale.timeToBitmapX(historyRange.to) - timeScale.timeToBitmapX(historyRange.from)),
+          height: yScale.getMediaHeight() * scope.verticalPixelRatio,
+          range: historyRange,
+          timeToX: (time) => timeScale.timeToBitmapX(time),
+        });
+      }
+    }
+
     // Intro clip directive (e.g. `wipeIntro()`): bars pop in fully formed
     // as the front crosses them.
     const introClip = this.#introDirectives?.clip;
@@ -280,6 +334,27 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       scope.context.beginPath();
       scope.context.rect(fromX, 0, Math.max(0, toX - fromX), scope.bitmapSize.height);
       scope.context.clip();
+    }
+
+    // History-reveal clip directive, interpreted in reveal space: local
+    // x = 0 at the data boundary, increasing toward the older (prepended)
+    // end. Everything at or after the boundary always draws; the pad keeps
+    // bar bodies straddling either end from being sliced.
+    const historyClip = this.#historyDirectives?.clip;
+    let historyClipApplied = false;
+    if (historyClip !== undefined && historyRange !== null) {
+      const boundaryX = timeScale.timeToBitmapX(historyRange.to);
+      const spanWidth = Math.abs(boundaryX - timeScale.timeToBitmapX(historyRange.from));
+      const pad = timeScale.barWidthBitmap(ctx.dataInterval);
+      const fromLocal = historyClip.fromX ?? 0;
+      const toLocal = historyClip.toX ?? spanWidth;
+
+      scope.context.save();
+      scope.context.beginPath();
+      scope.context.rect(boundaryX - toLocal - pad, 0, Math.max(0, toLocal - fromLocal + pad), scope.bitmapSize.height);
+      scope.context.rect(boundaryX, 0, Math.max(0, scope.bitmapSize.width - boundaryX), scope.bitmapSize.height);
+      scope.context.clip();
+      historyClipApplied = true;
     }
 
     switch (this.options.stacking) {
@@ -294,6 +369,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         break;
     }
 
+    if (historyClipApplied) scope.context.restore();
     if (introClip !== undefined) scope.context.restore();
   }
 
@@ -711,13 +787,18 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         ? { x, topY, barWidth, barHeight, alpha: 1 }
         : this.applyBarTransform(bar, progress);
 
-    // Intro element directive (translation / opacity) — growth arrives via
-    // the value directive upstream, so geometry here only shifts and fades.
-    const introElement = this.#introDirectives?.element;
-    if (introElement !== undefined && !bar.isProjected) {
-      const wave = this.#introWaveAt(bar.time);
-      if (wave !== null) {
-        const intro = introElement({
+    // Element directives (translation / opacity) — growth arrives via the
+    // value directive upstream, so geometry here only shifts and fades. A
+    // bar inside an in-flight history reveal is owned by the reveal's
+    // element callback; the initial-load intro keeps the rest.
+    if (!bar.isProjected) {
+      const historyElement = this.#historyDirectives?.element;
+      const historyWave = historyElement !== undefined ? this.#historyWaveAt(bar.time) : null;
+      const element = historyWave !== null ? historyElement : this.#introDirectives?.element;
+      const wave = historyWave ?? (element !== undefined ? this.#introWaveAt(bar.time) : null);
+
+      if (element !== undefined && wave !== null) {
+        const directive = element({
           ...wave,
           time: bar.time,
           x: t.x,
@@ -728,9 +809,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         });
         t = {
           ...t,
-          x: t.x + (intro.offsetX ?? 0),
-          topY: t.topY + (intro.offsetY ?? 0),
-          alpha: t.alpha * (intro.alpha ?? 1),
+          x: t.x + (directive.offsetX ?? 0),
+          topY: t.topY + (directive.offsetY ?? 0),
+          alpha: t.alpha * (directive.alpha ?? 1),
         };
       }
     }

@@ -27,6 +27,13 @@ const DEFAULT_SERIES_ENTRY = 250;
 const DEFAULT_SERIES_SMOOTH = 250;
 const DEFAULT_SERIES_INTRO = 500;
 
+/**
+ * History-prepend reveal — per-element wave duration; the full reveal lasts
+ * ~2×. Shorter than the initial-load intro: load-more fires repeatedly while
+ * the user pans, so the reveal must read as a soft arrival, not a ceremony.
+ */
+export const DEFAULT_HISTORY_REVEAL = 400;
+
 // =============================================================================
 // Per-series-type defaults (public)
 // =============================================================================

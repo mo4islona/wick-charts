@@ -74,6 +74,11 @@ import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart/options';
 
+/** Exit-fade duration for the edge `loading` indicator — long enough to read
+ *  as a hand-off to the arriving data's reveal, short enough not to linger
+ *  over it. */
+const EDGE_EXIT_FADE_MS = 200;
+
 /**
  * Payload for `pointClick` / `pointDoubleClick`. `spatialHit` resolves a
  * no-time-axis series (pie, heatmap, or a custom spatial kind) directly
@@ -267,6 +272,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #axis: AxisConfig = {};
   /** Host-declared state per edge — drives the edge-indicator overlay. */
   #edgeStates: Record<EdgeSide, EdgeState> = { left: 'idle', right: 'idle' };
+  /** Wall-clock start of a `loading` exit fade per side — set when the host
+   *  drops `loading` back to `idle`/`has-more`, so the indicator fades out
+   *  over {@link EDGE_EXIT_FADE_MS} instead of vanishing the same frame the
+   *  fetched data lands. `null` = no fade in flight. */
+  #edgeFadeStarts: Record<EdgeSide, number | null> = { left: null, right: null };
   /** Cached boundary timestamps from the last `edgeReached` emission, by side. */
   #edgeBoundaries: Record<EdgeSide, number | null> = { left: null, right: null };
   /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
@@ -1861,6 +1871,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   setEdgeState(side: EdgeSide, state: EdgeState): void {
     if (this.#edgeStates[side] === state) return;
+
+    // Dropping `loading` to a no-op state starts an exit fade — the fetched
+    // data lands on the same frame, and a one-frame vanish next to freshly
+    // revealed points reads as a hard cut. `no-data` swaps to its own marker
+    // immediately instead: fading the spinner under it would double-paint.
+    const wasLoading = this.#edgeStates[side] === 'loading';
+    this.#edgeFadeStarts[side] = wasLoading && (state === 'idle' || state === 'has-more') ? performance.now() : null;
+
     this.#edgeStates[side] = state;
     this.#overlayScheduler.markDirty();
   }
@@ -1868,6 +1886,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Read the current host-declared state for a given edge. */
   getEdgeState(side: EdgeSide): EdgeState {
     return this.#edgeStates[side];
+  }
+
+  /**
+   * Alpha for a side's `loading` exit fade, or `null` when none is in
+   * flight. Self-cleaning: an elapsed fade clears its start stamp.
+   */
+  #edgeExitFadeAlpha(side: EdgeSide): number | null {
+    const start = this.#edgeFadeStarts[side];
+    if (start === null) return null;
+
+    const progress = (performance.now() - start) / EDGE_EXIT_FADE_MS;
+    if (progress >= 1) {
+      this.#edgeFadeStarts[side] = null;
+
+      return null;
+    }
+
+    return 1 - easeOutCubic(Math.max(0, progress));
   }
 
   /**
@@ -2912,10 +2948,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // A pulsing marker keeps the overlay ticking just like a line pulse.
     if (this.#markers.some((m) => m.pulse)) overlayAnimates = true;
 
-    // The loading-state edge indicator animates a spinner; keep the overlay ticking.
-    const edgeAnimates = this.#edgeStates.left === 'loading' || this.#edgeStates.right === 'loading';
+    // The loading-state edge indicator animates a spinner; an exit fade keeps
+    // painting the last `loading` frame at decreasing alpha. Both need the
+    // overlay ticking.
+    const edgeExitFades: Record<EdgeSide, number | null> = {
+      left: this.#edgeExitFadeAlpha('left'),
+      right: this.#edgeExitFadeAlpha('right'),
+    };
+    const edgeFading = edgeExitFades.left !== null || edgeExitFades.right !== null;
+    const edgeAnimates = this.#edgeStates.left === 'loading' || this.#edgeStates.right === 'loading' || edgeFading;
     // Any non-idle edge needs a single redraw; only `loading` needs continuous frames.
-    const edgeVisible = this.#edgeStates.left !== 'idle' || this.#edgeStates.right !== 'idle';
+    const edgeVisible = this.#edgeStates.left !== 'idle' || this.#edgeStates.right !== 'idle' || edgeFading;
 
     // Skip the full-bitmap clear when the overlay is empty AND was already
     // empty last pass — only the painted→empty transition (e.g. mouseleave
@@ -2989,6 +3032,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           timeScale: this.timeScale,
           theme: this.#theme,
           edgeStates: this.#edgeStates,
+          edgeExitFades,
           edgeIndicatorFns: this.#edgeIndicatorFns,
           resolveBoundary: (side) => resolveEdgeBoundary(side, this.#edgeBoundaries[side], this.getDataBounds()),
           resolveEdgeAnchor: (side, boundaryTime) => this.#resolveEdgeAnchor(side, boundaryTime),

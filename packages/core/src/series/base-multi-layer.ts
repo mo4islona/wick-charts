@@ -26,6 +26,10 @@ export interface CommonSeriesOptions {
   entryMs: number;
   smoothMs: number;
   introMs: number;
+  historyRevealMs: number;
+  /** Subclass-typed reveal fn (`BarIntroFn` / `LineIntroFn`); the base only
+   *  ever compares against the `'none'` disable sentinel. */
+  historyReveal?: unknown;
 }
 
 /** Per-point entrance animation state — start wall-time so `render` can
@@ -102,6 +106,14 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * {@link introProgressAt} (per-element wave) or directly (line's sweep).
    */
   protected readonly introWave = new IntroWave();
+  /** History-prepend reveal clock — armed by {@link prependPoints} so newly
+   *  loaded older points wave in from the data boundary instead of popping.
+   *  Shared across layers: a multi-layer prepend rides one wave. */
+  protected readonly historyWave = new IntroWave();
+  /** Prepended time span: `from` = deepest new point, `to` = the boundary
+   *  (the pre-prepend first point). Stagger position is `0` at the boundary
+   *  and `1` at the deepest point. */
+  protected historyRange: { from: number; to: number } | null = null;
 
   constructor(layerCount: number) {
     this.stores = Array.from({ length: layerCount }, () => new TimeSeriesStore<TData>());
@@ -195,6 +207,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     this.#liveAnimators[layerIndex] = null;
     this.#pinnedChases[layerIndex] = null;
     this.entries[layerIndex].clear();
+
+    // A bulk replace invalidates any in-flight history reveal — its range
+    // refers to the previous dataset's boundary.
+    this.historyWave.finish();
+    this.historyRange = null;
   }
 
   appendPoint(point: unknown, layerIndex = 0): void {
@@ -238,12 +255,37 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     const store = this.stores[layerIndex];
     if (!store || points.length === 0) return;
 
-    // Insert older history at the front only. Deliberately leaves the intro
-    // wave, per-point entries, live chase and `displayedLastValues` alone —
-    // the visible suffix (including the last point) didn't change, so none of
-    // the reveal/snap machinery `setData` runs should fire.
+    // Insert older history at the front only. Deliberately leaves the
+    // initial-load intro, per-point entries, live chase and
+    // `displayedLastValues` alone — the visible suffix (including the last
+    // point) didn't change, so none of the snap machinery `setData` runs
+    // should fire. The new points get their own boundary-anchored reveal.
     const normalized = normalizeTimePointArray(points as TimePointInput[]) as unknown as TData[];
+    const boundary = store.first()?.time;
     store.prepend(normalized);
+
+    this.#armHistoryReveal(normalized[0]?.time, boundary);
+  }
+
+  /**
+   * Arm (or extend) the history-reveal wave for freshly prepended points.
+   * While a reveal is already in flight — including a same-frame prepend to
+   * another layer — only the range grows; restarting the clock would snap
+   * half-revealed points back to invisible.
+   */
+  #armHistoryReveal(deepestTime: number | undefined, boundary: number | undefined): void {
+    const revealMs = this.options.historyRevealMs;
+    if (this.options.historyReveal === 'none' || revealMs <= 0) return;
+    if (deepestTime === undefined || boundary === undefined) return;
+
+    if (this.historyWave.active && this.historyRange !== null) {
+      this.historyRange = { from: Math.min(this.historyRange.from, deepestTime), to: this.historyRange.to };
+
+      return;
+    }
+
+    this.historyRange = { from: deepestTime, to: boundary };
+    this.historyWave.arm(revealMs);
   }
 
   updateLastPoint(point: unknown, layerIndex = 0): void {
@@ -364,6 +406,22 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
+   * History-prepend reveal progress for a datum. Stagger position is
+   * anchored at the data boundary — `0` there, `1` at the deepest prepended
+   * point — so the wave travels into history. `1` for points outside the
+   * prepended span or when no reveal is in flight.
+   */
+  protected historyProgressAt(time: number): number {
+    const range = this.historyRange;
+    if (!this.historyWave.active || range === null || time >= range.to) return 1;
+
+    const span = range.to - range.from;
+    const position = span > 0 ? (range.to - time) / span : 0;
+
+    return this.historyWave.progressAt(position);
+  }
+
+  /**
    * Trailing data points whose entrance is still unsettled, oldest first.
    * Walks back from the store's last point and stops at the first settled
    * point — that point is the stable anchor a chained grow-lerp hangs off.
@@ -441,6 +499,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    */
   protected tickAnimations(now: number): void {
     this.introWave.tick(now);
+    this.historyWave.tick(now);
     for (const a of this.#layerAlphaAnimators) a.tick(now);
 
     for (let li = 0; li < this.stores.length; li++) {
@@ -475,7 +534,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   /** True while any layer has an active chase, unsettled entry, alpha fade,
    *  or the initial-load reveal is still sweeping. */
   get needsAnimation(): boolean {
-    if (this.introWave.active) return true;
+    if (this.introWave.active || this.historyWave.active) return true;
 
     for (const a of this.#layerAlphaAnimators) {
       if (a.animating) return true;

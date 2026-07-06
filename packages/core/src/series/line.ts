@@ -1,4 +1,10 @@
-import { DEFAULT_LINE_ENTRY, DEFAULT_LINE_INTRO, DEFAULT_LINE_PULSE, DEFAULT_LINE_SMOOTH } from '../animation/config';
+import {
+  DEFAULT_HISTORY_REVEAL,
+  DEFAULT_LINE_ENTRY,
+  DEFAULT_LINE_INTRO,
+  DEFAULT_LINE_PULSE,
+  DEFAULT_LINE_SMOOTH,
+} from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
 import { decimateLineData } from '../data/decimation';
 import type { ChartTheme } from '../theme/types';
@@ -7,7 +13,13 @@ import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
-import { type LineIntroDirectives, type LineIntroFn, type LineIntroFrame, unfoldIntro } from './line-intro';
+import {
+  type LineIntroDirectives,
+  type LineIntroFn,
+  type LineIntroFrame,
+  backfillSweepIntro,
+  unfoldIntro,
+} from './line-intro';
 import type { CurveKind, PathSegment } from './painters/canvas-path';
 import { buildCurveSegments } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
@@ -19,12 +31,16 @@ import type { OverlayRenderContext, SeriesRenderContext } from './types';
  *  merge boundary, so downstream reads never see the disable sentinel). `colors`
  *  is renderer-internal (one resolver per layer, sourced from the theme palette
  *  and per-layer `data` overrides) — it is no longer a public option. */
-type ResolvedLineOptions = Omit<LineSeriesOptions, 'entryMs' | 'smoothMs' | 'pulseMs' | 'introMs'> & {
+type ResolvedLineOptions = Omit<
+  LineSeriesOptions,
+  'entryMs' | 'smoothMs' | 'pulseMs' | 'introMs' | 'historyRevealMs'
+> & {
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
   pulseMs: number;
   introMs: number;
+  historyRevealMs: number;
 };
 
 /** Caller-facing option input — the public surface plus the internal `colors`. */
@@ -41,6 +57,7 @@ const DEFAULT_OPTIONS: ResolvedLineOptions = {
   smoothMs: DEFAULT_LINE_SMOOTH,
   pulseMs: DEFAULT_LINE_PULSE,
   introMs: DEFAULT_LINE_INTRO,
+  historyRevealMs: DEFAULT_HISTORY_REVEAL,
 };
 
 /**
@@ -61,6 +78,7 @@ function normalize(input: LineSeriesOptions & { colors: ValueColor[] }): Resolve
     smoothMs: input.smoothMs === false ? 0 : (input.smoothMs ?? DEFAULT_LINE_SMOOTH),
     pulseMs: input.pulseMs === false ? 0 : (input.pulseMs ?? DEFAULT_LINE_PULSE),
     introMs: input.introMs === false ? 0 : (input.introMs ?? DEFAULT_LINE_INTRO),
+    historyRevealMs: input.historyRevealMs === false ? 0 : (input.historyRevealMs ?? DEFAULT_HISTORY_REVEAL),
   };
 }
 
@@ -73,6 +91,10 @@ function toPoints(xy: readonly [number, number][]): LinePoint[] {
  *  pulse dot cross-fades in over the same tail window so the handoff is
  *  seamless. */
 const INTRO_HEAD_FADE = 0.15;
+
+/** Fallback history reveal — the line back-fills itself from the data
+ *  boundary behind a moving clip front. Stateless, safe to share. */
+const DEFAULT_HISTORY_REVEAL_FN = backfillSweepIntro();
 
 /**
  * Linearly interpolated series value at `time` between its bracketing
@@ -209,16 +231,56 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
 
+    const { context } = ctx.scope;
+
+    // History-prepend reveal — independent of the initial-load intro. The
+    // fn gets a localized frame (`range` = the prepended span, `width` = its
+    // bitmap width); its clip is interpreted in reveal space anchored at the
+    // data boundary.
+    this.historyDirectives = null;
+    const historyRange = this.historyRange;
+    if (this.historyWave.active && historyRange !== null) {
+      const reveal = this.options.historyReveal ?? DEFAULT_HISTORY_REVEAL_FN;
+      if (reveal !== 'none') {
+        this.historyDirectives = reveal(this.buildHistoryFrame(ctx, historyRange));
+      }
+    }
+    const history = this.historyDirectives;
+
+    // History ghost pre-pass (trace-style backfill) under everything —
+    // shows through only where the history clip hides the main pass.
+    const historyGhost = history?.ghostAlpha ?? 0;
+    if (historyGhost > 0) {
+      context.save();
+      context.globalAlpha *= historyGhost;
+      this.introGhostPass = true;
+      this.renderBody(ctx);
+      this.introGhostPass = false;
+      context.restore();
+    }
+
+    const historyClipApplied = this.applyHistoryClip(ctx, history, historyRange);
+
     if (!this.introWave.active) {
       this.introDirectives = null;
       this.renderBody(ctx);
-
-      return;
+    } else {
+      this.renderWithIntro(ctx);
     }
 
-    // Initial-load intro: the resolved LineIntroFn describes this frame
-    // declaratively (clip window / ghost pass / heads / value transform);
-    // the renderer executes the directives around the untouched body pass.
+    if (historyClipApplied) context.restore();
+
+    if (history?.heads !== undefined && history.heads.length > 0) {
+      this.drawIntroHeads(ctx, history.heads, this.historyWave.linear());
+    }
+  }
+
+  /**
+   * Initial-load intro pass: the resolved LineIntroFn describes this frame
+   * declaratively (clip window / ghost pass / heads / value transform); the
+   * renderer executes the directives around the untouched body pass.
+   */
+  private renderWithIntro(ctx: SeriesRenderContext): void {
     const directives = this.resolveIntro()(this.buildIntroFrame(ctx));
     this.introDirectives = directives;
 
@@ -255,8 +317,40 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     if (hasClip) context.restore();
 
     if (directives.heads !== undefined && directives.heads.length > 0) {
-      this.drawIntroHeads(ctx, directives.heads);
+      this.drawIntroHeads(ctx, directives.heads, this.introWave.linear());
     }
+  }
+
+  /**
+   * Apply the history reveal's clip directive, mapped from reveal space
+   * (`x = 0` at the data boundary, increasing into the prepended history)
+   * to bitmap space. Everything at or after the boundary always draws; a
+   * small pad keeps the stroke cap at the reveal front from being shaved.
+   */
+  private applyHistoryClip(
+    ctx: SeriesRenderContext,
+    directives: LineIntroDirectives | null,
+    range: { from: number; to: number } | null,
+  ): boolean {
+    const clip = directives?.clip;
+    if (clip === undefined || range === null) return false;
+    if (clip.fromX === undefined && clip.toX === undefined) return false;
+
+    const { context } = ctx.scope;
+    const { width, height } = ctx.scope.bitmapSize;
+    const boundaryX = ctx.timeScale.timeToBitmapX(range.to);
+    const spanWidth = Math.abs(boundaryX - ctx.timeScale.timeToBitmapX(range.from));
+    const pad = Math.max(2, (this.options.strokeWidth ?? 1) * ctx.scope.horizontalPixelRatio);
+    const fromLocal = clip.fromX ?? 0;
+    const toLocal = clip.toX ?? spanWidth;
+
+    context.save();
+    context.beginPath();
+    context.rect(boundaryX - toLocal - pad, 0, Math.max(0, toLocal - fromLocal + pad), height);
+    context.rect(boundaryX, 0, Math.max(0, width - boundaryX), height);
+    context.clip();
+
+    return true;
   }
 
   private renderBody(ctx: SeriesRenderContext): void {
@@ -278,6 +372,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    */
   private introDirectives: LineIntroDirectives | null = null;
 
+  /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
+  private historyDirectives: LineIntroDirectives | null = null;
+
   /** Default intro, built lazily — one instance per renderer. */
   private defaultIntro: LineIntroFn | null = null;
 
@@ -295,8 +392,36 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    * accessors, so a directive-producing fn stays pure and cheap.
    */
   private buildIntroFrame(ctx: SeriesRenderContext): LineIntroFrame {
+    return this.buildFrame(ctx, {
+      progress: this.introWave.linear(),
+      range: ctx.timeScale.getRange(),
+      // Plot-area extent, not the canvas bitmap — the canvas also carries the
+      // axis strips, so `bitmapSize` would make `width / 2` land right of the
+      // data center and any width-based x→time mapping sample the wrong time.
+      width: ctx.timeScale.getMediaWidth() * ctx.scope.horizontalPixelRatio,
+    });
+  }
+
+  /**
+   * Localized frame for the history reveal fn: `range` is the prepended
+   * span (boundary at `range.to`), `width` its bitmap width, and the data
+   * accessors are scoped to that span — `layerMean` anchors an unfold to
+   * the new history, not the whole window.
+   */
+  private buildHistoryFrame(ctx: SeriesRenderContext, historyRange: { from: number; to: number }): LineIntroFrame {
+    return this.buildFrame(ctx, {
+      progress: this.historyWave.linear(),
+      range: historyRange,
+      width: Math.abs(ctx.timeScale.timeToBitmapX(historyRange.to) - ctx.timeScale.timeToBitmapX(historyRange.from)),
+    });
+  }
+
+  private buildFrame(
+    ctx: SeriesRenderContext,
+    opts: { progress: number; range: { from: number; to: number }; width: number },
+  ): LineIntroFrame {
     const { timeScale, yScale, scope } = ctx;
-    const range = timeScale.getRange();
+    const { progress, range, width } = opts;
 
     const dataCache: Array<readonly TimePoint[] | undefined> = new Array(this.stores.length);
     const meanCache: Array<number | null | undefined> = new Array(this.stores.length);
@@ -313,12 +438,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     };
 
     return {
-      progress: this.introWave.linear(),
+      progress,
       range,
-      // Plot-area extent, not the canvas bitmap — the canvas also carries the
-      // axis strips, so `bitmapSize` would make `width / 2` land right of the
-      // data center and any width-based x→time mapping sample the wrong time.
-      width: timeScale.getMediaWidth() * scope.horizontalPixelRatio,
+      width,
       height: yScale.getMediaHeight() * scope.verticalPixelRatio,
       stacking: this.options.stacking,
       timeToX: (time) => timeScale.timeToBitmapX(time),
@@ -380,6 +502,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   ): number {
     const value = super.effectiveValue(ctx, layerIndex, time, rawValue);
 
+    // History reveal owns the prepended points — position anchored at the
+    // data boundary (`0` there, `1` at the deepest new point).
+    const historyTransform = this.historyWave.active ? this.historyDirectives?.value : undefined;
+    const historyRange = this.historyRange;
+    if (historyTransform !== undefined && historyRange !== null && time < historyRange.to) {
+      const span = historyRange.to - historyRange.from;
+      const position = span > 0 ? Math.min(1, Math.max(0, (historyRange.to - time) / span)) : 0;
+
+      return historyTransform({ layerIndex, time, value, position });
+    }
+
     const transform = this.introWave.active ? this.introDirectives?.value : undefined;
     if (transform === undefined) return value;
 
@@ -440,13 +573,16 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    * the reveal lands. Off-mode only: recomputing the stacked cumulative at
    * an arbitrary head time isn't worth it for a one-second decoration.
    */
-  private drawIntroHeads(ctx: SeriesRenderContext, heads: ReadonlyArray<{ x: number; time: number }>): void {
+  private drawIntroHeads(
+    ctx: SeriesRenderContext,
+    heads: ReadonlyArray<{ x: number; time: number }>,
+    linear: number,
+  ): void {
     if (this.options.stacking !== 'off') return;
 
     // Bell alpha: in over the first ~15% of the intro window, out over the
     // last ~15% — the settled pulse dot cross-fades in over that same tail
     // window (see drawOverlay), so the handoff never pops.
-    const linear = this.introWave.linear();
     const fadeIn = Math.min(1, linear / INTRO_HEAD_FADE);
     const fadeOut = Math.min(1, (1 - linear) / INTRO_HEAD_FADE);
     const alpha = Math.max(0, Math.min(fadeIn, fadeOut));

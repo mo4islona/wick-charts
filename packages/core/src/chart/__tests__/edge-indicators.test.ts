@@ -20,6 +20,7 @@ import {
 function buildCtx(opts: {
   edgeStates: Record<EdgeSide, EdgeState>;
   resolveBoundary: (side: EdgeSide) => number | null;
+  edgeExitFades?: Record<EdgeSide, number | null>;
 }): { spy: ReturnType<typeof buildRenderContext>['spy']; ctx: EdgeIndicatorContext } {
   const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
 
@@ -32,6 +33,7 @@ function buildCtx(opts: {
       timeScale: built.timeScale,
       theme: built.ctx.theme,
       edgeStates: opts.edgeStates,
+      edgeExitFades: opts.edgeExitFades ?? { left: null, right: null },
       edgeIndicatorFns: { left: null, right: null },
       resolveBoundary: opts.resolveBoundary,
       resolveEdgeAnchor: () => null,
@@ -128,6 +130,37 @@ describe('drawEdgeIndicators', () => {
 
     // Two spinners → six arcs.
     expect(spy.countOf('arc')).toBe(6);
+  });
+
+  it('keeps painting a faded loading frame for an idle side with an exit fade', () => {
+    const { spy, ctx } = buildCtx({
+      edgeStates: { left: 'idle', right: 'idle' },
+      resolveBoundary: () => 0,
+      edgeExitFades: { left: 0.5, right: null },
+    });
+
+    drawEdgeIndicators(ctx);
+
+    // One fading spinner → three arcs, drawn at reduced alpha.
+    const arcs = spy.callsOf('arc');
+    expect(arcs).toHaveLength(3);
+    for (const arc of arcs) {
+      expect(arc.globalAlpha).toBe(0.5);
+    }
+  });
+
+  it('does not fade a side that moved to no-data', () => {
+    const { spy, ctx } = buildCtx({
+      edgeStates: { left: 'no-data', right: 'idle' },
+      resolveBoundary: () => 0,
+      edgeExitFades: { left: null, right: null },
+    });
+
+    drawEdgeIndicators(ctx);
+
+    // The no-data marker draws as usual (dashed line + label), no spinner arcs.
+    expect(spy.countOf('arc')).toBe(0);
+    expect(spy.countOf('fillText')).toBe(1);
   });
 });
 

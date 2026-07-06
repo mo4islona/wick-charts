@@ -254,6 +254,32 @@ export interface CandlestickSeriesOptions {
    */
   introMs?: number | false;
   /**
+   * History-prepend reveal — plays when older points land at the front of
+   * the series (the `EdgeLoader` load-more-on-scroll path). A wave sweeps
+   * from the data boundary into the new history; each candle's stagger
+   * position is `0` at the boundary and `1` at the deepest new point, so
+   * intro factories that read `el.progress` (`fadeIntro()` — the default,
+   * `riseIntro()`, `candleUnfoldIntro()`, `wickBodyIntro()`) work here
+   * unchanged. Clip directives are interpreted in reveal space: `x = 0` at
+   * the boundary, increasing toward the older end.
+   *
+   * The fn receives a localized frame: `range` is the prepended time span
+   * (not the visible window) and `width` is that span's bitmap width.
+   *
+   * `'none'` disables the reveal — prepended points appear instantly.
+   *
+   * @see historyRevealMs — cross-linked duration for this animation.
+   */
+  historyReveal?: CandleIntroFn | 'none';
+  /**
+   * History-prepend reveal duration in milliseconds — the per-candle wave
+   * duration; the full reveal lasts ~2×. Default: `400`. `false` or `0`
+   * disables the reveal. Skipped entirely under `prefers-reduced-motion`.
+   *
+   * @see CandlestickSeriesOptions.historyReveal
+   */
+  historyRevealMs?: number | false;
+  /**
    * How long the displayed OHLC takes to catch up to the actual last value
    * on every `updateLastPoint`. Default: `250` ms.
    *
@@ -398,6 +424,31 @@ export interface LineSeriesOptions {
    * @see introMs — cross-linked duration for this animation.
    */
   introAnimation?: LineIntroFn;
+  /**
+   * History-prepend reveal — plays when older points land at the front of
+   * the series (the `EdgeLoader` load-more-on-scroll path). Default: the
+   * line back-fills itself from the data boundary into the new history
+   * behind a moving clip front (`backfillSweepIntro()`).
+   *
+   * A custom `LineIntroFn` receives a localized frame: `range` is the
+   * prepended time span with `range.to` at the data boundary (not the
+   * visible window), `width` is that span's bitmap width, and `progress`
+   * runs over the reveal. Value-transform directives are applied to the
+   * prepended points only.
+   *
+   * `'none'` disables the reveal — prepended points appear instantly.
+   *
+   * @see historyRevealMs — cross-linked duration for this animation.
+   */
+  historyReveal?: LineIntroFn | 'none';
+  /**
+   * History-prepend reveal duration in milliseconds — the full sweep lasts
+   * ~2×. Default: `400`. `false` or `0` disables the reveal. Skipped
+   * entirely under `prefers-reduced-motion`.
+   *
+   * @see LineSeriesOptions.historyReveal
+   */
+  historyRevealMs?: number | false;
   /**
    * How long the displayed last value takes to catch up to the actual one
    * on every `updateLastPoint`. Default: `250` ms.
@@ -561,6 +612,32 @@ export interface BarSeriesOptions {
    * never replay it. Skipped entirely under `prefers-reduced-motion`.
    */
   introMs?: number | false;
+  /**
+   * History-prepend reveal — plays when older points land at the front of
+   * the series (the `EdgeLoader` load-more-on-scroll path). A wave sweeps
+   * from the data boundary into the new history; each bar's stagger
+   * position is `0` at the boundary and `1` at the deepest new point, so
+   * intro factories that read `el.progress` (`fadeIntro()` — the default,
+   * `riseIntro()`, `growIntro()`, `springIntro()`) work here unchanged.
+   * Clip directives are interpreted in reveal space: `x = 0` at the
+   * boundary, increasing toward the older end.
+   *
+   * The fn receives a localized frame: `range` is the prepended time span
+   * (not the visible window) and `width` is that span's bitmap width.
+   *
+   * `'none'` disables the reveal — prepended points appear instantly.
+   *
+   * @see historyRevealMs — cross-linked duration for this animation.
+   */
+  historyReveal?: BarIntroFn | 'none';
+  /**
+   * History-prepend reveal duration in milliseconds — the per-bar wave
+   * duration; the full reveal lasts ~2×. Default: `400`. `false` or `0`
+   * disables the reveal. Skipped entirely under `prefers-reduced-motion`.
+   *
+   * @see BarSeriesOptions.historyReveal
+   */
+  historyRevealMs?: number | false;
   /**
    * How long the displayed bar value takes to catch up to the actual one
    * on every `updateLastPoint`. Default: `250` ms.

@@ -20,6 +20,13 @@ export interface EdgeIndicatorContext {
   timeScale: XScale;
   theme: ChartTheme;
   edgeStates: Record<EdgeSide, EdgeState>;
+  /**
+   * Per-side exit-fade alpha in `(0, 1]` while a side that just left
+   * `loading` is still fading out, `null` otherwise. A fading side paints
+   * one more `loading` frame at this alpha even though its state is already
+   * `idle`/`has-more`.
+   */
+  edgeExitFades: Record<EdgeSide, number | null>;
   /** Per-side custom `loading` painter, same contract as the series intro animations. `null` falls back to the built-in dots. */
   edgeIndicatorFns: Record<EdgeSide, LoadingIndicatorFn | null>;
   /**
@@ -44,11 +51,26 @@ export interface EdgeIndicatorContext {
 export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
   const now = performance.now();
   for (const side of ['left', 'right'] as const) {
-    const state = ctx.edgeStates[side];
-    if (state === 'idle' || state === 'has-more') continue;
+    let state = ctx.edgeStates[side];
+    let alpha = 1;
+    if (state === 'idle' || state === 'has-more') {
+      // A side that just left `loading` keeps painting the loading frame at
+      // decreasing alpha — the exit fade that hands off to the data reveal.
+      const fade = ctx.edgeExitFades[side];
+      if (fade === null) continue;
+
+      state = 'loading';
+      alpha = fade;
+    }
 
     const boundaryTime = ctx.resolveBoundary(side);
     if (boundaryTime === null) continue;
+
+    const { context } = ctx.scope;
+    if (alpha < 1) {
+      context.save();
+      context.globalAlpha *= alpha;
+    }
 
     renderEdgeIndicator({
       scope: ctx.scope,
@@ -64,6 +86,8 @@ export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
       resolveEdgeAnchor: () => ctx.resolveEdgeAnchor(side, boundaryTime),
       resolveEdgeBarSpacing: () => ctx.resolveEdgeBarSpacing(),
     });
+
+    if (alpha < 1) context.restore();
   }
 }
 

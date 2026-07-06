@@ -214,6 +214,20 @@ export function traceIntro(options: { ghostAlpha?: number } = {}): LineIntroFn {
 }
 
 /**
+ * History back-fill: the reveal front sweeps from the data boundary into
+ * the prepended span. Meant for the `historyReveal` option, whose localized
+ * frame interprets clip coordinates in reveal space — `x = 0` at the
+ * boundary, increasing toward the older end, `width` = the prepended span's
+ * bitmap width — so the line reads as plotting itself backwards. The
+ * default `historyReveal` for the line series.
+ */
+export function backfillSweepIntro(): LineIntroFn {
+  return (frame) => ({
+    clip: { toX: easeInOutCubic(frame.progress) * frame.width },
+  });
+}
+
+/**
  * Center-out reveal: the clip window opens from the pane's horizontal
  * center outward, a glowing head riding each front.
  */

@@ -1,5 +1,10 @@
 import { Animator } from '../animation/animator';
-import { DEFAULT_CANDLESTICK_ENTRY, DEFAULT_CANDLESTICK_INTRO, DEFAULT_CANDLESTICK_SMOOTH } from '../animation/config';
+import {
+  DEFAULT_CANDLESTICK_ENTRY,
+  DEFAULT_CANDLESTICK_INTRO,
+  DEFAULT_CANDLESTICK_SMOOTH,
+  DEFAULT_HISTORY_REVEAL,
+} from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
@@ -12,20 +17,25 @@ import { hexToRgba } from '../utils/color';
 import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
-import { type CandleIntroDirectives, candleUnfoldIntro } from './candlestick-intro';
+import { type CandleElementTransform, type CandleIntroDirectives, candleUnfoldIntro } from './candlestick-intro';
 import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
 import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
 import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
+import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
  *  (`false` from the public surface gets normalized to `0` at the merge
  *  boundary, so downstream reads never see the disable sentinel). */
-type ResolvedCandlestickOptions = Omit<CandlestickSeriesOptions, 'entryMs' | 'smoothMs' | 'introMs'> & {
+type ResolvedCandlestickOptions = Omit<
+  CandlestickSeriesOptions,
+  'entryMs' | 'smoothMs' | 'introMs' | 'historyRevealMs'
+> & {
   entryMs: number;
   smoothMs: number;
   introMs: number;
+  historyRevealMs: number;
 };
 
 /** Per-candle entrance state — start wall-time so progress is `(now - startTime) / entryMs`. */
@@ -124,6 +134,10 @@ const VOLUME_TOP_CORNERS: CornerMask = { tl: true, tr: true, br: false, bl: fals
 /** Fallback intro when the option is unset — stateless, safe to share. */
 const DEFAULT_INTRO = candleUnfoldIntro();
 
+/** Fallback history reveal — a soft staggered fade from the data boundary.
+ *  Calmer than the unfold: load-more fires repeatedly while the user pans. */
+const DEFAULT_HISTORY_REVEAL_FN = fadeIntro();
+
 const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   up: { body: '#26a69a', wick: '#26a69a' },
   down: { body: '#ef5350', wick: '#ef5350' },
@@ -132,6 +146,7 @@ const DEFAULT_OPTIONS: ResolvedCandlestickOptions = {
   entryMs: DEFAULT_CANDLESTICK_ENTRY,
   smoothMs: DEFAULT_CANDLESTICK_SMOOTH,
   introMs: DEFAULT_CANDLESTICK_INTRO,
+  historyRevealMs: DEFAULT_HISTORY_REVEAL,
 };
 
 /** Per-render drawing context, resolved once in {@link CandlestickRenderer.render}
@@ -150,6 +165,7 @@ function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOption
     entryMs: options.entryMs === false ? 0 : (options.entryMs ?? DEFAULT_CANDLESTICK_ENTRY),
     smoothMs: options.smoothMs === false ? 0 : (options.smoothMs ?? DEFAULT_CANDLESTICK_SMOOTH),
     introMs: options.introMs === false ? 0 : (options.introMs ?? DEFAULT_CANDLESTICK_INTRO),
+    historyRevealMs: options.historyRevealMs === false ? 0 : (options.historyRevealMs ?? DEFAULT_HISTORY_REVEAL),
   };
 }
 
@@ -191,6 +207,15 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   /** Visible range captured alongside {@link #introDirectives} — positions
    *  the per-element wave stagger. */
   #introRange: { from: number; to: number } | null = null;
+  /** History-prepend reveal clock — armed by {@link prependPoints} so the
+   *  new candles wave in from the data boundary instead of popping. */
+  readonly #historyWave = new IntroWave();
+  /** Prepended time span: `from` = deepest new point, `to` = the boundary
+   *  (the pre-prepend first point). Element stagger position is `0` at the
+   *  boundary and `1` at the deepest point. */
+  #historyRange: { from: number; to: number } | null = null;
+  /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
+  #historyDirectives: CandleIntroDirectives | null = null;
   /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
    *  positioned per candle via `ctx.translate`, instead of a fresh
    *  `createLinearGradient` for every body on every frame. */
@@ -241,6 +266,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // max instead of easing from the previous dataset's (which would read as a
     // spurious volume animation on a plain `setData`).
     this.#displayedMaxVol = null;
+    // A bulk replace invalidates any in-flight history reveal — its range
+    // refers to the previous dataset's boundary.
+    this.#historyWave.finish();
+    this.#historyRange = null;
   }
 
   appendPoint(point: unknown): void {
@@ -263,11 +292,35 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   prependPoints(points: unknown[]): void {
     if (points.length === 0) return;
 
-    // History prepend: insert older candles at the front and leave every bit
-    // of reveal/live state untouched (intro wave, per-candle entries, live
-    // chase, `displayedLast`, volume scale). The visible suffix is unchanged,
-    // so none of `setData`'s snap machinery should run.
-    this.store.prepend(normalizeOHLCArray(points as OHLCInput[]));
+    // History prepend: insert older candles at the front and leave the
+    // initial-load/live state untouched (intro wave, per-candle entries,
+    // live chase, `displayedLast`, volume scale). The visible suffix is
+    // unchanged, so none of `setData`'s snap machinery should run — the
+    // new candles get their own boundary-anchored reveal instead.
+    const normalized = normalizeOHLCArray(points as OHLCInput[]);
+    const boundary = this.store.first()?.time;
+    this.store.prepend(normalized);
+
+    this.#armHistoryReveal(normalized[0].time, boundary);
+  }
+
+  /**
+   * Arm (or extend) the history-reveal wave for freshly prepended candles.
+   * While a reveal is already in flight, only the range grows — restarting
+   * the clock would snap half-revealed candles back to invisible.
+   */
+  #armHistoryReveal(deepestTime: number, boundary: number | undefined): void {
+    const revealMs = this.options.historyRevealMs;
+    if (this.options.historyReveal === 'none' || revealMs <= 0 || boundary === undefined) return;
+
+    if (this.#historyWave.active && this.#historyRange !== null) {
+      this.#historyRange = { from: Math.min(this.#historyRange.from, deepestTime), to: this.#historyRange.to };
+
+      return;
+    }
+
+    this.#historyRange = { from: deepestTime, to: boundary };
+    this.#historyWave.arm(revealMs);
   }
 
   updateLastPoint(point: unknown): void {
@@ -342,6 +395,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
    */
   private tickAnimations(now: number): void {
     this.introWave.tick(now);
+    this.#historyWave.tick(now);
     this.#alphaAnimator.tick(now);
 
     const anim = this.#liveAnimator;
@@ -367,6 +421,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   get needsAnimation(): boolean {
     return (
       this.introWave.active ||
+      this.#historyWave.active ||
       this.#alphaAnimator.animating ||
       this.#liveAnimator !== null ||
       this.entries.size > 0 ||
@@ -496,6 +551,24 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       });
     }
 
+    // History-reveal directives — same contract, localized frame: `range` is
+    // the prepended span, `width` its bitmap width. Element stagger and clip
+    // both anchor at the data boundary (see `historyTransform`).
+    this.#historyDirectives = null;
+    const historyRange = this.#historyRange;
+    if (this.#historyWave.active && historyRange !== null) {
+      const reveal = this.options.historyReveal ?? DEFAULT_HISTORY_REVEAL_FN;
+      if (reveal !== 'none') {
+        this.#historyDirectives = reveal({
+          progress: this.#historyWave.linear(),
+          width: Math.abs(timeScale.timeToBitmapX(historyRange.to) - timeScale.timeToBitmapX(historyRange.from)),
+          height: yScale.getMediaHeight() * scope.verticalPixelRatio,
+          range: historyRange,
+          timeToX: (time) => timeScale.timeToBitmapX(time),
+        });
+      }
+    }
+
     // Snapshot entrance progress per candle up-front so drawCandles batches
     // (bulls + bears) see a consistent value and we don't probe the entry
     // map twice per candle. `null` means no active entries this frame —
@@ -554,6 +627,30 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       context.beginPath();
       context.rect(fromX, 0, Math.max(0, toX - fromX), scope.bitmapSize.height);
       context.clip();
+    }
+
+    // History-reveal clip directive, interpreted in reveal space: local
+    // x = 0 at the data boundary, increasing toward the older (prepended)
+    // end. The clipped-out region only ever covers not-yet-revealed history —
+    // everything at or after the boundary always draws. Padded by one bar
+    // slot so the candle bodies straddling either end aren't sliced.
+    const historyClip = this.#historyDirectives?.clip;
+    let historyClipApplied = false;
+    if (historyClip !== undefined && historyRange !== null) {
+      const boundaryX = timeScale.timeToBitmapX(historyRange.to);
+      const spanWidth = Math.abs(boundaryX - timeScale.timeToBitmapX(historyRange.from));
+      const pad = barWidth;
+      const fromLocal = historyClip.fromX ?? 0;
+      const toLocal = historyClip.toX ?? spanWidth;
+
+      context.save();
+      context.beginPath();
+      // The revealed slice of the prepended span, mirrored into bitmap space.
+      context.rect(boundaryX - toLocal - pad, 0, Math.max(0, toLocal - fromLocal + pad), scope.bitmapSize.height);
+      // Everything from the boundary rightward is never part of the reveal.
+      context.rect(boundaryX, 0, Math.max(0, scope.bitmapSize.width - boundaryX), scope.bitmapSize.height);
+      context.clip();
+      historyClipApplied = true;
     }
 
     // Draw volume first (behind candles). Snap the volume scale on the frame
@@ -642,6 +739,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       wickColor: this.options.down.wick,
     });
 
+    if (historyClipApplied) context.restore();
     if (introClip !== undefined) context.restore();
   }
 
@@ -659,6 +757,20 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     anchorY: number;
     barWidth: number;
   }): CandleTransformOutput | null {
+    // History reveal owns the prepended candles — the initial-load intro (if
+    // one is somehow still in flight) keeps the rest.
+    const historyElement = this.#historyDirectives?.element;
+    const historyRange = this.#historyRange;
+    if (historyElement !== undefined && historyRange !== null && args.time < historyRange.to) {
+      const span = historyRange.to - historyRange.from;
+      // Stagger position anchored at the data boundary: 0 there, 1 at the
+      // deepest prepended point — the wave travels into history.
+      const position = span > 0 ? clamp((historyRange.to - args.time) / span, 0, 1) : 0;
+      const t = historyElement({ ...args, position, progress: this.#historyWave.progressAt(position) });
+
+      return this.#applyElementTransform(t, args);
+    }
+
     const element = this.#introDirectives?.element;
     const range = this.#introRange;
     if (element === undefined || range === null) return null;
@@ -667,6 +779,14 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     const position = span > 0 ? clamp((args.time - range.from) / span, 0, 1) : 0;
     const t = element({ ...args, position, progress: this.introWave.progressAt(position) });
 
+    return this.#applyElementTransform(t, args);
+  }
+
+  /** Map a directive's declarative transform onto the element's settled geometry. */
+  #applyElementTransform(
+    t: CandleElementTransform,
+    args: { x: number; topY: number; bottomY: number; anchorY: number },
+  ): CandleTransformOutput {
     const unfold = t.unfold ?? 1;
     const offsetY = t.offsetY ?? 0;
 
