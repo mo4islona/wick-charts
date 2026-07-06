@@ -62,7 +62,7 @@ afterEach(() => {
 
 describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
   it('draws an anchor dot + leader stroke + text per eligible slice', () => {
-    const r = new PieRenderer();
+    const r = new PieRenderer({ cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx } = buildRenderContext();
     settleReveal(r, ctx);
@@ -128,13 +128,13 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
   });
 
   it('reserves horizontal space — outer radius smaller than with mode=none', () => {
-    const rNone = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
+    const rNone = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     rNone.setData(SLICES);
     const { ctx: ctxN, spy: spyN } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     rNone.render(ctxN);
     const rNoneRadius = spyN.callsOf('arc')[0].args[2] as number;
 
-    const rOutside = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'outside' } });
+    const rOutside = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'outside' }, cornerRadius: 0 });
     rOutside.setData(SLICES);
     const { ctx: ctxO, spy: spyO } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     rOutside.render(ctxO);
@@ -190,7 +190,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
 
     // `other: false` — this test is about label geometry across 10 distinct
     // slices; default grouping would collapse them to 8 and shift the arcs.
-    const r = new PieRenderer({ padAngle: 0, other: false, sliceLabels: { distance, legPad } });
+    const r = new PieRenderer({ padAngle: 0, other: false, sliceLabels: { distance, legPad }, cornerRadius: 0 });
     r.setData(data);
     const { ctx } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     settleReveal(r, ctx);
@@ -437,6 +437,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
     const r = new PieRenderer({
       padAngle: 0,
       sliceLabels: { distance: 24, railWidth: 16, elbowLen: 12, legPad: 6 },
+      cornerRadius: 0,
     });
     r.setData([
       { label: 'right', value: 50 },
@@ -697,7 +698,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
     // The label reserve scales with `distance`, so the pie must shrink to
     // leave room. Smaller pies → smaller slice arcs.
     const radius = (distance: number): number => {
-      const r = new PieRenderer({ padAngle: 0, sliceLabels: { distance } });
+      const r = new PieRenderer({ padAngle: 0, sliceLabels: { distance }, cornerRadius: 0 });
       r.setData(SLICES);
       const { ctx, spy } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
       r.render(ctx);
@@ -773,6 +774,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
       padAngle: 0,
       innerRadiusRatio: 0.5,
       sliceLabels: { distance: 24 },
+      cornerRadius: 0,
     });
     r.setData([
       { label: 'right', value: 50 },
@@ -798,7 +800,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
   });
 
   it('cache invalidation: updating `distance` re-computes the reserve and reflows the pie', () => {
-    const r = new PieRenderer({ padAngle: 0, sliceLabels: { distance: 12 } });
+    const r = new PieRenderer({ padAngle: 0, sliceLabels: { distance: 12 }, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     r.render(ctx);
@@ -985,7 +987,7 @@ describe('PieRenderer.sliceLabels — mode: outside (default)', () => {
 
 describe('PieRenderer.sliceLabels — mode: inside', () => {
   it('draws labels centered on the slice, not outside', () => {
-    const r = new PieRenderer({ sliceLabels: { mode: 'inside' } });
+    const r = new PieRenderer({ sliceLabels: { mode: 'inside' }, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -1026,7 +1028,7 @@ describe('PieRenderer.sliceLabels — mode: inside', () => {
 
 describe('PieRenderer.sliceLabels — mode: none', () => {
   it('draws zero fillText and no leader strokes', () => {
-    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -1144,5 +1146,136 @@ describe('PieRenderer.hitTest — reduced radius in outside mode', () => {
     // A point well inside the shrunken disk still hits a slice.
     const nearCenter = r.hitTest(210, 200, 400, 400);
     expect(nearCenter).toBeGreaterThanOrEqual(0);
+  });
+});
+
+/**
+ * Long labels on a narrow canvas. Each formatted label ("Subscriptions  55%"
+ * ≈ 18 chars × 6px = 108px) pushes the horizontal reserve past half the
+ * 240px width, so without the radius floor the pie collapsed to a dot.
+ */
+const LONG_SLICES: PieSliceData[] = [
+  { label: 'Subscriptions', value: 55 },
+  { label: 'Trading fees', value: 25 },
+  { label: 'Staking rewards', value: 12 },
+  { label: 'Other revenue', value: 8 },
+];
+
+describe('PieRenderer — narrow-canvas radius floor', () => {
+  it('keeps at least half the no-label radius when the reserve exceeds the width', () => {
+    const rNone = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
+    rNone.setData(LONG_SLICES);
+    const { ctx: ctxN, spy: spyN } = buildRenderContext({ mediaWidth: 240, mediaHeight: 400 });
+    rNone.render(ctxN);
+    const noneRadius = spyN.callsOf('arc')[0].args[2] as number;
+
+    const rOutside = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'outside' }, cornerRadius: 0 });
+    rOutside.setData(LONG_SLICES);
+    const { ctx: ctxO, spy: spyO } = buildRenderContext({ mediaWidth: 240, mediaHeight: 400 });
+    rOutside.render(ctxO);
+    const outsideRadius = spyO.callsOf('arc')[0].args[2] as number;
+
+    // Before the floor this collapsed to 0 (reserve ≈ 190px per side on a
+    // 240px canvas). The pie must keep MIN_PIE_FRACTION (0.5) of the
+    // no-reserve radius; the labels absorb the loss via truncation instead.
+    expect(outsideRadius).toBeGreaterThanOrEqual(noneRadius * 0.5 - 0.01);
+    expect(outsideRadius).toBeLessThan(noneRadius);
+  });
+
+  it('truncates overflowing labels with an ellipsis instead of painting past the edge', () => {
+    const width = 240;
+    const r = new PieRenderer({ padAngle: 0 });
+    r.setData(LONG_SLICES);
+    const { ctx } = buildRenderContext({ mediaWidth: width, mediaHeight: 400 });
+    settleReveal(r, ctx);
+
+    const { ctx: ctx2, spy } = buildRenderContext({ mediaWidth: width, mediaHeight: 400 });
+    advance(16);
+    r.render(ctx2);
+
+    const fillTexts = spy.callsOf('fillText');
+    expect(fillTexts.length).toBeGreaterThan(0);
+
+    // At least one long label had to give up characters.
+    expect(fillTexts.some((c) => (c.args[0] as string).endsWith('…'))).toBe(true);
+
+    // And nothing paints past the canvas edge (measureText = length × 6).
+    for (const c of fillTexts) {
+      const text = c.args[0] as string;
+      const x = c.args[1] as number;
+      const textWidth = text.length * 6;
+      if (c.textAlign === 'left') {
+        expect(x + textWidth).toBeLessThanOrEqual(width);
+      } else {
+        expect(x - textWidth).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it('keeps at least half the bitmap-height radius when padding crushes the usable band', () => {
+    // A Title band (padding.top) taller than half the canvas used to shrink
+    // the pie to a dot on short canvases. Labels: 'none' isolates the
+    // height axis from the horizontal reserve.
+    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
+    r.setData(SLICES);
+    const { ctx, spy } = buildRenderContext({
+      mediaWidth: 400,
+      mediaHeight: 80,
+      padding: { top: 50, bottom: 20 },
+    });
+    r.render(ctx);
+
+    const sliceArc = spy.callsOf('arc')[0];
+    const radius = sliceArc.args[2] as number;
+    // Usable band is 80 − 50 − 20 = 10px → old radius 4.25. The floor keeps
+    // MIN_PIE_FRACTION (0.5) of the padding-free half-height: 40 × 0.5 × 0.85.
+    expect(radius).toBeGreaterThanOrEqual(40 * 0.5 * 0.85 - 0.01);
+
+    // And the recentered disk stays inside the bitmap.
+    const cy = sliceArc.args[1] as number;
+    expect(cy - radius).toBeGreaterThanOrEqual(0);
+    expect(cy + radius).toBeLessThanOrEqual(80);
+  });
+
+  it('auto-hides outside labels when the pie falls below the labeled-radius threshold', () => {
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
+    r.setData(SLICES);
+    const { ctx } = buildRenderContext({
+      mediaWidth: 400,
+      mediaHeight: 80,
+      padding: { top: 50, bottom: 20 },
+    });
+    settleReveal(r, ctx);
+
+    const { ctx: ctx2, spy } = buildRenderContext({
+      mediaWidth: 400,
+      mediaHeight: 80,
+      padding: { top: 50, bottom: 20 },
+    });
+    advance(16);
+    r.render(ctx2);
+
+    // Floored radius = 17 < MIN_LABELED_PIE_RADIUS (20): no label text, no
+    // leader lines, no anchor dots — slice arcs only.
+    expect(spy.countOf('fillText')).toBe(0);
+    expect(spy.countOf('stroke')).toBe(0);
+    expect(spy.countOf('arc')).toBe(SLICES.length);
+  });
+
+  it('leaves labels untouched when the canvas is wide enough', () => {
+    const r = new PieRenderer({ padAngle: 0 });
+    r.setData(LONG_SLICES);
+    const { ctx } = buildRenderContext({ mediaWidth: 800, mediaHeight: 400 });
+    settleReveal(r, ctx);
+
+    const { ctx: ctx2, spy } = buildRenderContext({ mediaWidth: 800, mediaHeight: 400 });
+    advance(16);
+    r.render(ctx2);
+
+    const fillTexts = spy.callsOf('fillText');
+    expect(fillTexts).toHaveLength(LONG_SLICES.length);
+    for (const c of fillTexts) {
+      expect(c.args[0] as string).not.toContain('…');
+    }
   });
 });
