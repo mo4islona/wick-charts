@@ -43,7 +43,7 @@ describe('PieRenderer value sanitization (negative / non-finite slices)', () => 
   });
 
   it('degenerate (negative) slices are skipped in the rendered arc count', () => {
-    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData([
       { label: 'A', value: 100 },
       { label: 'B', value: -40 },

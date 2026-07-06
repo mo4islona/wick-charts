@@ -34,7 +34,10 @@ describe('<PieSeries> + chart top-padding — pie shifts down', () => {
   // near the pie edge. Disable them in these fixtures so the only recorded
   // arcs are the slice outer arcs — anchor dots would otherwise shift
   // `arcs[arcs.length - 1]` off the slice center we're asserting on.
-  const pieOpts = { sliceLabels: { mode: 'none' as const } };
+  // Sharp corners: this suite probes the pie center via the last recorded
+  // `arc` call, so slice-rim arcs must be the only arcs — corner fillets
+  // (on by default) would add arcs centered off the disk and skew the read.
+  const pieOpts = { sliceLabels: { mode: 'none' as const }, cornerRadius: 0 };
 
   // Recording-context's `callsOf` shape — kept narrow on purpose so the test
   // doesn't reach into private spy internals. We use the *last* recorded arc:

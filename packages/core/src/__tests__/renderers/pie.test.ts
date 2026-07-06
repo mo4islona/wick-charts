@@ -21,7 +21,7 @@ describe('PieRenderer.render', () => {
 
   it('N slices → N arc() calls', () => {
     // Disable labels to isolate slice-arc count from label anchor-dot arcs.
-    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -31,7 +31,7 @@ describe('PieRenderer.render', () => {
   });
 
   it('slice angle is proportional to value', () => {
-    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData([
       { label: 'half', value: 50 },
       { label: 'quarter', value: 25 },
@@ -54,7 +54,7 @@ describe('PieRenderer.render', () => {
   });
 
   it('innerRadiusRatio > 0 → donut: each slice draws both an outer and an inner arc', () => {
-    const r = new PieRenderer({ innerRadiusRatio: 0.5, sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ innerRadiusRatio: 0.5, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -154,7 +154,7 @@ describe('PieRenderer.hitTest', () => {
  */
 describe('PieRenderer — Title / padding offsets', () => {
   it('default padding (0/0) keeps the pie centered on the canvas — regression', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     r.render(ctx);
@@ -169,7 +169,7 @@ describe('PieRenderer — Title / padding offsets', () => {
   });
 
   it('padding.top shifts the pie center down by half the reservation', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext({
       mediaWidth: 400,
@@ -185,7 +185,7 @@ describe('PieRenderer — Title / padding offsets', () => {
   });
 
   it('padding.bottom raises the center by half the reservation', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext({
       mediaWidth: 400,
@@ -201,7 +201,7 @@ describe('PieRenderer — Title / padding offsets', () => {
   });
 
   it('symmetric top+bottom padding keeps the center on the geometric midline', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
     r.setData(SLICES);
     const { ctx, spy } = buildRenderContext({
       mediaWidth: 400,
@@ -219,13 +219,13 @@ describe('PieRenderer — Title / padding offsets', () => {
     // the radius — irrelevant to this test, which is purely about vertical
     // padding geometry. Disable them so the expected numbers are computable
     // from min(width, height) alone.
-    const noPad = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
+    const noPad = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     noPad.setData(SLICES);
     const { ctx: ctx1, spy: spy1 } = buildRenderContext({ mediaWidth: 400, mediaHeight: 400 });
     noPad.render(ctx1);
     const radiusUnpadded = spy1.callsOf('arc')[0].args[2] as number;
 
-    const padded = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' } });
+    const padded = new PieRenderer({ padAngle: 0, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     padded.setData(SLICES);
     const { ctx: ctx2, spy: spy2 } = buildRenderContext({
       mediaWidth: 400,
@@ -242,7 +242,7 @@ describe('PieRenderer — Title / padding offsets', () => {
   });
 
   it('padding is converted from CSS px to bitmap px via verticalPixelRatio', () => {
-    const r = new PieRenderer({ padAngle: 0 });
+    const r = new PieRenderer({ padAngle: 0, cornerRadius: 0 });
     r.setData(SLICES);
     // dpr=2 → 800x800 bitmap. Padding top=40 CSS px → 80 bitmap px.
     // Usable bitmap height = 800 - 80 = 720 → cy = 80 + 360 = 440.

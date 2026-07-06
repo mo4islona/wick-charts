@@ -31,6 +31,10 @@ const DEFAULT_OPTIONS: PieSeriesOptions = {
   innerRadiusRatio: 0,
   // 1.15° ≈ 0.02 rad — same visual default as before the radians→degrees switch.
   padAngle: 1.15,
+  // Softly rounded slice corners by default, matching the bar/candlestick
+  // families. Pass 0 for sharp wedges. Thin rings and narrow slices clamp it
+  // down automatically.
+  cornerRadius: 3,
   sliceLabels: { ...DEFAULT_LABELS },
   // Motion off by default: label draw-in + hover explode both skipped.
   animate: false,
@@ -133,13 +137,33 @@ interface PieGeometryInput {
 const PIE_FIT_FACTOR = 0.85;
 
 /**
+ * Minimum share of the constraint-free radius the pie keeps when the
+ * outside-label reserve or the vertical padding would otherwise crush it.
+ * Long labels on a narrow canvas eat the width; a Title band on a short
+ * canvas eats the height — either way the pie collapsed to a dot. The floor
+ * caps how much those bands may take: labels get truncated to an ellipsis
+ * (`#drawOutsideLabel`) and the disk recenters vertically so it stays inside
+ * the bitmap even when it spills into the padding band.
+ */
+const MIN_PIE_FRACTION = 0.5;
+
+/**
+ * Outside labels are auto-hidden when the pie's outer radius falls below
+ * this many CSS pixels. Leader lines around a coin-sized pie are unreadable
+ * spaghetti — the legend carries the same data, so the pie drops the labels
+ * and reclaims their reserve.
+ */
+const MIN_LABELED_PIE_RADIUS = 20;
+
+/**
  * Compute pie geometry inside an area shrunk by `padTop` / `padBottom`. The
  * pie is centered horizontally on the full width and vertically inside the
  * usable band — that's how it shifts down when a Title overlay reserves space.
  *
  * When `labelReserve > 0` the outer radius shrinks so leader-line labels fit
- * on either side. Inputs and outputs are all in bitmap pixels so the same
- * helper drives both `render` and `hitTest`.
+ * on either side — but never below `MIN_PIE_FRACTION` of the radius the pie
+ * would have with no reserve and no padding. Inputs and outputs are all in
+ * bitmap pixels so the same helper drives both `render` and `hitTest`.
  */
 function computePieGeometry(input: PieGeometryInput): { cx: number; cy: number; maxR: number } {
   const { bitmapWidth, bitmapHeight, padTop, padBottom } = input;
@@ -156,10 +180,95 @@ function computePieGeometry(input: PieGeometryInput): { cx: number; cy: number; 
   const usableWidth = Math.max(0, bitmapWidth - 2 * reserve);
 
   const cx = bitmapWidth / 2;
-  const cy = top + usableHeight / 2;
-  const maxR = Math.max(0, (Math.min(usableWidth, usableHeight) / 2) * PIE_FIT_FACTOR);
+
+  // Radius the reserve + padding leave vs. the radius with no constraints at
+  // all. When either band is the binding constraint the pie keeps at least
+  // the floor share of the constraint-free radius; roomy layouts are
+  // unaffected (the constrained half already wins the max).
+  const constrainedHalf = Math.min(usableWidth, usableHeight) / 2;
+  const fullHalf = Math.min(bitmapWidth, bitmapHeight) / 2;
+  const maxR = Math.max(0, Math.max(constrainedHalf, fullHalf * MIN_PIE_FRACTION) * PIE_FIT_FACTOR);
+
+  // Center in the usable band, but when the floor overrode the band (pie
+  // taller than the space between the paddings) slide the center so the disk
+  // stays inside the bitmap — overlapping a Title band beats clipping. A
+  // couple of pixels of breathing room, shrunk when even that doesn't fit.
+  const edgeMargin = Math.min(2, Math.max(0, bitmapHeight / 2 - maxR));
+  const bandCenter = top + usableHeight / 2;
+  const cy = Math.min(Math.max(bandCenter, maxR + edgeMargin), bitmapHeight - maxR - edgeMargin);
 
   return { cx, cy, maxR };
+}
+
+/**
+ * One rounded corner where a slice's straight radial edge (at angle `theta`)
+ * meets a circular boundary of radius `ringR` — the outer rim, or the inner
+ * rim of a donut hole. The fillet is a circle of the given `radius`,
+ * internally tangent to the ring when `outward` is true (it cuts into the
+ * outer rim) or externally tangent when `outward` is false (it bulges away
+ * from the inner rim, into the slice). `angleSign` is +1 at a slice's start
+ * edge — the fillet's arc-tangent point sits at a larger angle than `theta`
+ * — and -1 at its end edge.
+ *
+ * Both tangent points sit at distance `radius` from the fillet center by
+ * construction: `lineR` locates the one on the straight edge (still at
+ * angle `theta`), `archAngle` the one on the ring (still at radius `ringR`).
+ */
+function cornerFillet(args: { ringR: number; theta: number; radius: number; outward: boolean; angleSign: 1 | -1 }): {
+  fx: number;
+  fy: number;
+  lineR: number;
+  archAngle: number;
+} {
+  const { ringR, theta, radius, outward, angleSign } = args;
+  const centerR = outward ? ringR - radius : ringR + radius;
+  const delta = Math.asin(clamp(radius / centerR, 0, 1)) * angleSign;
+  const archAngle = theta + delta;
+
+  return {
+    fx: centerR * Math.cos(archAngle),
+    fy: centerR * Math.sin(archAngle),
+    lineR: centerR * Math.cos(delta),
+    archAngle,
+  };
+}
+
+/**
+ * Largest corner radius a slice can round with, before its four fillets
+ * start overlapping — either along a ring (the outer and inner corners at
+ * the same end share the slice's angular span) or across the ring's radial
+ * depth (the outer and inner corners on the same straight edge share the
+ * distance between them). Callers clamp the requested radius to this value
+ * per slice, so thin rings and narrow slices degrade gracefully instead of
+ * producing a self-intersecting path.
+ */
+function maxCornerRadius(args: { outerR: number; innerR: number; halfSpan: number }): number {
+  const { outerR, innerR, halfSpan } = args;
+  const s = Math.sin(Math.min(halfSpan, Math.PI / 2 - 0.001));
+
+  const outerAngleLimit = (outerR * s) / (1 + s);
+  const innerAngleLimit = innerR > 0 ? (innerR * s) / (1 - s) : Infinity;
+  const depthLimit = (outerR - innerR) / 2;
+
+  return Math.max(0, Math.min(outerAngleLimit, innerAngleLimit, depthLimit));
+}
+
+/**
+ * Trim `text` so it paints within `maxWidth` using the context's current
+ * font, appending an ellipsis when anything was cut. The common path — text
+ * already fits — costs a single `measureText`.
+ */
+function truncateToWidth(context: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (maxWidth <= 0) return '';
+  if (context.measureText(text).width <= maxWidth) return text;
+
+  let end = text.length - 1;
+  while (end > 0 && context.measureText(`${text.slice(0, end)}…`).width > maxWidth) {
+    end--;
+  }
+  if (end <= 0) return '';
+
+  return `${text.slice(0, end)}…`;
 }
 
 /**
@@ -285,6 +394,13 @@ export class PieRenderer implements PieSeriesRenderer {
    * frame using the live canvas context for accurate `measureText`.
    */
   #labelReserveCache: { fontScale: number; font: string; reserve: number } | null = null;
+  /**
+   * Horizontal reserve the last `render` actually applied — 0 when outside
+   * labels were auto-hidden below `MIN_LABELED_PIE_RADIUS`. `hitTest` reads
+   * this instead of the measurement cache so hover geometry always matches
+   * the painted frame.
+   */
+  #renderedLabelReserve = 0;
   /** Subscribers notified on setData (pie has no TimeSeriesStore to piggy-back on). */
   #dataListeners: Array<() => void> = [];
 
@@ -458,11 +574,11 @@ export class PieRenderer implements PieSeriesRenderer {
     const total = this.#total();
     if (total <= 0) return -1;
 
-    // Fall back to the cached reserve if `render` has run at least once.
-    // Before the first render the reserve is 0 — hit-testing against a
+    // Reserve actually applied by the last render (0 when labels were
+    // auto-hidden). Before the first render it is 0 — hit-testing against a
     // slightly-larger pie is harmless for the single frame it takes the
     // renderer to prime.
-    const labelReserve = this.#labelReserveCache?.reserve ?? 0;
+    const labelReserve = this.#renderedLabelReserve;
     const { cx, cy, maxR } = computePieGeometry({
       bitmapWidth,
       bitmapHeight,
@@ -668,6 +784,108 @@ export class PieRenderer implements PieSeriesRenderer {
   }
 
   /**
+   * Trace one slice's outline with its four corners rounded (two on the
+   * outer rim, plus two on the inner rim when `innerR > 0`) instead of the
+   * plain `arc` + `lineTo` sharp-corner path. `cornerRadius` must already be
+   * clamped by the caller ({@link maxCornerRadius}) — this only draws.
+   *
+   * Each fillet is a small circle tangent to the ring and to the slice's
+   * straight edge; the main arcs are inset to the fillets' tangent angles
+   * instead of the slice's raw start/end angles. A closure keeps the sweep
+   * direction for each fillet's tiny arc correct regardless of which corner
+   * it's rounding, by always turning the shorter way between its two tangent
+   * points rather than reasoning about clockwise/anticlockwise per corner.
+   */
+  #traceRoundedSlice(
+    context: CanvasRenderingContext2D,
+    args: {
+      sliceCx: number;
+      sliceCy: number;
+      outerR: number;
+      innerR: number;
+      startAngle: number;
+      endAngle: number;
+      cornerRadius: number;
+    },
+  ): void {
+    const { sliceCx, sliceCy, outerR, innerR, startAngle, endAngle, cornerRadius } = args;
+
+    const point = (r: number, theta: number): [number, number] => [
+      sliceCx + r * Math.cos(theta),
+      sliceCy + r * Math.sin(theta),
+    ];
+    const fillet = (fx: number, fy: number, from: [number, number], to: [number, number]): void => {
+      const fcx = sliceCx + fx;
+      const fcy = sliceCy + fy;
+      const a0 = Math.atan2(from[1] - fcy, from[0] - fcx);
+      const a1 = Math.atan2(to[1] - fcy, to[0] - fcx);
+      let delta = a1 - a0;
+      while (delta > Math.PI) delta -= TWO_PI;
+      while (delta <= -Math.PI) delta += TWO_PI;
+      context.arc(fcx, fcy, cornerRadius, a0, a0 + delta, delta < 0);
+    };
+
+    const outerStart = cornerFillet({
+      ringR: outerR,
+      theta: startAngle,
+      radius: cornerRadius,
+      outward: true,
+      angleSign: 1,
+    });
+    const outerEnd = cornerFillet({
+      ringR: outerR,
+      theta: endAngle,
+      radius: cornerRadius,
+      outward: true,
+      angleSign: -1,
+    });
+    const outerStartLine = point(outerStart.lineR, startAngle);
+    const outerStartArc = point(outerR, outerStart.archAngle);
+    const outerEndArc = point(outerR, outerEnd.archAngle);
+    const outerEndLine = point(outerEnd.lineR, endAngle);
+
+    if (innerR > 0) {
+      const innerStart = cornerFillet({
+        ringR: innerR,
+        theta: startAngle,
+        radius: cornerRadius,
+        outward: false,
+        angleSign: 1,
+      });
+      const innerEnd = cornerFillet({
+        ringR: innerR,
+        theta: endAngle,
+        radius: cornerRadius,
+        outward: false,
+        angleSign: -1,
+      });
+      const innerStartLine = point(innerStart.lineR, startAngle);
+      const innerEndLine = point(innerEnd.lineR, endAngle);
+      const innerEndArc = point(innerR, innerEnd.archAngle);
+      const innerStartArc = point(innerR, innerStart.archAngle);
+
+      context.moveTo(...innerStartLine);
+      context.lineTo(...outerStartLine);
+      fillet(outerStart.fx, outerStart.fy, outerStartLine, outerStartArc);
+      context.arc(sliceCx, sliceCy, outerR, outerStart.archAngle, outerEnd.archAngle);
+      fillet(outerEnd.fx, outerEnd.fy, outerEndArc, outerEndLine);
+      context.lineTo(...innerEndLine);
+      fillet(innerEnd.fx, innerEnd.fy, innerEndLine, innerEndArc);
+      context.arc(sliceCx, sliceCy, innerR, innerEnd.archAngle, innerStart.archAngle, true);
+      fillet(innerStart.fx, innerStart.fy, innerStartArc, innerStartLine);
+
+      return;
+    }
+
+    context.moveTo(sliceCx, sliceCy);
+    context.lineTo(...outerStartLine);
+    fillet(outerStart.fx, outerStart.fy, outerStartLine, outerStartArc);
+    context.arc(sliceCx, sliceCy, outerR, outerStart.archAngle, outerEnd.archAngle);
+    fillet(outerEnd.fx, outerEnd.fy, outerEndArc, outerEndLine);
+    context.lineTo(sliceCx, sliceCy);
+  }
+
+  /**
    * Draw one outside label: anchor dot → radial elbow (per-slice, at slice
    * midangle) → short diagonal to the de-cluster-adjusted rail y → horizontal
    * rail → text. Keeping the elbow local to each slice is what stops leader
@@ -681,8 +899,9 @@ export class PieRenderer implements PieSeriesRenderer {
     labels: Required<PieLabelsOptions>;
     hpr: number;
     progress: number;
+    bitmapWidth: number;
   }): void {
-    const { context, entry, textColor, labels, hpr, progress } = args;
+    const { context, entry, textColor, labels, hpr, progress, bitmapWidth } = args;
 
     if (progress <= 0) return;
 
@@ -736,12 +955,20 @@ export class PieRenderer implements PieSeriesRenderer {
     }
 
     if (railP > 0) {
+      // When the radius floor in `computePieGeometry` overrode the label
+      // reserve, the text may no longer fit between its anchor and the canvas
+      // edge — trim to an ellipsis instead of clipping mid-glyph.
+      const edgePad = 2 * hpr;
+      const maxTextWidth = side >= 0 ? bitmapWidth - edgePad - textX : textX - edgePad;
+      const paintText = truncateToWidth(context, text, maxTextWidth);
+      if (paintText.length === 0) return;
+
       context.save();
       context.globalAlpha = railP;
       context.fillStyle = textColor;
       context.textAlign = side >= 0 ? 'left' : 'right';
       context.textBaseline = 'middle';
-      context.fillText(text, textX, labelY);
+      context.fillText(paintText, textX, labelY);
       context.restore();
     }
   }
@@ -1031,20 +1258,35 @@ export class PieRenderer implements PieSeriesRenderer {
     }
 
     const palette = this.#options.colors ?? theme.seriesColors;
-    const labelReserve =
+    let labelReserve =
       labels.mode === 'outside' ? this.#computeLabelReserve(context, labels, total, horizontalPixelRatio) : 0;
 
     // Padding arrives in CSS pixels; geometry is in bitmap pixels.
-    const { cx, cy, maxR } = computePieGeometry({
+    const geometryInput = {
       bitmapWidth: bitmapSize.width,
       bitmapHeight: bitmapSize.height,
       padTop: padding.top * verticalPixelRatio,
       padBottom: padding.bottom * verticalPixelRatio,
-      labelReserve,
-    });
+    };
+    let { cx, cy, maxR } = computePieGeometry({ ...geometryInput, labelReserve });
+
+    // Coin-sized pie — leader-line labels degenerate into overlapping
+    // spaghetti. Drop them, reclaim their reserve, and let the legend carry
+    // the per-slice data.
+    let outsideLabelsVisible = labels.mode === 'outside';
+    if (outsideLabelsVisible && maxR < MIN_LABELED_PIE_RADIUS * horizontalPixelRatio) {
+      outsideLabelsVisible = false;
+      labelReserve = 0;
+      ({ cx, cy, maxR } = computePieGeometry({ ...geometryInput, labelReserve }));
+    }
+
+    // hitTest mirrors the effective reserve so hover geometry matches paint.
+    this.#renderedLabelReserve = labelReserve;
+
     const outerR = maxR;
     const innerR = outerR * this.#options.innerRadiusRatio;
     const pad = this.#options.padAngle * DEG_TO_RAD;
+    const requestedCornerRadius = (this.#options.cornerRadius ?? 3) * horizontalPixelRatio;
     const explodeDistance = 8 * horizontalPixelRatio;
     const shadow = this.#options.shadow ?? false;
     const shadowStyle = resolveShadow(shadow);
@@ -1092,12 +1334,21 @@ export class PieRenderer implements PieSeriesRenderer {
       const sliceCx = cx + ox;
       const sliceCy = cy + oy;
 
+      const cornerRadius =
+        requestedCornerRadius > 0.5
+          ? Math.min(requestedCornerRadius, maxCornerRadius({ outerR, innerR, halfSpan: (endAngle - startAngle) / 2 }))
+          : 0;
+
       context.beginPath();
-      context.arc(sliceCx, sliceCy, outerR, startAngle, endAngle);
-      if (innerR > 0) {
-        context.arc(sliceCx, sliceCy, innerR, endAngle, startAngle, true);
+      if (cornerRadius > 0.5) {
+        this.#traceRoundedSlice(context, { sliceCx, sliceCy, outerR, innerR, startAngle, endAngle, cornerRadius });
       } else {
-        context.lineTo(sliceCx, sliceCy);
+        context.arc(sliceCx, sliceCy, outerR, startAngle, endAngle);
+        if (innerR > 0) {
+          context.arc(sliceCx, sliceCy, innerR, endAngle, startAngle, true);
+        } else {
+          context.lineTo(sliceCx, sliceCy);
+        }
       }
       context.closePath();
 
@@ -1144,6 +1395,7 @@ export class PieRenderer implements PieSeriesRenderer {
     }
 
     if (labels.mode === 'none') return;
+    if (labels.mode === 'outside' && !outsideLabelsVisible) return;
 
     // Labels pass — mode dispatches to either on-slice text (inside) or
     // leader-line layout (outside). `measureText` uses the font set above.
@@ -1184,6 +1436,7 @@ export class PieRenderer implements PieSeriesRenderer {
           labels,
           hpr: horizontalPixelRatio,
           progress,
+          bitmapWidth: bitmapSize.width,
         });
       }
 

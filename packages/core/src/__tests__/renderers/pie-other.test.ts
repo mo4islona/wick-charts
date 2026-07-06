@@ -13,7 +13,7 @@ const TEN_SLICES: PieSliceData[] = Array.from({ length: 10 }, (_, i) => ({
 
 describe('PieRenderer — "other" grouping (default on)', () => {
   it('groups a 10-slice dataset into 7 kept slices + one "Other"', () => {
-    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(TEN_SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -23,7 +23,7 @@ describe('PieRenderer — "other" grouping (default on)', () => {
   });
 
   it('keeps datasets at or below maxSlices untouched', () => {
-    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(TEN_SLICES.slice(0, 8));
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
@@ -116,7 +116,7 @@ describe('PieRenderer — "other" grouping (default on)', () => {
 
 describe('PieRenderer — "other" grouping configuration', () => {
   it('other: false renders every slice', () => {
-    const r = new PieRenderer({ other: false, sliceLabels: { mode: 'none' } });
+    const r = new PieRenderer({ other: false, sliceLabels: { mode: 'none' }, cornerRadius: 0 });
     r.setData(TEN_SLICES);
     const { ctx, spy } = buildRenderContext();
     r.render(ctx);
