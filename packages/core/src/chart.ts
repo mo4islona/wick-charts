@@ -1039,6 +1039,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     entry.renderer.appendPoint(point, layerIndex);
   }
 
+  /**
+   * Prepend older points to the front of a series — the "load more history on
+   * scroll" path. Unlike {@link setSeriesData}, this deliberately does NOT set
+   * `#dataReplaceSnapPending`: the visible window and the data inside it don't
+   * change, so the viewport must stay put (X) and the Y axis eases if newly
+   * revealed history shifts the range — instead of the full-span re-fit and
+   * instant dual-axis snap a bulk `setSeriesData` replace would force. Routes
+   * through the streaming `onPointAppended` engine signal via `onDataChanged`.
+   *
+   * `points` must be sorted ascending and sit strictly before the current
+   * first point; the sync reconciler guarantees this before calling here.
+   * No-op if the renderer doesn't support prepend.
+   */
+  prependData(id: string, points: (OHLCInput | TimePointInput)[], layerIndex?: number): void {
+    const entry = this.#series.find((s) => s.id === id);
+    if (entry === undefined || entry.renderer.prependPoints === undefined) return;
+
+    entry.renderer.prependPoints(points, layerIndex);
+  }
+
   /** Update the last data point of a series in place (e.g. live candle update). */
   updateData(id: string, point: OHLCInput | TimePointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);

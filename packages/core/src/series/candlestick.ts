@@ -260,6 +260,16 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     }
   }
 
+  prependPoints(points: unknown[]): void {
+    if (points.length === 0) return;
+
+    // History prepend: insert older candles at the front and leave every bit
+    // of reveal/live state untouched (intro wave, per-candle entries, live
+    // chase, `displayedLast`, volume scale). The visible suffix is unchanged,
+    // so none of `setData`'s snap machinery should run.
+    this.store.prepend(normalizeOHLCArray(points as OHLCInput[]));
+  }
+
   updateLastPoint(point: unknown): void {
     const p = point as OHLCInput;
     const time = normalizeTime(p.time);

@@ -110,6 +110,14 @@ export interface BaseSeriesRenderer {
   /** Append a single point (real-time tick). Optional — not all renderers support streaming. */
   appendPoint?(point: unknown, layerIndex?: number): void;
 
+  /**
+   * Insert older points at the front of the series (history prepend / load-more).
+   * The suffix already on screen is untouched, so — unlike {@link setData} — this
+   * does NOT re-arm the intro, clear entrance/chase state, or force a Y snap.
+   * Optional; not all renderers support it.
+   */
+  prependPoints?(points: unknown[], layerIndex?: number): void;
+
   /** Replace the last point in place (live candle update). Optional. */
   updateLastPoint?(point: unknown, layerIndex?: number): void;
 

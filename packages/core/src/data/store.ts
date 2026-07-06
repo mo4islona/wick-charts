@@ -71,6 +71,21 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     this.emit('update');
   }
 
+  /**
+   * Insert older points at the front of the buffer (history prepend). The
+   * caller guarantees `points` are sorted ascending and all strictly before
+   * the current first point — the sync reconciler only routes here after
+   * proving the untouched suffix matches the previous data, so the boundary
+   * is already validated and no re-sort is needed here. No-op on empty input.
+   */
+  prepend(points: T[]): void {
+    if (points.length === 0) return;
+
+    this.data = points.concat(this.data);
+    this.cachedRange = null;
+    this.emit('update');
+  }
+
   trimStart(count: number): void {
     if (count <= 0 || this.data.length === 0) return;
     if (count >= this.data.length) {
