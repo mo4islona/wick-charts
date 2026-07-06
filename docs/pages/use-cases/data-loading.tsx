@@ -12,6 +12,7 @@ import {
   YAxis,
   YLabel,
   skeletonLoadingIndicator,
+  skeletonMorphIntro,
   useChartInstance,
 } from '@wick-charts/react';
 
@@ -85,13 +86,17 @@ const dashLoader: LoadingIndicatorFn = ({ scope, chartMediaWidth, chartMediaHeig
 
 <EdgeLoader side="left" onTrigger={loadOlder} indicator={dashLoader} />`;
 
-const REVEAL_SNIPPET = `// Default: prepended candles fade in as a wave from the data
-// boundary into the new history. Same contract as introAnimation —
-// any factory reading el.progress works, or write your own.
+const REVEAL_SNIPPET = `// skeletonMorphIntro: the loading indicator reports its placeholder
+// geometry, and the candles that land where placeholders stood GROW
+// OUT of those exact shapes — gray placeholder becomes a real candle.
+// Deeper history plays the fallback wave (fadeIntro by default).
 <CandlestickSeries
   data={data}
-  options={{ historyReveal: riseIntro(), historyRevealMs: 600 }}
+  options={{ historyReveal: skeletonMorphIntro() }}
 />
+
+// Any introAnimation-style factory works here too:
+<CandlestickSeries data={data} options={{ historyReveal: riseIntro() }} />
 
 // Opt out — new history appears instantly:
 <CandlestickSeries data={data} options={{ historyReveal: 'none' }} />`;
@@ -127,12 +132,13 @@ const STEPS: Step[] = [
     heading: '03 — THE ARRIVAL IS ANIMATED TOO',
     body: (
       <>
-        When the fetched history lands, the loading indicator fades out and the new candles reveal in a wave that
-        travels from the data boundary into the past — no snap, no pop. The choreography is the{' '}
-        <code>historyReveal</code> series option: the same pluggable-function contract as <code>introAnimation</code>{' '}
-        (<code>fadeIntro</code> is the default; <code>riseIntro</code>, <code>candleUnfoldIntro</code> and custom fns
-        work unchanged), with the wave's stagger anchored at the boundary. Lines back-fill behind a clip front (
-        <code>backfillSweepIntro</code>) instead.
+        When the fetched history lands, the placeholders don't just vanish — this chart uses{' '}
+        <code>skeletonMorphIntro</code>, so the real candles grow out of the exact shapes the skeleton was showing,
+        blending from placeholder gray to their own colors, while deeper history waves in from the boundary. The
+        choreography is the <code>historyReveal</code> series option: the same pluggable-function contract as{' '}
+        <code>introAnimation</code> (<code>fadeIntro</code> is the default; <code>riseIntro</code>,{' '}
+        <code>candleUnfoldIntro</code> and custom fns work unchanged), with the wave's stagger anchored at the boundary.
+        Lines back-fill behind a clip front (<code>backfillSweepIntro</code>) instead.
       </>
     ),
     code: REVEAL_SNIPPET,
@@ -178,7 +184,7 @@ export function DataLoadingPage({ theme }: { theme: ChartTheme }) {
       chart={
         <ChartContainer theme={theme} style={{ height: 460 }}>
           <Title sub={`${pagesLoaded * PAGE_SIZE} candles · pan left`}>BTC/USD</Title>
-          <CandlestickSeries id="candle" data={data} />
+          <CandlestickSeries id="candle" data={data} options={{ historyReveal: skeletonMorphIntro() }} />
           <InitialZoom bars={INITIAL_VISIBLE_BARS} />
           <EdgeLoader
             side="left"
