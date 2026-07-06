@@ -123,7 +123,7 @@ export { LineSeriesDef } from './series/line';
 // LineIntroFn contract for fully custom intros. An intro is a plain function
 // passed to `options.introAnimation`; there is no name registry.
 export type { LineIntroDirectives, LineIntroFn, LineIntroFrame, LineIntroValueArgs } from './series/line-intro';
-export { plotterIntro, sweepIntro, traceIntro, unfoldIntro } from './series/line-intro';
+export { centerOutIntro, plotterIntro, sweepIntro, traceIntro, unfoldIntro } from './series/line-intro';
 export {
   roundedBarFill,
   roundedCandleFill,

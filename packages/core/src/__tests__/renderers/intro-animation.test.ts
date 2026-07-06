@@ -9,6 +9,7 @@ import { LineRenderer } from '../../series/line';
 import {
   type LineIntroFn,
   type LineIntroFrame,
+  centerOutIntro,
   plotterIntro,
   sweepIntro,
   traceIntro,
@@ -257,6 +258,21 @@ describe('intro animations — initial-load reveal', () => {
       expect(r.needsAnimation).toBe(false);
     });
 
+    it('default candleUnfoldIntro(): a candle still waiting for the wave front paints invisible, not a flat line', () => {
+      const r = makeCandle();
+      r.setData(CANDLES);
+      renderFrame(r);
+
+      advance(150); // right candle's wave hasn't started yet
+      const { spy } = renderFrame(r);
+
+      const rects = spy.callsOf('fillRect');
+      const leftAlphas = rects.filter((c) => (c.args[0] as number) < 400).map((c) => c.globalAlpha);
+      const rightAlphas = rects.filter((c) => (c.args[0] as number) >= 400).map((c) => c.globalAlpha);
+      expect(Math.max(...leftAlphas)).toBeGreaterThan(0);
+      expect(Math.max(...rightAlphas)).toBe(0);
+    });
+
     it('waves left → right with fadeIntro(): the left candle paints more opaque', () => {
       const r = makeCandle({ introAnimation: fadeIntro() });
       r.setData(CANDLES);
@@ -352,6 +368,14 @@ describe('intro animations — initial-load reveal', () => {
       }
       for (const body of bodies) {
         expect(body.globalAlpha).toBe(0);
+      }
+
+      // The right candle's wave hasn't started at all yet — wick and body
+      // should both be invisible, not a flat min-height line at the open price.
+      const right = spy.callsOf('fillRect').filter((c) => (c.args[0] as number) >= 400);
+      expect(right.length).toBeGreaterThan(0);
+      for (const rect of right) {
+        expect(rect.globalAlpha).toBe(0);
       }
     });
   });
@@ -658,6 +682,28 @@ describe('intro animations — initial-load reveal', () => {
 
         // Ghost pass is stroke-only; the area fill belongs to the ink pass.
         expect(spy.countOf('clip')).toBe(1);
+      });
+    });
+
+    describe('introAnimation: centerOutIntro()', () => {
+      it('opens the clip window from the pane center outward with two heads', () => {
+        const r = makeLine({ introAnimation: centerOutIntro() });
+        r.setData(POINTS);
+        renderFrame(r); // stamps the wave start
+
+        advance(500);
+        const { spy } = renderFrame(r);
+
+        expect(spy.countOf('clip')).toBe(1);
+        const [x, , w] = spy.callsOf('rect')[0].args as number[];
+        // Window centered on the pane: opens from 400 outward.
+        expect(x).toBeGreaterThan(0);
+        expect(x).toBeLessThan(400);
+        expect(x + w).toBeGreaterThan(400);
+        expect(x + w).toBeLessThan(800);
+
+        // Two heads → at least 4 arcs (halo + core each).
+        expect(spy.countOf('arc')).toBeGreaterThanOrEqual(4);
       });
     });
   });
