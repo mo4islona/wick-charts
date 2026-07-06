@@ -236,4 +236,66 @@ describe('ChartInstance — streaming auto-scroll (candlestick regression)', () 
     const { to } = chart.getVisibleRange();
     expect(to).toBeCloseTo(toBefore, -1);
   });
+
+  it('offscreen drive-in: initialRange ending one interval before the seed keeps tail-follow armed', () => {
+    // Sparkline `flow.align: 'offscreen'` parks the seed one interval past
+    // the right edge so the first tick's tail-scroll animates it onto canvas.
+    // Regression: `setVisibleRange` read that window (to < dataEnd) as
+    // "panned into history" and dropped autoScroll, so streaming ticks never
+    // moved the viewport — the chart stayed empty forever.
+    chart.destroy();
+    container.remove();
+    const start = 1_000_000;
+    const seedLast = start + INTERVAL;
+    const to = seedLast - INTERVAL;
+    const capacity = 10;
+    ({ chart, container } = makeChartWithOptions({
+      padding: { top: 5, right: 0, bottom: 0, left: 0 },
+      viewport: {
+        maxVisibleBars: capacity,
+        initialRange: { from: to - capacity * INTERVAL, to },
+      },
+    }));
+
+    const id = chart.addSeries('line');
+    chart.setSeriesData(id, [
+      { time: start, value: 10 },
+      { time: seedLast, value: 11 },
+    ]);
+    raf.flush(20);
+
+    chart.appendData(id, { time: seedLast + INTERVAL, value: 12 });
+    raf.flush(60);
+
+    // Tail-follow survived the initial window: the right edge caught up to
+    // the appended tail instead of staying frozen one interval behind the seed.
+    const range = chart.getVisibleRange();
+    expect(range.to).toBeCloseTo(seedLast + INTERVAL, -1);
+  });
+
+  it('initialRange deep in history still disables tail-follow (pan-away semantics intact)', () => {
+    chart.destroy();
+    container.remove();
+    const start = 1_000_000;
+    const last = start + 99 * INTERVAL;
+    // A genuine deep-link into history: window ends 50 bars before the tail.
+    const to = last - 50 * INTERVAL;
+    ({ chart, container } = makeChartWithOptions({
+      viewport: { initialRange: { from: to - 20 * INTERVAL, to } },
+    }));
+
+    const id = chart.addSeries('line');
+    chart.setSeriesData(
+      id,
+      Array.from({ length: 100 }, (_, i) => ({ time: start + i * INTERVAL, value: 10 + i })),
+    );
+    raf.flush(20);
+    const { to: toBefore } = chart.getVisibleRange();
+
+    chart.appendData(id, { time: last + INTERVAL, value: 200 });
+    raf.flush(60);
+
+    const { to: toAfter } = chart.getVisibleRange();
+    expect(toAfter).toBeCloseTo(toBefore, -1);
+  });
 });

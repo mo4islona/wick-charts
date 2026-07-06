@@ -2314,6 +2314,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (this.#initialVisibleRange !== undefined) {
         this.setVisibleRange(this.#initialVisibleRange);
         this.#initialVisibleRange = undefined;
+
+        // `setVisibleRange` reads a window that ends before the data tail as
+        // "panned into history" and drops tail-follow. At mount that reading
+        // is wrong for a streaming lead-in that parks the seed just past the
+        // right edge so the first tick scrolls it into view (the Sparkline
+        // `flow.align: 'offscreen'` drive-in) — without follow-live the
+        // viewport freezes and the stream accumulates off-canvas forever.
+        // Re-arm when the tail sits within ~one interval past the window.
+        if (!this.#autoScroll && this.#dataEnd !== null) {
+          const { to } = this.#logical;
+          if (this.#dataEnd >= to && this.#dataEnd - to <= this.#dataInterval * 1.5) {
+            this.#autoScroll = true;
+          }
+        }
       }
 
       return this.#logical;
