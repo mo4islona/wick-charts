@@ -7,7 +7,7 @@
 
 High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, zero runtime dependencies.
 
-[Live Demo](https://wick-charts.eeff.io/) · [Docs](https://wick-charts.eeff.io/api/chart-container)
+[Live Demo](https://wick-charts.eeff.io/) · [Docs](https://wick-charts.eeff.io/api/chart-container/)
 
 ## Features
 
@@ -51,9 +51,9 @@ function Chart({ data }) {
 
 Every component, prop, type, and slot context lives in the docs site:
 
-[wick-charts.eeff.io/api/chart-container](https://wick-charts.eeff.io/api/chart-container)
+[wick-charts.eeff.io/api/chart-container/](https://wick-charts.eeff.io/api/chart-container/)
 
-Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series), [Line](https://wick-charts.eeff.io/api/line-series), [Bar](https://wick-charts.eeff.io/api/bar-series), [Pie](https://wick-charts.eeff.io/api/pie-series), [Sparkline](https://wick-charts.eeff.io/api/sparkline)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip), [InfoBar](https://wick-charts.eeff.io/api/info-bar), [Crosshair](https://wick-charts.eeff.io/api/crosshair), [Legend](https://wick-charts.eeff.io/api/legend), [YAxis](https://wick-charts.eeff.io/api/y-axis), [XAxis](https://wick-charts.eeff.io/api/x-axis), [Navigator](https://wick-charts.eeff.io/api/navigator), …).
+Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series/), [Line](https://wick-charts.eeff.io/api/line-series/), [Bar](https://wick-charts.eeff.io/api/bar-series/), [Pie](https://wick-charts.eeff.io/api/pie-series/), [Sparkline](https://wick-charts.eeff.io/api/sparkline/)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip/), [InfoBar](https://wick-charts.eeff.io/api/info-bar/), [Crosshair](https://wick-charts.eeff.io/api/crosshair/), [Legend](https://wick-charts.eeff.io/api/legend/), [YAxis](https://wick-charts.eeff.io/api/y-axis/), [XAxis](https://wick-charts.eeff.io/api/x-axis/), [Navigator](https://wick-charts.eeff.io/api/navigator/), …).
 
 ## No framework? Use the engine directly
 
