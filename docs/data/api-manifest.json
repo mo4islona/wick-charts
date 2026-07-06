@@ -122,7 +122,7 @@
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Initial-load reveal choreography — a `LineIntroFn` called once per\nframe while the intro plays. The shipped styles are factories over the\nsame contract: `unfoldIntro()` (the default — amplitude springs from\nthe mean into shape), `sweepIntro()` (left-to-right draw-on with a\nglowing head), `traceIntro()` (faint ghost, then an ink sweep),\n`plotterIntro()` (head advances at constant path speed). Style is\nspecific to the line series; there is no chart-level override for\nstyle — only for duration (`introMs`).",
+                "description": "Initial-load reveal choreography — a `LineIntroFn` called once per\nframe while the intro plays. The shipped styles are factories over the\nsame contract: `unfoldIntro()` (the default — amplitude springs from\nthe mean into shape), `sweepIntro()` (left-to-right draw-on with a\nglowing head), `traceIntro()` (faint ghost, then an ink sweep),\n`plotterIntro()` (head advances at constant path speed), `centerOutIntro()`\n(clip opens from the pane's center outward). Style is specific to the\nline series; there is no chart-level override for style — only for\nduration (`introMs`).",
                 "see": [
                   "LineIntroFn — the custom-fn contract (frame → directives).",
                   "introMs — cross-linked duration for this animation."
@@ -656,6 +656,15 @@
                 "defaultValue": "1.15°",
                 "deprecated": null,
                 "description": "Gap between slices in degrees. Default: 1.15° (≈ 0.02 rad).",
+                "see": []
+              },
+              {
+                "name": "cornerRadius",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "3",
+                "deprecated": null,
+                "description": "Rounds each slice's corners in CSS pixels — the two where the outer rim\nmeets the straight edges, plus two more on the inner rim once\n`innerRadiusRatio > 0` carves out a donut hole. Default: 3 (matching the\nbar/candlestick families); pass 0 for sharp wedges. Thin rings and narrow\nslices automatically clamp the radius down to whatever they can fit\nwithout the corners overlapping, so a value that's too large for a given\nslice degrades gracefully instead of producing a malformed shape.",
                 "see": []
               },
               {
@@ -3972,7 +3981,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Optional text label drawn in a pill next to the anchor.",
+          "description": "Optional text label drawn as a callout chip whose tail points at the anchor.",
           "see": []
         },
         {
@@ -4016,7 +4025,7 @@
           "optional": true,
           "defaultValue": "the theme line color",
           "deprecated": null,
-          "description": "Line and label-pill color. Default: the theme line color.",
+          "description": "Line and label-chip accent color. Default: the theme line color.",
           "see": []
         },
         {
@@ -4025,7 +4034,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Optional text label drawn in a pill at the line's near end.",
+          "description": "Optional text label drawn in an annotation chip at the line's near end.",
           "see": []
         },
         {
@@ -4087,7 +4096,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Optional text label drawn in a pill at the top of the band.",
+          "description": "Optional text label drawn in an annotation chip at the top of the band.",
           "see": []
         },
         {
@@ -4096,7 +4105,7 @@
           "optional": true,
           "defaultValue": "the theme's muted axis text color",
           "deprecated": null,
-          "description": "Edge-line and label-pill accent. Default: the theme's muted axis text color.",
+          "description": "Edge-line and label-chip accent. Default: the theme's muted axis text color.",
           "see": []
         }
       ]
