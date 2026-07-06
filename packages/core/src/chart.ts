@@ -1,4 +1,5 @@
 import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
+import { easeOutCubic } from './animation/easing';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
@@ -68,6 +69,7 @@ import type {
   XRange,
   YRange,
 } from './types';
+import { clamp } from './utils/math';
 import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart/options';
@@ -228,6 +230,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #regions: RegionEntry[] = [];
   /** Reference lines (horizontal threshold / vertical event) drawn on the overlay layer, kept out of the series model. */
   #lines: LineEntry[] = [];
+  /**
+   * Overlay-intro latch. Annotations ride the *initial* reveal, then stay put.
+   * `#overlayIntroSeen` flips once we've actually watched an intro in progress
+   * (guards against latching on an empty chart before any data arrives);
+   * `#overlayIntroSettled` freezes the front at `1` afterward so a series added
+   * later — which re-arms `getIntroFront()`'s global min — can't blink settled
+   * markers / reference lines back out.
+   */
+  #overlayIntroSeen = false;
+  #overlayIntroSettled = false;
   /** Active visual theme (colors, fonts, grid style). */
   #theme: ChartTheme;
   /** Whether to render the background grid. */
@@ -709,9 +721,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Share one halo phase across markers, off the same clock and period the line pulse uses.
     const phase = (performance.now() / (DEFAULT_LINE_PULSE * 2 * Math.PI)) % 1;
 
+    // Markers ride the initial-load reveal: each surfaces as the series draw
+    // front sweeps past its time, so annotations don't pop in fully-formed
+    // over a half-drawn chart. Latched so a later series intro can't re-hide them.
+    const front = this.#overlayIntroFront();
+
     for (const marker of this.#markers) {
       const value = this.#resolveMarkerValue(marker);
       if (value === null) continue;
+
+      const alpha = this.#introAlphaAt(front, marker.time);
+      if (alpha <= 0) continue;
+
+      const prevAlpha = scope.context.globalAlpha;
+      if (alpha < 1) scope.context.globalAlpha = prevAlpha * alpha;
 
       renderMarker({
         scope,
@@ -730,6 +753,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         plotWidth,
         plotHeight,
       });
+
+      if (alpha < 1) scope.context.globalAlpha = prevAlpha;
     }
   }
 
@@ -872,7 +897,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #drawLines(scope: BitmapCoordinateSpace, plotWidth: number, plotHeight: number): void {
     if (this.#lines.length === 0) return;
 
+    const front = this.#overlayIntroFront();
+
     for (const line of this.#lines) {
+      // A vertical (event-time) line surfaces when the reveal front passes its
+      // X, matching the marker choreography; a horizontal threshold spans the
+      // whole plot, so it just fades in across the reveal instead.
+      const alpha =
+        front >= 1 ? 1 : line.orientation === 'vertical' ? this.#introAlphaAt(front, line.coord) : easeOutCubic(front);
+      if (alpha <= 0) continue;
+
+      const prevAlpha = scope.context.globalAlpha;
+      if (alpha < 1) scope.context.globalAlpha = prevAlpha * alpha;
+
       renderReferenceLine({
         scope,
         timeScale: this.timeScale,
@@ -889,6 +926,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         plotWidth,
         plotHeight,
       });
+
+      if (alpha < 1) scope.context.globalAlpha = prevAlpha;
     }
   }
 
@@ -900,6 +939,71 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   getAnimationState(): AnimationState {
     return this.#engine.getAnimationState();
+  }
+
+  /**
+   * Reveal-front position in `[0, 1]` of any in-flight initial-load intro.
+   * With a `seriesId`, that series' own front; without, the minimum across
+   * every visible time series — overlays wait for the slowest reveal. `1`
+   * whenever nothing is introing. Overlay components (the Y-label badge,
+   * annotations) read this to reveal their entrance in step with the draw.
+   */
+  getIntroFront(seriesId?: string): number {
+    if (seriesId !== undefined) {
+      const entry = this.#series.find((s) => s.id === seriesId);
+
+      return entry?.renderer.getIntroFront?.() ?? 1;
+    }
+
+    let front = 1;
+    for (const entry of this.#series) {
+      if (!entry.visible) continue;
+
+      const f = entry.renderer.getIntroFront?.();
+      if (f !== undefined && f < front) front = f;
+    }
+
+    return front;
+  }
+
+  /**
+   * Reveal front for annotations (markers / reference lines). The same as
+   * {@link getIntroFront}() during the initial reveal, but latched to `1` once
+   * that first reveal has settled — so introducing another series afterward
+   * doesn't re-hide overlays that already surfaced. Latches only after an intro
+   * has actually been observed in progress, so an annotation drawn on a chart
+   * that has no data yet still rides the reveal once data arrives.
+   */
+  #overlayIntroFront(): number {
+    if (this.#overlayIntroSettled) return 1;
+
+    const front = this.getIntroFront();
+    if (front < 1) {
+      this.#overlayIntroSeen = true;
+
+      return front;
+    }
+
+    if (this.#overlayIntroSeen) this.#overlayIntroSettled = true;
+
+    return 1;
+  }
+
+  /**
+   * Entrance alpha for an overlay pinned at `time`, given the intro reveal
+   * `front`. Transparent until the sweep reaches the element's normalized X,
+   * then fades in over a short band — so annotations surface in step with the
+   * series drawing past them. `1` once the intro has settled.
+   */
+  #introAlphaAt(front: number, time: number): number {
+    if (front >= 1) return 1;
+
+    const { from, to } = this.timeScale.getRange();
+    const span = to - from;
+    const position = span > 0 ? (time - from) / span : 0;
+    const INTRO_FADE_BAND = 0.12;
+
+    return clamp((front - position) / INTRO_FADE_BAND, 0, 1);
   }
 
   /**
@@ -1445,6 +1549,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   getStackedLastValue(seriesId: string): { value: number; isLive: boolean } | null {
     return getStackedLastValue(seriesId, this.#series, this.#engine.getAnimationState().xRange);
+  }
+
+  /**
+   * Stacked value at an arbitrary `time` — the cumulative stack top at that
+   * sample, sharing a basis with {@link getStackedLastValue}. Falls back to the
+   * nearest raw sample (close / value) for renderers without a stacked concept
+   * (Candlestick, single-layer Line/Bar). Returns `null` for unknown ids or
+   * when no sample sits near `time`. Used by the YLabel intro count-up start.
+   */
+  getStackedValueAtTime(seriesId: string, time: number): number | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    if (!entry) return null;
+
+    const stacked = entry.renderer.getStackedValueAtTime?.(time, this.#dataInterval);
+    if (stacked !== null && stacked !== undefined) return stacked;
+
+    const point = entry.renderer.getDataAtTime?.(time, this.#dataInterval);
+    if (!point) return null;
+
+    return 'close' in point ? point.close : point.value;
   }
 
   /**

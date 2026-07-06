@@ -364,6 +364,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     );
   }
 
+  /** Reveal-front position of the initial-load intro; `1` once settled. */
+  getIntroFront(): number {
+    return this.introWave.sweep();
+  }
+
   /** Abort in-flight per-candle entrance animations, including the initial
    *  reveal. Live-OHLC chase is left intact. */
   cancelEntranceAnimations(): void {

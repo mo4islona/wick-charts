@@ -1,9 +1,23 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import type { ChartInstance, ValueFormatter } from '@wick-charts/core';
+import {
+  BadgeAnimator,
+  type ChartInstance,
+  type ResolvedAnimate,
+  type ValueFormatter,
+  type YLabelAnimate,
+  firstVisibleValue,
+  prefersReducedMotion,
+  resolveAnimate,
+} from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { NumberFlow } from './NumberFlow';
+
+// Badge motion tuning types + the resolve/reduced-motion/count-up helpers live
+// in core next to BadgeAnimator so React / Vue / Svelte share one set of
+// defaults. Re-exported here to keep YLabel's public surface stable.
+export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 
 /** Direction of the current value vs. previous close. Drives the badge color in the default UI. */
 export type YLabelDirection = 'up' | 'down' | 'neutral';
@@ -19,6 +33,8 @@ export interface YLabelRenderContext {
   readonly isLive: boolean;
   readonly direction: YLabelDirection;
   readonly format: ValueFormatter;
+  /** Entrance opacity in `[0, 1]` — ramps up as the initial-load reveal completes. */
+  readonly opacity: number;
 }
 
 export interface YLabelProps {
@@ -37,6 +53,12 @@ export interface YLabelProps {
    */
   format?: ValueFormatter;
   /**
+   * Badge motion. `true` (default) glides the badge to new values, counts the
+   * value up during the initial reveal, and fades in with the intro. `false`
+   * snaps with no easing. Pass an object to tune {@link YLabelAnimateOptions}.
+   */
+  animate?: YLabelAnimate;
+  /**
    * Render-prop escape hatch. Receives the resolved value, pixel position, and
    * direction metadata. Replaces the built-in badge + dashed line entirely.
    */
@@ -54,7 +76,13 @@ function resolveSeriesId(chart: ChartInstance, explicit: string | undefined): st
   return anyTime.length > 0 ? anyTime[0] : null;
 }
 
-export function YLabel({ seriesId, color, format, children }: YLabelProps) {
+interface BadgeFrame {
+  positionValue: number;
+  textValue: number;
+  opacity: number;
+}
+
+export function YLabel({ seriesId, color, format, animate, children }: YLabelProps) {
   const chart = useChartInstance();
 
   // Notify chart that YLabel is present (affects right padding).
@@ -63,23 +91,97 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
     return () => chart.setYLabel(false);
   }, [chart]);
 
-  // Single subscription covering data/visibility/theme/options changes, plus
-  // viewportChange for pixel-Y drift on pan/zoom where the value is unchanged
-  // but the badge must move.
+  // Re-render bump for viewport/data/theme changes: `viewportChange` covers
+  // pixel-Y drift on pan/zoom (value unchanged, badge must move); the others
+  // cover value/visibility/theme. The badge's own value glide + intro reveal
+  // ride the rAF loop below instead — this bump only keeps `top` in sync with
+  // the current yScale.
   const [, setBumpSignal] = useState(0);
+
+  // rAF-driven badge motion: a value spring for the append glide + the intro
+  // count-up / fade-in, all owned by the shared core BadgeAnimator so React /
+  // Vue / Svelte behave identically. `null` until the first frame runs.
+  const [frame, setFrame] = useState<BadgeFrame | null>(null);
+  const animatorRef = useRef<BadgeAnimator | null>(null);
+  const animatorIdRef = useRef<string | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const resolvedIdRef = useRef<string | null>(null);
+  const animateRef = useRef<ResolvedAnimate>({ glide: true, countUp: true, settleMs: 320 });
+
+  const resolvedId = resolveSeriesId(chart, seriesId);
+  resolvedIdRef.current = resolvedId;
+  animateRef.current = resolveAnimate(animate);
+
   useLayoutEffect(() => {
-    const onChange = () => setBumpSignal((n) => n + 1);
+    const runFrame = () => {
+      rafRef.current = null;
+
+      const id = resolvedIdRef.current;
+      const last = id !== null ? chart.getStackedLastValue(id) : null;
+      if (id === null || !last) {
+        animatorRef.current = null;
+        animatorIdRef.current = null;
+        return;
+      }
+
+      const target = last.value;
+      // Recreate the animator when the tracked series changes (not just when it
+      // goes null) so the badge shows the new series' value immediately instead
+      // of gliding from the previous series' stale last value.
+      if (animatorRef.current === null || animatorIdRef.current !== id) {
+        animatorRef.current = new BadgeAnimator(target);
+        animatorIdRef.current = id;
+      }
+
+      const { glide, countUp, settleMs } = animateRef.current;
+      const introFront = chart.getIntroFront(id);
+
+      const out = animatorRef.current.frame({
+        target,
+        // Only needed for the intro count-up; skip the visible-range binary
+        // search entirely once the reveal has settled (the hot streaming path).
+        firstVisible: introFront < 1 ? firstVisibleValue(chart, id, target) : target,
+        introFront,
+        now: performance.now(),
+        glide,
+        countUp,
+        settleMs,
+        reducedMotion: prefersReducedMotion(),
+      });
+
+      setFrame((prev) =>
+        prev !== null &&
+        prev.positionValue === out.positionValue &&
+        prev.textValue === out.textValue &&
+        prev.opacity === out.opacity
+          ? prev
+          : { positionValue: out.positionValue, textValue: out.textValue, opacity: out.opacity },
+      );
+
+      if (out.animating && rafRef.current === null) rafRef.current = requestAnimationFrame(runFrame);
+    };
+
+    const kick = () => {
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(runFrame);
+    };
+
+    const onChange = () => {
+      setBumpSignal((n) => n + 1);
+      kick();
+    };
+
     chart.on('overlayChange', onChange);
     chart.on('viewportChange', onChange);
-    if (chart.getSeriesIds().length > 0) setBumpSignal((n) => n + 1);
+    if (chart.getSeriesIds().length > 0) onChange();
 
     return () => {
       chart.off('overlayChange', onChange);
       chart.off('viewportChange', onChange);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     };
   }, [chart]);
 
-  const resolvedId = resolveSeriesId(chart, seriesId);
   const last = resolvedId !== null ? chart.getStackedLastValue(resolvedId) : null;
   const previousClose = resolvedId !== null ? chart.getPreviousClose(resolvedId) : null;
 
@@ -104,8 +206,23 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
 
   const { value, isLive } = last;
   const theme = chart.getTheme();
-  const y = chart.yScale.valueToY(value);
 
+  // Position eases (the glide); the digit value steps discretely (once per
+  // real point, not per frame) so the roll doesn't churn. Before the first rAF
+  // frame lands, fall back to the settled value (hidden if an intro is sweeping).
+  const positionValue = frame ? frame.positionValue : value;
+  const textValue = frame ? frame.textValue : value;
+  const y = chart.yScale.valueToY(positionValue);
+
+  let opacity: number;
+  if (frame) {
+    opacity = frame.opacity;
+  } else {
+    opacity = chart.getIntroFront(resolvedId) < 1 ? 0 : 1;
+  }
+
+  // Direction / color track the settled last value (not the mid-glide display
+  // value) so the accent doesn't flicker while the badge eases into place.
   const direction: YLabelDirection =
     previousClose === null ? 'neutral' : value > previousClose ? 'up' : value < previousClose ? 'down' : 'neutral';
 
@@ -124,7 +241,7 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
   }
 
   if (children) {
-    return <>{children({ value, y, bgColor, isLive, direction, format: effectiveFormat })}</>;
+    return <>{children({ value, y, bgColor, isLive, direction, format: effectiveFormat, opacity })}</>;
   }
 
   return (
@@ -137,7 +254,7 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
           top: y,
           height: 0,
           borderTop: `1px dashed ${bgColor}`,
-          opacity: 0.5,
+          opacity: opacity * 0.5,
           pointerEvents: 'none',
           zIndex: 2,
         }}
@@ -148,6 +265,7 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
           right: 4,
           top: y,
           transform: 'translateY(-50%)',
+          opacity,
           pointerEvents: 'auto',
           zIndex: 3,
           background: bgColor,
@@ -160,7 +278,7 @@ export function YLabel({ seriesId, color, format, children }: YLabelProps) {
           transition: 'background-color 0.3s ease',
         }}
       >
-        <NumberFlow value={value} format={effectiveFormat} spinDuration={350} />
+        <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} />
       </div>
     </>
   );
