@@ -63,7 +63,14 @@ $: {
   void crosshair;
   info = chart && resolvedId !== null && bump >= 0 ? chart.getHoverInfo(resolvedId) : null;
 }
-$: mediaSize = chart?.getMediaSize();
+// Re-read on every crosshair move (and overlay bump) — depending on `chart`
+// alone would freeze the mount-time size, and clamping against a stale
+// width/height flips the tooltip to the wrong side after a container resize.
+let mediaSize: { width: number; height: number } | undefined;
+$: {
+  void crosshair;
+  mediaSize = bump >= 0 ? chart?.getMediaSize() : undefined;
+}
 $: meterWidth = info ? Math.max(2, Math.min(100, info.percent)) : 0;
 
 $: tooltipPos =

@@ -131,6 +131,11 @@ export function installCanvasMock(): CanvasMockHandle {
       for (const cb of Array.from(MockResizeObserver.callbacks)) cb([entry], observer);
     },
     uninstall() {
+      // The callback registry is class-static and outlives the install cycle
+      // — a chart left mounted at test end would keep its resize callback
+      // registered forever, and the next test's `triggerResize` would fire
+      // it against a destroyed chart.
+      MockResizeObserver.callbacks.clear();
       globalThis.ResizeObserver = originalResizeObserver;
       HTMLCanvasElement.prototype.getContext = originalGetContext;
       globalThis.matchMedia = originalMatchMedia;

@@ -503,13 +503,17 @@ export function ChartContainer({
   // differs from what we last applied ourselves, so feeding the range from
   // `onVisibleRangeChange` back into this prop (the standard two-way-binding
   // shape) doesn't re-trigger `setVisibleRange` with an unchanged spec on
-  // every render.
-  const lastAppliedVisibleRangeRef = useRef<VisibleRangeSpec | undefined>(undefined);
+  // every render. The latch remembers which instance it applied to — a chart
+  // rebuild (e.g. an `animations` change) must receive the range again even
+  // though the spec's value hasn't moved.
+  const lastAppliedVisibleRangeRef = useRef<{ chart: ChartInstance; spec: VisibleRangeSpec } | undefined>(undefined);
   useEffect(() => {
     if (!chart || visibleRange === undefined) return;
-    if (deepEqual(lastAppliedVisibleRangeRef.current, visibleRange)) return;
 
-    lastAppliedVisibleRangeRef.current = visibleRange;
+    const last = lastAppliedVisibleRangeRef.current;
+    if (last !== undefined && last.chart === chart && deepEqual(last.spec, visibleRange)) return;
+
+    lastAppliedVisibleRangeRef.current = { chart, spec: visibleRange };
     chart.setVisibleRange(visibleRange);
   }, [chart, visibleRange]);
 

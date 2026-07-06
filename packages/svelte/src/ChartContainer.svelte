@@ -325,10 +325,12 @@ $: if (instance && !deepEqual(animations, lastAnimations)) {
 // differs from what we last applied ourselves, so feeding the range from
 // `onVisibleRangeChange` back into this prop (the standard two-way-binding
 // shape) doesn't re-trigger `setVisibleRange` with an unchanged spec on
-// every render.
-let lastAppliedVisibleRange: VisibleRangeSpec | undefined;
+// every render. The latch remembers which instance it applied to — a chart
+// rebuild (an `animations` change) must receive the range again even though
+// the spec's value hasn't moved.
+let lastAppliedVisibleRange: { instance: ChartInstance; spec: VisibleRangeSpec } | undefined;
 async function applyControlledVisibleRange(target: ChartInstance, next: VisibleRangeSpec) {
-  lastAppliedVisibleRange = next;
+  lastAppliedVisibleRange = { instance: target, spec: next };
   // On the chart's first tick, a series child (e.g. `<CandlestickSeries>`)
   // hasn't mounted and seeded its data yet, so the engine is still on the
   // placeholder `dataInterval` (60s) — a `{from, to}` spec sized for the
@@ -337,7 +339,15 @@ async function applyControlledVisibleRange(target: ChartInstance, next: VisibleR
   await tick();
   target.setVisibleRange(next);
 }
-$: if (instance && visibleRange !== undefined && !deepEqual(lastAppliedVisibleRange, visibleRange)) {
+$: if (
+  instance &&
+  visibleRange !== undefined &&
+  !(
+    lastAppliedVisibleRange !== undefined &&
+    lastAppliedVisibleRange.instance === instance &&
+    deepEqual(lastAppliedVisibleRange.spec, visibleRange)
+  )
+) {
   applyControlledVisibleRange(instance, visibleRange);
 }
 
