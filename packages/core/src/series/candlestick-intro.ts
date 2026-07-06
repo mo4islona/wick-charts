@@ -72,10 +72,12 @@ function clamp01(value: number): number {
 }
 
 /** Each candle unfolds from its open price in a left-to-right wave — the
- *  default intro. */
+ *  default intro. Alpha rides the same progress as the unfold so a candle
+ *  still waiting for the wave front stays invisible instead of painting as
+ *  a flat, min-height line at its open price. */
 export function candleUnfoldIntro(): CandleIntroFn {
   return () => ({
-    element: (el) => ({ unfold: el.progress }),
+    element: (el) => ({ unfold: el.progress, alpha: el.progress }),
   });
 }
 
@@ -91,7 +93,12 @@ export function wickBodyIntro(): CandleIntroFn {
   return () => ({
     element: (el) => {
       if (el.element === 'wick') {
-        return { unfold: clamp01(el.progress / WICK_PHASE_END) };
+        const local = clamp01(el.progress / WICK_PHASE_END);
+
+        // A candle still waiting for the wave front (progress === 0) would
+        // otherwise paint its needle as a flat, min-height line at the open
+        // price — alpha snaps in the instant the needle actually starts.
+        return { unfold: local, alpha: local > 0 ? 1 : 0 };
       }
 
       const local = clamp01((el.progress - BODY_PHASE_START) / (1 - BODY_PHASE_START));

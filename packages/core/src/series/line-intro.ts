@@ -17,13 +17,11 @@
  * // Built-in:
  * <LineSeries options={{ introAnimation: traceIntro() }} />
  *
- * // Custom — center-out reveal:
- * const centerOut: LineIntroFn = (frame) => {
- *   const half = (frame.width / 2) * frame.progress;
- *
- *   return { clip: { fromX: frame.width / 2 - half, toX: frame.width / 2 + half } };
- * };
- * <LineSeries options={{ introAnimation: centerOut }} />
+ * // Custom — right-to-left reveal:
+ * const rightToLeft: LineIntroFn = (frame) => ({
+ *   clip: { fromX: frame.width * (1 - frame.progress) },
+ * });
+ * <LineSeries options={{ introAnimation: rightToLeft }} />
  * ```
  */
 
@@ -212,5 +210,25 @@ export function traceIntro(options: { ghostAlpha?: number } = {}): LineIntroFn {
     const front = sweepFront(frame);
 
     return { clip: { toX: front.x }, heads: [front], ghostAlpha };
+  };
+}
+
+/**
+ * Center-out reveal: the clip window opens from the pane's horizontal
+ * center outward, a glowing head riding each front.
+ */
+export function centerOutIntro(): LineIntroFn {
+  return (frame) => {
+    const eased = easeInOutCubic(frame.progress);
+    const cx = frame.width / 2;
+    const half = cx * eased;
+
+    return {
+      clip: { fromX: cx - half, toX: cx + half },
+      heads: [
+        { x: cx - half, time: frame.xToTime(cx - half) },
+        { x: cx + half, time: frame.xToTime(cx + half) },
+      ],
+    };
   };
 }

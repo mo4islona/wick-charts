@@ -1,20 +1,34 @@
-import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 
 import {
+  type BarIntroFn,
   BarSeries,
+  type CandleIntroFn,
   CandlestickSeries,
   ChartContainer,
   type ChartTheme,
   Crosshair,
   InfoBar,
+  type LineIntroFn,
   LineSeries,
   TimeAxis,
   Title,
   Tooltip,
   YAxis,
   YLabel,
+  candleUnfoldIntro,
+  centerOutIntro,
+  fadeIntro,
+  growIntro,
+  plotterIntro,
   resolveCandlestickBodyColor,
+  riseIntro,
+  springIntro,
+  sweepIntro,
   traceIntro,
+  unfoldIntro,
+  wickBodyIntro,
+  wipeIntro,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -38,11 +52,65 @@ const BAR_SERIES = [barSingle];
 // accumulate points indefinitely.
 const MAX_POINTS = 300;
 
-// Portfolio intro: blueprint → ink instead of the default unfold — ten
-// ghost lines appearing at once, then the ink sweep, reads best on the
-// densest chart of the dashboard. Module-level so the fn identity is
-// stable across re-renders.
-const PORTFOLIO_INTRO = traceIntro();
+// Shipped intro styles the hero shuffles between. Line-series charts (area +
+// bands, portfolio) draw from one pool; candle and bar each get their own —
+// `riseIntro`/`fadeIntro`/`wipeIntro` are shared factories that type-check
+// for both.
+const LINE_INTROS = [unfoldIntro, sweepIntro, traceIntro, plotterIntro, centerOutIntro];
+const CANDLE_INTROS = [candleUnfoldIntro, wickBodyIntro, riseIntro, fadeIntro, wipeIntro];
+const BAR_INTROS = [growIntro, springIntro, riseIntro, fadeIntro, wipeIntro];
+
+interface IntroSet {
+  candle: CandleIntroFn;
+  areaBands: LineIntroFn;
+  portfolio: LineIntroFn;
+  bar: BarIntroFn;
+}
+
+// The shuffle button steps each chart to the NEXT style in its pool rather
+// than re-rolling randomly — a random pick can land on the current style and
+// make the button feel dead. One index per chart; first mount starts at a
+// random offset so page loads still vary.
+interface IntroIndices {
+  candle: number;
+  areaBands: number;
+  portfolio: number;
+  bar: number;
+}
+
+function randomIndexIn(pool: readonly unknown[]): number {
+  return Math.floor(Math.random() * pool.length);
+}
+
+function randomIntroIndices(): IntroIndices {
+  const areaBands = randomIndexIn(LINE_INTROS);
+
+  return {
+    candle: randomIndexIn(CANDLE_INTROS),
+    areaBands,
+    // Offset the second line chart so the two never start with the same style.
+    portfolio: (areaBands + 1) % LINE_INTROS.length,
+    bar: randomIndexIn(BAR_INTROS),
+  };
+}
+
+function nextIntroIndices(indices: IntroIndices): IntroIndices {
+  return {
+    candle: (indices.candle + 1) % CANDLE_INTROS.length,
+    areaBands: (indices.areaBands + 1) % LINE_INTROS.length,
+    portfolio: (indices.portfolio + 1) % LINE_INTROS.length,
+    bar: (indices.bar + 1) % BAR_INTROS.length,
+  };
+}
+
+function introSetFrom(indices: IntroIndices): IntroSet {
+  return {
+    candle: CANDLE_INTROS[indices.candle](),
+    areaBands: LINE_INTROS[indices.areaBands](),
+    portfolio: LINE_INTROS[indices.portfolio](),
+    bar: BAR_INTROS[indices.bar](),
+  };
+}
 
 // Candle chart zooms in to the most recent N bars on mount — imperative API
 // call, so the buffer stays at MAX_POINTS and the user can pan back for history.
@@ -66,7 +134,7 @@ interface StreamProps {
 
 // ── Chart components ──────────────────────────────────────────
 
-function CandleChart({ theme, speed }: StreamProps) {
+function CandleChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: CandleIntroFn }) {
   const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   const sid = 'candle';
   const mobile = useIsMobile();
@@ -74,7 +142,7 @@ function CandleChart({ theme, speed }: StreamProps) {
     <ChartContainer theme={theme} viewport={{ initialRange: INITIAL_CANDLE_BARS }}>
       <Title sub="Live Candlestick">BTC/USD</Title>
       {!mobile && <InfoBar />}
-      <CandlestickSeries id={sid} data={data} />
+      <CandlestickSeries id={sid} data={data} options={{ introAnimation }} />
       <YLabel seriesId={sid} />
       <Crosshair />
       <YAxis />
@@ -83,7 +151,7 @@ function CandleChart({ theme, speed }: StreamProps) {
   );
 }
 
-function AreaBandsChart({ theme, speed }: StreamProps) {
+function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
   // Historical bands come from `generateBandLine(ohlcETH, ±1)` — i.e. they
   // are derived from the same OHLC source. In live mode we don't stream
   // that OHLC, so each of the three series drifts independently; accepting
@@ -98,14 +166,17 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
     <ChartContainer theme={theme}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       {!mobile && <InfoBar />}
-      <LineSeries data={{ label: 'ETH', data: datasets[0] }} options={{ area: { visible: true }, strokeWidth: 1 }} />
+      <LineSeries
+        data={{ label: 'ETH', data: datasets[0] }}
+        options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
+      />
       <LineSeries
         data={{ label: 'Upper band', color: theme.bands.upper, data: datasets[1] }}
-        options={{ area: { visible: true }, strokeWidth: 1 }}
+        options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
       />
       <LineSeries
         data={{ label: 'Lower band', color: theme.bands.lower, data: datasets[2] }}
-        options={{ area: { visible: true }, strokeWidth: 1 }}
+        options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
       />
       <Tooltip />
       <Crosshair />
@@ -115,15 +186,12 @@ function AreaBandsChart({ theme, speed }: StreamProps) {
   );
 }
 
-function MultiLineChart({ theme, speed }: StreamProps) {
+function MultiLineChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
   const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   return (
     <ChartContainer theme={theme}>
       <Title sub="10 assets · Live">Portfolio</Title>
-      <LineSeries
-        data={datasets}
-        options={{ area: { visible: false }, strokeWidth: 1, introAnimation: PORTFOLIO_INTRO }}
-      />
+      <LineSeries data={datasets} options={{ area: { visible: false }, strokeWidth: 1, introAnimation }} />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -131,7 +199,7 @@ function MultiLineChart({ theme, speed }: StreamProps) {
   );
 }
 
-function BarChart({ theme, speed }: StreamProps) {
+function BarChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: BarIntroFn }) {
   const { datasets } = useLineStreams(BAR_SERIES, {
     interval: DEMO_INTERVAL,
     kind: 'bar',
@@ -142,7 +210,7 @@ function BarChart({ theme, speed }: StreamProps) {
     <ChartContainer theme={theme}>
       <Title sub="Live Bar">P&L Delta</Title>
       {/* Sign coloring (green-up / red-down) comes from the theme's bar.color. */}
-      <BarSeries data={[datasets[0]]} />
+      <BarSeries data={[datasets[0]]} options={{ introAnimation }} />
       <Tooltip />
       <Crosshair />
       <YAxis />
@@ -336,7 +404,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
         flexDirection: 'column',
         alignItems: 'center',
         gap: mobile ? 8 : 12,
-        padding: mobile ? '24px 12px' : '50px 20px',
+        padding: mobile ? '24px 12px 10px' : '50px 20px 16px',
         textAlign: 'center',
       }}
     >
@@ -388,7 +456,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
             fontFamily: theme.typography.fontFamily,
           }}
         >
-          Candlesticks, lines, areas, bars &mdash; streaming in realtime.
+          A full set of chart types &mdash; streaming in realtime.
           <br />
           Tiny bundle, zero deps, 20+ themes, fully open source.
         </p>
@@ -625,12 +693,89 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 
 // ── Page ──────────────────────────────────────────────────────
 
+function ShuffleButton({ onClick, theme, mobile }: { onClick: () => void; theme: ChartTheme; mobile: boolean }) {
+  const accent = theme.line.color;
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: mobile ? '2px 6px' : '2px 12px' }}>
+      <button
+        type="button"
+        onClick={onClick}
+        className="shuffle-animations-btn"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '8px 20px',
+          borderRadius: 100,
+          border: `1px solid ${hexToRgba(accent, 0.6)}`,
+          background: 'transparent',
+          color: accent,
+          fontSize: 13,
+          fontWeight: 400,
+          fontFamily: theme.typography.fontFamily,
+          cursor: 'pointer',
+          transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.1s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = hexToRgba(accent, 0.12);
+          e.currentTarget.style.borderColor = accent;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.borderColor = hexToRgba(accent, 0.6);
+        }}
+        onMouseDown={(e) => {
+          e.currentTarget.style.transform = 'scale(0.95)';
+        }}
+        onMouseUp={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+        }}
+      >
+        <svg
+          aria-hidden="true"
+          className="shuffle-animations-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <polyline points="1 20 1 14 7 14" />
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.63 4.36A9 9 0 0 0 20.49 15" />
+        </svg>
+        Shuffle animations
+      </button>
+      <style>{`
+        .shuffle-animations-icon { display: block; transition: transform 0.5s ease; }
+        .shuffle-animations-btn:hover .shuffle-animations-icon { transform: rotate(180deg); }
+      `}</style>
+    </div>
+  );
+}
+
 export function OverviewPage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
   // DEMO_INTERVAL is 5_000ms; speed=10 → a fresh bar every ~500ms, which is
   // the "crypto exchange" pace the hero chart is tuned for. Users can drag
   // the debug speed slider to slow down and watch a single bar form.
   const [speed, setSpeed] = useState(10);
+
+  // Each entry in the grid remounts (via `key`) on shuffle, which replays
+  // the intro — it only arms on the first empty → non-empty data seed, so
+  // swapping the function on a live chart wouldn't do anything on its own.
+  const [introEpoch, setIntroEpoch] = useState(0);
+  const [introIndices, setIntroIndices] = useState<IntroIndices>(() => randomIntroIndices());
+  const intros = useMemo(() => introSetFrom(introIndices), [introIndices]);
+
+  function shuffleAnimations() {
+    setIntroIndices((indices) => nextIntroIndices(indices));
+    setIntroEpoch((epoch) => epoch + 1);
+  }
 
   return (
     <div
@@ -645,7 +790,10 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
 
       {DEBUG && <SpeedControl value={speed} onChange={setSpeed} theme={theme} mobile={mobile} />}
 
+      <ShuffleButton onClick={shuffleAnimations} theme={theme} mobile={mobile} />
+
       <div
+        key={introEpoch}
         style={{
           minHeight: mobile ? undefined : 500,
           display: 'grid',
@@ -656,18 +804,18 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
         }}
       >
         <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <CandleChart theme={theme} speed={speed} />
+          <CandleChart theme={theme} speed={speed} introAnimation={intros.candle} />
         </Cell>
         <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <AreaBandsChart theme={theme} speed={speed} />
+          <AreaBandsChart theme={theme} speed={speed} introAnimation={intros.areaBands} />
         </Cell>
         {!mobile && (
           <>
             <Cell theme={theme}>
-              <MultiLineChart theme={theme} speed={speed} />
+              <MultiLineChart theme={theme} speed={speed} introAnimation={intros.portfolio} />
             </Cell>
             <Cell theme={theme}>
-              <BarChart theme={theme} speed={speed} />
+              <BarChart theme={theme} speed={speed} introAnimation={intros.bar} />
             </Cell>
           </>
         )}

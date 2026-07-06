@@ -389,9 +389,10 @@ export interface LineSeriesOptions {
    * same contract: `unfoldIntro()` (the default — amplitude springs from
    * the mean into shape), `sweepIntro()` (left-to-right draw-on with a
    * glowing head), `traceIntro()` (faint ghost, then an ink sweep),
-   * `plotterIntro()` (head advances at constant path speed). Style is
-   * specific to the line series; there is no chart-level override for
-   * style — only for duration (`introMs`).
+   * `plotterIntro()` (head advances at constant path speed), `centerOutIntro()`
+   * (clip opens from the pane's center outward). Style is specific to the
+   * line series; there is no chart-level override for style — only for
+   * duration (`introMs`).
    *
    * @see LineIntroFn — the custom-fn contract (frame → directives).
    * @see introMs — cross-linked duration for this animation.

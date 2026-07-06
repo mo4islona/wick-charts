@@ -8,23 +8,33 @@ import { generateLineData } from '../../data';
 // it reads the frame (progress, visible range, pane size, scales, data
 // accessors) and returns directives describing what this frame should look
 // like — the renderer does the drawing. Here the reveal opens from the
-// center of the pane outward, a glowing head riding each front. Module scope
-// keeps it out of the component; an inline definition works too — the React
-// wrapper latches the function, so the reference doesn't need memoizing.
-const centerOut: LineIntroFn = (frame) => {
+// line's own peak outward rather than a fixed pane-relative point, a glowing
+// head riding each front. Module scope keeps it out of the component; an
+// inline definition works too — the React wrapper latches the function, so
+// the reference doesn't need memoizing.
+const peakOut: LineIntroFn = (frame) => {
+  // Walk the first layer's visible data to find the peak's bitmap X —
+  // frame.layerData is memoized per frame, so this is cheap to redo per tick.
+  let anchorX = frame.width / 2;
+  let peak = -Infinity;
+  for (const point of frame.layerData(0)) {
+    if (!Number.isFinite(point.value) || point.value <= peak) continue;
+    peak = point.value;
+    anchorX = frame.timeToX(point.time);
+  }
+
   // Smoothstep easing — gentle in/out without importing an easing helper.
   const eased = frame.progress * frame.progress * (3 - 2 * frame.progress);
-  const cx = frame.width / 2;
-  const half = cx * eased;
+  const half = Math.max(anchorX, frame.width - anchorX) * eased;
 
   // Heads carry a `time` so the renderer can look up the Y value the head
   // should sit on; `frame.xToTime` maps the two front X positions back into
   // the time domain through the live time scale.
   return {
-    clip: { fromX: cx - half, toX: cx + half },
+    clip: { fromX: anchorX - half, toX: anchorX + half },
     heads: [
-      { x: cx - half, time: frame.xToTime(cx - half) },
-      { x: cx + half, time: frame.xToTime(cx + half) },
+      { x: anchorX - half, time: frame.xToTime(anchorX - half) },
+      { x: anchorX + half, time: frame.xToTime(anchorX + half) },
     ],
   };
 };
@@ -58,7 +68,7 @@ export function CustomIntroDemo({ theme }: { theme: ChartTheme }): ReactNode {
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <ChartContainer key={epoch} theme={theme}>
-          <LineSeries data={data} options={{ introAnimation: centerOut, introMs: 700 }} />
+          <LineSeries data={data} options={{ introAnimation: peakOut, introMs: 700 }} />
           <YAxis />
           <XAxis />
         </ChartContainer>

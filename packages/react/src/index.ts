@@ -149,6 +149,7 @@ export {
   buildLastSnapshots,
   candleUnfoldIntro,
   catppuccin,
+  centerOutIntro,
   computeTooltipPosition,
   createTheme,
   deepEqual,

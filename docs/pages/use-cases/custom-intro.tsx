@@ -15,8 +15,8 @@ const STEPS: Step[] = [
         <code>timeToX</code>/<code>xToTime</code>/<code>valueToY</code> scales, memoized data accessors) and returns
         directives — a declarative description of what the frame should look like. The renderer owns the drawing; your
         function owns the choreography. The shipped styles (<code>unfoldIntro</code>, <code>sweepIntro</code>,{' '}
-        <code>traceIntro</code>, <code>plotterIntro</code>) are plain factories over this same contract, so a custom
-        intro is their peer — not a second-class hook.
+        <code>traceIntro</code>, <code>plotterIntro</code>, <code>centerOutIntro</code>) are plain factories over this
+        same contract, so a custom intro is their peer — not a second-class hook.
       </>
     ),
     code: `type LineIntroFn = (frame: LineIntroFrame) => LineIntroDirectives;\n\ninterface LineIntroDirectives {\n  clip?: { fromX?: number; toX?: number }; // reveal window, bitmap px\n  ghostAlpha?: number;                     // faint full-line pre-pass\n  heads?: Array<{ x: number; time: number }>; // glow dots on the front\n  value?: (args: LineIntroValueArgs) => number; // per-value transform\n}`,
@@ -25,15 +25,17 @@ const STEPS: Step[] = [
     heading: '02 — SHAPE THE REVEAL WITH CLIP + HEADS',
     body: (
       <>
-        This demo opens the line from the center outward. Each frame computes how far the window has opened (a
-        smoothstep over <code>progress</code>) and returns a <code>clip</code> — only pixels inside it are drawn — plus
-        two <code>heads</code>. A head is an anchor <code>{'{ x, time }'}</code>: the renderer interpolates the series
-        value at <code>time</code>, draws the same glowing pulse dot the live stream uses, and bell-fades it over the
-        intro window. Omitted clip sides default to the pane edges, so <code>{'{ toX }'}</code> alone is a left-to-right
-        sweep.
+        This demo opens the line from its own peak outward, instead of from a fixed pane-relative point. It walks{' '}
+        <code>frame.layerData(0)</code> once per frame to find the highest value's bitmap X, then computes a clip window
+        centered on that anchor (a smoothstep over <code>progress</code>) — only pixels inside it are drawn — plus two{' '}
+        <code>heads</code>. A head is an anchor <code>{'{ x, time }'}</code>: the renderer interpolates the series value
+        at <code>time</code>, draws the same glowing pulse dot the live stream uses, and bell-fades it over the intro
+        window. Omitted clip sides default to the pane edges, so <code>{'{ toX }'}</code> alone is a left-to-right sweep
+        — that's the built-in <code>centerOutIntro()</code>, anchored at the fixed center instead of a data-driven
+        point.
       </>
     ),
-    code: `const centerOut: LineIntroFn = (frame) => {\n  const eased = smoothstep(frame.progress);\n  const cx = frame.width / 2;\n  const half = cx * eased;\n\n  return {\n    clip: { fromX: cx - half, toX: cx + half },\n    heads: [\n      { x: cx - half, time: frame.xToTime(cx - half) },\n      { x: cx + half, time: frame.xToTime(cx + half) },\n    ],\n  };\n};`,
+    code: `const peakOut: LineIntroFn = (frame) => {\n  let anchorX = frame.width / 2;\n  let peak = -Infinity;\n  for (const point of frame.layerData(0)) {\n    if (!Number.isFinite(point.value) || point.value <= peak) continue;\n    peak = point.value;\n    anchorX = frame.timeToX(point.time);\n  }\n\n  const eased = smoothstep(frame.progress);\n  const half = Math.max(anchorX, frame.width - anchorX) * eased;\n\n  return {\n    clip: { fromX: anchorX - half, toX: anchorX + half },\n    heads: [\n      { x: anchorX - half, time: frame.xToTime(anchorX - half) },\n      { x: anchorX + half, time: frame.xToTime(anchorX + half) },\n    ],\n  };\n};`,
   },
   {
     heading: '03 — OR TRANSFORM THE VALUES',
@@ -62,7 +64,7 @@ const STEPS: Step[] = [
         transition a real page load goes through.
       </>
     ),
-    code: `<LineSeries\n  data={data}\n  options={{ introAnimation: centerOut, introMs: 700 }}\n/>`,
+    code: `<LineSeries\n  data={data}\n  options={{ introAnimation: peakOut, introMs: 700 }}\n/>`,
   },
   {
     heading: '05 — BARS AND CANDLES, SAME IDEA',
@@ -90,8 +92,8 @@ export function CustomIntroPage({ theme }: { theme: ChartTheme }) {
         <>
           Every series plays an intro the first time it receives data, and the choreography is pluggable: a small
           function that reads the frame and returns declarative directives, while the engine keeps owning scales, data
-          and drawing. Here we hand-write one — a center-out reveal with a glowing head riding each front — and walk the
-          whole contract.
+          and drawing. Here we hand-write one — a reveal that opens from the line's own peak outward, a glowing head
+          riding each front — and walk the whole contract.
         </>
       }
       chart={
