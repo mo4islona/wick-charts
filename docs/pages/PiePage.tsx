@@ -36,6 +36,7 @@ interface PieSettings {
   innerShadowDepthPct: number;
   innerRatioPct: number;
   padAngle: number;
+  cornerRadius: number;
   labelMode: PieLabelMode;
   labelContent: PieLabelContent;
   labelFontSize: number;
@@ -105,6 +106,7 @@ function PieChart({
   innerShadowDepthPct,
   innerRatioPct,
   padAngle,
+  cornerRadius,
   labelMode,
   labelContent,
   labelFontSize,
@@ -136,6 +138,7 @@ function PieChart({
         options={{
           innerRadiusRatio: donut ? innerRatioPct / 100 : 0,
           padAngle,
+          cornerRadius,
           animate,
           shadow: shadow
             ? {
@@ -182,12 +185,6 @@ const DISPLAY_EXTRA: SectionSpec = {
       key: 'tooltipVisible',
       label: 'Tooltip',
       hint: 'Show a tooltip for the hovered slice.',
-      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
-    },
-    {
-      key: 'legendVisible',
-      label: 'Legend',
-      hint: 'Render the PieLegend alongside the chart.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -332,6 +329,14 @@ const GEOMETRY_SECTION: SectionSpec = {
         <Slider value={v as number} min={0} max={8} step={0.5} suffix="°" onChange={onChange as (v: number) => void} />
       ),
     },
+    {
+      key: 'cornerRadius',
+      label: 'Corner radius',
+      hint: 'Rounds each slice corner (px). Thin rings and narrow slices clamp it down automatically.',
+      render: (v, onChange) => (
+        <Slider value={v as number} min={0} max={20} step={1} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
   ] as RowSpec[],
 };
 
@@ -458,8 +463,15 @@ const LEGEND_SECTION: SectionSpec = {
   icon: ICONS.display,
   rows: [
     {
+      key: 'legendVisible',
+      label: 'Visible',
+      hint: 'Render the PieLegend alongside the chart.',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
       key: 'legendPosition',
       label: 'Position',
+      visible: (s) => s.legendVisible === true,
       render: (v, onChange) => (
         <ToggleGroup<PieLegendPosition>
           value={v as PieLegendPosition}
@@ -471,6 +483,7 @@ const LEGEND_SECTION: SectionSpec = {
     {
       key: 'legendMode',
       label: 'Content',
+      visible: (s) => s.legendVisible === true,
       render: (v, onChange) => (
         <ToggleGroup<PieLegendMode>
           value={v as PieLegendMode}
@@ -502,6 +515,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
         innerShadowDepthPct: 30,
         innerRatioPct: 55,
         padAngle: 1.7,
+        cornerRadius: 3,
         labelMode: 'outside',
         labelContent: 'both',
         labelFontSize: 11,
@@ -572,6 +586,8 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
                 options: {
                   innerRadiusRatio: s.donut ? s.innerRatioPct / 100 : 0,
                   padAngle: s.padAngle,
+                  // Core default is 3 — only emit when the panel deviates.
+                  ...(s.cornerRadius !== 3 ? { cornerRadius: s.cornerRadius } : {}),
                   animate: s.animate,
                   shadow: s.shadow
                     ? {
