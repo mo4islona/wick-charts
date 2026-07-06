@@ -129,6 +129,28 @@
                 ]
               },
               {
+                "name": "historyReveal",
+                "type": "LineIntroFn | 'none'",
+                "optional": true,
+                "defaultValue": "the\nline back-fills itself from the data boundary into the new history\nbehind a moving clip front",
+                "deprecated": null,
+                "description": "History-prepend reveal — plays when older points land at the front of\nthe series (the `EdgeLoader` load-more-on-scroll path). Default: the\nline back-fills itself from the data boundary into the new history\nbehind a moving clip front (`backfillSweepIntro()`).\n\nA custom `LineIntroFn` receives a localized frame: `range` is the\nprepended time span with `range.to` at the data boundary (not the\nvisible window), `width` is that span's bitmap width, and `progress`\nruns over the reveal. Value-transform directives are applied to the\nprepended points only.\n\n`'none'` disables the reveal — prepended points appear instantly.",
+                "see": [
+                  "historyRevealMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "historyRevealMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "400",
+                "deprecated": null,
+                "description": "History-prepend reveal duration in milliseconds — the full sweep lasts\n~2×. Default: `400`. `false` or `0` disables the reveal. Skipped\nentirely under `prefers-reduced-motion`.",
+                "see": [
+                  "LineSeriesOptions.historyReveal"
+                ]
+              },
+              {
                 "name": "smoothMs",
                 "type": "number | false",
                 "optional": true,
@@ -347,6 +369,28 @@
                 "see": []
               },
               {
+                "name": "historyReveal",
+                "type": "BarIntroFn | 'none'",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "History-prepend reveal — plays when older points land at the front of\nthe series (the `EdgeLoader` load-more-on-scroll path). A wave sweeps\nfrom the data boundary into the new history; each bar's stagger\nposition is `0` at the boundary and `1` at the deepest new point, so\nintro factories that read `el.progress` (`fadeIntro()` — the default,\n`riseIntro()`, `growIntro()`, `springIntro()`) work here unchanged.\nClip directives are interpreted in reveal space: `x = 0` at the\nboundary, increasing toward the older end.\n\nThe fn receives a localized frame: `range` is the prepended time span\n(not the visible window) and `width` is that span's bitmap width.\n\n`'none'` disables the reveal — prepended points appear instantly.",
+                "see": [
+                  "historyRevealMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "historyRevealMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "400",
+                "deprecated": null,
+                "description": "History-prepend reveal duration in milliseconds — the per-bar wave\nduration; the full reveal lasts ~2×. Default: `400`. `false` or `0`\ndisables the reveal. Skipped entirely under `prefers-reduced-motion`.",
+                "see": [
+                  "BarSeriesOptions.historyReveal"
+                ]
+              },
+              {
                 "name": "smoothMs",
                 "type": "number | false",
                 "optional": true,
@@ -554,6 +598,28 @@
                 "deprecated": null,
                 "description": "Initial-load reveal duration in milliseconds. On the first data seed\n(empty → non-empty) candles reveal in a left-to-right wave: each candle\ntweens for `introMs`, starts staggered across another `introMs`, so the\nfull wave lasts ~2×. The visual style is picked by `introAnimation`.\nDefault: `500`.\n\n```\n// Per-series override:\n<CandlestickSeries options={{ introMs: 800 }} data={data} />\n\n// Chart-level default:\n<ChartContainer animations={{ series: { candlestick: { intro: 800 } } }}>\n  <CandlestickSeries data={data} />\n</ChartContainer>\n```\n\n`false` or `0` disables the intro. Bulk re-seeds of a non-empty series\nnever replay it. Skipped entirely under `prefers-reduced-motion`.",
                 "see": []
+              },
+              {
+                "name": "historyReveal",
+                "type": "CandleIntroFn | 'none'",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "History-prepend reveal — plays when older points land at the front of\nthe series (the `EdgeLoader` load-more-on-scroll path). A wave sweeps\nfrom the data boundary into the new history; each candle's stagger\nposition is `0` at the boundary and `1` at the deepest new point, so\nintro factories that read `el.progress` (`fadeIntro()` — the default,\n`riseIntro()`, `candleUnfoldIntro()`, `wickBodyIntro()`) work here\nunchanged. Clip directives are interpreted in reveal space: `x = 0` at\nthe boundary, increasing toward the older end.\n\nThe fn receives a localized frame: `range` is the prepended time span\n(not the visible window) and `width` is that span's bitmap width.\n\n`'none'` disables the reveal — prepended points appear instantly.",
+                "see": [
+                  "historyRevealMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "historyRevealMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "400",
+                "deprecated": null,
+                "description": "History-prepend reveal duration in milliseconds — the per-candle wave\nduration; the full reveal lasts ~2×. Default: `400`. `false` or `0`\ndisables the reveal. Skipped entirely under `prefers-reduced-motion`.",
+                "see": [
+                  "CandlestickSeriesOptions.historyReveal"
+                ]
               },
               {
                 "name": "smoothMs",
@@ -4431,6 +4497,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Custom formatter. Routed through NumberFlow as its `format` prop so the\ndigit-by-digit animation still plays on the output string — NumberFlow\nanimates whichever characters the formatter returns.",
+          "see": []
+        },
+        {
+          "name": "animate",
+          "type": "YLabelAnimate",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Badge motion. `true` (default) glides the badge to new values, counts the\nvalue up during the initial reveal, and fades in with the intro. `false`\nsnaps with no easing. Pass an object to tune {@link YLabelAnimateOptions }.",
           "see": []
         },
         {
