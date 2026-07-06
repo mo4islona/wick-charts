@@ -15,6 +15,55 @@ export function hexToRgba(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+/**
+ * Raise a hex color's HSL saturation to at least `min` (0..1), keeping hue
+ * and lightness. Low-alpha washes of muted theme accents read as plain gray;
+ * boosting saturation first keeps the hue visible through the transparency.
+ */
+export function saturate(hex: string, min: number): string {
+  if (!hex.startsWith('#') || hex.length < 7) return hex;
+
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const minC = Math.min(r, g, b);
+  const l = (max + minC) / 2;
+  const d = max - minC;
+
+  if (d === 0) return hex;
+
+  const s = l > 0.5 ? d / (2 - max - minC) : d / (max + minC);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+
+  const s2 = Math.max(s, min);
+  if (s2 === s) return hex;
+
+  const q = l < 0.5 ? l * (1 + s2) : l + s2 - l * s2;
+  const p = 2 * l - q;
+  const channel = (t: number): number => {
+    let t2 = t;
+    if (t2 < 0) t2 += 1;
+    if (t2 > 1) t2 -= 1;
+    if (t2 < 1 / 6) return p + (q - p) * 6 * t2;
+    if (t2 < 1 / 2) return q;
+    if (t2 < 2 / 3) return p + (q - p) * (2 / 3 - t2) * 6;
+
+    return p;
+  };
+
+  const toHex = (v: number): string =>
+    Math.round(v * 255)
+      .toString(16)
+      .padStart(2, '0');
+
+  return `#${toHex(channel(h + 1 / 3))}${toHex(channel(h))}${toHex(channel(h - 1 / 3))}`;
+}
+
 /** BT.601 luma — matches createTheme's isDarkBg but works on runtime hex
  *  colors. Non-hex values read as dark (the safer default for overlays). */
 export function isDarkColor(hex: string): boolean {

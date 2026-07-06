@@ -15,7 +15,7 @@ import {
   getSections,
   hookKeyForRoute,
 } from '../routes';
-import { gridBackgroundImage, hexToRgba, isDarkColor } from '../utils';
+import { gridBackgroundImage, hexToRgba, isDarkColor, saturate } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
 import { WickLogo } from './WickLogo';
 import { WickWordmark } from './WickWordmark';
@@ -45,7 +45,6 @@ export function Sidebar({
 }) {
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
-  const accent = theme.line.color;
   const dark = isDarkColor(theme.background);
 
   const [fw] = useFramework();
@@ -215,7 +214,6 @@ export function Sidebar({
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
-                    accent={accent}
                   />
                 ))}
               </div>
@@ -246,7 +244,6 @@ export function Sidebar({
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
-                    accent={accent}
                     indent
                   />
                 ))}
@@ -266,7 +263,6 @@ export function Sidebar({
                           theme={theme}
                           mobile={mobile}
                           fontSize={fontSize}
-                          accent={accent}
                           indent
                         />
                       ))}
@@ -360,7 +356,6 @@ function NavLink({
   theme,
   mobile,
   fontSize,
-  accent,
   indent = false,
 }: {
   item: RouteEntry;
@@ -370,7 +365,6 @@ function NavLink({
   theme: ChartTheme;
   mobile: boolean;
   fontSize: number;
-  accent: string;
   indent?: boolean;
 }) {
   const displayLabel = label ?? item.label;
@@ -384,14 +378,19 @@ function NavLink({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: mobile ? 12 : 10,
-        padding: mobile ? '10px 14px' : `6px 10px 6px ${padLeft}px`,
+        // Bleed to the sidebar's left edge (the <nav> has 6px inset padding)
+        // so the active background runs from the screen edge with no gap.
+        marginLeft: -6,
+        padding: mobile ? '10px 14px 10px 20px' : `6px 10px 6px ${padLeft + 6}px`,
         justifyContent: 'flex-start',
-        background: active ? hexToRgba(theme.crosshair.labelBackground, 0.8) : 'transparent',
+        // A low-alpha wash of the theme accent — visible on light and dark
+        // sidebars alike, unlike labelBackground which washes out on light
+        // themes. Saturation-boosted first so muted accents (Handwritten's
+        // slate ink) still tint the row instead of reading as gray.
+        background: active ? hexToRgba(saturate(theme.line.color, 0.55), 0.16) : 'transparent',
         color: active ? theme.tooltip.textColor : theme.crosshair.labelTextColor,
         border: 'none',
-        borderLeft: active ? `2px solid ${accent}` : '2px solid transparent',
-        borderRadius: 4,
+        borderRadius: '0 6px 6px 0',
         fontSize,
         fontFamily: 'inherit',
         fontWeight: active ? 600 : 400,
@@ -402,10 +401,10 @@ function NavLink({
         textAlign: 'left',
       }}
       onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = hexToRgba(theme.crosshair.labelBackground, 0.3);
+        if (!active) e.currentTarget.style.color = theme.tooltip.textColor;
       }}
       onMouseLeave={(e) => {
-        if (!active) e.currentTarget.style.background = 'transparent';
+        if (!active) e.currentTarget.style.color = theme.crosshair.labelTextColor;
       }}
     >
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayLabel}</span>
