@@ -1,5 +1,204 @@
 # Migration guide
 
+## 0.5 → 0.6
+
+Version 0.6 is almost entirely additive — the heatmap series, intro
+animations, per-point line markers, declarative event props, the open series
+contract, and the testing subpath all land without touching existing
+signatures. There are two API breaks (a `Sparkline` prop rename and a widened
+`SeriesKind` type) and a set of changed defaults: charts now play an intro
+animation on first load, the Y-label badge glides, pie corners round, and
+`<ChartContainer>` floors its height.
+
+### Breaking: `Sparkline` `formatValue` → `format`
+
+The prop is renamed and typed as the shared `ValueFormatter` instead of an
+inline function type, matching `format` on `YLabel` / `Tooltip`. No
+back-compat alias. (`Sparkline` is React-only, so Vue / Svelte are
+unaffected.)
+
+```tsx
+// 0.5
+<Sparkline data={data} formatValue={(v) => v.toFixed(2)} />
+
+// 0.6
+<Sparkline data={data} format={(v) => v.toFixed(2)} />
+```
+
+### Breaking: `SeriesKind` is open-ended
+
+`SeriesKind` was the closed union `'candlestick' | 'line' | 'bar' | 'pie'`.
+It now includes `'heatmap'` and any custom string — 0.6 opens the series
+renderer contract, so a custom series picks its own kind:
+
+```ts
+// 0.5
+type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie';
+
+// 0.6
+type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap' | (string & {});
+```
+
+Two consequences for consumer code:
+
+- An exhaustive `switch` over `SeriesKind` no longer type-checks without a
+  `default` branch.
+- Code that separated "pie vs time series" by testing `kind !== 'pie'` now
+  misclassifies heatmaps (and future spatial kinds). Use the new
+  `isTimeSeriesRenderer` guard, exported from every framework package.
+
+### Behavior: series play an intro animation on first load
+
+Each series type reveals its initial data seed with an intro — the line
+draws itself into shape, bars grow from the baseline, candles unfold in a
+left-to-right wave, and the pie sweeps its slices clockwise (in 0.5 the
+`series.pie.entry` config was parsed but never wired; it now actually runs).
+Intros play once per seed: bulk re-seeds of a non-empty series never replay
+them, and `prefers-reduced-motion` skips them entirely.
+
+Duration is a new `intro` knob in the animations config, or `introMs` on the
+series options; `false` / `0` disables:
+
+```tsx
+// Chart-level
+<ChartContainer animations={{ series: { line: { intro: false } } }}>
+
+// Per-series
+<LineSeries data={data} options={{ introMs: false }} />
+
+// Everything off, as before
+<ChartContainer animations={false}>
+```
+
+The choreography itself is pluggable via `options.introAnimation` — a
+per-frame function returning declarative directives. Shipped styles (all
+exported from every framework package):
+
+- **line** (`LineIntroFn`) — `unfoldIntro()` (default), `sweepIntro()`,
+  `traceIntro()`, `plotterIntro()`, `centerOutIntro()`.
+- **bar** (`BarIntroFn`) — `growIntro()` (default), `springIntro()`.
+- **candlestick** (`CandleIntroFn`) — `candleUnfoldIntro()` (default),
+  `wickBodyIntro()`.
+- **bar + candlestick shared** (`WaveIntroFn`) — `riseIntro()`,
+  `fadeIntro()`, `wipeIntro()`.
+
+### Behavior: the Y-label badge glides and reveals with the intro
+
+`YLabel` no longer teleports: a new point eases the badge to its Y and rolls
+its digits, and during the initial-load reveal it counts up from the first
+visible value, locked to the series draw front. Markers and reference lines
+fade in as the same front sweeps past their X. Honors
+`prefers-reduced-motion`.
+
+The new `animate` prop controls it — `animate={false}` snaps at full opacity
+with no animation, or tune the parts:
+
+```tsx
+<YLabel animate={false} />
+<YLabel animate={{ glide: true, countUp: false }} />
+```
+
+### Behavior: annotation labels render as callout chips
+
+Labeled markers, time regions, and reference lines drop the solid
+accent-colored pills for a shared chip style: a translucent surface plate
+with a hairline accent outline, label set in the theme ink. A labeled marker
+becomes a callout — the chip centers over the anchor with a pointer tail
+traced into the outline. Visual only, no API change; omit `label` for a bare
+glyph.
+
+### Behavior: pie slices round their corners
+
+`cornerRadius` on the pie options rounds each slice's corners (outer rim,
+plus the inner rim on donuts) and defaults to `3`, matching the bar and
+candlestick families. Pass `cornerRadius: 0` for the 0.5 sharp wedges. Pies
+also stopped collapsing on small canvases — the radius is floored and the
+disk recentered, and outside labels truncate / auto-hide instead of
+squeezing the pie to a dot.
+
+### Behavior: `<ChartContainer>` floors its height at 240px
+
+A chart in an unsized parent used to collapse to 0px and render nothing.
+`ChartContainer`'s wrapper now carries `min-height: 240px`, so the Quick
+Start snippet works without an explicit height. For an intentionally shorter
+chart, release the floor:
+
+```tsx
+<div style={{ height: 96 }}>
+  <ChartContainer style={{ minHeight: 0 }}>…</ChartContainer>
+</div>
+```
+
+(`Sparkline` does this internally — in 0.5.x its canvas silently inflated to
+the floor and clipped.)
+
+### Behavior: double-click fits the viewport
+
+Double-clicking the plot area now restores `fitContent()` (dead code in 0.5
+— it did nothing) and emits the new `pointDoubleClick` event. A double-click
+no longer also fires a duplicate point click.
+
+### Behavior (Vue): charts are interactive by default
+
+Vue's boolean-prop casting turned an absent `interactive` prop into `false`,
+so every Vue chart without an explicit `:interactive="true"` silently had no
+pan / zoom / crosshair. Fixed — Vue now matches React and Svelte. If a chart
+relied on being inert, pass `:interactive="false"` explicitly.
+
+### Behavior: dev-only warnings on misbehaving data feeds
+
+Two silent input repairs now warn once per instance in development builds:
+unsorted timestamps handed to `setData` (they were silently re-sorted every
+call), and an `append()` whose time isn't strictly after the last point (it
+silently overwrote the last point instead of appending — the classic "my
+streamed chart never grows" bug). Production builds stay silent.
+
+### New in 0.6 — no migration needed
+
+- **Heatmap series** — `<HeatmapSeries>` + `<HeatmapTooltip>` in all three
+  wrappers: `(x, y)` category cells on a sequential ramp interpolated in
+  OKLab, derived from the theme accent or pinned via the new
+  `theme.heatmap.colors` token. Tweens configured under
+  `animations.series.heatmap.{entry,update}`.
+- **Per-point line markers** — `options.points: { visible, radius?, color? }`
+  on the line series; dots ride the intro, live smoothing, and NaN gaps, and
+  auto-hide at high densities.
+- **Declarative chart wiring** — `ChartContainer` gains `onReady`,
+  `onVisibleRangeChange`, `onCrosshairMove`, `onPointClick`,
+  `onPointDoubleClick`, `onSeriesHover`, and a controlled `visibleRange`
+  prop (safe to feed from `onVisibleRangeChange` — two-way binding, no
+  feedback loop). Every series component gains `visible`; `<Legend>` gains
+  `onToggle`.
+- **Pointer events** — `pointClick` / `pointDoubleClick` (spatial hit-test
+  included) and `seriesHover` on `ChartInstance`, with touch taps
+  synthesized and drags suppressed.
+- **Time locale / format** — `locale` and `timeZone` on the chart options,
+  `chart.setLocale` / `chart.setTimeZone` on the instance (reachable from
+  `onReady` in the wrappers), `XScale.setFormat` / `setLocale` / `setTimeZone`
+  (symmetric with `YScale`), and a custom tick-generator hook on both scales.
+- **Open series contract** — `SeriesRenderer`, `TimeSeriesRenderer`,
+  `BaseSeriesRenderer`, `SeriesRenderContext`, `XScale` / `YScale` types are
+  public; `chart.addSeries` accepts a custom definition with its own kind.
+- **Pluggable `EdgeLoader` indicator** — `indicator` prop
+  (`'canvas' | 'custom' | LoadingIndicatorFn`) on the React-only
+  `EdgeLoader`, and `chart.setEdgeIndicator(side, fn)` in every framework;
+  ships `skeletonLoadingIndicator`, a shimmer over placeholder candles sized
+  from the live bar spacing.
+- **Stable history prepend** — loading older points onto the front of a
+  series (the `EdgeLoader` flow) no longer snaps the viewport and Y range;
+  the reconciler detects the prepend and routes it through the new
+  `chart.prependData`.
+- **Testing subpath** — `@wick-charts/react/testing` exports
+  `installCanvasMock()`: a working 2D-context mock (draw calls recorded on
+  `canvas.__spy`), `ResizeObserver`, and `matchMedia` stubs for jsdom /
+  happy-dom suites. React-only for now.
+- **Vanilla entry point** — documented pattern: `import { ChartInstance,
+  CandlestickSeriesDef } from '@wick-charts/react'` works without React
+  installed; the wrappers tree-shake down to the engine.
+- **`animations` deep-diff** — passing a fresh-but-equal `animations` object
+  literal no longer destroys and rebuilds the chart on every render, in all
+  three wrappers.
+
 ## 0.4 → 0.5
 
 ### Breaking: string `chart.addSeries('line', …)` requires registration
