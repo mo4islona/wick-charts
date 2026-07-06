@@ -718,6 +718,16 @@ export interface PieSeriesOptions {
   innerRadiusRatio: number;
   /** Gap between slices in degrees. Default: 1.15° (≈ 0.02 rad). */
   padAngle: number;
+  /**
+   * Rounds each slice's corners in CSS pixels — the two where the outer rim
+   * meets the straight edges, plus two more on the inner rim once
+   * `innerRadiusRatio > 0` carves out a donut hole. Default: 3 (matching the
+   * bar/candlestick families); pass 0 for sharp wedges. Thin rings and narrow
+   * slices automatically clamp the radius down to whatever they can fit
+   * without the corners overlapping, so a value that's too large for a given
+   * slice degrades gracefully instead of producing a malformed shape.
+   */
+  cornerRadius?: number;
   /** Display the label shown in the tooltip. */
   label?: string;
   /** Per-slice label rendering on the pie itself. See {@link PieLabelsOptions}. */

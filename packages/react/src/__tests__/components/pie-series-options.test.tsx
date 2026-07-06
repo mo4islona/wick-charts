@@ -56,6 +56,37 @@ describe('<PieSeries> options — label updates reach the renderer', () => {
     expect(afterFlipTotal).toBe(beforeFlip);
   });
 
+  it('changing other.maxSlices regroups the rendered slices', () => {
+    // Ten distinct slices; grouping caps the rendered count including the
+    // aggregated "Other" slice. `other` is an object literal recreated per
+    // render — the generic `useStableOptions` deep-diff must detect the
+    // maxSlices change (the old hand-enumerated dep list omitted `other`).
+    const many = Array.from({ length: 10 }, (_, i) => ({ label: `S${i + 1}`, value: 100 - i * 5 }));
+
+    mounted = mountChart(
+      <PieSeries
+        id="pie"
+        data={many}
+        options={{ sliceLabels: { mode: 'none' }, other: { maxSlices: 6 }, cornerRadius: 0 }}
+      />,
+      { width: 400, height: 400, padding: { top: 0, bottom: 0 } },
+    );
+    mounted.flushScheduler();
+    expect(mounted.mainSpy.countOf('arc')).toBe(6);
+
+    mounted.mainSpy.reset();
+    mounted.rerender(
+      <PieSeries
+        id="pie"
+        data={many}
+        options={{ sliceLabels: { mode: 'none' }, other: { maxSlices: 4 }, cornerRadius: 0 }}
+      />,
+    );
+
+    // One paint pass after the rerender: one outer arc per rendered slice.
+    expect(mounted.mainSpy.countOf('arc')).toBe(4);
+  });
+
   it('flipping sliceLabels.content from label → percent changes the rendered text', () => {
     mounted = mountChart(
       <PieSeries id="pie" data={slices} options={{ sliceLabels: { mode: 'inside', content: 'label' } }} />,

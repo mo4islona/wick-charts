@@ -39,6 +39,8 @@ export function PieSeries({ data, options, id: idProp, visible }: PieSeriesProps
     }
     // `stableOptions` diffs structurally — a fresh `sliceLabels`/`colors`
     // object or array ref with the same values no longer re-applies every render.
+    // It also covers `other`/`maxSlices` regrouping, which the old hand-enumerated
+    // dependency list omitted (the "Max slices" slider was a no-op).
   }, [chart, stableOptions]);
 
   useLayoutEffect(() => {
