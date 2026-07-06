@@ -1,19 +1,21 @@
 /**
- * Integration regression for REVIEW.md #18 — "prepending history snaps the
- * whole viewport instead of staying stable".
+ * Integration regression for "prepending history snaps the whole viewport
+ * instead of staying stable".
  *
- * Drives ChartInstance through the real {@link syncSeriesLayer} reconciler (the
- * exact path the React/Vue/Svelte wrappers take on a `data` prop change) and
- * asserts that a large history prepend — the EdgeLoader "load 100 older
- * candles" pattern — keeps the visible window and the data tail put instead of
- * re-fitting the now-larger span and snapping both axes.
+ * Drives ChartInstance through the real reconcilers the framework wrappers use
+ * on a `data` prop change and asserts that a large history prepend — the
+ * EdgeLoader "load 100 older points" pattern — keeps the visible window and the
+ * data tail put instead of re-fitting the now-larger span and snapping both
+ * axes. Covers all three time-series kinds, since each takes a different
+ * reconciler entry point: candlestick via {@link syncSeriesLayer}, line/bar via
+ * the batched {@link syncLayers}.
  *
  * Named `chart-*` so `environmentMatchGlobs` hands this file a DOM.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
-import { EMPTY_SYNC_STATE, type SeriesSyncState, syncSeriesLayer } from '../data/sync';
+import { EMPTY_SYNC_STATE, type SeriesSyncState, syncLayers, syncSeriesLayer } from '../data/sync';
 import type { OHLCData } from '../types';
 
 const INTERVAL = 60_000 * 60; // 1-hour candles, matching the load-on-scroll demo.
@@ -42,7 +44,15 @@ function candlesBefore(count: number, endTime: number): OHLCData[] {
   }));
 }
 
-describe('ChartInstance — history prepend keeps the viewport stable (REVIEW #18)', () => {
+/** A run of line/bar points ending at (but excluding) `endTime`. */
+function pointsBefore(count: number, endTime: number): { time: number; value: number }[] {
+  return Array.from({ length: count }, (_, i) => ({
+    time: endTime - (count - i) * INTERVAL,
+    value: 100,
+  }));
+}
+
+describe('ChartInstance — history prepend keeps the viewport stable', () => {
   let chart: ChartInstance;
   let container: HTMLElement;
 
@@ -105,4 +115,32 @@ describe('ChartInstance — history prepend keeps the viewport stable (REVIEW #1
     expect(after.to).toBeCloseTo(before.to, -1);
     expect(sync.len).toBe(300);
   });
+
+  // Line and bar reconcile through the batched `syncLayers` (multi-layer)
+  // rather than `syncSeriesLayer` directly, so the prepend must survive the
+  // batch defer too — the whole grow lands in one `onDataChanged`.
+  for (const kind of ['line', 'bar'] as const) {
+    it(`a ${kind} history prepend leaves the visible window and data tail put`, () => {
+      const id = kind === 'line' ? chart.addSeries('line') : chart.addSeries('bar');
+      const base = 2_000_000_000;
+      const initial = pointsBefore(200, base + 200 * INTERVAL);
+      let sync: SeriesSyncState[] = syncLayers({ chart, id, data: initial, prev: [] });
+
+      chart.setVisibleRange(60);
+      const before = chart.getVisibleRange();
+      const dataTailBefore = chart.getDataRange()?.to;
+
+      const head = initial[0];
+      const grown = [...pointsBefore(100, head.time), ...initial];
+      sync = syncLayers({ chart, id, data: grown, prev: sync });
+
+      const after = chart.getVisibleRange();
+
+      expect(after.from).toBeCloseTo(before.from, -1);
+      expect(after.to).toBeCloseTo(before.to, -1);
+      expect(chart.getDataRange()?.to).toBeCloseTo(dataTailBefore ?? Number.NaN, -1);
+      expect(chart.getDataRange()?.from).toBeLessThan(before.from);
+      expect(sync[0].len).toBe(300);
+    });
+  }
 });

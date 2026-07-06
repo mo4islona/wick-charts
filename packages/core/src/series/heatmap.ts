@@ -92,6 +92,9 @@ interface PlacedCell {
   color?: string;
   col: number;
   row: number;
+  /** `cellKey(x, y)`, computed once at grid build and reused by the render /
+   *  tick / displayed-value lookups so no key string is rebuilt per frame. */
+  key: string;
 }
 
 /** Inputs to {@link computeHeatmapGeometry}. All values in bitmap pixels. */
@@ -225,13 +228,12 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
       // In-place update: keep displayed values and let render tween them
       // toward the new targets. Keys that just appeared snap.
       for (const cell of this.#cells) {
-        const key = cellKey(cell.x, cell.y);
-        if (!this.#displayed.has(key)) this.#displayed.set(key, cell.value);
+        if (!this.#displayed.has(cell.key)) this.#displayed.set(cell.key, cell.value);
       }
       this.#valuesSettling = this.#options.updateMs > 0;
     } else {
       // Fresh grid: snap values and replay the entrance wave.
-      this.#displayed = new Map(this.#cells.map((cell) => [cellKey(cell.x, cell.y), cell.value]));
+      this.#displayed = new Map(this.#cells.map((cell) => [cell.key, cell.value]));
       this.#valuesSettling = false;
       this.#entryStart = 0;
       this.#entryDone = this.#options.entryMs === 0;
@@ -446,7 +448,15 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
 
       const position = row * cols.length + col;
       const existing = this.#cellAt[position];
-      const placed: PlacedCell = { x: datum.x, y: datum.y, value: datum.value, color: datum.color, col, row };
+      const placed: PlacedCell = {
+        x: datum.x,
+        y: datum.y,
+        value: datum.value,
+        color: datum.color,
+        col,
+        row,
+        key: cellKey(datum.x, datum.y),
+      };
       if (existing >= 0) {
         this.#cells[existing] = placed;
       } else {
@@ -578,7 +588,7 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
         if (entry <= 0) continue;
       }
 
-      const displayed = this.#displayed.get(cellKey(cell.x, cell.y)) ?? cell.value;
+      const displayed = this.#displayed.get(cell.key) ?? cell.value;
       // A non-finite value has no magnitude — pin it to the low stop instead
       // of letting NaN walk into the ramp index math.
       const t = Number.isFinite(displayed) && span > 0 ? clamp((displayed - min) / span, 0, 1) : 0;
@@ -650,14 +660,13 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
     let settled = true;
 
     for (const cell of this.#cells) {
-      const key = cellKey(cell.x, cell.y);
-      const current = this.#displayed.get(key) ?? cell.value;
+      const current = this.#displayed.get(cell.key) ?? cell.value;
       const next = smoothToward(current, cell.value, rate, dt);
       if (Math.abs(next - cell.value) > epsilon) {
         settled = false;
-        this.#displayed.set(key, next);
+        this.#displayed.set(cell.key, next);
       } else {
-        this.#displayed.set(key, cell.value);
+        this.#displayed.set(cell.key, cell.value);
       }
     }
 

@@ -76,10 +76,11 @@ export function BarSeries({ data, options, id: idProp, visible }: BarSeriesProps
     if (!id) return;
 
     chart.setSeriesVisible(id, visible ?? true);
-    // `idProp` re-applies the flag against the freshly (re)created series —
-    // an id change remounts the series in the effect above, which resets
-    // visibility to its default.
-  }, [chart, visible, idProp]);
+    // `idProp` and `layerCount` re-apply the flag against the freshly
+    // (re)created series — either one remounts the series in the effect above,
+    // which resets visibility to its default `true`, so a `visible={false}`
+    // series would otherwise reappear when its data shape flips flat↔multi-layer.
+  }, [chart, visible, idProp, layerCount]);
 
   return null;
 }

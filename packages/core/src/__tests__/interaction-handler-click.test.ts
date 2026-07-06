@@ -23,8 +23,16 @@ function setup() {
   return { canvas, handler };
 }
 
-function mouse(type: string, opts: { clientX?: number; clientY?: number; offsetX?: number; offsetY?: number }): Event {
-  const event = new MouseEvent(type, { bubbles: true, clientX: opts.clientX ?? 0, clientY: opts.clientY ?? 0 });
+function mouse(
+  type: string,
+  opts: { clientX?: number; clientY?: number; offsetX?: number; offsetY?: number; detail?: number },
+): Event {
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    clientX: opts.clientX ?? 0,
+    clientY: opts.clientY ?? 0,
+    detail: opts.detail ?? 0,
+  });
   Object.defineProperty(event, 'offsetX', { value: opts.offsetX ?? opts.clientX ?? 0 });
   Object.defineProperty(event, 'offsetY', { value: opts.offsetY ?? opts.clientY ?? 0 });
 
@@ -128,5 +136,39 @@ describe('InteractionHandler click/dblclick', () => {
     canvas.dispatchEvent(end);
 
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('suppresses the phantom click when a pinch decays to one finger before the last lift', () => {
+    const { canvas, handler } = setup();
+    const onClick = vi.fn();
+    handler.on('click', onClick);
+
+    // Pinch, then lift one finger (leaves a single touch), then lift the last
+    // finger right where it sat. The 2→1 transition re-arms the pan origin, but
+    // a gesture that ever held two fingers must never synthesize a tap.
+    canvas.dispatchEvent(touch('touchstart', [p(100, 0), p(200, 0)]));
+    canvas.dispatchEvent(touch('touchend', [p(150, 0)]));
+    const end = new Event('touchend', { cancelable: true });
+    Object.assign(end, { touches: [], changedTouches: [p(150, 0)] });
+    canvas.dispatchEvent(end);
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('emits click only once for a double-click (the second click carries detail > 1)', () => {
+    const { canvas, handler } = setup();
+    const onClick = vi.fn();
+    handler.on('click', onClick);
+
+    // Browsers dispatch click(detail 1), click(detail 2), dblclick for a
+    // stationary double-click. Only the first click should reach `pointClick`.
+    canvas.dispatchEvent(mouse('mousedown', { clientX: 100, clientY: 50 }));
+    canvas.dispatchEvent(mouse('mouseup', { clientX: 100, clientY: 50 }));
+    canvas.dispatchEvent(mouse('click', { clientX: 100, clientY: 50, offsetX: 100, offsetY: 50, detail: 1 }));
+    canvas.dispatchEvent(mouse('mousedown', { clientX: 100, clientY: 50 }));
+    canvas.dispatchEvent(mouse('mouseup', { clientX: 100, clientY: 50 }));
+    canvas.dispatchEvent(mouse('click', { clientX: 100, clientY: 50, offsetX: 100, offsetY: 50, detail: 2 }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

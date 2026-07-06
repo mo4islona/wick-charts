@@ -1,4 +1,4 @@
-import { CandlestickSeries, HeatmapSeries, LineSeries, PieSeries } from '@wick-charts/react';
+import { BarSeries, CandlestickSeries, HeatmapSeries, LineSeries, PieSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -68,5 +68,40 @@ describe('series `visible` prop', () => {
 
     mounted.rerender(<LineSeries id="b" data={lineData} visible={false} />);
     expect(mounted.chart.isSeriesVisible('b')).toBe(false);
+  });
+
+  // A `data` shape flip (flat single-layer ↔ multi-layer) changes `layerCount`,
+  // which remounts the series and resets it to the default visibility. The
+  // visibility effect must re-run and re-hide it — otherwise a `visible={false}`
+  // series silently reappears on screen.
+  const flatLine = [
+    { time: 1, value: 10 },
+    { time: 2, value: 40 },
+  ];
+  const twoLayerLine = [
+    [
+      { time: 1, value: 10 },
+      { time: 2, value: 40 },
+    ],
+    [
+      { time: 1, value: 5 },
+      { time: 2, value: 20 },
+    ],
+  ];
+
+  it('LineSeries: stays hidden when the data shape flips flat↔multi-layer', () => {
+    mounted = mountChart(<LineSeries id="line" data={flatLine} visible={false} />);
+    expect(mounted.chart.isSeriesVisible('line')).toBe(false);
+
+    mounted.rerender(<LineSeries id="line" data={twoLayerLine} visible={false} />);
+    expect(mounted.chart.isSeriesVisible('line')).toBe(false);
+  });
+
+  it('BarSeries: stays hidden when the data shape flips flat↔multi-layer', () => {
+    mounted = mountChart(<BarSeries id="bar" data={flatLine} visible={false} />);
+    expect(mounted.chart.isSeriesVisible('bar')).toBe(false);
+
+    mounted.rerender(<BarSeries id="bar" data={twoLayerLine} visible={false} />);
+    expect(mounted.chart.isSeriesVisible('bar')).toBe(false);
   });
 });

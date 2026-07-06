@@ -60,7 +60,18 @@ function middleUnchanged<T extends OHLCInput | TimePointInput>(
 ): boolean {
   if (!prevData || prevData.length !== data.length) return false;
 
+  // Same array reference: a caller that reuses one array and edits a point in
+  // place gives us no snapshot to diff against — comparing it to itself always
+  // reports "unchanged". Refuse the cheap path so the edit still repaints.
+  if (prevData === data) return false;
+
   for (let i = 0; i < data.length - 1; i++) {
+    // Reference-equal middle point → unchanged, no field walk. The common
+    // streaming update (`[...prev.slice(0, -1), newLast]`) reuses every middle
+    // object, so this stays allocation-free; only genuinely rebuilt points
+    // fall through to the field-wise compare.
+    if (prevData[i] === data[i]) continue;
+
     if (!pointEquals(prevData[i] as T, data[i])) return false;
   }
 
