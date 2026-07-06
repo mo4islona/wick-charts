@@ -9,3 +9,6 @@ coverage
 .copilot-worktrees/
 test/
 packages/*/LICENSE
+
+# Internal planning docs (kept locally, purged from git history)
+planning/
