@@ -255,6 +255,12 @@ export function Sparkline({
   const chartBlock = (
     <div style={{ width, height, flexShrink: 0, borderRadius: 4, overflow: 'hidden' }}>
       <ChartContainer
+        // ChartContainer floors its own height at 240px so a copy-pasted chart
+        // in an unsized parent stays visible. A sparkline is intentionally
+        // shorter than that floor — release the floor so the canvas matches
+        // the `height` wrapper instead of overflowing it (the wrapper clips,
+        // leaving only the top slice of the chart visible).
+        style={{ minHeight: 0 }}
         theme={theme}
         axis={{
           // `min`/`max` are stable user props (not recomputed per tick), so

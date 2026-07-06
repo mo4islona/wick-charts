@@ -179,6 +179,27 @@ describe('Sparkline', () => {
     expect(clampedSpread).toBeLessThan(autoSpread);
   });
 
+  it('releases the 240px ChartContainer height floor so the canvas fits the card', () => {
+    act(() => {
+      render(<Sparkline data={data} theme={catppuccin.theme} height={48} />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    // ChartContainer defaults to `minHeight: 240px` (keeps a copy-pasted chart
+    // in an unsized parent visible). Inside a 48px sparkline card that floor
+    // made the canvas overflow the clipping wrapper, so only the top slice of
+    // the chart was visible. Sparkline must override the floor on every
+    // element between the canvas and its fixed-height wrapper.
+    const canvas = host.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas).not.toBeNull();
+
+    let el: HTMLElement | null = canvas.parentElement;
+    while (el && el !== host) {
+      expect(el.style.minHeight).not.toBe('240px');
+      el = el.parentElement;
+    }
+  });
+
   it.each([undefined, 'right', 'left', 'offscreen'] as const)('flow mode renders for align=%s', (align) => {
     act(() => {
       render(<Sparkline data={data} theme={catppuccin.theme} flow={{ capacity: 10, align }} />, { container: host });
