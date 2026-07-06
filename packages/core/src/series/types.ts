@@ -193,6 +193,15 @@ export interface BaseSeriesRenderer {
   getStackedLastValue?(): { value: number; isLive: boolean } | null;
 
   /**
+   * Stacked value at an arbitrary `time` — the cumulative stack top at that
+   * sample, mirroring {@link getStackedLastValue} but anywhere in the window
+   * (used for the YLabel intro count-up start so it shares the stack basis).
+   * Single-layer renderers return the nearest sample's value; `null` when no
+   * layer has a sample near `time`.
+   */
+  getStackedValueAtTime?(time: number, interval: number): number | null;
+
+  /**
    * Per-layer last snapshots, each with its own `time`. Useful for ragged
    * multi-layer series where layers advance independently — last-mode
    * overlays need to show each layer at its true last time, not at the
@@ -243,6 +252,13 @@ export interface BaseSeriesRenderer {
 
   /** True while the renderer has an active animation (Chart polls per frame). */
   readonly needsAnimation?: boolean;
+  /**
+   * Reveal-front position in `[0, 1]` of the initial-load intro across the
+   * visible window — `1` once settled (or when the renderer has no intro).
+   * Overlays (the Y-label badge, annotations) key their own entrance off this
+   * so they reveal in step with the series draw. Omitted → treated as `1`.
+   */
+  getIntroFront?(): number;
   /**
    * Optional overlay hook. Chart invokes this during the overlay pass so each
    * renderer can paint type-specific overlays (crosshair dots, pulse dots).

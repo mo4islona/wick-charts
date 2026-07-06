@@ -481,6 +481,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return false;
   }
 
+  /** Reveal-front position of the initial-load intro; `1` once settled. */
+  getIntroFront(): number {
+    return this.introWave.sweep();
+  }
+
   /**
    * Abort in-flight per-point entrance animations on every layer, including
    * the initial-load reveal. Live-value chase (`displayedLastValues`) is
@@ -643,6 +648,51 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     const value = stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
 
     return { value, isLive: true };
+  }
+
+  getStackedValueAtTime(time: number, interval: number): number | null {
+    if (this.stores.length <= 1) {
+      const p = this.stores[0]?.findNearest(time, interval);
+
+      return p ? this.snapshotValue(0, p.time, p.value) : null;
+    }
+
+    const stacking = this.options.stacking;
+    if (stacking === 'off') {
+      // Non-stacked multi-layer: report the nearest sample of the top visible
+      // layer, matching getStackedLastValue's "last visible layer" head.
+      for (let i = this.stores.length - 1; i >= 0; i--) {
+        if (!this.stores[i].isVisible()) continue;
+
+        const p = this.stores[i].findNearest(time, interval);
+        if (p) return this.snapshotValue(i, p.time, p.value);
+      }
+
+      return null;
+    }
+
+    // Stacked: sum each visible layer's nearest sample, holding missing layers
+    // at 0 — the same cumulative-top math getStackedLastValue paints, but at an
+    // arbitrary time rather than the last point.
+    let sawAny = false;
+    const values: number[] = [];
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+
+      const p = this.stores[li].findNearest(time, interval);
+      if (!p) {
+        values.push(0);
+        continue;
+      }
+
+      sawAny = true;
+      values.push(this.snapshotValue(li, p.time, p.value));
+    }
+    if (!sawAny) return null;
+
+    const totals = sumStack(values);
+
+    return stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
   }
 
   getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {

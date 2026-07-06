@@ -30,6 +30,25 @@ export { mountAxisLabels } from './axis/dom-labels';
 export type { BitmapCoordinateSpace } from './canvas-manager';
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, PointClickInfo, SeriesHoverInfo } from './chart';
 export { ChartInstance } from './chart';
+export type {
+  BadgeChartQuery,
+  BadgeFrameInput,
+  BadgeFrameOutput,
+  ResolvedAnimate,
+  YLabelAnimate,
+  YLabelAnimateOptions,
+} from './chart/badge-animator';
+// Last-value badge motion — a value spring for the append glide plus the
+// initial-load count-up / fade-in. Framework `YLabel`s drive it per rAF frame
+// so React / Vue / Svelte animate the badge identically. The `resolveAnimate` /
+// `prefersReducedMotion` / `firstVisibleValue` helpers live here too so the
+// three wrappers stay thin and share one set of defaults.
+export {
+  BadgeAnimator,
+  firstVisibleValue,
+  prefersReducedMotion,
+  resolveAnimate,
+} from './chart/badge-animator';
 // Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
 // — same shape as the series intro animations. Drives the `loading` visual an
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`
