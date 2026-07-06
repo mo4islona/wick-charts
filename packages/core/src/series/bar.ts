@@ -473,7 +473,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       const layers = this.stores.map((store, li) =>
         this.getLayerAlpha(li) > 0 ? store.getVisibleData(range.from, range.to) : [],
       );
-      const timeMap = new Map<number, { layer: number; value: number }[]>();
+      const timeMap = new Map<number, { layer: number; value: number; colorValue: number }[]>();
       for (let li = 0; li < layers.length; li++) {
         const alpha = this.getLayerAlpha(li);
         for (const d of layers[li]) {
@@ -485,7 +485,14 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           }
 
           const scaled = this.effectiveValue(ctx, li, d.time, d.value) * alpha;
-          arr.push({ layer: li, value: this.introValue({ layerIndex: li, time: d.time, value: scaled }) });
+          arr.push({
+            layer: li,
+            value: this.introValue({ layerIndex: li, time: d.time, value: scaled }),
+            // Color resolves from the settled data value — same contract as
+            // the single-layer path — so a threshold value-fn doesn't flicker
+            // hues while the intro sweeps the drawn value from 0 to final.
+            colorValue: d.value,
+          });
         }
       }
 
@@ -504,8 +511,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         // bottom, for negatives) pokes out above the shorter bars in front of
         // it, so a square edge on a back bar reads as a rendering glitch.
         for (let i = 0; i < entries.length; i++) {
-          const { layer, value } = entries[i];
-          const color = this.resolveLayerColor(layer, value);
+          const { layer, value, colorValue } = entries[i];
+          const color = this.resolveLayerColor(layer, colorValue);
           const progress = this.entranceProgress(layer, time);
           if (value >= 0) {
             const topY = yScale.valueToBitmapY(value);

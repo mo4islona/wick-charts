@@ -123,13 +123,25 @@ export class BadgeAnimator {
       return { positionValue: target, textValue: target, opacity: 1, animating: false };
     }
 
+    // A non-positive settle time means "track instantly" — the spring would
+    // substitute its internal ~250ms fallback for it, which is slower than
+    // any positive value the caller could ask for. Snap instead, keeping the
+    // glide-on-intro behavior the caller opted into elsewhere.
+    const settleMs = input.settleMs ?? DEFAULT_SETTLE_MS;
+    if (settleMs <= 0) {
+      this.#spring.snap(target, { now });
+      this.#lastTarget = target;
+
+      return { positionValue: target, textValue: target, opacity: 1, animating: false };
+    }
+
     // Steady state: one velocity-continuous spring always chases the target, so
     // the badge glides to each new value and never snaps. Retarget only on a
     // real change so a still target settles cleanly; the spring itself carries
     // velocity across a jump that lands mid-glide, so there is no kick and no
     // settle-frame step.
     if (Math.abs(target - this.#lastTarget) > EPS) {
-      this.#spring.retarget(target, { now, settleMs: input.settleMs ?? DEFAULT_SETTLE_MS });
+      this.#spring.retarget(target, { now, settleMs });
       this.#lastTarget = target;
     }
 

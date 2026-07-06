@@ -43,4 +43,24 @@ describe('deepEqual', () => {
     expect(deepEqual(true, false)).toBe(false);
     expect(deepEqual(true, { axis: false })).toBe(false);
   });
+
+  it('compares Dates by timestamp, not as empty key bags (visibleRange endpoints)', () => {
+    expect(deepEqual(new Date(1000), new Date(1000))).toBe(true);
+    expect(deepEqual(new Date(1000), new Date(2000))).toBe(false);
+    expect(
+      deepEqual(
+        { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
+        { from: new Date('2026-03-01'), to: new Date('2026-04-01') },
+      ),
+    ).toBe(false);
+    expect(deepEqual({ from: new Date(0) }, { from: new Date(0) })).toBe(true);
+  });
+
+  it('compares non-plain class instances by reference, per the documented contract', () => {
+    const map = new Map([['a', 1]]);
+    expect(deepEqual({ v: map }, { v: map })).toBe(true);
+    expect(deepEqual({ v: new Map([['a', 1]]) }, { v: new Map([['b', 2]]) })).toBe(false);
+    expect(deepEqual(/x/, /y/)).toBe(false);
+    expect(deepEqual(new Date(0), {})).toBe(false);
+  });
 });

@@ -38,6 +38,33 @@ describe('PieRenderer — slice explode animation', () => {
     return r._inspectSliceOffsets()[index];
   }
 
+  it('settles needsAnimation when every slice value is non-drawable (total <= 0)', () => {
+    const r = new PieRenderer({ animate: true });
+    r.setData([
+      { label: 'A', value: 0 },
+      { label: 'B', value: 0 },
+    ]);
+
+    // The first render bails before painting (total <= 0). It must settle
+    // the reveal clocks instead of leaving needsAnimation latched true —
+    // that kept the frame scheduler busy-looping over a blank chart forever.
+    renderFrame(r);
+
+    expect(r.needsAnimation).toBe(false);
+  });
+
+  it('settles needsAnimation after data is cleared mid-reveal', () => {
+    const r = new PieRenderer({ animate: true });
+    r.setData(SLICES);
+    renderFrame(r);
+
+    advance(50); // mid-reveal
+    r.setData([]);
+    renderFrame(r);
+
+    expect(r.needsAnimation).toBe(false);
+  });
+
   it('animates over many frames instead of snapping in one', () => {
     const r = new PieRenderer({ animate: true });
     r.setData(SLICES);

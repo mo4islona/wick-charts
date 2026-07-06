@@ -561,7 +561,16 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
       cols: this.#cols.length,
       rows: this.#rows.length,
     });
-    if (!geo) return;
+    if (!geo) {
+      // No drawable grid (gutters swallow the whole pane). The entrance wave
+      // can only complete inside the cell loop below, so mark it done here —
+      // otherwise `needsAnimation` busy-loops the scheduler over a chart that
+      // paints nothing. A later resize that makes room paints settled cells,
+      // which is the honest outcome for a wave nobody could see.
+      this.#entryDone = true;
+
+      return;
+    }
 
     const gapX = this.#options.gap * hpr;
     const gapY = this.#options.gap * vpr;

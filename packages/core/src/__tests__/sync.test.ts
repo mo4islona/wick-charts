@@ -202,6 +202,44 @@ describe('syncSeriesLayer', () => {
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
   });
 
+  it('falls back to setSeriesData when the prepended head is newest-first (descending)', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    // Host forgot to reverse the API's newest-first history page —
+    // prependData would splice a descending run onto the sorted store.
+    const data = [point(9), point(8), point(7), ...prevData];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).not.toHaveBeenCalled();
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+  });
+
+  it('falls back to setSeriesData when the head repeats the boundary point (inclusive-boundary page)', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    const data = [point(8), point(9), point(10), ...prevData];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).not.toHaveBeenCalled();
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+  });
+
+  it('falls back to setSeriesData when the head itself contains a duplicate timestamp', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    const data = [point(8), point(8), point(9), ...prevData];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).not.toHaveBeenCalled();
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+  });
+
   it('a pure tail burst is not mistaken for a prepend (still appends)', () => {
     const chart = mockChart();
     const prevData = [point(1), point(2)];

@@ -247,6 +247,39 @@ describe('history-prepend reveal', () => {
       expect(rects.filter((c) => c.globalAlpha === 0)).toHaveLength(4);
       expect(rects.filter((c) => c.globalAlpha === 0.35)).toHaveLength(0);
     });
+
+    it("anchors a second prepend's placeholders to their own boundary, not the first reveal's", () => {
+      const r = makeMorphCandle();
+
+      // Batch 1 (t=40..50, boundary 60) lands without a hand-off and starts
+      // the reveal wave.
+      r.prependPoints([
+        { time: 40, ...OHLC },
+        { time: 50, ...OHLC },
+      ]);
+      renderFrame(r); // stamps the wave start
+
+      // Batch 2 (t=20..30) lands mid-wave with a hand-off whose offsets were
+      // measured against the CURRENT boundary (t=40 → x=320): one placeholder
+      // standing where the candle at t=30 (x=240) lands.
+      advance(100);
+      r.setHistoryHandoff([{ offsetX: 80, y: 150, halfHeight: 30, width: 12 }]);
+      r.prependPoints([
+        { time: 20, ...OHLC },
+        { time: 30, ...OHLC },
+      ]);
+      const { spy } = renderFrame(r);
+
+      // The morphing candle is the one at x≈240 — mapping against the stale
+      // first boundary (t=60 → x=480) would put the placeholder at x=400,
+      // over batch 1's half-revealed candle at t=50 instead.
+      const morphing = spy.callsOf('fillRect').filter((c) => c.globalAlpha === 0.35);
+      expect(morphing.length).toBeGreaterThan(0);
+      for (const rect of morphing) {
+        expect(rect.args[0] as number).toBeGreaterThan(220);
+        expect(rect.args[0] as number).toBeLessThan(260);
+      }
+    });
   });
 
   describe('BarRenderer', () => {

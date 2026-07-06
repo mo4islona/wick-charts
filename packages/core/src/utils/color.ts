@@ -151,12 +151,25 @@ function oklabToRgb(L: number, a: number, bb: number): [number, number, number] 
   ];
 }
 
+/** Alpha channel of an `rgba(...)` input, `1` for everything else. */
+function parseColorAlpha(color: string): number {
+  const match = color.match(/^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/i);
+  if (!match) return 1;
+
+  const alpha = Number(match[1]);
+
+  return Number.isFinite(alpha) ? Math.max(0, Math.min(1, alpha)) : 1;
+}
+
 /**
  * Blend two colors perceptually (OKLab), `t` in [0, 1]. Accepts `#rgb`,
  * `#rrggbb`, and `rgb()/rgba()` inputs; anything else (named colors,
  * `hsl()`) falls back to a hard switch at `t = 0.5` — it never produces a
- * NaN canvas fill. Results are cached on a quantized `t` (1/256 steps), so
- * per-frame per-cell sampling stays allocation-free after the first frame.
+ * NaN canvas fill. An `rgba()` input's alpha interpolates linearly alongside
+ * the OKLab channels — the result is an `rgba()` string whenever either
+ * endpoint is translucent, an opaque hex otherwise. Results are cached on a
+ * quantized `t` (1/256 steps), so per-frame per-cell sampling stays
+ * allocation-free after the first frame.
  */
 export function mixColors(from: string, to: string, t: number): string {
   const clamped = Math.max(0, Math.min(1, t));
@@ -176,7 +189,17 @@ export function mixColors(from: string, to: string, t: number): string {
 
   const f = q / 255;
   const [r, g, bl] = oklabToRgb(la + (lb2 - la) * f, aa + (ab2 - aa) * f, ba + (bb2 - ba) * f);
-  const result = toHex(r, g, bl);
+
+  const alphaFrom = parseColorAlpha(from);
+  const alphaTo = parseColorAlpha(to);
+  let result: string;
+  if (alphaFrom >= 1 && alphaTo >= 1) {
+    result = toHex(r, g, bl);
+  } else {
+    const alpha = Math.round((alphaFrom + (alphaTo - alphaFrom) * f) * 1000) / 1000;
+    result = `rgba(${r}, ${g}, ${bl}, ${alpha})`;
+  }
+
   if (mixCache.size >= MIX_CACHE_LIMIT) mixCache.clear();
   mixCache.set(key, result);
 

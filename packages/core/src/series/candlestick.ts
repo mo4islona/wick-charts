@@ -223,10 +223,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
   #historyDirectives: CandleIntroDirectives | null = null;
   /** Loading-indicator placeholder shapes handed over by the chart right
-   *  before a prepend (boundary-relative media px) — mapped into bitmap
-   *  space each frame and exposed to the reveal fn as
-   *  {@link CandleIntroFrame.placeholders}. Cleared once the reveal settles. */
-  #handoffBars: PlaceholderBar[] | null = null;
+   *  before a prepend (media px relative to `anchorTime`, the data boundary
+   *  they were measured against) — mapped into bitmap space each frame and
+   *  exposed to the reveal fn as {@link CandleIntroFrame.placeholders}.
+   *  Cleared once the reveal settles. */
+  #handoffBars: { bars: PlaceholderBar[]; anchorTime: number } | null = null;
   /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
    *  positioned per candle via `ctx.translate`, instead of a fresh
    *  `createLinearGradient` for every body on every frame. */
@@ -336,7 +337,15 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   }
 
   setHistoryHandoff(bars: PlaceholderBar[]): void {
-    this.#handoffBars = bars;
+    // The bars' offsets were measured against the CURRENT data boundary (the
+    // chart hands them over right before the matching prepend). Capture that
+    // anchor now — `#historyRange.to` is the wrong anchor when a second
+    // prepend extends an in-flight reveal, whose `to` stays pinned at the
+    // first batch's boundary.
+    const anchorTime = this.store.first()?.time;
+    if (anchorTime === undefined) return;
+
+    this.#handoffBars = { bars, anchorTime };
   }
 
   updateLastPoint(point: unknown): void {
@@ -578,15 +587,18 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     if (this.#historyWave.active && historyRange !== null) {
       const reveal = this.options.historyReveal ?? DEFAULT_HISTORY_REVEAL_FN;
       if (reveal !== 'none') {
-        // Hand-off placeholders re-anchor to the boundary every frame, so a
-        // morph stays glued to its target candles while the user pans. A
-        // prepend is always a left-edge event: `offsetX` extends leftward.
+        // Hand-off placeholders re-anchor every frame to the boundary they
+        // were measured against, so a morph stays glued to its target
+        // candles while the user pans — including after a second prepend
+        // extends the reveal (the range's `to` then points at an older
+        // boundary than the snapshot's). A prepend is always a left-edge
+        // event: `offsetX` extends leftward.
         let placeholders: MorphPlaceholder[] | undefined;
         const handoff = this.#handoffBars;
-        if (handoff !== null && handoff.length > 0) {
-          const boundaryX = timeScale.timeToBitmapX(historyRange.to);
-          placeholders = handoff.map((bar) => ({
-            x: boundaryX - bar.offsetX * scope.horizontalPixelRatio,
+        if (handoff !== null && handoff.bars.length > 0) {
+          const anchorX = timeScale.timeToBitmapX(handoff.anchorTime);
+          placeholders = handoff.bars.map((bar) => ({
+            x: anchorX - bar.offsetX * scope.horizontalPixelRatio,
             y: bar.y * scope.verticalPixelRatio,
             halfHeight: bar.halfHeight * scope.verticalPixelRatio,
             width: bar.width * scope.horizontalPixelRatio,

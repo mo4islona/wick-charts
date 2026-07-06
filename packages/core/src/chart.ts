@@ -1086,17 +1086,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // shapes the loading indicator was showing. Once handed off, the reveal
     // owns those pixels: the still-`loading` indicator is hidden and any
     // exit fade is cancelled — a fading skeleton over morphing candles would
-    // double-paint. Consumed regardless of freshness so a stale snapshot
-    // can't anchor a later, unrelated prepend.
+    // double-paint. Consumed only by a renderer that actually takes it: a
+    // joint history load prepends every series in one batch, and a
+    // morph-less series (a line overlay next to the candles) must not
+    // starve the morph-capable one that syncs after it. Staleness is
+    // handled by the freshness window alone.
     const snapshot = this.#edgePlaceholders.left;
-    if (snapshot !== null) {
-      if (entry.renderer.setHistoryHandoff !== undefined && performance.now() - snapshot.at < EDGE_HANDOFF_FRESH_MS) {
-        entry.renderer.setHistoryHandoff(snapshot.bars);
-        this.#edgeHandoff.left = true;
-        this.#edgeFadeStarts.left = null;
-        this.#overlayScheduler.markDirty();
-      }
+    if (
+      snapshot !== null &&
+      entry.renderer.setHistoryHandoff !== undefined &&
+      performance.now() - snapshot.at < EDGE_HANDOFF_FRESH_MS
+    ) {
+      entry.renderer.setHistoryHandoff(snapshot.bars);
+      this.#edgeHandoff.left = true;
+      this.#edgeFadeStarts.left = null;
       this.#edgePlaceholders.left = null;
+      this.#overlayScheduler.markDirty();
     }
 
     entry.renderer.prependPoints(points, layerIndex);
@@ -2905,6 +2910,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       context.restore();
     });
+
+    // Advance the overlay-intro latch every main frame, not just when an
+    // annotation happens to draw — a chart whose first reveal plays with no
+    // markers/lines yet must still observe it, or a series added much later
+    // (which re-arms the global intro front) would blink the by-then-settled
+    // annotations out and sweep them back in.
+    this.#overlayIntroFront();
 
     // Generic animation poll — any renderer that still needs a frame keeps us going.
     let seriesNeedsAnim = false;

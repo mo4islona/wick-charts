@@ -86,6 +86,12 @@ function middleUnchanged<T extends OHLCInput | TimePointInput>(
  * whole previous array; the length identity guards against a same-time tail
  * edit sneaking through. Streaming tail growth fails on the first compare
  * (times differ), so this stays cheap for the common append case.
+ *
+ * The prepended head itself must be strictly ascending and end strictly
+ * before the old first point — `chart.prependData` concatenates it onto the
+ * store without re-sorting, so a load-more page delivered newest-first (or
+ * one that repeats the boundary point) must fall through to the full-replace
+ * path, which sorts and dedups like any other bulk load.
  */
 function isFrontPrepend<T extends OHLCInput | TimePointInput>(
   prevData: readonly (OHLCInput | TimePointInput)[] | null,
@@ -95,6 +101,11 @@ function isFrontPrepend<T extends OHLCInput | TimePointInput>(
   // Requires a non-empty prior suffix to anchor: refilling after a clear
   // (`prevData === []`) is a fresh load that must snap/fit, not a prepend.
   if (!prevData || prevData.length === 0 || added <= 0 || prevData.length !== data.length - added) return false;
+
+  for (let i = 1; i < added; i++) {
+    if (normalizeTime(data[i - 1].time) >= normalizeTime(data[i].time)) return false;
+  }
+  if (normalizeTime(data[added - 1].time) >= normalizeTime(prevData[0].time)) return false;
 
   for (let i = 0; i < prevData.length; i++) {
     if (!pointEquals(prevData[i] as T, data[added + i])) return false;

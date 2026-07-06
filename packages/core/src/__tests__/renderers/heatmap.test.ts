@@ -293,6 +293,18 @@ describe('HeatmapRenderer — animation', () => {
     expect(r.needsAnimation).toBe(false);
   });
 
+  it('settles the entrance wave when geometry cannot fit (no busy-loop over a blank pane)', () => {
+    const r = new HeatmapRenderer({ ...FLAT, entryMs: 600 });
+    r.setData(GRID);
+
+    // Padding leaves zero usable height — computeHeatmapGeometry returns
+    // null and render bails before the cell loop that completes the wave.
+    const { ctx } = buildRenderContext({ mediaHeight: 40, padding: { top: 30, bottom: 30 } });
+    r.render(ctx);
+
+    expect(r.needsAnimation).toBe(false);
+  });
+
   it('grid-shape change snaps values and replays the entrance wave', () => {
     const r = new HeatmapRenderer({ ...FLAT, entryMs: 600 });
     r.setData(GRID);

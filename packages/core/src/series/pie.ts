@@ -313,10 +313,14 @@ function lightenColor(hex: string, amount: number): string {
  */
 function parseCssColor(input: string): { r: number; g: number; b: number; a: number } {
   if (input.startsWith('#')) {
+    // Expand shorthand `#rgb` — the fixed slices below would read half a
+    // channel and NaN the rest (same guard as `lightenColor` above).
+    const full = input.length === 4 ? `#${input[1]}${input[1]}${input[2]}${input[2]}${input[3]}${input[3]}` : input;
+
     return {
-      r: parseInt(input.slice(1, 3), 16) || 0,
-      g: parseInt(input.slice(3, 5), 16) || 0,
-      b: parseInt(input.slice(5, 7), 16) || 0,
+      r: parseInt(full.slice(1, 3), 16) || 0,
+      g: parseInt(full.slice(3, 5), 16) || 0,
+      b: parseInt(full.slice(5, 7), 16) || 0,
       a: 1,
     };
   }
@@ -662,6 +666,18 @@ export class PieRenderer implements PieSeriesRenderer {
     return raw ?? DEFAULT_PIE_ENTRY;
   }
 
+  /**
+   * Settle every reveal clock when a render pass has nothing to paint
+   * (empty display or non-positive total). The clocks only advance inside
+   * the paint path, so leaving them armed here would hold
+   * {@link needsAnimation} true forever and busy-loop the frame scheduler
+   * over a blank chart.
+   */
+  #settleRevealState(): void {
+    this.#introWave.finish();
+    this.#labelReveal = 1;
+  }
+
   /** Returns true if animation is still in progress. */
   get needsAnimation(): boolean {
     if (this.#introWave.active) return true;
@@ -669,8 +685,10 @@ export class PieRenderer implements PieSeriesRenderer {
     // Label reveal runs on its own after the intro sweep (`animate` may be
     // off), so it must keep the frame loop alive independently. Resolved
     // mode, not the raw option — the default `sliceLabels: undefined`
-    // resolves to `'outside'`.
-    if (resolveLabels(this.#options.sliceLabels).mode === 'outside' && this.#labelReveal < 0.99) return true;
+    // resolves to `'outside'`. Runs until the render pass snaps the reveal
+    // to exactly 1 — a lower cutoff would freeze the last stagger slots
+    // (their local progress remaps `(reveal - 0.9) / 0.1`) mid-flight.
+    if (resolveLabels(this.#options.sliceLabels).mode === 'outside' && this.#labelReveal < 1) return true;
 
     if (!this.#options.animate) return false;
 
@@ -1210,7 +1228,11 @@ export class PieRenderer implements PieSeriesRenderer {
   }
 
   render(ctx: SeriesRenderContext): void {
-    if (this.#display.length === 0) return;
+    if (this.#display.length === 0) {
+      this.#settleRevealState();
+
+      return;
+    }
 
     const { scope, theme, padding } = ctx;
     const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
@@ -1224,7 +1246,11 @@ export class PieRenderer implements PieSeriesRenderer {
     this.#lastRenderTime = now;
 
     const total = this.#total();
-    if (total <= 0) return;
+    if (total <= 0) {
+      this.#settleRevealState();
+
+      return;
+    }
 
     // Initial-load sweep: slices unfurl clockwise from 12 o'clock behind
     // `revealAngle`; labels chain in once the sweep completes.
@@ -1255,6 +1281,10 @@ export class PieRenderer implements PieSeriesRenderer {
     context.font = `${labels.fontSize * horizontalPixelRatio}px ${theme.typography.fontFamily}`;
     if (labels.mode === 'outside' && !introActive && this.#labelReveal < 1) {
       this.#labelReveal = smoothToward(this.#labelReveal, 1, 6, dt);
+      // The exponential never reaches 1 on its own; snap once the residual
+      // is invisible so the last staggered labels finish their rails and the
+      // frame loop can go idle.
+      if (this.#labelReveal >= 0.995) this.#labelReveal = 1;
     }
 
     const palette = this.#options.colors ?? theme.seriesColors;
