@@ -20,6 +20,24 @@ import type { ChartTheme } from '../theme/types';
 import { hexToRgba } from '../utils/color';
 import type { EdgeSide } from './edge-indicator';
 
+/**
+ * One placeholder shape a loading indicator painted, in chart-media pixels
+ * relative to the data boundary — the hand-off currency between an edge
+ * indicator and a series' history reveal. `offsetX` grows away from the
+ * data (into the overshoot zone), so the geometry stays glued to the
+ * boundary while the user keeps panning.
+ */
+export interface PlaceholderBar {
+  /** Distance from the data boundary to the bar's center, media px, ≥ 0. */
+  offsetX: number;
+  /** Bar center Y, media px within the plot area. */
+  y: number;
+  /** Half the body height, media px. */
+  halfHeight: number;
+  /** Body width, media px. */
+  width: number;
+}
+
 /** Read view of one loading-indicator frame — everything a {@link LoadingIndicatorFn} may need. */
 export interface LoadingIndicatorArgs {
   scope: BitmapCoordinateSpace;
@@ -62,6 +80,16 @@ export interface LoadingIndicatorArgs {
    * unresolvable.
    */
   seriesKind?: SeriesKind;
+  /**
+   * Report the placeholder shapes drawn this frame. The chart snapshots the
+   * latest report and, when the fetched history lands, hands it to the
+   * series' history reveal — a morph-style reveal (`skeletonMorphIntro`)
+   * grows the real candles out of these exact placeholders instead of
+   * cross-fading. Optional both ways: an indicator that never reports (or
+   * a chart caller that doesn't collect) simply falls back to the plain
+   * reveal.
+   */
+  reportPlaceholders?(bars: PlaceholderBar[]): void;
 }
 
 /** Pure function contract for a pluggable loading indicator. */
@@ -111,6 +139,7 @@ export const skeletonLoadingIndicator: LoadingIndicatorFn = ({
   edgeValueY,
   barSpacing,
   seriesKind,
+  reportPlaceholders,
 }) => {
   const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
   const baseColor = theme.axis.textColor ?? '#787b86';
@@ -152,6 +181,20 @@ export const skeletonLoadingIndicator: LoadingIndicatorFn = ({
       context.lineTo(bx, topBy + bh + SKELETON_WICK_MEDIA * verticalPixelRatio);
       context.stroke();
     }
+  }
+
+  // Hand the drawn shapes to the chart for a potential morph reveal once
+  // the fetched history lands. `x` is stage-local; the boundary sits at
+  // `chartMediaWidth` for a left stage and at `0` for a right one.
+  if (reportPlaceholders !== undefined) {
+    reportPlaceholders(
+      shapes.map((bar) => ({
+        offsetX: fromRight ? bar.x : chartMediaWidth - bar.x,
+        y: bar.y,
+        halfHeight: bar.halfHeight,
+        width: bar.width,
+      })),
+    );
   }
 
   // Shimmer sweep — a soft highlight band traveling across the placeholders,

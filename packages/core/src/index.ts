@@ -54,7 +54,7 @@ export {
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`
 // falls back to the built-in three-dot spinner. `skeletonLoadingIndicator`
 // is a peer of a custom fn, not a privileged default.
-export type { LoadingIndicatorArgs, LoadingIndicatorFn } from './components/loading-indicator';
+export type { LoadingIndicatorArgs, LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 export { skeletonLoadingIndicator } from './components/loading-indicator';
 // Markers — point annotations (event markers) pinned to time/value, drawn on the
 // overlay layer. Kept out of the series model, so excluded from tooltips, the
@@ -130,8 +130,9 @@ export type {
   CandleIntroElement,
   CandleIntroFn,
   CandleIntroFrame,
+  MorphPlaceholder,
 } from './series/candlestick-intro';
-export { candleUnfoldIntro, wickBodyIntro } from './series/candlestick-intro';
+export { candleUnfoldIntro, skeletonMorphIntro, wickBodyIntro } from './series/candlestick-intro';
 export {
   type SeriesCreateEnv,
   type SeriesDefinition,

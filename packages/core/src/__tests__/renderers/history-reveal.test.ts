@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TimeSeriesStore } from '../../data/store';
 import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
+import { skeletonMorphIntro } from '../../series/candlestick-intro';
 import { LineRenderer } from '../../series/line';
 import type { CandlestickSeriesOptions, OHLCData, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
@@ -166,6 +167,85 @@ describe('history-prepend reveal', () => {
       r.prependPoints(OLDER_CANDLES);
 
       expect(r.needsAnimation).toBe(false);
+    });
+  });
+
+  describe('CandlestickRenderer — skeletonMorphIntro', () => {
+    const UP = { body: '#00ff00', wick: '#00aa00' };
+
+    function makeMorphCandle(): CandlestickRenderer {
+      const store = new TimeSeriesStore<OHLCData>();
+      store.setData(INITIAL_CANDLES);
+
+      return new CandlestickRenderer(store, {
+        cornerRadius: 0,
+        introMs: false,
+        up: UP,
+        down: { body: '#ff0000', wick: '#aa0000' },
+        historyReveal: skeletonMorphIntro(),
+      });
+    }
+
+    // Boundary t=60 → x=480 (0..100 over 800px). One placeholder standing
+    // exactly where the candle at t=40 lands (x=320): offsetX = 160.
+    const HANDOFF = [{ offsetX: 160, y: 150, halfHeight: 30, width: 12 }];
+
+    it('grows a matched candle out of the placeholder geometry, tinted and translucent', () => {
+      const r = makeMorphCandle();
+      r.setHistoryHandoff(HANDOFF);
+      r.prependPoints(OLDER_CANDLES);
+
+      const { spy } = renderFrame(r);
+      const rects = spy.callsOf('fillRect');
+      expect(rects).toHaveLength(8);
+
+      // The matched candle (t=40, x≈320) starts as the placeholder: body
+      // spanning y 120..180, at the morph's starting alpha, gray-tinted.
+      const morphing = rects.filter((c) => c.globalAlpha === 0.35);
+      expect(morphing).toHaveLength(2); // wick + body
+      for (const rect of morphing) {
+        const [, y, , h] = rect.args as number[];
+        expect(y).toBeCloseTo(120, 0);
+        expect(h).toBeCloseTo(60, 0);
+        expect(rect.fillStyle).not.toBe(UP.body);
+        expect(rect.fillStyle).not.toBe(UP.wick);
+      }
+
+      // The unmatched deep candle (t=20) plays the fallback fade: invisible
+      // on the arming frame. Old candles stay settled.
+      expect(rects.filter((c) => c.globalAlpha === 0)).toHaveLength(2);
+      expect(rects.filter((c) => c.globalAlpha === 1)).toHaveLength(4);
+    });
+
+    it("settles at the candle's own geometry and color once the reveal elapses", () => {
+      const r = makeMorphCandle();
+      r.setHistoryHandoff(HANDOFF);
+      r.prependPoints(OLDER_CANDLES);
+      renderFrame(r);
+
+      advance(2000);
+      const { spy } = renderFrame(r);
+
+      expect(r.needsAnimation).toBe(false);
+      const rects = spy.callsOf('fillRect');
+      expect(rects).toHaveLength(8);
+      for (const rect of rects) {
+        expect(rect.globalAlpha).toBe(1);
+      }
+      // Bodies are back on the series' own palette.
+      expect(rects.some((c) => c.fillStyle === UP.body)).toBe(true);
+    });
+
+    it('falls back to the fade reveal when no hand-off was seeded', () => {
+      const r = makeMorphCandle();
+      r.prependPoints(OLDER_CANDLES);
+
+      const { spy } = renderFrame(r);
+      const rects = spy.callsOf('fillRect');
+
+      // No morph: both prepended candles start invisible, none at 0.35.
+      expect(rects.filter((c) => c.globalAlpha === 0)).toHaveLength(4);
+      expect(rects.filter((c) => c.globalAlpha === 0.35)).toHaveLength(0);
     });
   });
 

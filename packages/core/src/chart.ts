@@ -23,7 +23,7 @@ import { resolvePaddingTime } from './chart/viewport-padding';
 import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
-import type { LoadingIndicatorFn } from './components/loading-indicator';
+import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
 import {
   type ReferenceLineConfig,
@@ -78,6 +78,13 @@ export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart
  *  as a hand-off to the arriving data's reveal, short enough not to linger
  *  over it. */
 const EDGE_EXIT_FADE_MS = 200;
+
+/** How recent a loading-indicator placeholder snapshot must be for
+ *  {@link ChartInstance.prependData} to hand it to the series' history
+ *  reveal. The indicator reports every overlay frame while `loading`, so a
+ *  fresh fetch always qualifies; a stale snapshot from a long-finished load
+ *  must not anchor a morph for an unrelated prepend. */
+const EDGE_HANDOFF_FRESH_MS = 1500;
 
 /**
  * Payload for `pointClick` / `pointDoubleClick`. `spatialHit` resolves a
@@ -279,6 +286,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #edgeFadeStarts: Record<EdgeSide, number | null> = { left: null, right: null };
   /** Cached boundary timestamps from the last `edgeReached` emission, by side. */
   #edgeBoundaries: Record<EdgeSide, number | null> = { left: null, right: null };
+  /** Latest placeholder shapes a `loading` indicator reported per side —
+   *  the morph hand-off candidate consumed by {@link prependData}. */
+  #edgePlaceholders: Record<EdgeSide, { bars: PlaceholderBar[]; at: number } | null> = { left: null, right: null };
+  /** True after a prepend consumed a side's placeholder snapshot: the series'
+   *  reveal owns those pixels now, so the still-`loading` indicator is hidden
+   *  and the upcoming `loading → idle` transition skips its exit fade. Reset
+   *  by the next {@link setEdgeState} call. */
+  #edgeHandoff: Record<EdgeSide, boolean> = { left: false, right: false };
   /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
   #onEdgeReached?: (info: EdgeReachedInfo) => void;
   /** Per-side custom painter for the edge `loading` spinner. `null` falls back to the built-in dots. */
@@ -1065,6 +1080,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   prependData(id: string, points: (OHLCInput | TimePointInput)[], layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.prependPoints === undefined) return;
+
+    // Hand the freshest left-edge placeholder snapshot to the renderer so a
+    // morph-style history reveal can grow the real candles out of the exact
+    // shapes the loading indicator was showing. Once handed off, the reveal
+    // owns those pixels: the still-`loading` indicator is hidden and any
+    // exit fade is cancelled — a fading skeleton over morphing candles would
+    // double-paint. Consumed regardless of freshness so a stale snapshot
+    // can't anchor a later, unrelated prepend.
+    const snapshot = this.#edgePlaceholders.left;
+    if (snapshot !== null) {
+      if (entry.renderer.setHistoryHandoff !== undefined && performance.now() - snapshot.at < EDGE_HANDOFF_FRESH_MS) {
+        entry.renderer.setHistoryHandoff(snapshot.bars);
+        this.#edgeHandoff.left = true;
+        this.#edgeFadeStarts.left = null;
+        this.#overlayScheduler.markDirty();
+      }
+      this.#edgePlaceholders.left = null;
+    }
 
     entry.renderer.prependPoints(points, layerIndex);
   }
@@ -1876,8 +1909,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // data lands on the same frame, and a one-frame vanish next to freshly
     // revealed points reads as a hard cut. `no-data` swaps to its own marker
     // immediately instead: fading the spinner under it would double-paint.
+    // A morph hand-off (see prependData) skips the fade entirely: the
+    // reveal already replaced the indicator's pixels in place.
     const wasLoading = this.#edgeStates[side] === 'loading';
-    this.#edgeFadeStarts[side] = wasLoading && (state === 'idle' || state === 'has-more') ? performance.now() : null;
+    const handedOff = this.#edgeHandoff[side];
+    this.#edgeHandoff[side] = false;
+    this.#edgeFadeStarts[side] =
+      wasLoading && !handedOff && (state === 'idle' || state === 'has-more') ? performance.now() : null;
 
     this.#edgeStates[side] = state;
     this.#overlayScheduler.markDirty();
@@ -2950,15 +2988,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     // The loading-state edge indicator animates a spinner; an exit fade keeps
     // painting the last `loading` frame at decreasing alpha. Both need the
-    // overlay ticking.
+    // overlay ticking. A side whose placeholder snapshot was handed to a
+    // morph reveal reads as `idle` even while the host still says `loading`
+    // — the reveal owns those pixels until the host catches up.
+    const effectiveEdgeStates: Record<EdgeSide, EdgeState> = {
+      left: this.#edgeHandoff.left && this.#edgeStates.left === 'loading' ? 'idle' : this.#edgeStates.left,
+      right: this.#edgeHandoff.right && this.#edgeStates.right === 'loading' ? 'idle' : this.#edgeStates.right,
+    };
     const edgeExitFades: Record<EdgeSide, number | null> = {
       left: this.#edgeExitFadeAlpha('left'),
       right: this.#edgeExitFadeAlpha('right'),
     };
     const edgeFading = edgeExitFades.left !== null || edgeExitFades.right !== null;
-    const edgeAnimates = this.#edgeStates.left === 'loading' || this.#edgeStates.right === 'loading' || edgeFading;
+    const edgeAnimates =
+      effectiveEdgeStates.left === 'loading' || effectiveEdgeStates.right === 'loading' || edgeFading;
     // Any non-idle edge needs a single redraw; only `loading` needs continuous frames.
-    const edgeVisible = this.#edgeStates.left !== 'idle' || this.#edgeStates.right !== 'idle' || edgeFading;
+    const edgeVisible = effectiveEdgeStates.left !== 'idle' || effectiveEdgeStates.right !== 'idle' || edgeFading;
 
     // Skip the full-bitmap clear when the overlay is empty AND was already
     // empty last pass — only the painted→empty transition (e.g. mouseleave
@@ -3031,12 +3076,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           chartMediaHeight: size.media.height - this.xAxisHeight,
           timeScale: this.timeScale,
           theme: this.#theme,
-          edgeStates: this.#edgeStates,
+          edgeStates: effectiveEdgeStates,
           edgeExitFades,
           edgeIndicatorFns: this.#edgeIndicatorFns,
           resolveBoundary: (side) => resolveEdgeBoundary(side, this.#edgeBoundaries[side], this.getDataBounds()),
           resolveEdgeAnchor: (side, boundaryTime) => this.#resolveEdgeAnchor(side, boundaryTime),
           resolveEdgeBarSpacing: () => this.#resolveEdgeBarSpacing(),
+          reportPlaceholders: (side, bars) => {
+            this.#edgePlaceholders[side] = { bars, at: performance.now() };
+          },
         });
       }
 

@@ -7,7 +7,7 @@
 
 import type { CanvasManager } from '../canvas-manager';
 import { type EdgeSide, type EdgeState, renderEdgeIndicator } from '../components/edge-indicator';
-import type { LoadingIndicatorFn } from '../components/loading-indicator';
+import type { LoadingIndicatorFn, PlaceholderBar } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
 import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
@@ -46,6 +46,11 @@ export interface EdgeIndicatorContext {
    * placeholder shapes to match the real bars.
    */
   resolveEdgeBarSpacing(): number | null;
+  /**
+   * Snapshot a side's placeholder shapes for the history-reveal hand-off —
+   * see {@link LoadingIndicatorArgs.reportPlaceholders}.
+   */
+  reportPlaceholders(side: EdgeSide, bars: PlaceholderBar[]): void;
 }
 
 export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
@@ -85,6 +90,7 @@ export function drawEdgeIndicators(ctx: EdgeIndicatorContext): void {
       customIndicator: ctx.edgeIndicatorFns[side],
       resolveEdgeAnchor: () => ctx.resolveEdgeAnchor(side, boundaryTime),
       resolveEdgeBarSpacing: () => ctx.resolveEdgeBarSpacing(),
+      reportPlaceholders: (bars) => ctx.reportPlaceholders(side, bars),
     });
 
     if (alpha < 1) context.restore();

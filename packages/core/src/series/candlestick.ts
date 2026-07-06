@@ -8,16 +8,22 @@ import {
 import { easeOutCubic } from '../animation/easing';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
+import type { PlaceholderBar } from '../components/loading-indicator';
 import { decimateOHLCData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
-import { hexToRgba } from '../utils/color';
+import { hexToRgba, mixColors } from '../utils/color';
 import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime } from '../utils/time';
-import { type CandleElementTransform, type CandleIntroDirectives, candleUnfoldIntro } from './candlestick-intro';
+import {
+  type CandleElementTransform,
+  type CandleIntroDirectives,
+  type MorphPlaceholder,
+  candleUnfoldIntro,
+} from './candlestick-intro';
 import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
@@ -216,6 +222,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   #historyRange: { from: number; to: number } | null = null;
   /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
   #historyDirectives: CandleIntroDirectives | null = null;
+  /** Loading-indicator placeholder shapes handed over by the chart right
+   *  before a prepend (boundary-relative media px) — mapped into bitmap
+   *  space each frame and exposed to the reveal fn as
+   *  {@link CandleIntroFrame.placeholders}. Cleared once the reveal settles. */
+  #handoffBars: PlaceholderBar[] | null = null;
   /** Body gradients keyed by `top|bottom|height` — built once at y=0..h and
    *  positioned per candle via `ctx.translate`, instead of a fresh
    *  `createLinearGradient` for every body on every frame. */
@@ -270,6 +281,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // refers to the previous dataset's boundary.
     this.#historyWave.finish();
     this.#historyRange = null;
+    this.#handoffBars = null;
   }
 
   appendPoint(point: unknown): void {
@@ -321,6 +333,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     this.#historyRange = { from: deepestTime, to: boundary };
     this.#historyWave.arm(revealMs);
+  }
+
+  setHistoryHandoff(bars: PlaceholderBar[]): void {
+    this.#handoffBars = bars;
   }
 
   updateLastPoint(point: unknown): void {
@@ -396,6 +412,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   private tickAnimations(now: number): void {
     this.introWave.tick(now);
     this.#historyWave.tick(now);
+    // The hand-off geometry only means something while its reveal is in
+    // flight — drop it on settle so it can't anchor a later, unrelated one.
+    if (!this.#historyWave.active) this.#handoffBars = null;
     this.#alphaAnimator.tick(now);
 
     const anim = this.#liveAnimator;
@@ -559,12 +578,28 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     if (this.#historyWave.active && historyRange !== null) {
       const reveal = this.options.historyReveal ?? DEFAULT_HISTORY_REVEAL_FN;
       if (reveal !== 'none') {
+        // Hand-off placeholders re-anchor to the boundary every frame, so a
+        // morph stays glued to its target candles while the user pans. A
+        // prepend is always a left-edge event: `offsetX` extends leftward.
+        let placeholders: MorphPlaceholder[] | undefined;
+        const handoff = this.#handoffBars;
+        if (handoff !== null && handoff.length > 0) {
+          const boundaryX = timeScale.timeToBitmapX(historyRange.to);
+          placeholders = handoff.map((bar) => ({
+            x: boundaryX - bar.offsetX * scope.horizontalPixelRatio,
+            y: bar.y * scope.verticalPixelRatio,
+            halfHeight: bar.halfHeight * scope.verticalPixelRatio,
+            width: bar.width * scope.horizontalPixelRatio,
+          }));
+        }
+
         this.#historyDirectives = reveal({
           progress: this.#historyWave.linear(),
           width: Math.abs(timeScale.timeToBitmapX(historyRange.to) - timeScale.timeToBitmapX(historyRange.from)),
           height: yScale.getMediaHeight() * scope.verticalPixelRatio,
           range: historyRange,
           timeToX: (time) => timeScale.timeToBitmapX(time),
+          placeholders,
         });
       }
     }
@@ -782,7 +817,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     return this.#applyElementTransform(t, args);
   }
 
-  /** Map a directive's declarative transform onto the element's settled geometry. */
+  /** Map a directive's declarative transform onto the element's settled
+   *  geometry. Absolute `topY`/`bottomY` overrides (a morph's arbitrary
+   *  start shape) replace the anchor-relative `unfold` math; offsets apply
+   *  either way. */
   #applyElementTransform(
     t: CandleElementTransform,
     args: { x: number; topY: number; bottomY: number; anchorY: number },
@@ -792,9 +830,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     return {
       x: args.x + (t.offsetX ?? 0),
-      topY: lerp(args.anchorY, args.topY, unfold) + offsetY,
-      bottomY: lerp(args.anchorY, args.bottomY, unfold) + offsetY,
+      topY: (t.topY ?? lerp(args.anchorY, args.topY, unfold)) + offsetY,
+      bottomY: (t.bottomY ?? lerp(args.anchorY, args.bottomY, unfold)) + offsetY,
       alpha: t.alpha ?? 1,
+      tint: t.tint,
     };
   }
 
@@ -967,6 +1006,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     const style = this.options.entryAnimation ?? 'unfold';
     const barWidth = bodyWidth + 2; // approximate slot width used for 'slide' horizontal offset
+    // Tint target for morph-style reveals — the same muted gray the skeleton
+    // placeholder drew with.
+    const mutedColor = candlePass.env.theme.axis.textColor ?? '#787b86';
 
     // Wicks
     ctx.fillStyle = wickColor;
@@ -1001,8 +1043,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
         anchorY: openY,
         barWidth,
       });
+      let tint = 0;
       if (intro !== null) {
         g = { x: intro.x, topY: intro.topY, bottomY: intro.bottomY, alpha: g.alpha * intro.alpha };
+        tint = intro.tint ?? 0;
         transformed = true;
       }
 
@@ -1013,6 +1057,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
       ctx.save();
       ctx.globalAlpha = g.alpha;
+      if (tint > 0) ctx.fillStyle = mixColors(wickColor, mutedColor, tint);
       ctx.fillRect(g.x, g.topY, wickWidth, Math.max(1, g.bottomY - g.topY));
       ctx.restore();
     }
@@ -1060,11 +1105,13 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
         anchorY: openY,
         barWidth,
       });
+      let tint = 0;
       if (intro !== null) {
         drawX = intro.x;
         drawTop = intro.topY;
         drawBottom = intro.bottomY;
         alpha *= intro.alpha;
+        tint = intro.tint ?? 0;
         needsTransform = true;
       }
 
@@ -1080,8 +1127,11 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       // Gradients come from a per-(colors,height) cache anchored at y=0, so
       // the body is drawn inside a `translate(0, drawTop)` frame — the painted
       // pixels are identical, but N same-height candles share one gradient.
-      const bodyColor = Array.isArray(body) ? body[0] : body;
-      const useGradient = drawsGradient && drawHeight > 2;
+      // A tinted (morphing) body collapses to a flat blended fill — a
+      // gradient of a half-placeholder color would read as a paint glitch.
+      const ownColor = Array.isArray(body) ? body[0] : body;
+      const bodyColor = tint > 0 ? mixColors(ownColor, mutedColor, tint) : ownColor;
+      const useGradient = drawsGradient && drawHeight > 2 && tint <= 0;
       const fillStyle: string | CanvasGradient = useGradient ? this.#bodyGradient(ctx, body, drawHeight) : bodyColor;
       ctx.fillStyle = fillStyle;
 
@@ -1150,6 +1200,9 @@ interface CandleTransformOutput {
   topY: number;
   bottomY: number;
   alpha: number;
+  /** Blend toward the theme's muted placeholder gray, `0..1`. `undefined`
+   *  means no tint — the element keeps its own color. */
+  tint?: number;
 }
 
 /**

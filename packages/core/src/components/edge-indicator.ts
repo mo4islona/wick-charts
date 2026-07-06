@@ -2,7 +2,7 @@ import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
 import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
-import type { LoadingIndicatorFn } from './loading-indicator';
+import type { LoadingIndicatorFn, PlaceholderBar } from './loading-indicator';
 
 /** Radius of each spinner dot, in media pixels. */
 const DOT_RADIUS_MEDIA = 3;
@@ -61,6 +61,12 @@ export interface EdgeIndicatorContext {
    * `customIndicator` is present.
    */
   resolveEdgeBarSpacing?: () => number | null;
+  /**
+   * Collector for the indicator's placeholder shapes — see
+   * {@link LoadingIndicatorArgs.reportPlaceholders}. Only forwarded when
+   * `customIndicator` is present.
+   */
+  reportPlaceholders?: (bars: PlaceholderBar[]) => void;
 }
 
 /** Draw the edge indicator for the given side/state. A no-op for `idle` / `has-more`. */
@@ -101,6 +107,7 @@ function drawCustomLoadingIndicator(
     now,
     resolveEdgeAnchor,
     resolveEdgeBarSpacing,
+    reportPlaceholders,
   }: EdgeIndicatorContext,
   boundaryX: number,
   indicator: LoadingIndicatorFn,
@@ -132,6 +139,7 @@ function drawCustomLoadingIndicator(
     edgeValueY: anchor?.valueY,
     seriesKind: anchor?.seriesKind,
     barSpacing,
+    reportPlaceholders,
   });
 
   context.restore();

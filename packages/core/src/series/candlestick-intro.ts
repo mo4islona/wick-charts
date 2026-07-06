@@ -19,12 +19,37 @@
  * ```
  */
 
-import type { WaveIntroElement, WaveIntroFrame, WaveIntroTransform } from './wave-intro';
+import { lerp } from '../utils/math';
+import { type WaveIntroElement, type WaveIntroFrame, type WaveIntroTransform, fadeIntro } from './wave-intro';
+
+/**
+ * One placeholder shape a loading indicator painted at the data boundary,
+ * mapped into bitmap space — what a morph-style history reveal grows the
+ * real candles out of. Re-anchored to the boundary every frame, so the
+ * morph stays glued while the user keeps panning.
+ */
+export interface MorphPlaceholder {
+  /** Bar center X, bitmap px. */
+  x: number;
+  /** Bar center Y, bitmap px. */
+  y: number;
+  /** Half the body height, bitmap px. */
+  halfHeight: number;
+  /** Body width, bitmap px. */
+  width: number;
+}
 
 /** Read view of one candlestick intro frame. */
 export interface CandleIntroFrame extends WaveIntroFrame {
   /** Time → bitmap X through the live time scale. */
   timeToX(time: number): number;
+  /**
+   * Placeholder shapes the loading indicator was showing when this history
+   * reveal armed — present only on a history-reveal frame that followed a
+   * loading-indicator hand-off (see `skeletonMorphIntro`). Absent on
+   * initial-load intro frames and on reveals with no hand-off.
+   */
+  placeholders?: readonly MorphPlaceholder[];
 }
 
 /** Arguments handed to {@link CandleIntroDirectives.element} per element. */
@@ -50,6 +75,16 @@ export interface CandleElementTransform extends WaveIntroTransform {
   /** Lerp factor from `anchorY` toward the settled edges: `0` = collapsed
    *  at the anchor, `1` = settled. Applied before the offsets. */
   unfold?: number;
+  /** Absolute top edge override in bitmap px — replaces the `unfold` math
+   *  for this frame (the offsets still apply). Lets a morph start from
+   *  arbitrary geometry instead of the anchor. */
+  topY?: number;
+  /** Absolute bottom edge override in bitmap px — see {@link topY}. */
+  bottomY?: number;
+  /** Blend of the element's fill toward the theme's muted placeholder gray
+   *  (the axis text color): `0` = the candle's own color, `1` = fully
+   *  placeholder-colored. Volume bars ignore it. */
+  tint?: number;
 }
 
 /** What one intro frame should look like. */
@@ -86,6 +121,73 @@ export function candleUnfoldIntro(): CandleIntroFn {
  *  10% overlap keeps the hand-off continuous. */
 const WICK_PHASE_END = 0.55;
 const BODY_PHASE_START = 0.45;
+
+/** Alpha a morphing candle starts at — matches how strongly the skeleton's
+ *  translucent placeholder read against the background. */
+const MORPH_START_ALPHA = 0.35;
+
+/** A candle only morphs from a placeholder standing (nearly) where it lands;
+ *  beyond this many placeholder-widths it plays the fallback reveal. */
+const MORPH_MATCH_RATIO = 1.5;
+
+/**
+ * Skeleton morph: candles that land where the loading indicator's
+ * placeholder bars stood grow out of those exact shapes — geometry eases
+ * from the placeholder body to the real OHLC, fill blends from the muted
+ * placeholder gray to the candle's own color. Candles outside the
+ * placeholder zone (and any reveal with no hand-off, e.g. a custom
+ * indicator that never reports its shapes) play the `fallback` instead —
+ * `fadeIntro()` unless overridden.
+ *
+ * Meant for the `historyReveal` option, paired with an `EdgeLoader` whose
+ * indicator reports placeholders (`skeletonLoadingIndicator` does).
+ */
+export function skeletonMorphIntro(options: { fallback?: CandleIntroFn } = {}): CandleIntroFn {
+  const fallback: CandleIntroFn = options.fallback ?? fadeIntro();
+
+  return (frame) => {
+    const placeholders = frame.placeholders;
+    if (placeholders === undefined || placeholders.length === 0) return fallback(frame);
+
+    const base = fallback(frame);
+
+    return {
+      ...base,
+      element: (el) => {
+        // Wick args carry the thin wick's left edge (≈ the candle center);
+        // body/volume args carry the body's left edge.
+        const center = el.element === 'wick' ? el.x : el.x + el.barWidth / 2;
+
+        let nearest: MorphPlaceholder | null = null;
+        let bestDist = Infinity;
+        for (const ph of placeholders) {
+          const dist = Math.abs(ph.x - center);
+          if (dist < bestDist) {
+            bestDist = dist;
+            nearest = ph;
+          }
+        }
+        if (nearest === null || bestDist > nearest.width * MORPH_MATCH_RATIO) {
+          return base.element?.(el) ?? {};
+        }
+
+        // The placeholder zone sits nearest the boundary, so these candles
+        // ride the front of the reveal wave — `progress` starts moving
+        // immediately while deeper history waits its stagger turn.
+        const progress = el.progress;
+        if (el.element === 'volume') return { alpha: progress };
+
+        return {
+          topY: lerp(nearest.y - nearest.halfHeight, el.topY, progress),
+          bottomY: lerp(nearest.y + nearest.halfHeight, el.bottomY, progress),
+          offsetX: (nearest.x - center) * (1 - progress),
+          alpha: MORPH_START_ALPHA + (1 - MORPH_START_ALPHA) * progress,
+          tint: 1 - progress,
+        };
+      },
+    };
+  };
+}
 
 /** Two-phase reveal: wicks needle out first as a skeleton, then bodies (and
  *  volume) unfold over them from the open price. */

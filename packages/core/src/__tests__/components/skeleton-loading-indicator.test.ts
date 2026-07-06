@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { skeletonLoadingIndicator } from '../../components/loading-indicator';
+import { type PlaceholderBar, skeletonLoadingIndicator } from '../../components/loading-indicator';
 import { buildRenderContext } from '../helpers/render-context';
 
 /**
@@ -157,6 +157,40 @@ describe('skeletonLoadingIndicator', () => {
       edgeValueY: 100,
     });
     expect(unresolved.spy.countOf('stroke')).toBeGreaterThan(0);
+  });
+
+  it('reports one boundary-relative placeholder per drawn bar', () => {
+    const built = buildRenderContext();
+    let reported: PlaceholderBar[] | null = null;
+
+    skeletonLoadingIndicator({
+      scope: built.ctx.scope,
+      theme: built.ctx.theme,
+      chartMediaWidth: 150,
+      chartMediaHeight: 400,
+      now: 0,
+      side: 'left',
+      edgeValueY: 120,
+      barSpacing: 24,
+      reportPlaceholders: (bars) => {
+        reported = bars;
+      },
+    });
+
+    const bars: PlaceholderBar[] = reported ?? [];
+    expect(bars.length).toBeGreaterThanOrEqual(3);
+
+    // Offsets grow away from the boundary (which sits at the stage's right
+    // edge for a left-side loader), one bar gap apart, all positive.
+    expect(bars[0].offsetX).toBeCloseTo(24 * 0.7);
+    expect(bars[1].offsetX).toBeCloseTo(24 * 0.7 + 24);
+    // The nearest bar is centered on the real edge value.
+    expect(bars[0].y).toBeCloseTo(120);
+    for (const bar of bars) {
+      expect(bar.offsetX).toBeGreaterThan(0);
+      expect(bar.halfHeight).toBeGreaterThan(0);
+      expect(bar.width).toBeGreaterThan(0);
+    }
   });
 
   it('skips wick stubs for a line/bar series', () => {

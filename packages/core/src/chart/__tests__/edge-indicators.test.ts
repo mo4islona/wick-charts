@@ -38,6 +38,7 @@ function buildCtx(opts: {
       resolveBoundary: opts.resolveBoundary,
       resolveEdgeAnchor: () => null,
       resolveEdgeBarSpacing: () => null,
+      reportPlaceholders: () => {},
     },
   };
 }

@@ -1,5 +1,8 @@
 import type { AnimationState } from '../animation/viewport-engine';
 import type { BitmapCoordinateSpace } from '../canvas-manager';
+// Type-only — the runtime dependency points the other way (loading-indicator
+// reads SeriesKind from here), so this does not create an import cycle.
+import type { PlaceholderBar } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
@@ -117,6 +120,15 @@ export interface BaseSeriesRenderer {
    * Optional; not all renderers support it.
    */
   prependPoints?(points: unknown[], layerIndex?: number): void;
+
+  /**
+   * Seed the placeholder shapes a loading indicator was showing at the data
+   * boundary, called by the chart right before the matching
+   * {@link prependPoints}. A history reveal that supports morphing (e.g.
+   * `skeletonMorphIntro`) grows the real elements out of these shapes; a
+   * renderer that doesn't implement this simply plays its plain reveal.
+   */
+  setHistoryHandoff?(bars: PlaceholderBar[]): void;
 
   /** Replace the last point in place (live candle update). Optional. */
   updateLastPoint?(point: unknown, layerIndex?: number): void;
