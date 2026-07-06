@@ -428,7 +428,9 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
 
       {/* Tagline */}
       <div style={{ maxWidth: 600 }}>
-        <h2
+        {/* The page's only h1 — the topbar title is blank on Overview, so the
+            hero tagline carries the main keyword phrase for SEO. */}
+        <h1
           style={{
             margin: 0,
             fontSize: mobile ? 14 : 16,
@@ -445,7 +447,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
           <div style={{ flex: '0 auto' }}>
             <FrameworkRotator />
           </div>
-        </h2>
+        </h1>
         <p
           style={{
             margin: '6px 0 0',
@@ -456,7 +458,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
             fontFamily: theme.typography.fontFamily,
           }}
         >
-          A full set of chart types &mdash; streaming in realtime.
+          Candlestick, line, area, bar, pie, heatmap and sparkline charts &mdash; streaming in realtime.
           <br />
           Tiny bundle, zero deps, 20+ themes, fully open source.
         </p>
@@ -694,7 +696,10 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 // ── Page ──────────────────────────────────────────────────────
 
 function ShuffleButton({ onClick, theme, mobile }: { onClick: () => void; theme: ChartTheme; mobile: boolean }) {
-  const accent = theme.line.color;
+  // Hover fills with the theme accent; the label takes the page background
+  // color so the pairing stays inside the theme's own palette.
+  const hoverBg = theme.line.color;
+  const hoverText = theme.tooltip.background;
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: mobile ? '2px 6px' : '2px 12px' }}>
@@ -705,25 +710,27 @@ function ShuffleButton({ onClick, theme, mobile }: { onClick: () => void; theme:
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 7,
+          gap: 10,
           padding: '8px 20px',
           borderRadius: 100,
-          border: `1px solid ${hexToRgba(accent, 0.6)}`,
+          border: `1px solid ${theme.tooltip.borderColor}`,
           background: 'transparent',
-          color: accent,
+          color: theme.tooltip.textColor,
           fontSize: 13,
           fontWeight: 400,
           fontFamily: theme.typography.fontFamily,
           cursor: 'pointer',
-          transition: 'background 0.15s ease, border-color 0.15s ease, transform 0.1s ease',
+          transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = hexToRgba(accent, 0.12);
-          e.currentTarget.style.borderColor = accent;
+          e.currentTarget.style.background = hoverBg;
+          e.currentTarget.style.borderColor = hoverBg;
+          e.currentTarget.style.color = hoverText;
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = hexToRgba(accent, 0.6);
+          e.currentTarget.style.borderColor = theme.tooltip.borderColor;
+          e.currentTarget.style.color = theme.tooltip.textColor;
         }}
         onMouseDown={(e) => {
           e.currentTarget.style.transform = 'scale(0.95)';
