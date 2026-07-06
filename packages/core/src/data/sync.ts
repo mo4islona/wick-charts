@@ -67,6 +67,31 @@ function middleUnchanged<T extends OHLCInput | TimePointInput>(
   return true;
 }
 
+/**
+ * Whether the incoming `data` is the previous data with exactly `added` older
+ * points spliced onto the front and the existing suffix left byte-for-byte
+ * unchanged — the precondition for the cheap `prependData` (history load-more)
+ * path. Proven by matching `prev.data[i]` against `data[added + i]` for the
+ * whole previous array; the length identity guards against a same-time tail
+ * edit sneaking through. Streaming tail growth fails on the first compare
+ * (times differ), so this stays cheap for the common append case.
+ */
+function isFrontPrepend<T extends OHLCInput | TimePointInput>(
+  prevData: readonly (OHLCInput | TimePointInput)[] | null,
+  data: readonly T[],
+  added: number,
+): boolean {
+  // Requires a non-empty prior suffix to anchor: refilling after a clear
+  // (`prevData === []`) is a fresh load that must snap/fit, not a prepend.
+  if (!prevData || prevData.length === 0 || added <= 0 || prevData.length !== data.length - added) return false;
+
+  for (let i = 0; i < prevData.length; i++) {
+    if (!pointEquals(prevData[i] as T, data[added + i])) return false;
+  }
+
+  return true;
+}
+
 /** True for a {@link SeriesLayer} object — an object (not array) carrying a `data` array. */
 function isSeriesLayer<T>(x: unknown): x is SeriesLayer<T> {
   return typeof x === 'object' && x !== null && !Array.isArray(x) && Array.isArray((x as { data?: unknown }).data);
@@ -176,6 +201,8 @@ export interface SyncSeriesLayerArgs<T extends OHLCInput | TimePointInput> {
  *
  *   - rolling-window slide (same length, head dropped + tail appended) →
  *     `appendData` + `keepLast` (eases — no Y snap),
+ *   - history prepend (N older points spliced onto the front, existing suffix
+ *     untouched) → `prependData` (keeps the viewport put — no re-fit or snap),
  *   - bulk load / shrink / window shift → `setSeriesData`,
  *   - in-place last-point update (same length, same boundary timestamps,
  *     and every point but the last proven unchanged) → `updateData`,
@@ -213,6 +240,12 @@ export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: Sync
       chart.appendData(id, data[data.length - 1], layerIndex);
       chart.keepLast(id, data.length, layerIndex);
     });
+  } else if (isFrontPrepend(prev.data, data, added)) {
+    // History load-more: only the front grew, the on-screen suffix is
+    // unchanged. Splice the older points in without a bulk replace so the
+    // viewport stays anchored instead of re-fitting the (now larger) span and
+    // snapping both axes.
+    chart.prependData(id, data.slice(0, added), layerIndex);
   } else if (prev.len === 0 || data.length < prev.len || added > BULK_THRESHOLD || shifted) {
     chart.setSeriesData(id, data, layerIndex);
   } else if (data.length === prev.len) {

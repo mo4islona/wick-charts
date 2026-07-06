@@ -234,6 +234,18 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
   }
 
+  prependPoints(points: unknown[], layerIndex = 0): void {
+    const store = this.stores[layerIndex];
+    if (!store || points.length === 0) return;
+
+    // Insert older history at the front only. Deliberately leaves the intro
+    // wave, per-point entries, live chase and `displayedLastValues` alone —
+    // the visible suffix (including the last point) didn't change, so none of
+    // the reveal/snap machinery `setData` runs should fire.
+    const normalized = normalizeTimePointArray(points as TimePointInput[]) as unknown as TData[];
+    store.prepend(normalized);
+  }
+
   updateLastPoint(point: unknown, layerIndex = 0): void {
     const store = this.stores[layerIndex];
     if (!store) return;

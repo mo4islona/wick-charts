@@ -9,6 +9,7 @@ function mockChart() {
     setSeriesData: vi.fn(),
     updateData: vi.fn(),
     appendData: vi.fn(),
+    prependData: vi.fn(),
     keepLast: vi.fn(),
     batch: vi.fn((fn: () => void) => fn()),
   } as unknown as ChartInstance;
@@ -124,6 +125,59 @@ describe('syncSeriesLayer', () => {
 
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
     expect(chart.appendData).not.toHaveBeenCalled();
+  });
+
+  it('prepends older history (front grew, suffix untouched) via prependData — no bulk replace', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    // 30 older points spliced onto the front; the existing suffix is unchanged.
+    const older = Array.from({ length: 30 }, (_, i) => point(i - 30 + 10));
+    const data = [...older, ...prevData];
+
+    const next = syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).toHaveBeenCalledWith('a', older, undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+    expect(chart.appendData).not.toHaveBeenCalled();
+    expect(next).toEqual({ len: 33, firstTime: older[0].time, lastTime: 12, data });
+  });
+
+  it('prepends even a small (≤ threshold) front growth via prependData, not a same-length replace', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    const data = [point(8), point(9), ...prevData];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).toHaveBeenCalledWith('a', [point(8), point(9)], undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+  });
+
+  it('falls back to setSeriesData when the front grows AND a suffix value changed (not a clean prepend)', () => {
+    const chart = mockChart();
+    const prevData = [point(10), point(11), point(12)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 10, lastTime: 12, data: prevData };
+    // Prepend two older points but also edit the middle of the old suffix.
+    const data = [point(8), point(9), point(10), { time: 11, value: 999 }, point(12)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).not.toHaveBeenCalled();
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+  });
+
+  it('a pure tail burst is not mistaken for a prepend (still appends)', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(2)];
+    const prev: SeriesSyncState = { len: 2, firstTime: 1, lastTime: 2, data: prevData };
+    const data = [point(1), point(2), point(3), point(4)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.prependData).not.toHaveBeenCalled();
+    expect(chart.appendData).toHaveBeenCalledTimes(2);
   });
 
   it('rolling-window slide uses appendData + keepLast (no Y-snapping setSeriesData)', () => {
