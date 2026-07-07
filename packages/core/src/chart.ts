@@ -643,6 +643,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     renderer.onDataChanged?.(() => this.onDataChanged());
     this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true });
     this.#seriesIdCache = null;
+    this.#syncInteractionMode();
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
 
@@ -656,6 +657,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#series[idx].renderer.dispose();
       this.#series.splice(idx, 1);
       this.#seriesIdCache = null;
+      this.#syncInteractionMode();
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
       this.#bumpOverlayVersion();
@@ -1220,6 +1222,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     entry.visible = visible;
     this.#bumpOverlayVersion();
+    this.#syncInteractionMode();
 
     // Renderer-owned alpha fade — kicks off independently of the engine's
     // Y retarget below so the cross-fade lives next to the geometry that
@@ -1565,6 +1568,27 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     return false;
+  }
+
+  /**
+   * Whether pan/zoom gestures currently apply — true when any visible series
+   * has a time axis. Part of the {@link PanZoomTarget} surface: on a
+   * spatial-only chart (pie, heatmap) the interaction layer stops capturing
+   * wheel and touch events, so the page scrolls normally under the cursor.
+   */
+  canPanZoom(): boolean {
+    return this.#hasTimeSeries();
+  }
+
+  /**
+   * Push the current pan/zoom capability into the interaction layer (canvas
+   * `touch-action`). Wheel and mouse gates read {@link canPanZoom} live, but
+   * the CSS must be correct *before* a touch gesture starts — call this from
+   * every mutation that can flip {@link canPanZoom}: series add/remove and
+   * series visibility.
+   */
+  #syncInteractionMode(): void {
+    this.#interactions?.syncPanZoomMode();
   }
 
   /**
