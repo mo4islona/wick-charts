@@ -46,7 +46,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.pan = new PanHandler(target, timeScale, canvas);
 
     canvas.style.cursor = 'crosshair';
-    canvas.style.touchAction = 'none';
+    this.syncPanZoomMode();
 
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('mousedown', this.onMouseDown);
@@ -62,7 +62,27 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     canvas.addEventListener('touchcancel', this.onTouchCancel);
   }
 
+  /** Live read of the target's capability — series can be added or removed at any time. */
+  private panZoomEnabled(): boolean {
+    return this.target.canPanZoom?.() ?? true;
+  }
+
+  /**
+   * Reflect the target's pan/zoom capability into the canvas CSS. While
+   * pan/zoomable, `touch-action: none` hands every touch gesture to the
+   * chart; on a spatial-only target native scrolling stays enabled so the
+   * chart doesn't trap the page. The host re-invokes this whenever the
+   * series mix changes.
+   */
+  syncPanZoomMode(): void {
+    this.canvas.style.touchAction = this.panZoomEnabled() ? 'none' : 'auto';
+  }
+
   private onWheel = (e: WheelEvent): void => {
+    // No time axis to zoom — skip preventDefault so the wheel bubbles on
+    // and the page scrolls as it would anywhere else.
+    if (!this.panZoomEnabled()) return;
+
     this.zoom.handleWheel(e);
   };
 
@@ -71,7 +91,14 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     // timer would fire mid-drag and snap the viewport back (potentially
     // emitting a bogus edgeReached along the way).
     this.zoom.cancelPendingRebound();
-    this.pan.handleMouseDown(e);
+
+    // Spatial-only charts have nothing to pan; skipping the drag also keeps
+    // the cursor from flipping to 'grabbing'. `downClient` is still recorded
+    // — click/tap detection stays live for slice/cell clicks.
+    if (this.panZoomEnabled()) {
+      this.pan.handleMouseDown(e);
+    }
+
     this.downClient = { x: e.clientX, y: e.clientY };
   };
 
@@ -127,6 +154,12 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   private gestureHadTwoFingers = false;
 
   private onTouchStart = (e: TouchEvent): void => {
+    // Spatial-only charts don't own touch gestures: without preventDefault
+    // the page scrolls past the chart, and the browser's own tap-to-click
+    // synthesis (suppressed below on time charts) delivers taps through the
+    // regular 'click' listener instead of the hand-rolled path in onTouchEnd.
+    if (!this.panZoomEnabled()) return;
+
     e.preventDefault();
     // Touch gesture takes over from any pending wheel-idle rebound — see
     // onMouseDown for the same reasoning.
@@ -147,6 +180,9 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private onTouchMove = (e: TouchEvent): void => {
+    // See onTouchStart — spatial-only charts leave touch gestures to the page.
+    if (!this.panZoomEnabled()) return;
+
     e.preventDefault();
     if (e.touches.length === 1 && this.touchCount === 1) {
       this.pan.handleMouseMove({
@@ -207,7 +243,10 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     // finger" goes completely dead until all fingers lift. Drop to
     // single-finger mode and re-seed the pan from the remaining touch (the
     // 2-finger start never began a pan drag, so a fresh mousedown is needed).
-    if (e.touches.length === 1) {
+    // Only for a captured pinch: on a spatial-only chart touchstart never
+    // ran (`touchCount` stays 0), and re-seeding here would arm the tap
+    // timer — a two-finger tap would then synthesize a phantom 'click'.
+    if (e.touches.length === 1 && this.touchCount === 2) {
       this.touchCount = 1;
       this.lastTouchDist = 0;
       this.pan.handleMouseDown({ button: 0, clientX: e.touches[0].clientX } as MouseEvent);
