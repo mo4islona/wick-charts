@@ -113,6 +113,27 @@ describe('Svelte ported props parity', () => {
     result.unmount();
   });
 
+  it('<ChartContainer fade={{top:80}}> forwards the zone to chart.setFade', async () => {
+    const spy = vi.spyOn(ChartInstance.prototype, 'setFade');
+    const result = render(PortedPropsHarness, { variant: 'fade-explicit', candlestickData });
+    await settle();
+
+    expect(spy.mock.calls.some((c) => c[0]?.top === 80)).toBe(true);
+    spy.mockRestore();
+    result.unmount();
+  });
+
+  it('<ChartContainer> with an overlay header keeps the top zone off by default', async () => {
+    const spy = vi.spyOn(ChartInstance.prototype, 'setFade');
+    const result = render(PortedPropsHarness, { variant: 'header-overlay', candlestickData });
+    await settle();
+
+    expect(spy.mock.calls.length).toBeGreaterThan(0);
+    expect(spy.mock.calls.every((c) => c[0]?.top === 0)).toBe(true);
+    spy.mockRestore();
+    result.unmount();
+  });
+
   it('<TimeAxis labelCount minLabelSpacing> calls chart.setTimeAxisLabelDensity with the props', async () => {
     const spy = vi.spyOn(ChartInstance.prototype, 'setTimeAxisLabelDensity');
     const result = render(PortedPropsHarness, {

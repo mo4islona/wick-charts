@@ -19,6 +19,7 @@ import {
   type ChartTheme,
   type CrosshairPosition,
   type EdgeReachedInfo,
+  type FadeConfig,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -27,6 +28,10 @@ import {
 } from '@wick-charts/core';
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
+
+/** Run-out below the measured header (CSS px) for the auto `fade` zone —
+ *  content starts dissolving this far before it slides under the header. */
+const FADE_AUTO_BAND = 24;
 
 import { ChartContext } from './context';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
@@ -121,6 +126,31 @@ export interface ChartContainerProps {
     /** Whether the background grid is rendered. Default: `true`. */
     visible: boolean;
   };
+  /**
+   * Soft fade-out at the top of the plot area, so series content dissolves
+   * under a floating `<Title>` / `<InfoBar>` instead of colliding with it —
+   * a Y-axis spring lag, a streaming spike, or a warm-up burst glides into
+   * transparency. The mask erases canvas alpha rather than painting a cover
+   * color, so it stays correct over the default background gradient. Live.
+   *
+   * Two directions, independently controlled:
+   *
+   * **X (under the axis)** — panning content slides under the Y-axis column
+   * and dissolves instead of hard-clipping at the pane edge. **On by
+   * default** as a 60px ramp that finishes just inside the axis column,
+   * before the label glyphs; `{ right }` overrides the total ramp width in
+   * CSS px (`0` disables). `{ left }` adds the mirror zone at the left pane
+   * edge (default off).
+   *
+   * **Top (under the header)** — opt-in. `true` enables the auto zone
+   * (measured header + 24px run-out, half the header fold-in released so
+   * data rides up into the zone at rest), `{ top }` sets the zone height
+   * explicitly, and `{ overlap }` tunes how many px of the fold-in to
+   * release (0 keeps the strict fold-in). Off unless one of those is set.
+   *
+   * `false` — every mask off, strict edges everywhere.
+   */
+  fade?: boolean | { top?: number; overlap?: number; right?: number; left?: number };
   /**
    * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
    * - `'overlay'` (default): absolute overlays on top of the canvas — the grid
@@ -307,6 +337,7 @@ export function ChartContainer({
   gradient = true,
   interactive,
   grid,
+  fade,
   headerLayout = 'overlay',
   perf,
   animations,
@@ -386,6 +417,18 @@ export function ChartContainer({
     if (perfRef.current !== undefined) options.perf = perfRef.current;
     if (stableAnimations !== undefined) options.animations = stableAnimations;
     if (onEdgeReachedRef.current) options.onEdgeReached = onEdgeReachedRef.current;
+    // Seed the fade config so the very first frame is already correct — the
+    // setFade effect below lands the header-measured top zone, but an
+    // opted-out chart must not flash the default X mask for one paint.
+    if (fade === false) {
+      options.fade = { top: 0, right: 0, left: 0 };
+    } else if (typeof fade === 'object') {
+      const seed: FadeConfig = {};
+      if (fade.top !== undefined) seed.top = fade.top;
+      if (fade.right !== undefined) seed.right = fade.right;
+      if (fade.left !== undefined) seed.left = fade.left;
+      options.fade = seed;
+    }
     chartRef.current = new ChartInstance(containerRef.current, options);
     onReadyRef.current?.(chartRef.current);
 
@@ -433,12 +476,31 @@ export function ChartContainer({
   const topOverlayRef = useRef<HTMLDivElement>(null);
   const [topOverlayHeight, setTopOverlayHeight] = useState(0);
 
+  // Fade resolution — shared by the header fold-in below and the `setFade`
+  // effect further down. The top mask is opt-in: `true`, `{ top }`, or
+  // `{ overlap }` arms it (a pure X config like `{ right: 0 }` does not).
+  // In auto mode the overlap defaults to half the measured header — with the
+  // full fold-in intact the zone would cover only padding, and enabling the
+  // fade would change nothing visible at rest. Explicit `overlap` (including
+  // 0) wins; `overlap` applies only while the mask is on, since without it
+  // data under the header would just recreate the collision the strict
+  // fold-in exists to prevent.
+  const fadeConf = typeof fade === 'object' ? fade : {};
+  const fadeTopRequested =
+    typeof fade === 'object' ? fade.top !== undefined || fade.overlap !== undefined : fade === true;
+  const fadeEnabled = fade !== false && fadeTopRequested;
+  const autoOverlap = topOverlayHeight / 2;
+  const fadeOverlap = fadeEnabled ? Math.max(0, fadeConf.overlap ?? autoOverlap) : 0;
+  const autoFadeTop =
+    headerLayout === 'overlay' && topOverlayHeight > 0 ? topOverlayHeight + FADE_AUTO_BAND : FADE_AUTO_BAND;
+  const resolvedFadeTop = fadeEnabled ? (fadeConf.top ?? autoFadeTop) : 0;
+
   // In 'inline' mode the canvas itself is shorter (browser flex reserves the
   // header height), so adding topOverlayHeight here would double-shift the
   // data. Only the overlay mode needs the fold-in. Depend on `headerExtra`
   // below instead of `topOverlayHeight` so inline-mode header resizes don't
   // fire redundant `chart.setPadding(...)` calls (headerExtra stays 0).
-  const headerExtra = headerLayout === 'overlay' ? topOverlayHeight : 0;
+  const headerExtra = headerLayout === 'overlay' ? Math.max(0, topOverlayHeight - fadeOverlap) : 0;
 
   // useLayoutEffect (not useEffect) so the header-height fold-in lands
   // before the browser paints the chart for the first time. With
@@ -471,6 +533,30 @@ export function ChartContainer({
   }, [grid?.visible]);
 
   const chart = chartRef.current;
+
+  // Edge fades — `chart` is in the deps so a rebuilt instance (a genuine
+  // `animations` change) receives the current zones again; `setFade` no-ops
+  // on unchanged values, so the extra fires are free. useLayoutEffect lands
+  // the zones before the browser paints the first frame with data. Omitting
+  // `right` keeps the core's under-the-axis default armed; only `false`
+  // (every mask off) or an explicit `right` overrides it.
+  const fadeRight = typeof fade === 'object' ? fade.right : undefined;
+  const fadeLeft = typeof fade === 'object' ? fade.left : undefined;
+  const fadeAllOff = fade === false;
+  useLayoutEffect(() => {
+    if (!chart) return;
+
+    if (fadeAllOff) {
+      chart.setFade({ top: 0, right: 0, left: 0 });
+
+      return;
+    }
+
+    const next: FadeConfig = { top: resolvedFadeTop };
+    if (fadeRight !== undefined) next.right = fadeRight;
+    if (fadeLeft !== undefined) next.left = fadeLeft;
+    chart.setFade(next);
+  }, [chart, resolvedFadeTop, fadeRight, fadeLeft, fadeAllOff]);
 
   useEffect(() => {
     if (!chart) return;

@@ -16,6 +16,7 @@ export interface RecordedCall {
   readonly lineWidth: number;
   readonly font: string;
   readonly globalAlpha: number;
+  readonly globalCompositeOperation: GlobalCompositeOperation;
   readonly textAlign: CanvasTextAlign;
   readonly textBaseline: CanvasTextBaseline;
   readonly shadowColor: string;
@@ -134,6 +135,7 @@ export function createRecordingContext(): RecordingContext {
     lineWidth: number;
     font: string;
     globalAlpha: number;
+    globalCompositeOperation: GlobalCompositeOperation;
     textAlign: CanvasTextAlign;
     textBaseline: CanvasTextBaseline;
     shadowColor: string;
@@ -146,6 +148,7 @@ export function createRecordingContext(): RecordingContext {
     lineWidth: state.lineWidth,
     font: state.font,
     globalAlpha: state.globalAlpha,
+    globalCompositeOperation: state.globalCompositeOperation,
     textAlign: state.textAlign,
     textBaseline: state.textBaseline,
     shadowColor: state.shadowColor,

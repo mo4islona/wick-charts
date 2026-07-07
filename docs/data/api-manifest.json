@@ -3364,6 +3364,56 @@
           }
         },
         {
+          "name": "fade",
+          "type": "boolean | { top?: number; overlap?: number; right?: number; left?: number }",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Soft fade-out at the top of the plot area, so series content dissolves\nunder a floating `<Title>` / `<InfoBar>` instead of colliding with it —\na Y-axis spring lag, a streaming spike, or a warm-up burst glides into\ntransparency. The mask erases canvas alpha rather than painting a cover\ncolor, so it stays correct over the default background gradient. Live.\n\nTwo directions, independently controlled:\n\n**X (under the axis)** — panning content slides under the Y-axis column\nand dissolves instead of hard-clipping at the pane edge. **On by\ndefault** as a 60px ramp that finishes just inside the axis column,\nbefore the label glyphs; `{ right }` overrides the total ramp width in\nCSS px (`0` disables). `{ left }` adds the mirror zone at the left pane\nedge (default off).\n\n**Top (under the header)** — opt-in. `true` enables the auto zone\n(measured header + 24px run-out, half the header fold-in released so\ndata rides up into the zone at rest), `{ top }` sets the zone height\nexplicitly, and `{ overlap }` tunes how many px of the fold-in to\nrelease (0 keeps the strict fold-in). Off unless one of those is set.\n\n`false` — every mask off, strict edges everywhere.",
+          "see": [],
+          "nested": {
+            "name": "",
+            "props": [
+              {
+                "name": "top",
+                "type": "number",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "overlap",
+                "type": "number",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "right",
+                "type": "number",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": []
+              },
+              {
+                "name": "left",
+                "type": "number",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
           "name": "headerLayout",
           "type": "'overlay' | 'inline'",
           "optional": true,

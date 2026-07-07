@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import { CandlestickSeries, ChartContainer, TimeAxis, Title, YAxis } from '@wick-charts/react';
+import { CandlestickSeries, ChartContainer, InfoBar, TimeAxis, Title, YAxis } from '@wick-charts/react';
 
 import { generateOHLCData } from '../../data';
 import type { PanelCtx, StressPanel } from './panel';
@@ -70,6 +70,24 @@ function NewDataArrayEveryRender({ theme, perfHud }: PanelCtx) {
   );
 }
 
+function HeaderFadeOverlap({ theme, perfHud }: PanelCtx) {
+  const data = useMemo(() => generateOHLCData(150, 42_000), []);
+
+  // Bare `fade` opts the top mask in: the zone spans the measured header +
+  // 24px and half the header fold-in is released, so candle tops live
+  // inside the dissolve at rest. The X mask under the price axis needs no
+  // opt-in — it's the default everywhere.
+  return (
+    <ChartContainer theme={theme} perf={perfHud?.()} fade>
+      <Title sub="data rides under the header and dissolves">Top fade</Title>
+      <InfoBar />
+      <CandlestickSeries data={data} />
+      <YAxis />
+      <TimeAxis />
+    </ChartContainer>
+  );
+}
+
 export const reactPanels: readonly StressPanel[] = [
   {
     id: 'react-options-ref',
@@ -88,5 +106,11 @@ export const reactPanels: readonly StressPanel[] = [
     title: 'New data array every render',
     hint: 'Same content, new array ref each render. Smart-diff should short-circuit to no-op.',
     render: (ctx) => <NewDataArrayEveryRender {...ctx} />,
+  },
+  {
+    id: 'react-top-fade',
+    title: 'Top fade under the header',
+    hint: 'Opt-in `fade` dissolves candles under Title/InfoBar; the X melt under the price axis when panning is on everywhere by default; `fade={false}` kills both.',
+    render: (ctx) => <HeaderFadeOverlap {...ctx} />,
   },
 ];

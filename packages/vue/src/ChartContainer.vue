@@ -7,6 +7,7 @@ import {
   type ChartTheme,
   type CrosshairPosition,
   type EdgeReachedInfo,
+  type FadeConfig,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -92,6 +93,30 @@ const props = withDefaults(
     /** Background grid configuration. Live. Default: `{ visible: true }`. */
     grid?: { visible: boolean };
     /**
+     * Soft fade-out at the top of the plot area, so series content dissolves
+     * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
+     * The mask erases canvas alpha rather than painting a cover color, so it
+     * stays correct over the default background gradient. Live.
+     *
+     * Two directions, independently controlled:
+     *
+     * **X (under the axis)** — panning content slides under the Y-axis
+     * column and dissolves instead of hard-clipping at the pane edge. **On
+     * by default** as a 60px ramp that finishes just inside the axis
+     * column, before the label glyphs; `{ right }` overrides the total
+     * ramp width in CSS px (`0` disables). `{ left }` adds the mirror zone
+     * at the left pane edge (default off).
+     *
+     * **Top (under the header)** — opt-in. `true` enables the auto zone
+     * (measured header + 24px run-out, half the header fold-in released so
+     * data rides up into the zone at rest), `{ top }` sets the zone height
+     * explicitly, and `{ overlap }` tunes how many px of the fold-in to
+     * release (0 keeps the strict fold-in). Off unless one of those is set.
+     *
+     * `false` — every mask off, strict edges everywhere.
+     */
+    fade?: boolean | { top?: number; overlap?: number; right?: number; left?: number };
+    /**
      * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
      * - `'overlay'` (default): absolute overlays on top of the canvas.
      * - `'inline'`: flex siblings above the canvas — the canvas (and grid) shift down.
@@ -168,6 +193,11 @@ const props = withDefaults(
     // because it already had a default.
     interactive: true,
     headerLayout: 'overlay',
+    // Same Boolean-cast trap, opposite goal: an absent `fade` must stay
+    // `undefined` (keep the core's default X mask armed) and remain
+    // distinguishable from an explicit `:fade="false"` all-off opt-out.
+    // Declaring a default (even `undefined`) suppresses the cast.
+    fade: undefined,
   },
 );
 
@@ -199,9 +229,49 @@ provide(NavigatorAnchorKey, navigatorAnchor);
 let resizeObserver: ResizeObserver | null = null;
 const topOverlayHeight = ref(0);
 
+/** Run-out below the measured header (CSS px) for the auto `fade` zone —
+ *  content starts dissolving this far before it slides under the header. */
+const FADE_AUTO_BAND = 24;
+
+// Fade resolution — shared by the header fold-in below and `applyFade`.
+// Vue casts an absent Boolean-typed prop to `false`, which conveniently is
+// also the "off" value here. `overlap` deliberately applies only while the
+// fade is on: without the mask, letting data ride under the header would
+// just recreate the collision the strict fold-in exists to prevent.
+// The top mask is opt-in: `true`, `{ top }`, or `{ overlap }` arms it (a
+// pure X config like `{ right: 0 }` does not).
+const fadeEnabled = computed(() => {
+  if (props.fade === false) return false;
+
+  return typeof props.fade === 'object'
+    ? props.fade.top !== undefined || props.fade.overlap !== undefined
+    : props.fade === true;
+});
+// Auto overlap: half the measured header — with the full fold-in intact the
+// zone would cover only padding and enabling the fade would change nothing
+// visible at rest. Explicit `overlap` (including 0) wins.
+const fadeOverlap = computed(() => {
+  if (!fadeEnabled.value) return 0;
+
+  const explicit = typeof props.fade === 'object' ? props.fade.overlap : undefined;
+  if (explicit !== undefined) return Math.max(0, explicit);
+
+  return topOverlayHeight.value / 2;
+});
+const resolvedFadeTop = computed(() => {
+  if (!fadeEnabled.value) return 0;
+  if (typeof props.fade === 'object' && props.fade.top !== undefined) return props.fade.top;
+
+  const measured = props.headerLayout === 'overlay' ? topOverlayHeight.value : 0;
+
+  return measured > 0 ? measured + FADE_AUTO_BAND : FADE_AUTO_BAND;
+});
+
 // Inline mode: browser flex already reserves header height, so folding it
 // into padding.top would double-shift the data. Only overlay needs the fold.
-const headerExtra = computed(() => (props.headerLayout === 'overlay' ? topOverlayHeight.value : 0));
+const headerExtra = computed(() =>
+  props.headerLayout === 'overlay' ? Math.max(0, topOverlayHeight.value - fadeOverlap.value) : 0,
+);
 
 function applyPadding() {
   if (!chart.value) return;
@@ -211,6 +281,43 @@ function applyPadding() {
   if (props.padding?.right !== undefined) merged.right = props.padding.right;
   if (props.padding?.left !== undefined) merged.left = props.padding.left;
   chart.value.setPadding(merged);
+}
+
+/** Seed the constructor's fade config so the very first frame is already
+ *  correct — `applyFade` lands the header-measured top zone right after, but
+ *  an opted-out chart must not flash the default X mask for one paint. */
+function seedFadeOption(options: ChartOptions): void {
+  if (props.fade === false) {
+    options.fade = { top: 0, right: 0, left: 0 };
+
+    return;
+  }
+  if (typeof props.fade !== 'object') return;
+
+  const seed: FadeConfig = {};
+  if (props.fade.top !== undefined) seed.top = props.fade.top;
+  if (props.fade.right !== undefined) seed.right = props.fade.right;
+  if (props.fade.left !== undefined) seed.left = props.fade.left;
+  options.fade = seed;
+}
+
+function applyFade() {
+  if (!chart.value) return;
+
+  if (props.fade === false) {
+    chart.value.setFade({ top: 0, right: 0, left: 0 });
+
+    return;
+  }
+
+  // Omitting `right` keeps the core's under-the-axis default armed; only an
+  // explicit value (or the all-off branch above) overrides it.
+  const next: FadeConfig = { top: resolvedFadeTop.value };
+  if (typeof props.fade === 'object') {
+    if (props.fade.right !== undefined) next.right = props.fade.right;
+    if (props.fade.left !== undefined) next.left = props.fade.left;
+  }
+  chart.value.setFade(next);
 }
 
 // Wires up (or tears down) the header-height observer for the current
@@ -268,6 +375,7 @@ onMounted(async () => {
   if (perfAtMount !== undefined) options.perf = perfAtMount;
   if (onEdgeReachedAtMount) options.onEdgeReached = onEdgeReachedAtMount;
   if (props.animations !== undefined) options.animations = props.animations;
+  seedFadeOption(options);
   chart.value = new ChartInstance(containerRef.value, options);
   subscribeDeclarativeEvents(chart.value);
   props.onReady?.(chart.value);
@@ -352,6 +460,7 @@ watch(
     if (perfAtMount !== undefined) opts.perf = perfAtMount;
     if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
     if (next !== undefined) opts.animations = next;
+    seedFadeOption(opts);
     chart.value = new ChartInstance(containerRef.value, opts);
     subscribeDeclarativeEvents(chart.value);
     props.onReady?.(chart.value);
@@ -403,6 +512,12 @@ watch(
   ],
   applyPadding,
 );
+
+// Fade rides the chart identity too, so a rebuilt instance (an `animations`
+// change) receives the current zones again; `setFade` no-ops on unchanged
+// values, so the extra fires are free. `immediate` covers the mount path —
+// the first run lands right after `chart.value` is set.
+watch(() => [chart.value, resolvedFadeTop.value, props.fade] as const, applyFade, { immediate: true });
 
 const rootStyle = computed(() => {
   const t = themeRef.value;
