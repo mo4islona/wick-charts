@@ -14,6 +14,17 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
 
+/**
+ * Entrance entries prune against the real wall clock (`performance.now()`),
+ * and `rerender()` drains every queued animation frame before returning. On a
+ * slow coverage-instrumented CI runner that drain can outlast the default
+ * 250ms `entryMs`, silently completing and pruning the very entries these
+ * tests assert on. Pinning an hour-long entry keeps registration observable
+ * on any machine — the subject here is the appendData/setSeriesData routing,
+ * not the tween's duration.
+ */
+const ENTRY_MS_PINNED = 3_600_000;
+
 describe('streaming data routes new points through appendData (entrance animations fire)', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
   afterEach(() => {
@@ -57,7 +68,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, {
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryMs: ENTRY_MS_PINNED }} />, {
       width: 800,
       height: 400,
     });
@@ -69,7 +80,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       ...initial,
       { time: 1_000_000 + 10 * 60_000, open: 101, high: 106, low: 100, close: 105 },
     ];
-    mounted.rerender(<CandlestickSeries id={sid} data={next} />);
+    mounted.rerender(<CandlestickSeries id={sid} data={next} options={{ entryMs: ENTRY_MS_PINNED }} />);
     expect(entranceProgressFor(mounted.chart, sid).size).toBeGreaterThan(0);
   });
 
@@ -82,7 +93,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, {
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryMs: ENTRY_MS_PINNED }} />, {
       width: 800,
       height: 400,
     });
@@ -93,7 +104,7 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 10; i < 20; i++) {
       next.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(<CandlestickSeries id={sid} data={next} />);
+    mounted.rerender(<CandlestickSeries id={sid} data={next} options={{ entryMs: ENTRY_MS_PINNED }} />);
 
     // Synchronous assertion: entrance progress was claimed for each of the
     // 10 new candle times. Engine has populated `state.entryProgress` after
@@ -140,10 +151,17 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />, {
-      width: 800,
-      height: 400,
-    });
+    mounted = mountChart(
+      <CandlestickSeries
+        id={sid}
+        data={initial}
+        options={{ entryAnimation: 'fade-unfold', entryMs: ENTRY_MS_PINNED }}
+      />,
+      {
+        width: 800,
+        height: 400,
+      },
+    );
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -151,7 +169,9 @@ describe('streaming data routes new points through appendData (entrance animatio
       ...initial,
       { time: 1_000_000 + 10 * 60_000, open: 101, high: 106, low: 100, close: 105 },
     ];
-    mounted.rerender(<CandlestickSeries id={sid} data={next} options={{ entryAnimation: 'fade-unfold' }} />);
+    mounted.rerender(
+      <CandlestickSeries id={sid} data={next} options={{ entryAnimation: 'fade-unfold', entryMs: ENTRY_MS_PINNED }} />,
+    );
     // rerender + useLayoutEffect schedule RAF work; flushScheduler then drains
     // every queued animation frame to completion. Assert against the full
     // history — if ANY frame during the entrance window recorded a sub-1
@@ -176,10 +196,17 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryAnimation: 'fade-unfold' }} />, {
-      width: 800,
-      height: 400,
-    });
+    mounted = mountChart(
+      <CandlestickSeries
+        id={sid}
+        data={initial}
+        options={{ entryAnimation: 'fade-unfold', entryMs: ENTRY_MS_PINNED }}
+      />,
+      {
+        width: 800,
+        height: 400,
+      },
+    );
     mounted.flushScheduler();
     mounted.mainSpy.reset();
 
@@ -189,7 +216,9 @@ describe('streaming data routes new points through appendData (entrance animatio
     for (let i = 50; i < 58; i++) {
       burst.push({ time: 1_000_000 + i * 60_000, open: 101, high: 106, low: 100, close: 105 });
     }
-    mounted.rerender(<CandlestickSeries id={sid} data={burst} options={{ entryAnimation: 'fade-unfold' }} />);
+    mounted.rerender(
+      <CandlestickSeries id={sid} data={burst} options={{ entryAnimation: 'fade-unfold', entryMs: ENTRY_MS_PINNED }} />,
+    );
 
     // Before any RAF drains: engine.entryProgress must be populated for
     // all 8 new candles (one entrance event per appendData call).
@@ -211,7 +240,7 @@ describe('streaming data routes new points through appendData (entrance animatio
       <LineSeries
         id={sid}
         data={initial}
-        options={{ area: { visible: false }, entryAnimation: 'grow', entryMs: 400 }}
+        options={{ area: { visible: false }, entryAnimation: 'grow', entryMs: ENTRY_MS_PINNED }}
       />,
       { width: 800, height: 400 },
     );
@@ -220,7 +249,11 @@ describe('streaming data routes new points through appendData (entrance animatio
 
     const next: TimePoint[][] = [[...initial[0], { time: 1_000_000 + 20 * 60_000, value: 25 }]];
     mounted.rerender(
-      <LineSeries id={sid} data={next} options={{ area: { visible: false }, entryAnimation: 'grow', entryMs: 400 }} />,
+      <LineSeries
+        id={sid}
+        data={next}
+        options={{ area: { visible: false }, entryAnimation: 'grow', entryMs: ENTRY_MS_PINNED }}
+      />,
     );
 
     // Entry should be registered in engine state immediately.
@@ -247,7 +280,10 @@ describe('streaming data routes new points through appendData (entrance animatio
       close: 101,
     }));
     const sid = 'candle';
-    mounted = mountChart(<CandlestickSeries id={sid} data={initial} />, { width: 800, height: 400 });
+    mounted = mountChart(<CandlestickSeries id={sid} data={initial} options={{ entryMs: ENTRY_MS_PINNED }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
 
     // Simulate capArray rolling-window: drop oldest, append new.
@@ -258,7 +294,7 @@ describe('streaming data routes new points through appendData (entrance animatio
     expect(rolled.length).toBe(initial.length);
     expect(rolled[0].time).not.toBe(initial[0].time);
 
-    mounted.rerender(<CandlestickSeries id={sid} data={rolled} />);
+    mounted.rerender(<CandlestickSeries id={sid} data={rolled} options={{ entryMs: ENTRY_MS_PINNED }} />);
 
     // Entrance entry for the newly-appended tail must be registered in
     // engine state even though the array length didn't grow.
@@ -272,14 +308,17 @@ describe('streaming data routes new points through appendData (entrance animatio
       Array.from({ length: MAX }, (_, i) => ({ time: 1_000_000 + i * 60_000, value: i + 1 })),
     ];
     const sid = 'line';
-    mounted = mountChart(<LineSeries id={sid} data={initial} />, { width: 800, height: 400 });
+    mounted = mountChart(<LineSeries id={sid} data={initial} options={{ entryMs: ENTRY_MS_PINNED }} />, {
+      width: 800,
+      height: 400,
+    });
     mounted.flushScheduler();
 
     const rolled: TimePoint[][] = [[...initial[0].slice(1), { time: 1_000_000 + MAX * 60_000, value: MAX + 1 }]];
     expect(rolled[0].length).toBe(initial[0].length);
     expect(rolled[0][0].time).not.toBe(initial[0][0].time);
 
-    mounted.rerender(<LineSeries id={sid} data={rolled} />);
+    mounted.rerender(<LineSeries id={sid} data={rolled} options={{ entryMs: ENTRY_MS_PINNED }} />);
 
     const entries = entranceProgressFor(mounted.chart, sid);
     expect(entries.has(1_000_000 + MAX * 60_000)).toBe(true);
@@ -290,14 +329,14 @@ describe('streaming data routes new points through appendData (entrance animatio
       Array.from({ length: 5 }, (_, i) => ({ time: 1_000_000 + i * 60_000, value: i + 1 })),
     ];
     const sid = 'line';
-    mounted = mountChart(<LineSeries id={sid} data={initial} />, {
+    mounted = mountChart(<LineSeries id={sid} data={initial} options={{ entryMs: ENTRY_MS_PINNED }} />, {
       width: 800,
       height: 400,
     });
     mounted.flushScheduler();
 
     const next: TimePoint[][] = [[...initial[0], { time: 1_000_000 + 5 * 60_000, value: 6 }]];
-    mounted.rerender(<LineSeries id={sid} data={next} />);
+    mounted.rerender(<LineSeries id={sid} data={next} options={{ entryMs: ENTRY_MS_PINNED }} />);
 
     const entries = entranceProgressFor(mounted.chart, sid);
     expect(entries.size).toBeGreaterThan(0);
