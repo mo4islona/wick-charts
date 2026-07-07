@@ -7,6 +7,7 @@ import {
   type ChartTheme,
   type CrosshairPosition,
   type EdgeReachedInfo,
+  type FadeConfig,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -68,6 +69,31 @@ export let gradient: boolean = true;
 export let interactive: boolean | undefined = undefined;
 /** Background grid configuration. Live. Default: `{ visible: true }`. */
 export let grid: { visible: boolean } | undefined = undefined;
+/**
+ * Soft fade-out at the top of the plot area, so series content dissolves
+ * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
+ * The mask erases canvas alpha rather than painting a cover color, so it
+ * stays correct over the default background gradient. Live.
+ *
+ * Two directions, independently controlled:
+ *
+ * **X (under the axis)** — panning content slides under the Y-axis column
+ * and dissolves instead of hard-clipping at the pane edge. **On by
+ * default** as a 60px ramp that finishes just inside the axis column,
+ * before the label glyphs; `{ right }` overrides the total ramp width in
+ * CSS px (`0` disables). `{ left }` adds the mirror zone at the left pane
+ * edge (default off).
+ *
+ * **Top (under the header)** — opt-in. `true` enables the auto zone
+ * (measured header + 24px run-out, half the header fold-in released so
+ * data rides up into the zone at rest), `{ top }` sets the zone height
+ * explicitly, and `{ overlap }` tunes how many px of the fold-in to
+ * release (0 keeps the strict fold-in). Off unless one of those is set.
+ *
+ * `false` — every mask off, strict edges everywhere.
+ */
+// biome-ignore format: keep the inline shape so the parity checker matches React's type string verbatim
+export let fade: boolean | { top?: number; overlap?: number; right?: number; left?: number } | undefined = undefined;
 /**
  * How `<Title>` and `<InfoBar>` are positioned relative to the canvas. Live.
  * - `'overlay'` (default): absolute overlays on top of the canvas.
@@ -157,9 +183,41 @@ let instance: ChartInstance | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let topOverlayHeight = 0;
 
+/** Run-out below the measured header (CSS px) for the auto `fade` zone —
+ *  content starts dissolving this far before it slides under the header. */
+const FADE_AUTO_BAND = 24;
+
+// Fade resolution — shared by the header fold-in below and `applyFade`.
+// `overlap` deliberately applies only while the fade is on: without the
+// mask, letting data ride under the header would just recreate the
+// collision the strict fold-in exists to prevent.
+// The top mask is opt-in: `true`, `{ top }`, or `{ overlap }` arms it (a
+// pure X config like `{ right: 0 }` does not).
+$: fadeTopRequested = typeof fade === 'object' ? fade.top !== undefined || fade.overlap !== undefined : fade === true;
+$: fadeEnabled = fade !== false && fadeTopRequested;
+// Auto overlap: half the measured header — with the full fold-in intact the
+// zone would cover only padding and enabling the fade would change nothing
+// visible at rest. Explicit `overlap` (including 0) wins.
+$: fadeOverlap = (() => {
+  if (!fadeEnabled) return 0;
+
+  const explicit = typeof fade === 'object' ? fade.overlap : undefined;
+  if (explicit !== undefined) return Math.max(0, explicit);
+
+  return topOverlayHeight / 2;
+})();
+$: resolvedFadeTop = (() => {
+  if (!fadeEnabled) return 0;
+  if (typeof fade === 'object' && fade.top !== undefined) return fade.top;
+
+  const measured = headerLayout === 'overlay' ? topOverlayHeight : 0;
+
+  return measured > 0 ? measured + FADE_AUTO_BAND : FADE_AUTO_BAND;
+})();
+
 // Inline mode: browser flex already reserves header height, so folding it
 // into padding.top would double-shift the data. Only overlay needs the fold.
-$: headerExtra = headerLayout === 'overlay' ? topOverlayHeight : 0;
+$: headerExtra = headerLayout === 'overlay' ? Math.max(0, topOverlayHeight - fadeOverlap) : 0;
 
 function applyPadding() {
   if (!instance) return;
@@ -177,6 +235,25 @@ function applyPadding() {
 const perfAtMount = perf;
 // Same mount-only capture for the edge callback — the chart binds it once.
 const onEdgeReachedAtMount = onEdgeReached;
+
+/** Seed the constructor's fade config so the very first frame is already
+ *  correct — the reactive setFade block lands the header-measured top zone
+ *  right after, but an opted-out chart must not flash the default X mask
+ *  for one paint. */
+function seedFadeOption(options: ChartOptions): void {
+  if (fade === false) {
+    options.fade = { top: 0, right: 0, left: 0 };
+
+    return;
+  }
+  if (typeof fade !== 'object') return;
+
+  const seed: FadeConfig = {};
+  if (fade.top !== undefined) seed.top = fade.top;
+  if (fade.right !== undefined) seed.right = fade.right;
+  if (fade.left !== undefined) seed.left = fade.left;
+  options.fade = seed;
+}
 
 // Wires up (or tears down) the header-height observer for the current
 // `headerLayout`. Called on mount AND whenever `headerLayout` flips at
@@ -232,6 +309,7 @@ onMount(() => {
   if (perfAtMount !== undefined) options.perf = perfAtMount;
   if (onEdgeReachedAtMount) options.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) options.animations = animations;
+  seedFadeOption(options);
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
   subscribeDeclarativeEvents(instance);
@@ -311,6 +389,7 @@ async function rebuildChartFromAnimations() {
   if (perfAtMount !== undefined) opts.perf = perfAtMount;
   if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) opts.animations = animations;
+  seedFadeOption(opts);
   instance = new ChartInstance(containerEl, opts);
   subscribeDeclarativeEvents(instance);
   chartStore.set(instance);
@@ -358,6 +437,22 @@ $: if (instance) {
   void padding;
   void headerExtra;
   applyPadding();
+}
+
+// Fade rides the instance identity too, so a rebuilt chart (an `animations`
+// change) receives the current zones again; `setFade` no-ops on unchanged
+// values, so the extra runs are free. Omitting `right` keeps the core's
+// under-the-axis default armed; only `false` (every mask off) or an
+// explicit `right` overrides it.
+$: if (instance) {
+  if (fade === false) {
+    instance.setFade({ top: 0, right: 0, left: 0 });
+  } else {
+    const next: FadeConfig = { top: resolvedFadeTop };
+    if (typeof fade === 'object' && fade.right !== undefined) next.right = fade.right;
+    if (typeof fade === 'object' && fade.left !== undefined) next.left = fade.left;
+    instance.setFade(next);
+  }
 }
 
 $: gradientBg = (() => {

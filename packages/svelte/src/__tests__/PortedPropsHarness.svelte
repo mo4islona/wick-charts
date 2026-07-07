@@ -24,6 +24,7 @@ export let variant:
   | 'header-overlay'
   | 'header-inline'
   | 'padded'
+  | 'fade-explicit'
   | 'time-axis-density'
   | 'time-axis-default'
   | 'y-axis-density'
@@ -64,6 +65,10 @@ export let yLabelCount: number | undefined = undefined;
   <ChartContainer theme={catppuccin.theme} padding={{ top: 20 }} headerLayout="inline">
     <Title>BTC</Title>
     <InfoBar />
+    <CandlestickSeries data={candlestickData} />
+  </ChartContainer>
+{:else if variant === 'fade-explicit'}
+  <ChartContainer theme={catppuccin.theme} fade={{ top: 80 }}>
     <CandlestickSeries data={candlestickData} />
   </ChartContainer>
 {:else if variant === 'time-axis-density'}

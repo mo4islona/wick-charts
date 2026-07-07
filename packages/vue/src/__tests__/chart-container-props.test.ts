@@ -298,6 +298,130 @@ describe('Vue <ChartContainer> ported props', () => {
     setPadding.mockRestore();
   });
 
+  it('the top zone stays off by default even with an overlay header', async () => {
+    const setFade = vi.spyOn(ChartInstance.prototype, 'setFade');
+
+    // No `fade` prop at all — the withDefaults(undefined) entry must keep
+    // Vue's Boolean cast from turning "absent" into an explicit all-off
+    // opt-out; absent means "top off, X on its core default".
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(Title, null, () => 'BTC'),
+            h(InfoBar),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const calls = setFade.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[calls.length - 1][0]?.top).toBe(0);
+    // `right` untouched — the core keeps its under-the-axis default armed.
+    expect(calls[calls.length - 1][0]?.right).toBeUndefined();
+
+    wrapper.unmount();
+    setFade.mockRestore();
+  });
+
+  it('fade=false opts back out under a header', async () => {
+    const setFade = vi.spyOn(ChartInstance.prototype, 'setFade');
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, fade: false }, () => [
+            h(Title, null, () => 'BTC'),
+            h(InfoBar),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const calls = setFade.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[calls.length - 1][0]?.top).toBe(0);
+
+    wrapper.unmount();
+    setFade.mockRestore();
+  });
+
+  it('fade={top:80} forwards the explicit zone to chart.setFade', async () => {
+    const setFade = vi.spyOn(ChartInstance.prototype, 'setFade');
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, fade: { top: 80 } }, () => [
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect(setFade.mock.calls.some((c) => c[0]?.top === 80)).toBe(true);
+
+    wrapper.unmount();
+    setFade.mockRestore();
+  });
+
+  it('fade=true resolves to the measured header height plus the 24px run-out', async () => {
+    const setFade = vi.spyOn(ChartInstance.prototype, 'setFade');
+
+    // The rect patch makes the overlay header strip measure as the full
+    // 400px host, so the auto zone must land at 400 + 24.
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, fade: true }, () => [
+            h(Title, null, () => 'BTC'),
+            h(InfoBar),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const calls = setFade.mock.calls;
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[calls.length - 1][0]?.top).toBe(400 + 24);
+
+    wrapper.unmount();
+    setFade.mockRestore();
+  });
+
+  it('fade overlap releases part of the header padding fold-in', async () => {
+    const setPadding = vi.spyOn(ChartInstance.prototype, 'setPadding');
+
+    // The rect patch makes the overlay header measure as the full 400px host
+    // — a jsdom artifact, but a deterministic one: without overlap the
+    // fold-in lands at 20 + 400, with overlap 12 it must land at 20 + 388.
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, fade: { overlap: 12 } }, () => [
+            h(Title, null, () => 'BTC'),
+            h(InfoBar),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const tops = setPadding.mock.calls.map((c) => c[0]?.top);
+    expect(tops.length).toBeGreaterThan(0);
+    expect(tops[tops.length - 1]).toBe(20 + 400 - 12);
+
+    wrapper.unmount();
+    setPadding.mockRestore();
+  });
+
   it('headerLayout="overlay" with right-side <Legend> keeps the row layout intact', async () => {
     const App = defineComponent({
       setup() {

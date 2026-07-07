@@ -28,7 +28,15 @@ export type { MountAxisLabelsOptions } from './axis/dom-labels';
 export { mountAxisLabels } from './axis/dom-labels';
 // Bitmap-space geometry a custom series' `render(ctx)` draws into — see `ctx.scope`.
 export type { BitmapCoordinateSpace } from './canvas-manager';
-export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, PointClickInfo, SeriesHoverInfo } from './chart';
+export type {
+  ChartOptions,
+  EdgeReachedInfo,
+  EdgeSide,
+  EdgeState,
+  FadeConfig,
+  PointClickInfo,
+  SeriesHoverInfo,
+} from './chart';
 export { ChartInstance } from './chart';
 export type {
   BadgeChartQuery,

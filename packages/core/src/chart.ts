@@ -10,8 +10,10 @@ import {
   type EdgeReachedInfo,
   type EdgeSide,
   type EdgeState,
+  type ResolvedFade,
   type ResolvedPadding,
   isSameHorizontalPadding,
+  resolveFade,
   resolveMaxVisibleBars,
   resolvePadding,
   resolvePerfOptions,
@@ -37,6 +39,7 @@ import { InteractionHandler } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
 import type { PerfMonitor } from './perf';
 import { RenderScheduler } from './render-scheduler';
+import type { TickTrackerSnapshot } from './scales/tick-tracker';
 import { XScale } from './scales/x-scale';
 import { YScale } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
@@ -72,7 +75,7 @@ import type {
 import { clamp } from './utils/math';
 import { detectInterval, normalizeTime } from './utils/time';
 
-export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState } from './chart/options';
+export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig } from './chart/options';
 
 /** Exit-fade duration for the edge `loading` indicator — long enough to read
  *  as a hand-off to the arriving data's reveal, short enough not to linger
@@ -85,6 +88,29 @@ const EDGE_EXIT_FADE_MS = 200;
  *  fresh fetch always qualifies; a stale snapshot from a long-finished load
  *  must not anchor a morph for an unrelated prepend. */
 const EDGE_HANDOFF_FRESH_MS = 1500;
+
+/** Lead-in the auto right fade runs inside the pane (CSS px): the dissolve
+ *  ramp starts this far before the Y-axis column, so the exit reads as a
+ *  melt instead of a cliff right after the pane edge. Kept short — the
+ *  newest candles live at the right edge, and a long ramp visibly washes
+ *  them out at rest; paired with the ease-in cube below, dimming inside the
+ *  pane stays subtle and the aggressive erase concentrates under the axis
+ *  column. */
+const RIGHT_FADE_LEAD_IN_PX = 48;
+
+/** Where the right fade ramp *finishes*, in CSS px past the pane edge. The
+ *  Y-axis labels are right-anchored 8px from the canvas edge, so with the
+ *  default 55px column a typical 5-digit price's glyphs start ~13-15px past
+ *  the pane edge — the ramp completes just before that, and content never
+ *  crosses the axis text at visible opacity. */
+const RIGHT_FADE_END_GAP_PX = 12;
+
+/** How far the vertical gridlines run past the pane floor (CSS px), toward
+ *  the time-axis labels. Mirrors the X-fade treatment of the horizontal
+ *  gridlines under the Y-axis column: the stubs dissolve to transparent
+ *  along this run and are fully gone before the label glyphs — centered in
+ *  the default 30px axis row, their cap height starts ~10px down. */
+const GRID_TAIL_PX = 9;
 
 /**
  * Payload for `pointClick` / `pointDoubleClick`. `spatialHit` resolves a
@@ -256,6 +282,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #theme: ChartTheme;
   /** Whether to render the background grid. */
   #grid: boolean;
+  /** Resolved edge-fade zones — `right: null` tracks the live Y-axis width. */
+  #fade: ResolvedFade;
+  /** Memoized destination-out mask gradients, one per edge, keyed by the
+   *  zone's bitmap geometry so a resize / DPR change / `setFade` rebuilds
+   *  them and steady frames reuse them. */
+  #fadeGradientCache: {
+    top: { height: number; gradient: CanvasGradient } | null;
+    right: { start: number; width: number; gradient: CanvasGradient } | null;
+    left: { width: number; gradient: CanvasGradient } | null;
+    /** Erase ramp for the below-pane gridline tail stubs. */
+    tail: { start: number; height: number; gradient: CanvasGradient } | null;
+  } = { top: null, right: null, left: null, tail: null };
   /** Detected time interval between data points (milliseconds). */
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
@@ -421,6 +459,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
     this.#theme = options?.theme ?? catppuccin.theme;
     this.#grid = options?.grid?.visible !== false;
+    this.#fade = resolveFade(options?.fade);
     this.#animationsConfig = AnimationConfig.resolve(options?.animations);
     this.#maxVisibleBars = resolveMaxVisibleBars(options?.viewport?.maxVisibleBars);
     this.#padding = resolvePadding(options?.padding);
@@ -1923,6 +1962,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * Set or clear the edge fade masks (see {@link ChartOptions.fade}).
+   * Content the main layer draws inside a zone dissolves toward that edge.
+   * `right` omitted re-arms its default (track the Y-axis width); pass
+   * `{ top: 0, right: 0, left: 0 }` to turn every mask off. Takes effect on
+   * the next render frame.
+   */
+  setFade(fade: ChartOptions['fade']): void {
+    const next = resolveFade(fade);
+    const prev = this.#fade;
+    if (next.top === prev.top && next.right === prev.right && next.left === prev.left) return;
+
+    this.#fade = next;
+    this.#mainScheduler.markDirty();
+  }
+
+  /**
    * Set the visual state for one side of the chart. Typically called in
    * response to the `onEdgeReached` callback:
    *   - `loading` while a history fetch is in flight,
@@ -2844,7 +2899,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       context.save();
       context.beginPath();
-      context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
+      // The clip widens by the right-fade intrusion so panning content can
+      // slide under the Y-axis column before the mask below dissolves it.
+      const rightFade = this.#rightFadeZone(scope, chartBitmapWidth);
+      context.rect(0, 0, chartBitmapWidth + rightFade.intrusion, chartBitmapHeight);
       context.clip();
 
       // Diff current tick sets against the previous frame's and route the
@@ -2933,6 +2991,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
 
       context.restore();
+
+      // Gridline tail stubs below the pane floor — drawn outside the pane
+      // clip, before the X fades so a stub near the right edge melts under
+      // the Y-axis column in step with its line above.
+      this.#drawGridTails({
+        scope,
+        paneBitmapWidth: chartBitmapWidth,
+        paneBitmapHeight: chartBitmapHeight,
+        timeTicks: timeTickSnap,
+      });
+
+      // Last passes on the main layer: dissolve everything drawn above into
+      // the fade zones. Run outside the pane clip on purpose — the top mask
+      // spans the full bitmap width and the right mask lives entirely in the
+      // axis column the clip extension opened up.
+      this.#applyTopFade(scope, chartBitmapHeight);
+      this.#applyXFades(scope, chartBitmapWidth);
     });
 
     // Advance the overlay-intro latch every main frame, not just when an
@@ -2971,6 +3046,225 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.yScale.tickTracker.markArmed();
       this.timeScale.tickTracker.markArmed();
     }
+  }
+
+  /**
+   * Erase the main layer's alpha across the top fade zone so content
+   * dissolves as it approaches the top edge. `destination-out` multiplies
+   * the already-painted pixels by the mask's inverse alpha — an *erase*, not
+   * a paint-over — so the container background behind the canvas (solid or
+   * CSS gradient) shows through untouched.
+   */
+  #applyTopFade(scope: BitmapCoordinateSpace, paneBitmapHeight: number): void {
+    if (this.#fade.top <= 0) return;
+
+    // Clamp to the pane so an oversized zone (an auto header-sized fade on a
+    // short sparkline) can't erase the whole chart.
+    const height = Math.min(Math.round(this.#fade.top * scope.verticalPixelRatio), Math.round(paneBitmapHeight));
+    if (height < 1) return;
+
+    const { context } = scope;
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = this.#topFadeGradient(context, height);
+    context.fillRect(0, 0, scope.bitmapSize.width, height);
+    context.restore();
+  }
+
+  /**
+   * Run the vertical gridlines a short stub past the pane floor, dissolving
+   * to transparent on the way to the time-axis labels — the bottom-edge
+   * mirror of the horizontal gridlines melting under the Y-axis column.
+   * Drawn outside the pane clip (the stubs live below the pane, where
+   * nothing else paints) and faded with the same destination-out ramp the
+   * edge masks use, so the taper stays correct over any background.
+   */
+  #drawGridTails(args: {
+    scope: BitmapCoordinateSpace;
+    paneBitmapWidth: number;
+    paneBitmapHeight: number;
+    timeTicks: TickTrackerSnapshot;
+  }): void {
+    if (!this.#grid || this.xAxisHeight === 0) return;
+
+    const { scope, paneBitmapWidth, paneBitmapHeight, timeTicks } = args;
+    const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
+    const start = Math.round(paneBitmapHeight);
+    const height = Math.round(GRID_TAIL_PX * verticalPixelRatio);
+    if (height < 1) return;
+
+    const grid = this.#theme.grid;
+    context.save();
+
+    context.strokeStyle = grid.color;
+    if (grid.style === 'dashed') {
+      context.setLineDash([4 * horizontalPixelRatio, 4 * horizontalPixelRatio]);
+    } else if (grid.style === 'dotted') {
+      context.setLineDash([1 * horizontalPixelRatio, 3 * horizontalPixelRatio]);
+    }
+    // Continue the dash phase of the full-height line above instead of
+    // restarting the pattern at the pane edge.
+    context.lineDashOffset = start;
+
+    const lineWidth = Math.max(1, Math.round(horizontalPixelRatio));
+    const half = lineWidth % 2 === 1 ? 0.5 : 0;
+    context.lineWidth = lineWidth;
+
+    const paneWidth = Math.round(paneBitmapWidth);
+    for (const { value, opacity } of timeTicks.entries) {
+      if (opacity <= 0.01) continue;
+
+      const x = Math.round(this.timeScale.timeToBitmapX(value)) + half;
+      if (x < 0 || x > paneWidth) continue;
+
+      context.globalAlpha = opacity;
+      context.beginPath();
+      context.moveTo(x, start);
+      context.lineTo(x, start + height);
+      context.stroke();
+    }
+
+    // Taper the stubs: nothing erased at the pane floor, total at the tip.
+    context.globalAlpha = 1;
+    context.setLineDash([]);
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = this.#tailFadeGradient({ context, start, height });
+    context.fillRect(0, start, scope.bitmapSize.width, height);
+    context.restore();
+  }
+
+  /**
+   * Horizontal companions to {@link #applyTopFade}: dissolve content that
+   * rides under the Y-axis column on the right (the pane clip is widened by
+   * the same zone) and, when configured, content leaving through the left
+   * pane edge. Same destination-out erase — background-safe over gradients.
+   * Runs the full bitmap height so the below-pane gridline tail stubs melt
+   * at the edges in step with their lines above.
+   */
+  #applyXFades(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
+    const { context } = scope;
+    const height = scope.bitmapSize.height;
+
+    const zone = this.#rightFadeZone(scope, paneBitmapWidth);
+    if (zone.width >= 1) {
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      context.fillStyle = this.#rightFadeGradient({ context, start: zone.start, width: zone.width });
+      context.fillRect(zone.start, 0, zone.width, height);
+      context.restore();
+    }
+
+    const left = Math.min(Math.round(this.#fade.left * scope.horizontalPixelRatio), Math.round(paneBitmapWidth));
+    if (left >= 1) {
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      context.fillStyle = this.#leftFadeGradient(context, left);
+      context.fillRect(0, 0, left, height);
+      context.restore();
+    }
+  }
+
+  /**
+   * Bitmap geometry of the right fade zone. The ramp finishes just inside
+   * the Y-axis column — {@link RIGHT_FADE_END_GAP_PX} past the pane edge,
+   * still short of where the right-anchored label glyphs start — so content
+   * is fully erased before it can cross any axis text. Everything wider
+   * spills backward into the pane as the soft lead-in. `width: 0` (axis
+   * hidden, or `right: 0`) means no zone; `intrusion` is what the pane clip
+   * extends by (content past the ramp is total-erased anyway, so the clip
+   * stops with the ramp).
+   */
+  #rightFadeZone(
+    scope: BitmapCoordinateSpace,
+    paneBitmapWidth: number,
+  ): { start: number; width: number; intrusion: number } {
+    const off = { start: 0, width: 0, intrusion: 0 };
+    const column = Math.max(0, Math.round(scope.bitmapSize.width - paneBitmapWidth));
+    if (column === 0) return off;
+
+    const hpr = scope.horizontalPixelRatio;
+    const intrusion = Math.min(Math.round(RIGHT_FADE_END_GAP_PX * hpr), column);
+    const total =
+      this.#fade.right === null
+        ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr)
+        : Math.round(this.#fade.right * hpr);
+    if (total < 1) return off;
+
+    const end = paneBitmapWidth + intrusion;
+    const width = Math.min(total, end);
+
+    return { start: end - width, width, intrusion };
+  }
+
+  /** Memoized mask gradient — rebuilt only when the bitmap zone height
+   *  changes (resize, DPR change, `setFade`). Ease-out ramp (`1 - t²`):
+   *  near-total erasure across the upper half keeps a floating header
+   *  legible, then a soft tail into full opacity at the zone's bottom. */
+  #topFadeGradient(context: CanvasRenderingContext2D, height: number): CanvasGradient {
+    const cached = this.#fadeGradientCache.top;
+    if (cached !== null && cached.height === height) return cached.gradient;
+
+    const gradient = context.createLinearGradient(0, 0, 0, height);
+    for (let i = 0; i <= 4; i++) {
+      const t = i / 4;
+      gradient.addColorStop(t, `rgba(0, 0, 0, ${1 - t * t})`);
+    }
+    this.#fadeGradientCache.top = { height, gradient };
+
+    return gradient;
+  }
+
+  /** Right-zone mask — erase grows from 0 at the ramp's inner start to
+   *  total at its outer end on an ease-in (`s³`): zero slope *and* zero
+   *  curvature at the entry, so the in-pane lead-in barely dims the newest
+   *  candles at rest and the aggressive erasing all happens deep under the
+   *  axis column. Nine stops keep the piecewise interpolation smooth across
+   *  the zone. */
+  #rightFadeGradient(zone: { context: CanvasRenderingContext2D; start: number; width: number }): CanvasGradient {
+    const cached = this.#fadeGradientCache.right;
+    if (cached !== null && cached.start === zone.start && cached.width === zone.width) return cached.gradient;
+
+    const gradient = zone.context.createLinearGradient(zone.start, 0, zone.start + zone.width, 0);
+    for (let i = 0; i <= 8; i++) {
+      const s = i / 8;
+      gradient.addColorStop(s, `rgba(0, 0, 0, ${s * s * s})`);
+    }
+    this.#fadeGradientCache.right = { start: zone.start, width: zone.width, gradient };
+
+    return gradient;
+  }
+
+  /** Erase ramp for the gridline tail stubs — nothing erased at the pane
+   *  floor, total at the stub tip, ease-in (`t²`) so a stub holds strength
+   *  briefly before melting away short of the label glyphs. */
+  #tailFadeGradient(zone: { context: CanvasRenderingContext2D; start: number; height: number }): CanvasGradient {
+    const cached = this.#fadeGradientCache.tail;
+    if (cached !== null && cached.start === zone.start && cached.height === zone.height) return cached.gradient;
+
+    const gradient = zone.context.createLinearGradient(0, zone.start, 0, zone.start + zone.height);
+    for (let i = 0; i <= 4; i++) {
+      const t = i / 4;
+      gradient.addColorStop(t, `rgba(0, 0, 0, ${t * t})`);
+    }
+    this.#fadeGradientCache.tail = { start: zone.start, height: zone.height, gradient };
+
+    return gradient;
+  }
+
+  /** Left-zone mask — mirror of the top ramp: total erase at the canvas
+   *  edge, fully opaque at the zone's inner boundary. */
+  #leftFadeGradient(context: CanvasRenderingContext2D, width: number): CanvasGradient {
+    const cached = this.#fadeGradientCache.left;
+    if (cached !== null && cached.width === width) return cached.gradient;
+
+    const gradient = context.createLinearGradient(0, 0, width, 0);
+    for (let i = 0; i <= 4; i++) {
+      const t = i / 4;
+      gradient.addColorStop(t, `rgba(0, 0, 0, ${1 - t * t})`);
+    }
+    this.#fadeGradientCache.left = { width, gradient };
+
+    return gradient;
   }
 
   /**
