@@ -124,6 +124,30 @@ chart.setSeriesData(seriesId, data);
 
 There's no separate `@wick-charts/core` package on npm — the three framework packages are the supported way to install the engine.
 
+### Drop-in `<script>` — no build step
+
+For a CodePen, JSFiddle, or a plain HTML page, load the prebuilt UMD bundle from a CDN — no npm, no bundler. It exposes the whole engine (every `ChartInstance`, series def, theme, and painter) as a `WickCharts` global:
+
+```html
+<div id="chart" style="width: 640px; height: 320px"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@wick-charts/react/dist/wick-charts.umd.min.js"></script>
+<script>
+  const { ChartInstance, LineSeriesDef } = WickCharts;
+
+  const chart = new ChartInstance(document.getElementById('chart'));
+  const id = chart.addSeries(LineSeriesDef);
+  chart.setLayerColors(id, ['#22c55e']);
+  chart.setSeriesData(id, [
+    { time: Date.now() - 2 * 86_400_000, value: 100 },
+    { time: Date.now() - 86_400_000, value: 118 },
+    { time: Date.now(), value: 109 },
+  ]);
+</script>
+```
+
+The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~72 kB gzipped, self-contained.
+
 ## Bundle size
 
 Packages ship per-module ESM with `sideEffects: false`, and each series component carries its own renderer — your bundler only ships the chart types you import.
