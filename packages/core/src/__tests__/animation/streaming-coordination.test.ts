@@ -184,13 +184,11 @@ describe('streaming coordination — unified animation', () => {
     expect(renderer.entries.has(newTime)).toBe(false);
   });
 
-  it('a new high mid-stream eases Y outward toward the new extreme', () => {
-    // Streaming policy: Y bounds ease toward new highs/lows on appendData
-    // ticks. The brief window where the new extreme sits beyond the still-
-    // rising bound is masked by the per-point entrance fade — both run on
-    // the same `SHARED_ANIMATION_MS` (250 ms) budget, so the entering candle
-    // is still ramping its alpha while Y converges. When entrance is hard-
-    // disabled the chart snaps Y outward instead (see chart.ts updateYRange).
+  it('a new high mid-stream eases Y outward without cropping the candle', () => {
+    // Streaming policy: the Y bound eases toward new highs/lows on appendData
+    // ticks, but the rendered range is clamped to contain them, so the new
+    // extreme is on canvas from the first frame while the bound underneath is
+    // still travelling.
     const id = chart.addSeries('candlestick');
 
     // Seed a tight range.
@@ -218,14 +216,16 @@ describe('streaming coordination — unified animation', () => {
     });
     raf.flush(1);
 
-    // One frame later — Y is mid-ease, max has moved up but not yet at 500.
+    // One frame later — the rendered range already covers the high, while the
+    // eased bound is still mid-flight.
     const oneFrame = chart.getYRange();
     expect(oneFrame.max).toBeGreaterThan(before.max);
-    expect(oneFrame.max).toBeLessThan(500);
+    expect(oneFrame.max).toBeGreaterThanOrEqual(500);
+    expect(chart.getAnimationState().yRange.max).toBeLessThan(500);
 
-    // After draining, Y has converged to cover the new high.
+    // After draining, the bound has caught up with the containment.
     raf.flush(60);
-    const settled = chart.getYRange();
-    expect(settled.max).toBeGreaterThanOrEqual(500);
+    expect(chart.getYRange().max).toBeGreaterThanOrEqual(500);
+    expect(chart.getAnimationState().yRange.max).toBeGreaterThanOrEqual(500);
   });
 });

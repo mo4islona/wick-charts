@@ -138,32 +138,36 @@ describe('chart Y-range animator', () => {
     expect(max).toBeGreaterThanOrEqual(70);
   });
 
-  it('streaming appendData eases Y in both directions (no per-tick snap)', () => {
-    // Streaming policy: Y bounds ease toward new extremes over `yAxisMs` so
-    // the axis labels never snap to a new tick set on a per-point new high
-    // or new low. Brief overshoot is masked by the per-point entrance fade.
+  it('streaming appendData eases Y without ever cropping the new extreme', () => {
+    // Two halves of the streaming policy, and they pull against each other.
+    // The bound *eases* toward a new extreme over `yAxisMs` so the axis
+    // labels don't snap to a new tick set on every new high or low — but the
+    // rendered range is clamped to contain the data, because easing a bound
+    // is never a licence to draw a point off-canvas. So: the range covers the
+    // point on the very first frame, while the bound underneath is still
+    // travelling.
     ({ chart, container } = makeChart({ yAxisMs: 200 }));
     const id = seedLine(chart, [50, 50, 50, 50, 50]);
     raf.flush(20);
 
     const before = chart.getYRange();
 
-    // Append a point well above the current max. The streaming path eases —
-    // one frame later, max should have advanced toward 200 but not reached it.
     chart.appendData(id, { time: 1_000_000 + 5 * INTERVAL, value: 200 });
     raf.flush(1);
 
     const oneFrame = chart.getYRange();
     expect(oneFrame.max).toBeGreaterThan(before.max);
-    expect(oneFrame.max).toBeLessThan(200);
+    expect(oneFrame.max).toBeGreaterThanOrEqual(200);
+    // The eased bound itself has not arrived — no per-tick snap.
+    expect(chart.getAnimationState().yRange.max).toBeLessThan(200);
 
-    // After draining, the max settles at the new value.
+    // After draining, the eased bound has caught up with the containment.
     raf.flush(40);
-    const settled = chart.getYRange();
-    expect(settled.max).toBeGreaterThanOrEqual(200);
+    expect(chart.getYRange().max).toBeGreaterThanOrEqual(200);
+    expect(chart.getAnimationState().yRange.max).toBeGreaterThanOrEqual(200);
   });
 
-  it('streaming appendData with a new low eases inward to the new bound', () => {
+  it('streaming appendData with a new low eases without cropping it', () => {
     ({ chart, container } = makeChart({ yAxisMs: 200 }));
     const id = seedLine(chart, [50, 50, 50, 50, 50]);
     raf.flush(20);
@@ -174,11 +178,12 @@ describe('chart Y-range animator', () => {
 
     const oneFrame = chart.getYRange();
     expect(oneFrame.min).toBeLessThan(before.min);
-    expect(oneFrame.min).toBeGreaterThan(-200);
+    expect(oneFrame.min).toBeLessThanOrEqual(-200);
+    expect(chart.getAnimationState().yRange.min).toBeGreaterThan(-200);
 
     raf.flush(40);
-    const settled = chart.getYRange();
-    expect(settled.min).toBeLessThanOrEqual(-200);
+    expect(chart.getYRange().min).toBeLessThanOrEqual(-200);
+    expect(chart.getAnimationState().yRange.min).toBeLessThanOrEqual(-200);
   });
 
   it('setSeriesData snaps Y synchronously so yScale.getRange() reflects new domain', () => {

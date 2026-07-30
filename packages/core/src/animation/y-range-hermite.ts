@@ -21,7 +21,8 @@ const FALLBACK_MS = 250;
  * ```
  *
  * with `p0` = current position at retarget, `v0` = current velocity at
- * retarget (units/sec), `p1` = new target, `v1 = 0` (settle to rest),
+ * retarget (units/sec), `p1` = new target, `v1` = the target's own drift rate
+ * (`RetargetOptions.drift`, 0 when the data isn't trending — settle to rest),
  * `D` = duration in seconds, and `t = elapsed / D ∈ [0, 1]`. The basis
  * functions `h00 = 2t³−3t²+1`, `h10 = t³−2t²+t`, `h01 = −2t³+3t²`,
  * `h11 = t³−t²` are the standard cubic Hermite blends.
@@ -44,6 +45,9 @@ export class YRangeHermite implements Transition<YRange> {
   #x0: YRange;
   #v0Min = 0;
   #v0Max = 0;
+  /** Terminal velocity per side — the target's drift at the last retarget. */
+  #v1Min = 0;
+  #v1Max = 0;
   #target: YRange;
   #t0: number = -1;
   /** Per-side active duration in seconds. */
@@ -80,6 +84,10 @@ export class YRangeHermite implements Transition<YRange> {
     const now = opts.now ?? performance.now();
     const expandMs = opts.expandMs ?? FALLBACK_MS;
     const contractMs = opts.contractMs ?? FALLBACK_MS;
+    // Only an outward drift is honoured: matching an inward one would race the
+    // sticky contract, whose whole job is to give ground slowly.
+    this.#v1Min = Math.min(0, opts.drift?.min ?? 0);
+    this.#v1Max = Math.max(0, opts.drift?.max ?? 0);
 
     if (this.#t0 < 0) {
       this.#target = { min: value.min, max: value.max };
@@ -114,6 +122,8 @@ export class YRangeHermite implements Transition<YRange> {
     this.#target = { min: value.min, max: value.max };
     this.#v0Min = 0;
     this.#v0Max = 0;
+    this.#v1Min = 0;
+    this.#v1Max = 0;
     this.#t0 = now;
     this.#cached = { min: value.min, max: value.max };
   }
@@ -134,7 +144,9 @@ export class YRangeHermite implements Transition<YRange> {
       this.#x0.min === this.#target.min &&
       this.#x0.max === this.#target.max &&
       this.#v0Min === 0 &&
-      this.#v0Max === 0
+      this.#v0Max === 0 &&
+      this.#v1Min === 0 &&
+      this.#v1Max === 0
     ) {
       return false;
     }
@@ -161,38 +173,46 @@ export class YRangeHermite implements Transition<YRange> {
     const tMin = this.#durMin > 0 ? Math.min(1, elapsed / this.#durMin) : 1;
     const tMax = this.#durMax > 0 ? Math.min(1, elapsed / this.#durMax) : 1;
 
-    const xMin = this.#hermitePos(this.#x0.min, this.#v0Min, this.#target.min, tMin, this.#durMin);
-    const vMin = tMin >= 1 ? 0 : this.#hermiteVel(this.#x0.min, this.#v0Min, this.#target.min, tMin, this.#durMin);
+    const xMin = this.#hermitePos(this.#x0.min, this.#v0Min, this.#target.min, this.#v1Min, tMin, this.#durMin);
+    const vMin =
+      tMin >= 1
+        ? this.#v1Min
+        : this.#hermiteVel(this.#x0.min, this.#v0Min, this.#target.min, this.#v1Min, tMin, this.#durMin);
 
-    const xMax = this.#hermitePos(this.#x0.max, this.#v0Max, this.#target.max, tMax, this.#durMax);
-    const vMax = tMax >= 1 ? 0 : this.#hermiteVel(this.#x0.max, this.#v0Max, this.#target.max, tMax, this.#durMax);
+    const xMax = this.#hermitePos(this.#x0.max, this.#v0Max, this.#target.max, this.#v1Max, tMax, this.#durMax);
+    const vMax =
+      tMax >= 1
+        ? this.#v1Max
+        : this.#hermiteVel(this.#x0.max, this.#v0Max, this.#target.max, this.#v1Max, tMax, this.#durMax);
 
     return { x: { min: xMin, max: xMax }, vMin, vMax };
   }
 
-  #hermitePos(p0: number, v0: number, p1: number, t: number, dur: number): number {
-    if (t >= 1) return p1;
+  #hermitePos(p0: number, v0: number, p1: number, v1: number, t: number, dur: number): number {
+    // Past the segment the bound keeps drifting at v1 rather than parking —
+    // parking is what reads as the axis stalling between ticks.
+    if (t >= 1) return p1 + v1 * dur * (t - 1);
 
     const t2 = t * t;
     const t3 = t2 * t;
     const h00 = 2 * t3 - 3 * t2 + 1;
     const h10 = t3 - 2 * t2 + t;
     const h01 = -2 * t3 + 3 * t2;
+    const h11 = t3 - t2;
 
-    // v1 = 0, so h11 term vanishes.
-    return h00 * p0 + h10 * dur * v0 + h01 * p1;
+    return h00 * p0 + h10 * dur * v0 + h01 * p1 + h11 * dur * v1;
   }
 
-  #hermiteVel(p0: number, v0: number, p1: number, t: number, dur: number): number {
+  #hermiteVel(p0: number, v0: number, p1: number, v1: number, t: number, dur: number): number {
     if (dur <= 0) return 0;
 
     const t2 = t * t;
     const dh00 = 6 * t2 - 6 * t;
     const dh10 = 3 * t2 - 4 * t + 1;
     const dh01 = -6 * t2 + 6 * t;
+    const dh11 = 3 * t2 - 2 * t;
 
-    // v1 = 0, so dh11 term vanishes.
-    return (dh00 * p0 + dh10 * dur * v0 + dh01 * p1) / dur;
+    return (dh00 * p0 + dh10 * dur * v0 + dh01 * p1 + dh11 * dur * v1) / dur;
   }
 
   #eps(): number {
