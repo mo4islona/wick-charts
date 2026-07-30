@@ -206,13 +206,6 @@ export function resolveAnimate(animate: YLabelAnimate | undefined): ResolvedAnim
   };
 }
 
-/** `true` when the environment requests reduced motion. Safe when `matchMedia` is absent (SSR). */
-export function prefersReducedMotion(): boolean {
-  if (typeof matchMedia !== 'function') return false;
-
-  return matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /** The slice of the chart API the badge count-up start reads. {@link ChartInstance} satisfies it. */
 export interface BadgeChartQuery {
   getVisibleRange(): { from: number; to: number };

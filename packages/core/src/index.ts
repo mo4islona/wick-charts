@@ -1,6 +1,10 @@
 // Chart
 
 export type { AnimationsConfig } from './animation/config';
+// Shared `prefers-reduced-motion` probe. Decorative motion (intro waves, badge
+// hops, the gridline reveal) collapses to a snap when it reports true; the
+// framework `YLabel`s read it to keep the badge in step.
+export { prefersReducedMotion } from './animation/reduced-motion';
 // Built-in transitions. Each factory lives in its own module so unused
 // curves tree-shake out — import only the ones you need. `spring` is the
 // universal critically-damped spring; pass `<YRange>` to plug it into the
@@ -49,14 +53,9 @@ export type {
 // Last-value badge motion — a value spring for the append glide plus the
 // initial-load count-up / fade-in. Framework `YLabel`s drive it per rAF frame
 // so React / Vue / Svelte animate the badge identically. The `resolveAnimate` /
-// `prefersReducedMotion` / `firstVisibleValue` helpers live here too so the
-// three wrappers stay thin and share one set of defaults.
-export {
-  BadgeAnimator,
-  firstVisibleValue,
-  prefersReducedMotion,
-  resolveAnimate,
-} from './chart/badge-animator';
+// `firstVisibleValue` helpers live here too so the three wrappers stay thin
+// and share one set of defaults.
+export { BadgeAnimator, firstVisibleValue, resolveAnimate } from './chart/badge-animator';
 // Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
 // — same shape as the series intro animations. Drives the `loading` visual an
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`

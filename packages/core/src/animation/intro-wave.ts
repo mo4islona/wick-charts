@@ -1,4 +1,5 @@
 import { easeInOutCubic, easeOutCubic } from './easing';
+import { prefersReducedMotion } from './reduced-motion';
 
 /**
  * Initial-load reveal clock shared by the series renderers.
@@ -112,11 +113,4 @@ function clamp01(value: number): number {
   if (value >= 1) return 1;
 
   return value;
-}
-
-/** Decorative intros are skipped entirely under `prefers-reduced-motion`. */
-function prefersReducedMotion(): boolean {
-  if (typeof matchMedia !== 'function') return false;
-
-  return matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
