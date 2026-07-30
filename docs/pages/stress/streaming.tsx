@@ -749,7 +749,99 @@ export const streamingPanels: readonly StressPanel[] = [
  * panels add ~5 chart instances on top of the existing six). Reached via
  * the "Animation" group selector on the stress page.
  */
+/**
+ * Trailing-vertex lag, side by side on one feed.
+ *
+ * A new point is normally drawn at its true value on the frame it arrives,
+ * while the Y bound is still travelling to make room for it. `flowLag` holds
+ * the tip back so the axis opens first and the line follows it down. The
+ * duration scales with how far the point jumped on screen, so a calm stretch
+ * keeps its values live and only a real move pays any latency.
+ *
+ * The feed is a repeating shape — calm, a steep dive, a lone spike, calm —
+ * because the difference only shows on the parts prediction cannot cover.
+ */
+function FlowLagComparison({ theme, perfHud, yEngine, yEngineLabel }: PanelCtx) {
+  const CAP = 60;
+  const [maxMs, setMaxMs] = useState(400);
+  const [jumpPx, setJumpPx] = useState(60);
+  const seed = useMemo(() => makeSeed(Date.now() - CAP * INTERVAL, CAP, 100), []);
+  const [data, setData] = useState<TimePoint[]>(seed);
+  const kRef = useRef(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setData((prev) => {
+        const k = kRef.current++;
+        const phase = k % 40;
+        const last = prev[prev.length - 1];
+        // Calm → steep dive → recovery → one spike → calm.
+        let next = last.value + (Math.random() - 0.5) * 1.5;
+        if (phase >= 8 && phase < 20) next = last.value - 6;
+        else if (phase >= 20 && phase < 28) next = last.value + 4;
+        else if (phase === 32) next = last.value - 45;
+
+        return [...prev, { time: last.time + INTERVAL, value: next }].slice(-CAP);
+      });
+    }, 500);
+
+    return () => clearInterval(id);
+  }, []);
+
+  const lagged = useMemo(
+    () => ({ axis: { y: { curve: yEngine } }, flowLag: { maxMs, jumpPx } }),
+    [yEngine, maxMs, jumpPx],
+  );
+  const plain = useMemo(() => ({ axis: { y: { curve: yEngine } } }), [yEngine]);
+
+  const cell = (label: string, animations: object) => (
+    <div style={{ minWidth: 0, minHeight: 0 }}>
+      <ChartContainer
+        key={`${label}-${yEngineLabel}`}
+        theme={theme}
+        perf={perfHud?.()}
+        animations={animations}
+        interactive={false}
+      >
+        <Title sub={`${data.length} points`}>{label}</Title>
+        <LineSeries data={[data]} options={{ pulse: false }} />
+        <YAxis />
+        <TimeAxis />
+      </ChartContainer>
+    </div>
+  );
+
+  const slider = (label: string, value: number, min: number, max: number, set: (n: number) => void) => (
+    <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: theme.axis.textColor }}>
+      <span style={{ opacity: 0.7 }}>{label}</span>
+      <input type="range" min={min} max={max} value={value} onChange={(e) => set(Number(e.target.value))} />
+      <span style={{ fontVariantNumeric: 'tabular-nums', width: 44 }}>{value}</span>
+    </label>
+  );
+
+  return (
+    <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr', gap: 6, height: '100%', minHeight: 0 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+        {slider('maxMs', maxMs, 0, 1200, setMaxMs)}
+        {slider('jumpPx', jumpPx, 10, 200, setJumpPx)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, minHeight: 0 }}>
+        {cell('flowLag off', plain)}
+        {cell(`flowLag ${maxMs}ms @ ${jumpPx}px`, lagged)}
+      </div>
+    </div>
+  );
+}
+
 export const animationPanels: readonly StressPanel[] = [
+  {
+    id: 'anim-flow-lag',
+    title: 'Trailing-vertex lag — axis first, line follows',
+    hint: 'Same feed both sides. Left draws each point the frame it arrives; right holds the tip back by a duration scaled to how far it jumped, so the Y axis opens before the line gets there.',
+    note: 'Watch the dive and the lone spike, not the calm stretch — the lag scales to zero when nothing is moving. maxMs is the duration at and above jumpPx; below it the lag falls off linearly to nothing. Off by default in the library: this trades data freshness for smoothness.',
+    render: (ctx) => <FlowLagComparison {...ctx} />,
+    minHeight: 380,
+  },
   {
     id: 'anim-cadence-matrix',
     title: 'Streaming cadence — three rates side by side',
