@@ -410,10 +410,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Latest data timestamp registered across all series, `null` before any data has arrived. */
   #dataEnd: number | null = null;
   /**
-   * Previous {@link #dataEnd} value. Streaming-target math reads it to
-   * preserve any pan offset across ticks: a user who panned a few bars
-   * left of the tail keeps that offset as new bars arrive, instead of
-   * snapping back to the natural-pin position every frame.
+   * The {@link #dataEnd} {@link #logical} is currently aligned to — *not*
+   * simply the previous tick's tail. Streaming-target math subtracts it from
+   * `logical.to` to recover the right-edge offset and preserve it across
+   * ticks, so a user parked a few bars left of the tail keeps that offset as
+   * new bars arrive. Only the paths that actually reposition `#logical` may
+   * advance it; advancing it on a tick whose retarget was skipped (gesture
+   * lock-out) would silently eat that many bars of right padding.
    */
   #prevDataEnd: number | null = null;
   /**
@@ -1450,6 +1453,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const from = normalizeTime(spec.from);
       const to = from + spec.bars * this.#dataInterval;
       this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
+      this.#prevDataEnd = this.#dataEnd;
       this.#commitLogical({ from, to }, { emitChange: true });
       // Hold the viewport until the data fills the gap on the right —
       // standard streaming warm-up window.
@@ -1463,6 +1467,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const to = normalizeTime(spec.to);
     this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
     this.#holdUntilFilled = false;
+    this.#prevDataEnd = this.#dataEnd;
     const changed = this.#commitLogical({ from, to }, { emitChange: true });
 
     if (opts?.gesture) {
@@ -2304,7 +2309,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const { first, last } = this.getDataBounds();
     if (first !== undefined) this.#dataStart = first;
     if (last !== undefined) {
-      this.#prevDataEnd = this.#dataEnd;
+      // Bootstrap only. `#prevDataEnd` is the tail `#logical` is *aligned to*,
+      // not the previous tick's tail — advancing it here would erase the
+      // right-edge offset whenever a tick's retarget is skipped.
+      this.#prevDataEnd ??= this.#dataEnd;
       this.#dataEnd = last;
     }
 
@@ -2562,6 +2570,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     });
     this.#holdUntilFilled = false;
     this.#autoScroll = true;
+    this.#prevDataEnd = lastTime;
     this.#commitLogical(range, { emitChange: true });
   }
 
@@ -2729,6 +2738,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (result.newLogical === null) return;
 
     this.#autoScroll = !result.autoScrollOff;
+    this.#prevDataEnd = this.#dataEnd;
     this.#commitLogical(result.newLogical, { emitChange: true });
 
     if (result.edgeReached !== null) {
