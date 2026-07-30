@@ -3435,7 +3435,7 @@
             "props": [
               {
                 "name": "axis",
-                "type": "false | { y?: | false | { curve?: TransitionFactory<YRange>; settle?: AnimationTime; sticky?: AnimationTime | { min?: AnimationTime; max?: AnimationTime }; gesture?: AnimationTime; }; x?: | false | { curve?: TransitionFactory<VisibleRange>; settle?: AnimationTime; gesture?: AnimationTime; }; ticks?: AnimationTime; }",
+                "type": "false | { y?: | false | { curve?: TransitionFactory<YRange>; settle?: AnimationTime; sticky?: AnimationTime | { min?: AnimationTime; max?: AnimationTime }; gesture?: AnimationTime; }; x?: | false | { curve?: TransitionFactory<VisibleRange>; settle?: AnimationTime; gesture?: AnimationTime; }; ticks?: AnimationTime; grid?: AnimationTime; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -3565,6 +3565,15 @@
                       "defaultValue": "250ms",
                       "deprecated": null,
                       "description": "Axis tick label cross-fade. `false` makes tick relabel instant.",
+                      "see": []
+                    },
+                    {
+                      "name": "grid",
+                      "type": "AnimationTime",
+                      "optional": true,
+                      "defaultValue": "400ms",
+                      "deprecated": null,
+                      "description": "Gridline layer opacity: the opening reveal on first paint and the\nfade out when `grid.visible` flips off. Independent of\n{@link ticks }, which owns the per-tick cross-fade on relabel.\n`false` makes the grid appear and disappear instantly.",
                       "see": []
                     }
                   ]
