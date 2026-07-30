@@ -1122,7 +1122,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // `appendPoint` registers an entry animator keyed by `time` and seeds
     // the live-track so the new point fades in and the trailing-Y starts
     // smoothing on the next render frame.
+    entry.renderer.setAppendLagMs?.(this.#appendLagMs(entry.renderer, point));
     entry.renderer.appendPoint(point, layerIndex);
+  }
+
+  /**
+   * How long the trailing vertex should take to reach `point`, scaled by how
+   * far it jumps on screen. A calm feed keeps its values live; only a move
+   * with real axis travel behind it pays any latency. Zero unless the caller
+   * opted in via `animations.flowLag`.
+   */
+  #appendLagMs(renderer: SeriesRenderer, point: OHLCInput | TimePointInput): number {
+    const { maxMs, jumpPx } = this.#animationsConfig.flowLag;
+    if (maxMs <= 0 || !isTimeSeriesRenderer(renderer)) return 0;
+
+    const prev = renderer.getLastDataPoint();
+    if (prev === null) return 0;
+
+    const span = this.#yRange.max - this.#yRange.min;
+    const plotHeight = this.#canvasManager.size.media.height - this.xAxisHeight;
+    if (span <= 0 || plotHeight <= 0) return 0;
+
+    const from = 'close' in prev ? prev.close : prev.value;
+    const to = 'close' in point ? (point.close as number) : (point.value as number);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) return 0;
+
+    const jumped = (Math.abs(to - from) / span) * plotHeight;
+
+    return maxMs * Math.min(1, jumped / jumpPx);
   }
 
   /**
