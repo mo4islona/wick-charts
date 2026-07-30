@@ -1,5 +1,5 @@
 import { Animator } from './animation/animator';
-import { AnimationConfig, DEFAULT_LINE_PULSE, Y_STREAM_SETTLE_SLACK } from './animation/config';
+import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
 import { easeOutCubic } from './animation/easing';
 import { prefersReducedMotion } from './animation/reduced-motion';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
@@ -24,7 +24,7 @@ import { computePan, computeZoom } from './chart/pan-zoom-math';
 import { StreamingCadence } from './chart/streaming-cadence';
 import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
-import { YTrendDrift, computeTargetYRange, resolveBound } from './chart/y-target';
+import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
@@ -2388,12 +2388,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // settles before the next tick (a bell curve that stops) while every
       // later tick slides continuously — the visible first-point stutter.
       this.#cadence.seed(now);
-      this.#yDrift.reset();
       this.#engine.onDataReplaced(now);
     } else {
-      this.#yLeadLearn = true;
       this.#engine.onPointAppended(now);
-      this.#yLeadLearn = false;
     }
 
     if (this.#engine.lastXTarget !== null) {
@@ -2464,22 +2461,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #prevYMin = Number.NaN;
   #prevYMax = Number.NaN;
 
-  /** Speed each Y bound is travelling at, spent twice: aiming the target
-   *  ahead of the data, and handing the curve a terminal velocity. */
-  readonly #yDrift = new YTrendDrift();
-  /**
-   * Raw extremes of the data in the target window, as last resolved. The
-   * rendered range is clamped to contain these — see {@link #padYRange}.
-   */
-  #rawYVisible: { min: number; max: number } | null = null;
-  /**
-   * Gate for {@link YTrendDrift.observe} — only a streaming append is a data
-   * trend. Set around the `onPointAppended` signal because the engine pulls
-   * the Y target back through `#computeYTarget`, so the flag is what tells
-   * that callback which signal it is serving.
-   */
-  #yLeadLearn = false;
-
   /**
    * Sample the visible data window and return the resolved Y bounds, or
    * `null` when no series has data inside the X destination range.
@@ -2499,22 +2480,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const raw = computeTargetYRange(targetVisible, this.#series, allValues);
     if (raw === null) {
-      this.#rawYVisible = null;
       this.#yInited = false;
       return null;
     }
 
-    this.#rawYVisible = raw;
-
-    let aim = raw;
-    if (this.#yLeadLearn) {
-      this.#yDrift.observe(raw, performance.now());
-      this.#engine.setYDrift(this.#yDrift.value);
-      aim = this.#yDrift.aimAhead(raw, this.#engine.yStreamSettleMs);
-    }
-
-    const min = resolveBound(this.#yBounds.min, aim.min, aim.max, allValues ?? [], 'min');
-    const max = resolveBound(this.#yBounds.max, aim.max, aim.min, allValues ?? [], 'max');
+    const min = resolveBound(this.#yBounds.min, raw.min, raw.max, allValues ?? [], 'min');
+    const max = resolveBound(this.#yBounds.max, raw.max, raw.min, allValues ?? [], 'max');
 
     return { min, max };
   }
@@ -2601,24 +2572,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // spring keeps velocity instead of decaying to rest between ticks.
     this.#cadence.observe(performance.now());
     this.#engine.setXSettleMs(this.#cadence.pickSettleMs(this.#animationsConfig.axis.x.settleMs));
-    this.#tuneYToCadence();
 
     this.#commitLogical(result.newLogical, { emitChange: false, skipValidation: true });
     this.#prevDataEnd = this.#dataEnd;
 
     return result.newLogical;
-  }
-
-  /**
-   * Size the streaming Y expand to the producer cadence, the way X is sized.
-   * A configured `settle` of 0 means the caller asked for no Y easing — leave
-   * it alone rather than reviving it from the EMA.
-   */
-  #tuneYToCadence(): void {
-    const configured = this.#animationsConfig.axis.y.settleMs;
-    if (configured <= 0) return;
-
-    this.#engine.setYStreamSettleMs(this.#cadence.pickSettleMs(configured, Y_STREAM_SETTLE_SLACK));
   }
 
   /**
@@ -2763,25 +2721,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #padYRange(args: { min: number; max: number; chartHeight: number }): YRange {
     const { min, max, chartHeight } = args;
     const { min: fixedMin, max: fixedMax } = this.#fixedYBounds();
-
-    // Containment floor. Easing trails the data inward, and prediction cannot
-    // cover a value nobody saw coming — a spike, the first tick of a move, a
-    // trend that steepens. Widening to the raw extremes here makes a clipped
-    // series structurally impossible rather than merely unlikely; the curve
-    // still owns every frame where it is already wide enough, which is all of
-    // them but the surprise. A pinned edge is exempt — a fixed axis is the
-    // caller asking for the crop.
-    const raw = this.#rawYVisible;
-    const lo = raw !== null && !fixedMin ? Math.min(min, raw.min) : min;
-    const hi = raw !== null && !fixedMax ? Math.max(max, raw.max) : max;
-
-    const dataRange = hi - lo;
+    const dataRange = max - min;
     const padTop = chartHeight > 0 ? (this.#padding.top / chartHeight) * dataRange : 0;
     const padBottom = chartHeight > 0 ? (this.#padding.bottom / chartHeight) * dataRange : 0;
 
     return {
-      min: fixedMin ? lo : lo - padBottom,
-      max: fixedMax ? hi : hi + padTop,
+      min: fixedMin ? min : min - padBottom,
+      max: fixedMax ? max : max + padTop,
     };
   }
 

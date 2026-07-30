@@ -129,16 +129,6 @@ const X_GESTURE_LOCKOUT_MS = 100;
 interface YState {
   readonly transition: Transition<YRange>;
   settleMs: Milliseconds;
-  /**
-   * Outward settle used by `onPointAppended` only. The cadence EMA retunes it
-   * at runtime so the Y chase stays mid-flight between ticks; {@link settleMs}
-   * keeps the configured baseline for one-shot moves (programmatic zoom, fit),
-   * which stay snappy no matter how slow the producer is.
-   */
-  streamSettleMs: Milliseconds;
-  /** Target drift (units/sec per side) applied to the streaming retarget so
-   *  the bound matches a trending series instead of trailing it. */
-  drift: { min: number; max: number };
   stickyMs: Milliseconds;
   stickyFloorMs: Milliseconds;
   gestureMs: Milliseconds;
@@ -187,8 +177,6 @@ export class ViewportEngine {
       settleMs: opts.y.settleMs,
       stickyMs: opts.y.stickyMs,
       stickyFloorMs: opts.y.stickyFloorMs,
-      streamSettleMs: opts.y.settleMs,
-      drift: { min: 0, max: 0 },
       gestureMs: opts.y.gestureMs,
       toggleMs: opts.y.toggleMs,
       toggleUntil: 0,
@@ -281,9 +269,8 @@ export class ViewportEngine {
     if (newY !== null && !yLocked) {
       this.#y.transition.retarget(newY, {
         now: startWall,
-        expandMs: this.#y.streamSettleMs,
+        expandMs: this.#y.settleMs,
         contractMs: this.#contractMs(this.#y.transition.current, newY),
-        drift: this.#y.drift,
       });
     }
     this.#wake(wasIdle);
@@ -438,18 +425,6 @@ export class ViewportEngine {
 
   setXSettleMs(settleMs: number): void {
     this.#x.settleMs = settleMs;
-  }
-
-  setYStreamSettleMs(settleMs: number): void {
-    this.#y.streamSettleMs = settleMs;
-  }
-
-  setYDrift(drift: { min: number; max: number }): void {
-    this.#y.drift = drift;
-  }
-
-  get yStreamSettleMs(): Milliseconds {
-    return this.#y.streamSettleMs;
   }
 }
 
