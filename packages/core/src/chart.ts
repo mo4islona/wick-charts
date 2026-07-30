@@ -2683,13 +2683,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * symmetric pad top / bottom from `#padding`, suppressed on the side
    * that has an explicit (fixed) axis bound.
    */
-  #applyPaddedYRange(min: number, max: number, chartHeight: number, fixedMin: boolean, fixedMax: boolean): void {
+  #padYRange(args: { min: number; max: number; chartHeight: number }): YRange {
+    const { min, max, chartHeight } = args;
+    const { min: fixedMin, max: fixedMax } = this.#fixedYBounds();
     const dataRange = max - min;
     const padTop = chartHeight > 0 ? (this.#padding.top / chartHeight) * dataRange : 0;
     const padBottom = chartHeight > 0 ? (this.#padding.bottom / chartHeight) * dataRange : 0;
-    this.#yRange = {
+
+    return {
       min: fixedMin ? min : min - padBottom,
       max: fixedMax ? max : max + padTop,
+    };
+  }
+
+  /** Which Y edges the user pinned — a pinned edge takes no padding. */
+  #fixedYBounds(): { min: boolean; max: boolean } {
+    return {
+      min: this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto',
+      max: this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto',
     };
   }
 
@@ -2810,10 +2821,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
-    const hasMinBound = this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto';
-    const hasMaxBound = this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto';
     const chartHeight = size.media.height - this.xAxisHeight;
-    this.#applyPaddedYRange(state.yRange.min, state.yRange.max, chartHeight, hasMinBound, hasMaxBound);
+    this.#yRange = this.#padYRange({ min: state.yRange.min, max: state.yRange.max, chartHeight });
     this.#prevYMin = state.yRange.min;
     this.#prevYMax = state.yRange.max;
     this.syncScales();
@@ -2830,6 +2839,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const chartWidth = size.media.width - this.yAxisWidth;
     const chartHeight = size.media.height - this.xAxisHeight;
+
+    // Ticks resolve against where the viewport is *going*, positions against
+    // where it is now. The tracker keeps the outgoing set alive at a falling
+    // opacity, so a retarget is one cross-fade held for the whole tween
+    // instead of per-frame membership churn as the eased range sweeps past
+    // each tick boundary. Set before `update` so its resolve sees the target;
+    // a degenerate target (pre-data mount) falls back to the visual range.
+    const target = this.#engine.getTarget();
+    const yTickRange = this.#padYRange({ min: target.y.min, max: target.y.max, chartHeight });
+    this.yScale.setTickRange(yTickRange.max > yTickRange.min ? yTickRange : null);
+    this.timeScale.setTickRange(target.x.to > target.x.from ? target.x : null);
 
     this.timeScale.update(
       this.#engine.getAnimationState().xRange,
@@ -2865,10 +2885,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const yMax = animationState.yRange.max;
     const yChanged = yMin !== this.#prevYMin || yMax !== this.#prevYMax;
     if (yChanged) {
-      const hasMinBound = this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto';
-      const hasMaxBound = this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto';
       const chartHeight = size.media.height - this.xAxisHeight;
-      this.#applyPaddedYRange(yMin, yMax, chartHeight, hasMinBound, hasMaxBound);
+      this.#yRange = this.#padYRange({ min: yMin, max: yMax, chartHeight });
       this.#prevYMin = yMin;
       this.#prevYMax = yMax;
     }

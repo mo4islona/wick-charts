@@ -1,4 +1,5 @@
 import type { XRange } from '../types';
+import { crispCenterOffset } from '../utils/pixel-grid';
 import { type TimeFormatOptions, formatTime, niceTimeIntervals } from '../utils/time';
 import { AxisTickTracker } from './tick-tracker';
 
@@ -27,6 +28,13 @@ export class XScale {
   private width = 1;
   private pixelRatio = 1;
   private dataInterval: number | null = null;
+  /**
+   * Range the tick set and interval resolve against — the viewport's target,
+   * not the frame's easing position, so membership holds for the whole tween
+   * instead of churning as `from` sweeps past each tick boundary. See
+   * {@link YScale} for the full reasoning; `null` tracks the visual range.
+   */
+  private tickRange: XRange | null = null;
 
   // Label density knobs — written by <TimeAxis labelCount=… minLabelSpacing=…>.
   private labelCountHintValue: number | null = null;
@@ -77,6 +85,33 @@ export class XScale {
     }
 
     this.resolveInterval();
+  }
+
+  /**
+   * Point tick resolution at the viewport's target range. Pass `null` to track
+   * the visual range again. Call before {@link update} so the paired resolve
+   * sees it; only an actual change re-resolves.
+   */
+  setTickRange(range: XRange | null): void {
+    const same =
+      (range === null && this.tickRange === null) ||
+      (range !== null &&
+        this.tickRange !== null &&
+        range.from === this.tickRange.from &&
+        range.to === this.tickRange.to);
+    if (same) return;
+
+    this.tickRange = range === null ? null : { from: range.from, to: range.to };
+    this.resolveInterval();
+  }
+
+  /** Range ticks resolve against — the target when set, else the visual range. */
+  private get tickFrom(): number {
+    return this.tickRange?.from ?? this.from;
+  }
+
+  private get tickTo(): number {
+    return this.tickRange?.to ?? this.to;
   }
 
   setLabelCount(n: number | null | undefined): void {
@@ -155,6 +190,15 @@ export class XScale {
     return Math.round(this.timeToX(time) * this.pixelRatio);
   }
 
+  /**
+   * X position in CSS pixels of the *stroke center* the canvas grid draws for
+   * `time`. DOM axis labels position off this instead of raw {@link timeToX}
+   * so text and gridline share one pixel grid.
+   */
+  timeToSnappedX(time: number): number {
+    return (this.timeToBitmapX(time) + crispCenterOffset(this.pixelRatio)) / this.pixelRatio;
+  }
+
   xToTime(x: number): number {
     if (this.to <= this.from) return this.from;
 
@@ -183,10 +227,13 @@ export class XScale {
    * still pass it here for back-compat.
    */
   niceTickValues(dataInterval: number): { ticks: number[]; tickInterval: number } {
-    if (this.to <= this.from) return { ticks: [], tickInterval: 0 };
+    if (this.tickTo <= this.tickFrom) return { ticks: [], tickInterval: 0 };
 
     if (this.customTickGenerator) {
-      const ticks = this.customTickGenerator({ from: this.from, to: this.to }, dataInterval).slice(0, MAX_TICKS);
+      const ticks = this.customTickGenerator({ from: this.tickFrom, to: this.tickTo }, dataInterval).slice(
+        0,
+        MAX_TICKS,
+      );
       const tickInterval = ticks.length >= 2 ? ticks[1] - ticks[0] : dataInterval;
 
       return { ticks, tickInterval };
@@ -207,8 +254,8 @@ export class XScale {
     if (this.resolvedInterval == null) return { ticks: [], tickInterval: 0 };
 
     const interval = this.resolvedInterval;
-    const start = Math.ceil(this.from / interval) * interval;
-    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.to - start) / interval) + 1));
+    const start = Math.ceil(this.tickFrom / interval) * interval;
+    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.tickTo - start) / interval) + 1));
 
     const ticks: number[] = [];
     for (let i = 0; i < count; i++) ticks.push(start + i * interval);
@@ -230,13 +277,13 @@ export class XScale {
    * tier inside a ratio band so micro pan/zoom doesn't flip label density.
    */
   private resolveInterval(): void {
-    if (this.to <= this.from || this.width <= 0 || this.dataInterval == null || this.dataInterval <= 0) {
+    if (this.tickTo <= this.tickFrom || this.width <= 0 || this.dataInterval == null || this.dataInterval <= 0) {
       this.resolvedInterval = null;
       return;
     }
 
     const intervals = niceTimeIntervals(this.dataInterval);
-    const range = this.to - this.from;
+    const range = this.tickTo - this.tickFrom;
     const timePerPixel = range / this.width;
     const floor = timePerPixel * this.minLabelSpacing;
 
@@ -286,9 +333,9 @@ export class XScale {
 
   private countTicks(interval: number): number {
     if (!(interval > 0)) return 0;
-    const start = Math.ceil(this.from / interval) * interval;
+    const start = Math.ceil(this.tickFrom / interval) * interval;
 
-    return Math.max(0, Math.floor((this.to - start) / interval) + 1);
+    return Math.max(0, Math.floor((this.tickTo - start) / interval) + 1);
   }
 }
 

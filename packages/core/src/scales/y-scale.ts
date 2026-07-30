@@ -1,5 +1,6 @@
 import type { YRange } from '../types';
 import { type ValueFormatter, formatCompact } from '../utils/format';
+import { crispCenterOffset } from '../utils/pixel-grid';
 import { AxisTickTracker } from './tick-tracker';
 
 /** Custom tick-value generator — replaces the built-in {1,2,5}×10^k resolution entirely when installed. */
@@ -48,6 +49,14 @@ export class YScale {
   private max = 0;
   private height = 1;
   private pixelRatio = 1;
+  /**
+   * Range the tick set and interval resolve against — the viewport's target,
+   * not the frame's easing position. Membership stays put for the whole tween
+   * (lines glide to their places instead of popping in and out at the edges,
+   * and a tier change can't restage the entire set mid-slide). `null` falls
+   * back to the visual range, which is what a bare `update()` gives.
+   */
+  private tickRange: YRange | null = null;
 
   // Label density knobs — written by <YAxis labelCount=… minLabelSpacing=…>.
   private labelCountHintValue: number | null = null;
@@ -86,6 +95,33 @@ export class YScale {
     this.height = mediaHeight;
     this.pixelRatio = pixelRatio;
     this.resolveInterval();
+  }
+
+  /**
+   * Point tick resolution at the viewport's target range. Pass `null` to track
+   * the visual range again. Call before {@link update} so the paired resolve
+   * sees it; only an actual change re-resolves.
+   */
+  setTickRange(range: YRange | null): void {
+    const same =
+      (range === null && this.tickRange === null) ||
+      (range !== null &&
+        this.tickRange !== null &&
+        range.min === this.tickRange.min &&
+        range.max === this.tickRange.max);
+    if (same) return;
+
+    this.tickRange = range === null ? null : { min: range.min, max: range.max };
+    this.resolveInterval();
+  }
+
+  /** Range ticks resolve against — the target when set, else the visual range. */
+  private get tickMin(): number {
+    return this.tickRange?.min ?? this.min;
+  }
+
+  private get tickMax(): number {
+    return this.tickRange?.max ?? this.max;
   }
 
   /** Desired label count. Invalid values (NaN, <2, Infinity) clear the hint. */
@@ -142,6 +178,15 @@ export class YScale {
     return Math.round(this.valueToY(value) * this.pixelRatio);
   }
 
+  /**
+   * Y position in CSS pixels of the *stroke center* the canvas grid draws for
+   * `value`. DOM axis labels position off this instead of raw {@link valueToY}
+   * so text and gridline share one pixel grid.
+   */
+  valueToSnappedY(value: number): number {
+    return (this.valueToBitmapY(value) + crispCenterOffset(this.pixelRatio)) / this.pixelRatio;
+  }
+
   /** Convert a Y position in CSS pixels back to a value. */
   yToValue(y: number): number {
     const range = this.max - this.min;
@@ -155,13 +200,15 @@ export class YScale {
    * chart height. Pure read — resolution happens in `update()`.
    */
   niceTickValues(): number[] {
-    if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
+    if (this.customTickGenerator) {
+      return this.customTickGenerator({ min: this.tickMin, max: this.tickMax }).slice(0, MAX_TICKS);
+    }
 
     if (this.resolvedInterval == null) return [];
 
     const interval = this.resolvedInterval;
-    const start = Math.ceil(this.min / interval) * interval;
-    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.max - start) / interval) + 1));
+    const start = Math.ceil(this.tickMin / interval) * interval;
+    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.tickMax - start) / interval) + 1));
 
     const ticks: number[] = [];
     // Multiplicative indexing avoids cumulative fp drift of `p += interval`.
@@ -214,12 +261,12 @@ export class YScale {
    * candles nudge the Y range across a raw-interval threshold.
    */
   private resolveInterval(): void {
-    if (this.max <= this.min || this.height <= 0) {
+    if (this.tickMax <= this.tickMin || this.height <= 0) {
       this.resolvedInterval = null;
       return;
     }
 
-    const range = this.max - this.min;
+    const range = this.tickMax - this.tickMin;
     const gapFloorValue = (range * this.minLabelSpacing) / this.height;
 
     // For the hint path we use `labelCount` (not `labelCount - 1`) as the gap
@@ -265,9 +312,9 @@ export class YScale {
 
   private countTicks(interval: number): number {
     if (!(interval > 0)) return 0;
-    const start = Math.ceil(this.min / interval) * interval;
+    const start = Math.ceil(this.tickMin / interval) * interval;
 
-    return Math.max(0, Math.floor((this.max - start) / interval) + 1);
+    return Math.max(0, Math.floor((this.tickMax - start) / interval) + 1);
   }
 }
 
