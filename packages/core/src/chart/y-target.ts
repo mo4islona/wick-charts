@@ -84,3 +84,107 @@ export function resolveBound(
 
   return autoValue;
 }
+
+/** EMA weight for the drift estimate. High enough to pick a fresh trend up
+ *  within a couple of ticks, low enough that one outlier doesn't set the rate. */
+const DRIFT_ALPHA = 0.4;
+
+/** Arrivals closer together than this are a burst, not a cadence — folding
+ *  their gap in would report an enormous rate. */
+const MIN_SAMPLE_GAP_MS = 5;
+
+/**
+ * Rate at which each Y bound is travelling, in units per second.
+ *
+ * One measured quantity, used twice, because a trending series defeats a
+ * position-only chase in two separate ways:
+ *
+ * - The target is a *staircase*, not a ramp — it only ever reports where the
+ *   data was at the last tick. So the curve must {@link aimAhead}, by the
+ *   distance the data covers while the bound is in flight (`rate × settle`).
+ *   Velocity matching alone does not fix this; measured on its own it left the
+ *   newest point clipped on 64 % of frames at a 1 s cadence.
+ * - Cubic Hermite brakes to rest at each segment end, so between ticks the
+ *   axis stalls. Handing the curve the rate as {@link RetargetOptions.drift}
+ *   makes it arrive still moving at the data's speed.
+ *
+ * Only expansion is measured. A receding bound is the sticky contract's
+ * business, and handing it a drift would race it.
+ *
+ * The rate is learned from streaming appends only: a zoom or a series toggle
+ * moves the raw range too, but by moving the window, not because the data
+ * trended.
+ */
+export class YTrendDrift {
+  /** Units per second, `<= 0` — the lower bound only ever drifts downward. */
+  #min = 0;
+  /** Units per second, `>= 0`. */
+  #max = 0;
+  /** Consecutive samples that expanded this side. */
+  #runMin = 0;
+  #runMax = 0;
+  #prev: { min: number; max: number; at: number } | null = null;
+
+  observe(raw: { min: number; max: number }, nowMs: number): void {
+    const prev = this.#prev;
+    if (prev !== null) {
+      const gapMs = nowMs - prev.at;
+      if (gapMs >= MIN_SAMPLE_GAP_MS) {
+        const seconds = gapMs / 1000;
+        const rateMin = Math.min(0, (raw.min - prev.min) / seconds);
+        const rateMax = Math.max(0, (raw.max - prev.max) / seconds);
+        this.#min = DRIFT_ALPHA * rateMin + (1 - DRIFT_ALPHA) * this.#min;
+        this.#max = DRIFT_ALPHA * rateMax + (1 - DRIFT_ALPHA) * this.#max;
+        this.#runMin = rateMin < 0 ? this.#runMin + 1 : 0;
+        this.#runMax = rateMax > 0 ? this.#runMax + 1 : 0;
+      }
+    }
+
+    this.#prev = { min: raw.min, max: raw.max, at: nowMs };
+  }
+
+  /**
+   * Rate to hand the curve, zero on a side that isn't currently trending.
+   * Gated on the run, not the EMA, for the same reason {@link aimAhead} is.
+   */
+  get value(): { min: number; max: number } {
+    return { min: this.#trending(this.#runMin) ? this.#min : 0, max: this.#trending(this.#runMax) ? this.#max : 0 };
+  }
+
+  /**
+   * A side leads only while its *current* sample confirms the trend, and only
+   * from the second consecutive one.
+   *
+   * Gating on the EMA alone breaks the invariant that matters most to the
+   * eye — an axis that moves while the visible extremes stand still. At a
+   * turning point the EMA still carries the old direction, so the bound
+   * shoots past the peak *after* the peak and then crawls back for seconds.
+   * Requiring two in a row also keeps a lone step from being read as a trend;
+   * containment already covers that case without predicting anything.
+   */
+  #trending(run: number): boolean {
+    return run >= 2;
+  }
+
+  /**
+   * Widen `raw` by the distance the data travels while the bound is in
+   * flight, so the curve aims where the extreme is going rather than where
+   * the last tick reported it.
+   */
+  aimAhead(raw: { min: number; max: number }, settleMs: number): { min: number; max: number } {
+    const seconds = Math.max(0, settleMs) / 1000;
+    const leadMin = this.#trending(this.#runMin) ? this.#min * seconds : 0;
+    const leadMax = this.#trending(this.#runMax) ? this.#max * seconds : 0;
+
+    return { min: raw.min + leadMin, max: raw.max + leadMax };
+  }
+
+  /** Drop the learned trend — the dataset it was measured against is gone. */
+  reset(): void {
+    this.#min = 0;
+    this.#max = 0;
+    this.#runMin = 0;
+    this.#runMax = 0;
+    this.#prev = null;
+  }
+}

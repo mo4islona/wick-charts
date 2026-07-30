@@ -22,6 +22,17 @@ export interface RetargetOptions {
    * extreme leaves the window. Y-only; X transitions ignore this field.
    */
   contractMs?: number;
+  /**
+   * Rate the *target itself* is travelling, in units per second, per side.
+   * Y-only; sides that aren't trending pass 0.
+   *
+   * A curve that ignores it tracks a moving target with a standing lag — it
+   * always aims where the data was at retarget time, so on a trend the newest
+   * extreme sits outside the range until the next retarget catches up.
+   * Honouring it turns a position-only chase into one that also matches speed,
+   * which is what removes the lag rather than papering over it with headroom.
+   */
+  drift?: { min: number; max: number };
 }
 
 /**

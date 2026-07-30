@@ -36,6 +36,11 @@ const FALLBACK_OMEGA = 4.6 / (FALLBACK_MS / 1000);
  *
  * The engine is the single source of truth for the per-call durations —
  * this curve has no stored baseline.
+ *
+ * `RetargetOptions.drift` is honoured by aiming past the target: a critically
+ * damped spring chasing a ramp of rate `v` settles a constant `v / ω` behind
+ * it, so offsetting the aim by exactly that much cancels the lag. Derived
+ * from the curve's own ω rather than tuned.
  */
 export class YRangeSpring implements Transition<YRange> {
   #x0: YRange;
@@ -46,6 +51,10 @@ export class YRangeSpring implements Transition<YRange> {
    *  these — sides can run at different speeds during the same chase. */
   #omegaMin = FALLBACK_OMEGA;
   #omegaMax = FALLBACK_OMEGA;
+  /** Per-side aim offset that cancels the ramp lag: `drift / ω`. Kept apart
+   *  from `#target` so `get target()` still reports the true bound. */
+  #aimMin = 0;
+  #aimMax = 0;
   #t0: number = -1;
   #cached: YRange;
 
@@ -81,11 +90,16 @@ export class YRangeSpring implements Transition<YRange> {
     const contractMs = opts.contractMs ?? FALLBACK_MS;
     const omegaExpand = 4.6 / (expandMs / 1000);
     const omegaContract = 4.6 / (contractMs / 1000);
+    // Outward drift only — matching an inward one would race the sticky contract.
+    const driftMin = Math.min(0, opts.drift?.min ?? 0);
+    const driftMax = Math.max(0, opts.drift?.max ?? 0);
 
     if (this.#t0 < 0) {
       this.#target = { min: value.min, max: value.max };
       this.#omegaMin = omegaExpand;
       this.#omegaMax = omegaExpand;
+      this.#aimMin = driftMin / omegaExpand;
+      this.#aimMax = driftMax / omegaExpand;
       this.#t0 = now;
 
       return;
@@ -108,6 +122,9 @@ export class YRangeSpring implements Transition<YRange> {
     // moves DOWN.
     this.#omegaMax = value.max > x.max ? omegaExpand : omegaContract;
 
+    this.#aimMin = driftMin / this.#omegaMin;
+    this.#aimMax = driftMax / this.#omegaMax;
+
     this.#target = { min: value.min, max: value.max };
     this.#t0 = now;
     this.#cached = x;
@@ -120,6 +137,8 @@ export class YRangeSpring implements Transition<YRange> {
     this.#target = { min: value.min, max: value.max };
     this.#v0Min = 0;
     this.#v0Max = 0;
+    this.#aimMin = 0;
+    this.#aimMax = 0;
     this.#t0 = now;
     this.#cached = { min: value.min, max: value.max };
   }
@@ -160,14 +179,16 @@ export class YRangeSpring implements Transition<YRange> {
     const decayMin = Math.exp(-this.#omegaMin * t);
     const decayMax = Math.exp(-this.#omegaMax * t);
 
-    const aMin = this.#x0.min - this.#target.min;
+    const aimMin = this.#target.min + this.#aimMin;
+    const aMin = this.#x0.min - aimMin;
     const bMin = this.#v0Min + this.#omegaMin * aMin;
-    const xMin = this.#target.min + (aMin + bMin * t) * decayMin;
+    const xMin = aimMin + (aMin + bMin * t) * decayMin;
     const vMin = (bMin - this.#omegaMin * (aMin + bMin * t)) * decayMin;
 
-    const aMax = this.#x0.max - this.#target.max;
+    const aimMax = this.#target.max + this.#aimMax;
+    const aMax = this.#x0.max - aimMax;
     const bMax = this.#v0Max + this.#omegaMax * aMax;
-    const xMax = this.#target.max + (aMax + bMax * t) * decayMax;
+    const xMax = aimMax + (aMax + bMax * t) * decayMax;
     const vMax = (bMax - this.#omegaMax * (aMax + bMax * t)) * decayMax;
 
     return { x: { min: xMin, max: xMax }, vMin, vMax };
