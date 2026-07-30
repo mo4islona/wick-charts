@@ -98,24 +98,6 @@ export const DEFAULT_X_GESTURE_MS = 150;
  */
 export const DEFAULT_Y_SETTLE_MS = 250;
 
-/**
- * Multiplier on the measured producer cadence that sizes the *streaming* Y
- * expand (see `StreamingCadence.pickSettleMs`). A fixed 250 ms only tracks
- * continuously on a ~250 ms feed; on a 1 s feed the axis moves for a quarter
- * second and stands still for three quarters.
- *
- * This is only affordable because `YTrendLead` puts the target a step ahead of
- * the data — without it, a longer expand just means the newest point spends
- * longer below the floor (57 % of frames at 1.2 vs 12 % at the bare 250 ms).
- * With the lead, clipping stays near zero across the whole range, so the
- * duration is free to be chosen for continuity alone: at 1.2 the curve is
- * still mid-flight when the next tick retargets it (frozen frames 74 % → 0 %).
- *
- * Lower than X's 3.0 on purpose: X lag only shifts the window, Y lag is
- * headroom the lead has to pay for.
- */
-export const Y_STREAM_SETTLE_SLACK = 1.2;
-
 /** Vertical jump, in pixels, at which {@link AnimationsConfig.flowLag} reaches
  *  its full duration. Below it the lag scales down linearly to nothing. */
 export const DEFAULT_FLOW_LAG_JUMP_PX = 60;
