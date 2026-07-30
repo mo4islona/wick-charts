@@ -2,74 +2,31 @@
 /**
  * Two contracts behind how the grid is formed:
  *
- * 1. Membership resolves against the viewport's target, positions against its
- *    eased range — one cross-fade per retarget, not per-frame churn.
+ * 1. A tween never leaves the pane visibly short of gridlines.
  * 2. Label and gridline resolve a value to the same device pixel.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
 import { crispCenterOffset } from '../utils/pixel-grid';
+import { installRaf, makeChartContainer } from './helpers/fake-raf';
 
 const INTERVAL = 60_000;
-
-function installRaf(): { flush: (frames?: number) => void; uninstall: () => void } {
-  let nextId = 1;
-  let now = 0;
-  let queue: Array<{ id: number; cb: FrameRequestCallback }> = [];
-  const origRaf = globalThis.requestAnimationFrame;
-  const origCancel = globalThis.cancelAnimationFrame;
-
-  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
-    const id = nextId++;
-    queue.push({ id, cb });
-
-    return id;
-  };
-  globalThis.cancelAnimationFrame = (id: number) => {
-    queue = queue.filter((f) => f.id !== id);
-  };
-
-  const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
-
-  return {
-    flush: (frames = 50) => {
-      for (let i = 0; i < frames; i++) {
-        if (queue.length === 0) return;
-        const pending = queue;
-        queue = [];
-        now += 16;
-        for (const f of pending) f.cb(now);
-      }
-    },
-    uninstall: () => {
-      globalThis.requestAnimationFrame = origRaf;
-      globalThis.cancelAnimationFrame = origCancel;
-      spy.mockRestore();
-      queue = [];
-    },
-  };
-}
+const PANE_WIDTH = 800;
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
-  const container = document.createElement('div');
-  const rect: DOMRect = {
-    x: 0,
-    y: 0,
-    top: 0,
-    left: 0,
-    bottom: 400,
-    right: 800,
-    width: 800,
-    height: 400,
-    toJSON: () => ({}),
-  };
-  container.getBoundingClientRect = () => rect;
-  Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
-  document.body.appendChild(container);
+  const container = makeChartContainer();
 
   return { chart: new ChartInstance(container, { interactive: false }), container };
+}
+
+/** Gridlines the viewer can actually see: faded in, and inside the pane. */
+function visibleXTicks(chart: ChartInstance): number[] {
+  return chart.timeScale.tickTracker
+    .snapshot()
+    .entries.filter((e) => e.opacity > 0.01)
+    .map((e) => chart.timeScale.timeToX(e.value))
+    .filter((x) => x >= 0 && x <= PANE_WIDTH);
 }
 
 function seedLine(chart: ChartInstance, count: number): string {
@@ -82,7 +39,7 @@ function seedLine(chart: ChartInstance, count: number): string {
   return id;
 }
 
-describe('grid tick membership resolves against the viewport target', () => {
+describe('the grid stays populated across a viewport tween', () => {
   let chart: ChartInstance;
   let container: HTMLElement;
   let raf: ReturnType<typeof installRaf>;
@@ -97,32 +54,7 @@ describe('grid tick membership resolves against the viewport target', () => {
     raf.uninstall();
   });
 
-  it('holds one X tick set for the whole zoom tween while the visual range still moves', () => {
-    ({ chart, container } = makeChart());
-    seedLine(chart, 200);
-    raf.flush(80);
-
-    const interval = chart.getDataInterval();
-    chart.setVisibleRange({ from: 1_000_000 + 40 * INTERVAL, to: 1_000_000 + 60 * INTERVAL }, { gesture: true });
-
-    // `getVisibleRange` reports the committed target, so read the eased visual
-    // range through the scale instead: where a fixed timestamp lands on screen.
-    const probe = 1_000_000 + 50 * INTERVAL;
-    const sets: string[] = [];
-    const positions: number[] = [];
-    for (let i = 0; i < 12; i++) {
-      raf.flush(1);
-      sets.push(chart.timeScale.niceTickValues(interval).ticks.join(','));
-      positions.push(chart.timeScale.timeToX(probe));
-    }
-
-    // The visual range is genuinely easing across these frames...
-    expect(new Set(positions).size).toBeGreaterThan(3);
-    // ...while the tick set the grid draws never restages mid-flight.
-    expect(new Set(sets).size).toBe(1);
-  });
-
-  it('keeps painting the outgoing set during the tween so the pane never empties', () => {
+  it('keeps gridlines inside the pane through a zoom-in tween', () => {
     ({ chart, container } = makeChart());
     seedLine(chart, 200);
     raf.flush(80);
@@ -131,16 +63,36 @@ describe('grid tick membership resolves against the viewport target', () => {
 
     for (let i = 0; i < 12; i++) {
       raf.flush(1);
-      // Entering and leaving values are both alive in the tracker, so there is
-      // always something to draw — a zoom that coarsens the interval cannot
-      // blank the grid while the viewport is in flight.
-      expect(chart.timeScale.tickTracker.snapshot().entries.length).toBeGreaterThan(0);
+      // Counted on screen, not in the tracker: a tracker entry positioned off
+      // the pane is a line the viewer never sees, so `entries.length` would
+      // pass on a grid that has visibly emptied.
+      expect(visibleXTicks(chart).length).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('falls back to the visual range before a target exists', () => {
-    // Fresh mount: the engine's target is still the degenerate seed range, so
-    // resolving ticks against it would yield an empty set and no grid at all.
+  it('never shows fewer gridlines mid-zoom-out than the window it started from', () => {
+    // Zooming out only ever adds room for ticks, so the count must not dip.
+    // It did when membership resolved against the viewport target: the incoming
+    // coarse set mapped outside the still-narrow window and the pane went down
+    // to a single line for the opening frames.
+    ({ chart, container } = makeChart());
+    seedLine(chart, 200);
+    raf.flush(80);
+
+    chart.setVisibleRange({ from: 1_000_000 + 40 * INTERVAL, to: 1_000_000 + 50 * INTERVAL });
+    raf.flush(80);
+    const settled = visibleXTicks(chart).length;
+    expect(settled).toBeGreaterThanOrEqual(2);
+
+    chart.setVisibleRange({ from: 1_000_000, to: 1_000_000 + 199 * INTERVAL }, { gesture: true });
+
+    for (let i = 0; i < 12; i++) {
+      raf.flush(1);
+      expect(visibleXTicks(chart).length).toBeGreaterThanOrEqual(settled);
+    }
+  });
+
+  it('has ticks on the first frame after data lands', () => {
     ({ chart, container } = makeChart());
     seedLine(chart, 20);
     raf.flush(1);

@@ -60,8 +60,11 @@ export const ThemeSelect = memo(
             color: theme.tooltip.textColor,
             border: `1px solid ${hexToRgba(theme.tooltip.borderColor, 0.5)}`,
             borderRadius: 6,
+            // Matches the topbar's other controls (App.tsx CONTROL_SIZE).
             height: 36,
-            padding: '0 16px',
+            // Mobile hides the theme name, so the desktop padding would leave
+            // a pill twice as wide as the icon buttons beside it.
+            padding: mobile ? '0 10px' : '0 16px',
             fontSize: theme.typography.fontSize,
             fontFamily: 'inherit',
             fontWeight: 500,

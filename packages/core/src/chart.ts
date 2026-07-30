@@ -75,6 +75,7 @@ import type {
   YRange,
 } from './types';
 import { clamp } from './utils/math';
+import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig } from './chart/options';
@@ -518,10 +519,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.yScale.tickTracker.setFadeMs(ticksMs);
 
     // Starts at 0 whatever `grid.visible` says — the first render frame
-    // retargets to 1, which snaps at duration 0.
+    // retargets to 1, which snaps at duration 0. The duration is passed per
+    // retarget, not baked in here, so an OS reduced-motion flip is honored.
     this.#gridFade = new Animator<number>({
       initial: 0,
-      duration: prefersReducedMotion() ? 0 : this.#animationsConfig.axis.gridMs,
+      duration: this.#animationsConfig.axis.gridMs,
       lerp: (from, to, t) => from + (to - from) * t,
     });
 
@@ -2839,15 +2841,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const chartWidth = size.media.width - this.yAxisWidth;
     const chartHeight = size.media.height - this.xAxisHeight;
 
-    // Ticks resolve against where the viewport is going, positions against
-    // where it is now — one cross-fade per retarget instead of per-frame churn
-    // as the eased range sweeps past each boundary. Before `update` so its
-    // resolve sees the target; a degenerate target falls back to the visual.
-    const target = this.#engine.getTarget();
-    const yTickRange = this.#padYRange({ min: target.y.min, max: target.y.max, chartHeight });
-    this.yScale.setTickRange(yTickRange.max > yTickRange.min ? yTickRange : null);
-    this.timeScale.setTickRange(target.x.to > target.x.from ? target.x : null);
-
     this.timeScale.update(
       this.#engine.getAnimationState().xRange,
       chartWidth,
@@ -2972,8 +2965,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // burn the ramp on empty frames and arrive already opaque. Hiding needs
       // no gate. Retarget before the tick so a same-frame `setGrid` lands now.
       const gridTarget = this.#grid ? 1 : 0;
-      if (gridTarget === 0 || yTickSnap.entries.length > 0 || timeTickSnap.entries.length > 0) {
-        this.#gridFade.setTarget(gridTarget, { now });
+      const gridArmed = gridTarget === 0 || yTickSnap.entries.length > 0 || timeTickSnap.entries.length > 0;
+      // Only on a real retarget — `prefersReducedMotion` builds a MediaQueryList,
+      // too much to spend on every frame just to re-confirm the target.
+      if (gridArmed && gridTarget !== this.#gridFade.target) {
+        const gridMs = prefersReducedMotion() ? 0 : this.#animationsConfig.axis.gridMs;
+        this.#gridFade.setTarget(gridTarget, { now, duration: gridMs });
       }
       gridFadeAnimating = this.#gridFade.tick(now);
       const gridAlpha = this.#gridFade.current;
@@ -3160,9 +3157,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // restarting the pattern at the pane edge.
     context.lineDashOffset = start;
 
-    const lineWidth = Math.max(1, Math.round(horizontalPixelRatio));
-    const half = lineWidth % 2 === 1 ? 0.5 : 0;
-    context.lineWidth = lineWidth;
+    context.lineWidth = crispLineWidth(horizontalPixelRatio);
+    const half = crispCenterOffset(horizontalPixelRatio);
 
     const paneWidth = Math.round(paneBitmapWidth);
     for (const { value, opacity } of timeTicks.entries) {

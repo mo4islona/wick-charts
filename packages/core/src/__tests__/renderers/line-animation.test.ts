@@ -520,16 +520,22 @@ describe('LineRenderer — animation', () => {
       });
       r.render(ctx);
 
-      // With layer 0 hidden, layer 1's lower edge sits at y(0) (the zero line).
-      // The fill polygon's bottom-right corner must land at (X30, y(0)) — never
-      // a lerped X — because layer 0's progress is gated out by isVisible().
+      // With layer 0 hidden, layer 1's lower edge sits at y(0) (the zero line),
+      // and the fill's right edge is vertical: its bottom corner shares the
+      // still-growing top edge's X. A baseline left at the raw X30 would flare
+      // the slice into a wedge past the line's tip.
+      const X20 = timeScale.timeToBitmapX(20);
       const X30 = timeScale.timeToBitmapX(30);
       const yZero = yScale.valueToBitmapY(0);
       const lineTos = spy.callsOf('lineTo');
-      const matches = lineTos.filter(
-        (c) => Math.abs((c.args[0] as number) - X30) < 0.5 && Math.abs((c.args[1] as number) - yZero) < 0.5,
-      );
-      expect(matches.length).toBeGreaterThan(0);
+      const baseline = lineTos.filter((c) => Math.abs((c.args[1] as number) - yZero) < 0.5);
+      const rightmost = Math.max(...baseline.map((c) => c.args[0] as number));
+      const tipX = Math.max(...lineTos.map((c) => c.args[0] as number));
+
+      expect(baseline.length).toBeGreaterThan(0);
+      expect(rightmost).toBeGreaterThan(X20);
+      expect(rightmost).toBeLessThan(X30);
+      expect(Math.abs(rightmost - tipX)).toBeLessThan(0.5);
     });
 
     it("ragged append: a settled layer's top edge must not tear away from an actively-growing sibling's shared boundary", () => {

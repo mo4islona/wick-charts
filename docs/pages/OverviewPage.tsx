@@ -132,6 +132,11 @@ interface StreamProps {
   speed: number;
 }
 
+// The hero cells give the chart a definite height (220px on mobile), which is
+// under ChartContainer's 240px floor — left on, the canvas overflows its card
+// and pushes the time axis out past the border.
+const HERO_CHART_STYLE = { minHeight: 0 } as const;
+
 // ── Chart components ──────────────────────────────────────────
 
 function CandleChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: CandleIntroFn }) {
@@ -139,7 +144,7 @@ function CandleChart({ theme, speed, introAnimation }: StreamProps & { introAnim
   const sid = 'candle';
   const mobile = useIsMobile();
   return (
-    <ChartContainer theme={theme} viewport={{ initialRange: INITIAL_CANDLE_BARS }}>
+    <ChartContainer theme={theme} viewport={{ initialRange: INITIAL_CANDLE_BARS }} style={HERO_CHART_STYLE}>
       <Title sub="Live Candlestick">BTC/USD</Title>
       {!mobile && <InfoBar />}
       <CandlestickSeries id={sid} data={data} options={{ introAnimation }} />
@@ -163,7 +168,7 @@ function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introA
   });
   const mobile = useIsMobile();
   return (
-    <ChartContainer theme={theme}>
+    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       {!mobile && <InfoBar />}
       <LineSeries
@@ -189,7 +194,7 @@ function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introA
 function MultiLineChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
   const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   return (
-    <ChartContainer theme={theme}>
+    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
       <Title sub="10 assets · Live">Portfolio</Title>
       <LineSeries data={datasets} options={{ area: { visible: false }, strokeWidth: 1, introAnimation }} />
       <Crosshair />
@@ -207,7 +212,7 @@ function BarChart({ theme, speed, introAnimation }: StreamProps & { introAnimati
     maxPoints: MAX_POINTS,
   });
   return (
-    <ChartContainer theme={theme}>
+    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
       <Title sub="Live Bar">P&L Delta</Title>
       {/* Sign coloring (green-up / red-down) comes from the theme's bar.color. */}
       <BarSeries data={[datasets[0]]} options={{ introAnimation }} />
