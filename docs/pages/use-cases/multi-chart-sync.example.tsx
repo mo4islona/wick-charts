@@ -154,7 +154,9 @@ export function MultiChartSyncDemo({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
       <ChartCard flex={2} theme={theme}>
-        <ChartContainer theme={theme}>
+        {/* A flex-ratio pane can land under ChartContainer's 240px floor, which
+            would then overflow its card and cover the pane below. */}
+        <ChartContainer theme={theme} style={{ minHeight: 0 }}>
           <Title sub="Price">BTC/USD</Title>
           <CandlestickSeries id="candle" data={candles} />
           <RegisterChart onReady={onPriceReady} />
@@ -165,7 +167,7 @@ export function MultiChartSyncDemo({
         </ChartContainer>
       </ChartCard>
       <ChartCard flex={1} theme={theme}>
-        <ChartContainer theme={theme}>
+        <ChartContainer theme={theme} style={{ minHeight: 0 }}>
           <Title sub="Volume">Volume</Title>
           <BarSeries id="volume" data={[volume]} />
           <RegisterChart onReady={onVolumeReady} />
@@ -176,7 +178,7 @@ export function MultiChartSyncDemo({
         </ChartContainer>
       </ChartCard>
       <ChartCard flex={1} theme={theme}>
-        <ChartContainer theme={theme}>
+        <ChartContainer theme={theme} style={{ minHeight: 0 }}>
           <Title sub="14-period">RSI</Title>
           <LineSeries id="rsi" data={[rsi]} />
           <RegisterChart onReady={onRsiReady} />

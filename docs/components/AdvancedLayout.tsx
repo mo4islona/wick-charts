@@ -315,8 +315,10 @@ export function AdvancedLayout({
           </div>
         )}
 
-        {/* Chart column — sticky so the demo stays in view while reading. */}
-        <div style={{ flex: 1, minWidth: 0, order: mobile ? 1 : 3 }}>
+        {/* Chart column — sticky so the demo stays in view while reading. The
+            padding mirrors the article's so the splitter sits centred between
+            them, not 4px off toward the chart. */}
+        <div style={{ flex: 1, minWidth: 0, order: mobile ? 1 : 3, paddingLeft: mobile ? 0 : 8 }}>
           <div style={chartWrap}>
             {chartControls && (
               <div
