@@ -49,12 +49,6 @@ export class YScale {
   private max = 0;
   private height = 1;
   private pixelRatio = 1;
-  /**
-   * Range the tick set and interval resolve against — the viewport's target,
-   * so membership holds for the whole tween instead of churning at the edges.
-   * `null` tracks the visual range.
-   */
-  private tickRange: YRange | null = null;
 
   // Label density knobs — written by <YAxis labelCount=… minLabelSpacing=…>.
   private labelCountHintValue: number | null = null;
@@ -93,33 +87,6 @@ export class YScale {
     this.height = mediaHeight;
     this.pixelRatio = pixelRatio;
     this.resolveInterval();
-  }
-
-  /**
-   * Point tick resolution at the viewport's target range. Pass `null` to track
-   * the visual range again. Call before {@link update} so the paired resolve
-   * sees it; only an actual change re-resolves.
-   */
-  setTickRange(range: YRange | null): void {
-    const same =
-      (range === null && this.tickRange === null) ||
-      (range !== null &&
-        this.tickRange !== null &&
-        range.min === this.tickRange.min &&
-        range.max === this.tickRange.max);
-    if (same) return;
-
-    this.tickRange = range === null ? null : { min: range.min, max: range.max };
-    this.resolveInterval();
-  }
-
-  /** Range ticks resolve against — the target when set, else the visual range. */
-  private get tickMin(): number {
-    return this.tickRange?.min ?? this.min;
-  }
-
-  private get tickMax(): number {
-    return this.tickRange?.max ?? this.max;
   }
 
   /** Desired label count. Invalid values (NaN, <2, Infinity) clear the hint. */
@@ -171,9 +138,19 @@ export class YScale {
     return (1 - (value - this.min) / range) * this.height;
   }
 
-  /** Convert a value to a Y position in physical (bitmap) pixels. */
+  /** Convert a value to a Y position in physical (bitmap) pixels, snapped to
+   *  the pixel grid — for axis-aligned edges that have to stay crisp. */
   valueToBitmapY(value: number): number {
-    return Math.round(this.valueToY(value) * this.pixelRatio);
+    return Math.round(this.valueToBitmapYExact(value));
+  }
+
+  /**
+   * Same in physical pixels, off the grid. Anti-aliased geometry reads this
+   * one: snapping buys a diagonal stroke no sharpness, and during a slow
+   * animation it quantises the motion into whole-pixel jumps.
+   */
+  valueToBitmapYExact(value: number): number {
+    return this.valueToY(value) * this.pixelRatio;
   }
 
   /**
@@ -198,15 +175,13 @@ export class YScale {
    * chart height. Pure read — resolution happens in `update()`.
    */
   niceTickValues(): number[] {
-    if (this.customTickGenerator) {
-      return this.customTickGenerator({ min: this.tickMin, max: this.tickMax }).slice(0, MAX_TICKS);
-    }
+    if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
 
     if (this.resolvedInterval == null) return [];
 
     const interval = this.resolvedInterval;
-    const start = Math.ceil(this.tickMin / interval) * interval;
-    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.tickMax - start) / interval) + 1));
+    const start = Math.ceil(this.min / interval) * interval;
+    const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.max - start) / interval) + 1));
 
     const ticks: number[] = [];
     // Multiplicative indexing avoids cumulative fp drift of `p += interval`.
@@ -259,12 +234,12 @@ export class YScale {
    * candles nudge the Y range across a raw-interval threshold.
    */
   private resolveInterval(): void {
-    if (this.tickMax <= this.tickMin || this.height <= 0) {
+    if (this.max <= this.min || this.height <= 0) {
       this.resolvedInterval = null;
       return;
     }
 
-    const range = this.tickMax - this.tickMin;
+    const range = this.max - this.min;
     const gapFloorValue = (range * this.minLabelSpacing) / this.height;
 
     // For the hint path we use `labelCount` (not `labelCount - 1`) as the gap
@@ -310,9 +285,9 @@ export class YScale {
 
   private countTicks(interval: number): number {
     if (!(interval > 0)) return 0;
-    const start = Math.ceil(this.tickMin / interval) * interval;
+    const start = Math.ceil(this.min / interval) * interval;
 
-    return Math.max(0, Math.floor((this.tickMax - start) / interval) + 1);
+    return Math.max(0, Math.floor((this.max - start) / interval) + 1);
   }
 }
 
