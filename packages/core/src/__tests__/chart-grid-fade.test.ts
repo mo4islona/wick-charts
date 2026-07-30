@@ -7,11 +7,12 @@
  * The global setup reports `prefers-reduced-motion: reduce`, which collapses the
  * ramp to a snap, so these tests swap in a motion-allowing `matchMedia`.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
 import type { ChartOptions } from '../chart/options';
 import { catppuccin } from '../theme/themes/catppuccin';
+import { installRaf, makeChartContainer } from './helpers/fake-raf';
 
 const INTERVAL = 60_000;
 const reducedMotionStub = globalThis.matchMedia;
@@ -30,44 +31,6 @@ function allowMotion(): void {
     }) as unknown as MediaQueryList) as typeof globalThis.matchMedia;
 }
 
-function installRaf(): { flush: (frames?: number) => void; uninstall: () => void } {
-  let nextId = 1;
-  let now = 0;
-  let queue: Array<{ id: number; cb: FrameRequestCallback }> = [];
-  const origRaf = globalThis.requestAnimationFrame;
-  const origCancel = globalThis.cancelAnimationFrame;
-
-  globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
-    const id = nextId++;
-    queue.push({ id, cb });
-
-    return id;
-  };
-  globalThis.cancelAnimationFrame = (id: number) => {
-    queue = queue.filter((f) => f.id !== id);
-  };
-
-  const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
-
-  return {
-    flush: (frames = 50) => {
-      for (let i = 0; i < frames; i++) {
-        if (queue.length === 0) return;
-        const pending = queue;
-        queue = [];
-        now += 16;
-        for (const f of pending) f.cb(now);
-      }
-    },
-    uninstall: () => {
-      globalThis.requestAnimationFrame = origRaf;
-      globalThis.cancelAnimationFrame = origCancel;
-      spy.mockRestore();
-      queue = [];
-    },
-  };
-}
-
 interface Harness {
   chart: ChartInstance;
   container: HTMLElement;
@@ -77,23 +40,7 @@ interface Harness {
 }
 
 function makeChart(options?: ChartOptions): Harness {
-  const container = document.createElement('div');
-  const rect: DOMRect = {
-    x: 0,
-    y: 0,
-    top: 0,
-    left: 0,
-    bottom: 400,
-    right: 800,
-    width: 800,
-    height: 400,
-    toJSON: () => ({}),
-  };
-  container.getBoundingClientRect = () => rect;
-  Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 400, configurable: true });
-  document.body.appendChild(container);
-
+  const container = makeChartContainer();
   const chart = new ChartInstance(container, { interactive: false, ...options });
   const canvas = container.querySelector('canvas');
   const spy = canvas?.__spy;
