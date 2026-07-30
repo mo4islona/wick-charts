@@ -1,5 +1,7 @@
+import { Animator } from './animation/animator';
 import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
 import { easeOutCubic } from './animation/easing';
+import { prefersReducedMotion } from './animation/reduced-motion';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
@@ -282,6 +284,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #theme: ChartTheme;
   /** Whether to render the background grid. */
   #grid: boolean;
+  /**
+   * Gridline layer opacity, multiplied into every per-tick fade: `0 → 1` on
+   * the opening reveal, `1 → 0` when {@link setGrid} hides the grid. The
+   * per-tick fades stay snapped during mount (see the tracker's arming), so
+   * this is what keeps `fitToData` tick churn from flickering the reveal.
+   */
+  #gridFade: Animator<number>;
   /** Resolved edge-fade zones — `right: null` tracks the live Y-axis width. */
   #fade: ResolvedFade;
   /** Memoized destination-out mask gradients, one per edge, keyed by the
@@ -507,6 +516,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const ticksMs = this.#animationsConfig.axis.ticksMs;
     this.timeScale.tickTracker.setFadeMs(ticksMs);
     this.yScale.tickTracker.setFadeMs(ticksMs);
+
+    // Starts at 0 whatever `grid.visible` says — the first render frame
+    // retargets to 1, which snaps when the resolved duration is 0. The reveal
+    // is decoration, so reduced-motion collapses it to that snap.
+    this.#gridFade = new Animator<number>({
+      initial: 0,
+      duration: prefersReducedMotion() ? 0 : this.#animationsConfig.axis.gridMs,
+      lerp: (from, to, t) => from + (to - from) * t,
+    });
 
     this.#mainScheduler = new RenderScheduler((t) => this.#renderFrame(t));
     this.#overlayScheduler = new RenderScheduler((t) =>
@@ -2888,6 +2906,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // the same lexical scope.
     let yTickAnimating = false;
     let timeTickAnimating = false;
+    let gridFadeAnimating = false;
 
     this.#canvasManager.useMainLayer((scope) => {
       const { context, bitmapSize } = scope;
@@ -2934,16 +2953,28 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         this.emit('tickFrame');
       }
 
-      if (this.#grid) {
-        renderGrid({
-          scope,
-          timeScale: this.timeScale,
-          yScale: this.yScale,
-          theme: this.#theme,
-          yTicks: yTickSnap,
-          timeTicks: timeTickSnap,
-        });
+      // Hold the reveal until there are gridlines to reveal. A chart whose
+      // data arrives a tick after mount paints empty frames first, and
+      // starting there would burn the ramp against nothing — the real grid
+      // would then appear already opaque. Hiding needs no such gate.
+      // Retargeting before the tick keeps a same-frame `setGrid` from landing
+      // one frame late.
+      const gridTarget = this.#grid ? 1 : 0;
+      if (gridTarget === 0 || yTickSnap.entries.length > 0 || timeTickSnap.entries.length > 0) {
+        this.#gridFade.setTarget(gridTarget, { now });
       }
+      gridFadeAnimating = this.#gridFade.tick(now);
+      const gridAlpha = this.#gridFade.current;
+
+      renderGrid({
+        scope,
+        timeScale: this.timeScale,
+        yScale: this.yScale,
+        theme: this.#theme,
+        yTicks: yTickSnap,
+        timeTicks: timeTickSnap,
+        alpha: gridAlpha,
+      });
 
       // Time-region bands sit between the grid and the series so the data reads
       // on top of the shading.
@@ -3000,6 +3031,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         paneBitmapWidth: chartBitmapWidth,
         paneBitmapHeight: chartBitmapHeight,
         timeTicks: timeTickSnap,
+        alpha: gridAlpha,
       });
 
       // Last passes on the main layer: dissolve everything drawn above into
@@ -3040,6 +3072,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // across consecutive frames once the tick interval is resolved, so
     // streaming + zoom don't churn the tracker — only real set changes do.
     const trackersStillFading = yTickAnimating || timeTickAnimating;
+
+    // Neither fade owns a scheduler wake: the engine stops calling markDirty
+    // on the frame it settles, so a tick cross-fade or grid ramp outliving it
+    // would freeze mid-way.
+    if (trackersStillFading || gridFadeAnimating) {
+      this.#mainScheduler.markDirty();
+    }
+
     // Engine `animating` covers both X (engine X slot) and Y (transition);
     // viewport no longer has its own X animator since Phase 2 step 2.
     if (!animationState.animating && !seriesNeedsAnim && !trackersStillFading) {
@@ -3084,10 +3124,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     paneBitmapWidth: number;
     paneBitmapHeight: number;
     timeTicks: TickTrackerSnapshot;
+    /** Layer fade from `#gridFade` — the stubs ride their line's opacity. */
+    alpha: number;
   }): void {
-    if (!this.#grid || this.xAxisHeight === 0) return;
-
-    const { scope, paneBitmapWidth, paneBitmapHeight, timeTicks } = args;
+    const { scope, paneBitmapWidth, paneBitmapHeight, timeTicks, alpha } = args;
+    // Gate on the grid *flag*, not the layer fade: the taper below owns the
+    // whole overrun strip, so keeping it tied to `#grid` preserves what a
+    // grid-less chart did while still tapering the stubs mid-fade.
+    if ((!this.#grid && alpha <= 0.01) || this.xAxisHeight === 0) return;
     const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
     const start = Math.round(paneBitmapHeight);
     const height = Math.round(GRID_TAIL_PX * verticalPixelRatio);
@@ -3112,12 +3156,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const paneWidth = Math.round(paneBitmapWidth);
     for (const { value, opacity } of timeTicks.entries) {
-      if (opacity <= 0.01) continue;
+      const faded = opacity * alpha;
+      if (faded <= 0.01) continue;
 
       const x = Math.round(this.timeScale.timeToBitmapX(value)) + half;
       if (x < 0 || x > paneWidth) continue;
 
-      context.globalAlpha = opacity;
+      context.globalAlpha = faded;
       context.beginPath();
       context.moveTo(x, start);
       context.lineTo(x, start + height);

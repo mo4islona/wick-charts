@@ -13,6 +13,11 @@ export interface RenderGridArgs {
   yTicks: TickTrackerSnapshot;
   /** Faded tick state from `timeScale.tickTracker`. */
   timeTicks: TickTrackerSnapshot;
+  /**
+   * Layer-wide opacity multiplier — the chart's reveal / hide fade. Defaults
+   * to fully opaque for callers that don't animate the layer.
+   */
+  alpha?: number;
 }
 
 /**
@@ -22,8 +27,13 @@ export interface RenderGridArgs {
  * labels above them. The per-tick `beginPath`/`stroke` pair costs ≤ ~30
  * stroke calls per axis (typical 5-10 ticks, hard-capped at 50) which is
  * negligible compared to the rest of the main-layer draw.
+ *
+ * `alpha` scales every tick on top of its own fade, giving the whole layer
+ * one reveal / hide ramp without disturbing the per-tick timelines.
  */
-export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks }: RenderGridArgs): void {
+export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks, alpha = 1 }: RenderGridArgs): void {
+  if (alpha <= 0.01) return;
+
   const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
   context.save();
@@ -43,10 +53,11 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks 
   const yHalf = yLineWidth % 2 === 1 ? 0.5 : 0;
   context.lineWidth = yLineWidth;
   for (const { value, opacity } of yTicks.entries) {
-    if (opacity <= 0.01) continue;
+    const faded = opacity * alpha;
+    if (faded <= 0.01) continue;
 
     const y = Math.round(yScale.valueToBitmapY(value)) + yHalf;
-    context.globalAlpha = opacity;
+    context.globalAlpha = faded;
     context.beginPath();
     context.moveTo(0, y);
     context.lineTo(bitmapSize.width, y);
@@ -57,10 +68,11 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks 
   const xHalf = xLineWidth % 2 === 1 ? 0.5 : 0;
   context.lineWidth = xLineWidth;
   for (const { value, opacity } of timeTicks.entries) {
-    if (opacity <= 0.01) continue;
+    const faded = opacity * alpha;
+    if (faded <= 0.01) continue;
 
     const x = Math.round(timeScale.timeToBitmapX(value)) + xHalf;
-    context.globalAlpha = opacity;
+    context.globalAlpha = faded;
     context.beginPath();
     context.moveTo(x, 0);
     context.lineTo(x, bitmapSize.height);

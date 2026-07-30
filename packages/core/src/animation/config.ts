@@ -138,6 +138,12 @@ export const DEFAULT_TOGGLE_MS = 250;
 /** Axis tick label cross-fade duration. */
 export const DEFAULT_TICKS_MS = 250;
 
+/**
+ * Whole-grid reveal / hide fade. Longer than the per-tick cross-fade: the
+ * reveal runs against a settling chart, and a quick ramp reads as a pop.
+ */
+export const DEFAULT_GRID_MS = 400;
+
 // =============================================================================
 // Public `AnimationsConfig` input surface
 // =============================================================================
@@ -245,6 +251,15 @@ export interface AnimationsConfig {
          * @default {@link DEFAULT_TICKS_MS}
          */
         ticks?: AnimationTime;
+        /**
+         * Gridline layer opacity: the opening reveal on first paint and the
+         * fade out when `grid.visible` flips off. Independent of
+         * {@link ticks}, which owns the per-tick cross-fade on relabel.
+         * `false` makes the grid appear and disappear instantly.
+         *
+         * @default {@link DEFAULT_GRID_MS}
+         */
+        grid?: AnimationTime;
       };
   /**
    * Series-visibility toggle duration. Drives BOTH the renderer's alpha
@@ -495,12 +510,13 @@ export class AnimationConfig {
     y: ResolvedYAxisAnimation;
     x: ResolvedXAxisAnimation;
     ticksMs: number;
+    gridMs: number;
   };
   readonly toggleMs: number;
   readonly series: ResolvedSeriesAnimations;
 
   private constructor(
-    axis: { y: ResolvedYAxisAnimation; x: ResolvedXAxisAnimation; ticksMs: number },
+    axis: { y: ResolvedYAxisAnimation; x: ResolvedXAxisAnimation; ticksMs: number; gridMs: number },
     toggleMs: number,
     series: ResolvedSeriesAnimations,
   ) {
@@ -522,6 +538,7 @@ export class AnimationConfig {
           y: { curve: snap(), settleMs: 0, stickyMs: 0, stickyFloorMs: 0, gestureMs: 0 },
           x: { curve: snap(), settleMs: 0, gestureMs: 0 },
           ticksMs: 0,
+          gridMs: 0,
         },
         0,
         ZERO_SERIES_ANIMATIONS,
@@ -533,6 +550,7 @@ export class AnimationConfig {
     const rawY = rawAxis === false ? false : rawAxis?.y;
     const rawX = rawAxis === false ? false : rawAxis?.x;
     const rawTicks = rawAxis === false ? false : rawAxis?.ticks;
+    const rawGrid = rawAxis === false ? false : rawAxis?.grid;
     const rawToggle = cfg?.toggle;
     const rawSeries = cfg?.series;
 
@@ -566,10 +584,11 @@ export class AnimationConfig {
           };
 
     const ticksMs = rawTicks === false ? 0 : resolveAnimationTime(rawTicks, DEFAULT_TICKS_MS);
+    const gridMs = rawGrid === false ? 0 : resolveAnimationTime(rawGrid, DEFAULT_GRID_MS);
     const toggleMs = resolveAnimationTime(rawToggle, DEFAULT_TOGGLE_MS);
     const series = resolveSeriesAnimations(rawSeries);
 
-    return new AnimationConfig({ y, x, ticksMs }, toggleMs, series);
+    return new AnimationConfig({ y, x, ticksMs, gridMs }, toggleMs, series);
   }
 
   /**
