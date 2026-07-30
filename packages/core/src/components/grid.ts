@@ -29,8 +29,8 @@ export interface RenderGridArgs {
  * stroke calls per axis (typical 5-10 ticks, hard-capped at 50) which is
  * negligible compared to the rest of the main-layer draw.
  *
- * `alpha` scales every tick on top of its own fade, giving the whole layer
- * one reveal / hide ramp without disturbing the per-tick timelines.
+ * `alpha` scales every tick on top of its own fade — one reveal / hide ramp for
+ * the layer, per-tick timelines untouched.
  */
 export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks, alpha = 1 }: RenderGridArgs): void {
   if (alpha <= 0.01) return;
@@ -46,10 +46,8 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks,
     context.setLineDash([1 * horizontalPixelRatio, 3 * horizontalPixelRatio]);
   }
 
-  // Scale the stroke to device pixels so gridlines stay 1 CSS-px crisp at any
-  // DPR (matching the series strokes), instead of rendering at a faint 0.5
-  // CSS-px on HiDPI. Shared with the scales' `valueToSnappedY` so DOM axis
-  // labels land on the same pixel as the line they name.
+  // Device-pixel widths keep the line 1 CSS-px crisp at any DPR. Shared with
+  // the scales' `valueToSnappedY` so labels land on the same pixel.
   const yLineWidth = crispLineWidth(verticalPixelRatio);
   const yHalf = crispCenterOffset(verticalPixelRatio);
   context.lineWidth = yLineWidth;

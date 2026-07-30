@@ -1,16 +1,11 @@
 // @vitest-environment happy-dom
 /**
- * Gridline layer fade.
+ * Gridline layer fade: `0 → 1` on first paint, `1 → 0` when `setGrid` hides it.
+ * A layer-wide ramp, separate from the per-tick cross-fade, which stays snapped
+ * through mount (see `chart-tick-tracker-arming`).
  *
- * The per-tick cross-fade (see `chart-tick-tracker-arming`) stays snapped
- * through the mount phase, so the opening reveal is a separate layer-wide
- * ramp multiplied into every tick's own opacity: `0 → 1` on first paint,
- * `1 → 0` when `setGrid` hides the grid. This suite pins the ramp's shape,
- * the scheduler wake that carries it to completion, and the `false` opt-out.
- *
- * The global test setup reports `prefers-reduced-motion: reduce`, which
- * collapses the ramp to a snap — these tests swap in a motion-allowing
- * `matchMedia` and restore the global stub afterwards.
+ * The global setup reports `prefers-reduced-motion: reduce`, which collapses the
+ * ramp to a snap, so these tests swap in a motion-allowing `matchMedia`.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

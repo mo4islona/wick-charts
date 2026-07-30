@@ -1,16 +1,10 @@
 // @vitest-environment happy-dom
 /**
- * Two contracts behind how the grid is formed.
+ * Two contracts behind how the grid is formed:
  *
- * 1. Membership resolves against the viewport's *target*, positions against
- *    its eased current range. A retarget is therefore one cross-fade held for
- *    the whole tween — the outgoing set keeps painting at a falling opacity —
- *    instead of per-frame churn as the eased range sweeps past each tick
- *    boundary, which is what made the grid look jittery.
- *
- * 2. The DOM axis label and the canvas gridline resolve a value to the same
- *    device pixel. Positioning the label off the unrounded value left it up to
- *    half a CSS pixel above or below the line it names.
+ * 1. Membership resolves against the viewport's target, positions against its
+ *    eased range — one cross-fade per retarget, not per-frame churn.
+ * 2. Label and gridline resolve a value to the same device pixel.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

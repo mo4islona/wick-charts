@@ -1,10 +1,7 @@
 /**
- * Decorative animations — intro waves, badge hops, the gridline reveal — are
- * skipped entirely under `prefers-reduced-motion`. Motion that carries meaning
- * (viewport tweens tracking a gesture, tick relabels) is not covered here.
- *
- * Read at arm time rather than cached: a chart built before the user flips the
- * OS setting should honor the new value on its next arm.
+ * Decorative motion — intro waves, badge hops, the gridline reveal — is skipped
+ * under `prefers-reduced-motion`. Meaningful motion (gesture tweens, relabels)
+ * is not. Read at arm time so an OS-setting flip is honored on the next arm.
  */
 export function prefersReducedMotion(): boolean {
   if (typeof matchMedia !== 'function') return false;

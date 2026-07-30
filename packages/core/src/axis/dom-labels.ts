@@ -59,9 +59,8 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     return chart.yScale.formatY(value);
   }
 
-  // Snapped, not raw: the canvas strokes its gridline on a whole device pixel,
-  // so a label placed at the unrounded position sits up to half a CSS pixel
-  // off the line it names.
+  // Snapped, not raw: the canvas strokes on a whole device pixel, so an
+  // unrounded label sits up to half a CSS pixel off its line.
   function positionSpan(el: HTMLSpanElement, value: number): void {
     if (axis === 'x') {
       el.style.left = `${chart.timeScale.timeToSnappedX(value)}px`;
