@@ -112,14 +112,6 @@ export interface BaseSeriesRenderer {
 
   /** Append a single point (real-time tick). Optional — not all renderers support streaming. */
   appendPoint?(point: unknown, layerIndex?: number): void;
-  /**
-   * Duration the trailing vertex takes to reach the value of the next
-   * {@link appendPoint}, in ms. `0` lands it on the frame it arrives — the
-   * default. The chart resolves this per append from how far the point jumped
-   * on screen, so the tip lags only when a move is large enough that the axis
-   * has real distance to travel first.
-   */
-  setAppendLagMs?(ms: number): void;
 
   /**
    * Insert older points at the front of the series (history prepend / load-more).

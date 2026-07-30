@@ -93,8 +93,6 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * very frame a new point arrives (a visible 1–2-frame kink at the line head).
    */
   readonly #pinnedChases: Array<{ time: number; anim: ScalarSpring } | null>;
-  /** Set by the chart before each append; see {@link setAppendLagMs}. */
-  #appendLagMs = 0;
   /**
    * Per-layer alpha for the visibility cross-fade. `setAlpha` (whole series)
    * fans out across the array; `setLayerAlpha` targets a single index. Render
@@ -240,21 +238,12 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       this.#pinnedChases[layerIndex] = { time: prevLast.time, anim: inFlight };
     }
 
-    // Trailing vertex: land on the new value immediately, or chase it so the
-    // tip trails the axis. Chasing interpolates the trailing segment's Y
-    // between the previous last and the new one, which is exactly the point —
-    // the Y target already covers the new value, so the axis opens first and
-    // the line follows it down rather than arriving ahead of it. Off by
-    // default: the per-point entrance owns the visual unfurl on its own.
-    const from = this.displayedLastValues[layerIndex];
-    if (this.#appendLagMs > 0 && from !== null) {
-      const chase = new ScalarSpring(from);
-      chase.retarget(p.value, { settleMs: this.#appendLagMs });
-      this.#liveAnimators[layerIndex] = chase;
-    } else {
-      this.displayedLastValues[layerIndex] = p.value;
-      this.#liveAnimators[layerIndex] = null;
-    }
+    // Snap `displayedLast` to the freshly-appended point. Live-chase across
+    // distinct points would interpolate the trailing-segment Y between the
+    // previous last and the new one — distinct from the per-point entrance,
+    // which already owns the visual unfurl.
+    this.displayedLastValues[layerIndex] = p.value;
+    this.#liveAnimators[layerIndex] = null;
 
     const entryMs = this.options.entryMs;
     if (this.isEntryEnabled() && entryMs > 0) {
@@ -322,10 +311,6 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
 
     anim.retarget(target, { settleMs: smoothMs });
-  }
-
-  setAppendLagMs(ms: number): void {
-    this.#appendLagMs = Number.isFinite(ms) && ms > 0 ? ms : 0;
   }
 
   keepLast(count: number, layerIndex = 0): void {
