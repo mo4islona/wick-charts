@@ -1,6 +1,9 @@
+import { useState } from 'react';
+
 import type { ChartTheme } from '@wick-charts/react';
 
 import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
+import { Button } from '../../components/kit';
 import { CustomIntroDemo } from './custom-intro.example';
 import source from './custom-intro.example.tsx?raw';
 
@@ -84,6 +87,10 @@ const STEPS: Step[] = [
 ];
 
 export function CustomIntroPage({ theme }: { theme: ChartTheme }) {
+  // Remounting the demo re-arms the once-per-lifetime intro — that's the
+  // whole Replay mechanism.
+  const [epoch, setEpoch] = useState(0);
+
   return (
     <AdvancedLayout
       theme={theme}
@@ -96,11 +103,13 @@ export function CustomIntroPage({ theme }: { theme: ChartTheme }) {
           riding each front — and walk the whole contract.
         </>
       }
-      chart={
-        <div style={{ flex: 1, minHeight: 320, maxHeight: 480 }}>
-          <CustomIntroDemo theme={theme} />
-        </div>
+      chartControls={
+        <Button theme={theme} onClick={() => setEpoch((current) => current + 1)} ariaLabel="Replay the intro animation">
+          ▶ Replay
+        </Button>
       }
+      chart={<CustomIntroDemo key={epoch} theme={theme} />}
+      mobileChartHeight={400}
       steps={STEPS}
     />
   );

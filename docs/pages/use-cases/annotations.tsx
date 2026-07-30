@@ -1,8 +1,13 @@
-import type { ChartTheme } from '@wick-charts/react';
+import { useState } from 'react';
+
+import type { ChartTheme, MarkerShape } from '@wick-charts/react';
 
 import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
-import { hexToRgba } from '../../utils';
+import { Segmented, ToggleChip } from '../../components/kit';
 import { AnnotationsDemo } from './annotations.example';
+import source from './annotations.example.tsx?raw';
+
+const SHAPES: MarkerShape[] = ['arrow-down', 'dot', 'circle', 'arrow-up'];
 
 const STEPS: Step[] = [
   {
@@ -60,48 +65,47 @@ const STEPS: Step[] = [
 ];
 
 export function AnnotationsPage({ theme }: { theme: ChartTheme }) {
-  const muted = hexToRgba(theme.tooltip.textColor, 0.7);
-
-  const left = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
-      <div style={{ fontSize: theme.typography.fontSize, lineHeight: 1.55, color: theme.tooltip.textColor }}>
-        <p style={{ margin: 0 }}>
-          Three ways to annotate any chart on one canvas: markers pin the moments, a region shades the window, and
-          reference lines draw the baseline, the limit, and the deploy that set it off.
-        </p>
-        <p style={{ margin: '8px 0 0', color: muted }}>
-          Change the marker shape, strip the labels down to bare glyphs, or toggle the window between ongoing and
-          settled.
-        </p>
-      </div>
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 320,
-          maxHeight: 460,
-          border: `1px solid ${theme.tooltip.borderColor}`,
-          borderRadius: 8,
-          overflow: 'hidden',
-          padding: 12,
-        }}
-      >
-        <AnnotationsDemo theme={theme} />
-      </div>
-    </div>
-  );
+  const [shape, setShape] = useState<MarkerShape>('arrow-down');
+  const [ongoing, setOngoing] = useState(false);
+  const [labeled, setLabeled] = useState(true);
 
   return (
     <AdvancedLayout
       theme={theme}
-      framedChart={false}
+      source={source}
       lead={
         <>
-          Annotations turn a bare series into a story — pin the moments that matter, shade the intervals, and draw the
-          levels, all without leaking into the tooltip, legend, or Y-range.
+          <p style={{ margin: 0 }}>
+            Annotations turn a bare series into a story — markers pin the moments that matter, a region shades the
+            window, and reference lines draw the baseline, the limit, and the deploy that set it off — all without
+            leaking into the tooltip, legend, or Y-range.
+          </p>
+          <p style={{ margin: '8px 0 0' }}>
+            Change the marker shape, strip the labels down to bare glyphs, or toggle the window between ongoing and
+            settled.
+          </p>
         </>
       }
-      chart={left}
+      chartControls={
+        <>
+          <span>Marker shape:</span>
+          <Segmented<MarkerShape>
+            theme={theme}
+            value={shape}
+            onChange={setShape}
+            ariaLabel="Marker shape"
+            options={SHAPES.map((s) => ({ value: s, label: s }))}
+          />
+          <ToggleChip theme={theme} pressed={labeled} onToggle={setLabeled}>
+            {labeled ? 'labels — callout chips' : 'no labels — bare glyphs'}
+          </ToggleChip>
+          <ToggleChip theme={theme} pressed={ongoing} onToggle={setOngoing} accent="#f0556a">
+            {ongoing ? 'ongoing — band to edge' : 'settled — band closed'}
+          </ToggleChip>
+        </>
+      }
+      chart={<AnnotationsDemo theme={theme} shape={shape} ongoing={ongoing} labeled={labeled} />}
+      mobileChartHeight={380}
       steps={STEPS}
     />
   );

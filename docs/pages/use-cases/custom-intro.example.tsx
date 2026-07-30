@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useMemo } from 'react';
 
 import { ChartContainer, type ChartTheme, type LineIntroFn, LineSeries, XAxis, YAxis } from '@wick-charts/react';
 
@@ -39,40 +39,17 @@ const peakOut: LineIntroFn = (frame) => {
   };
 };
 
+// The intro arms exactly once per series lifetime — on the first
+// empty → non-empty data seed. Remounting the demo (the page passes a
+// fresh `key` on Replay) re-creates that transition.
 export function CustomIntroDemo({ theme }: { theme: ChartTheme }): ReactNode {
   const data = useMemo(() => generateLineData(120, 140), []);
-  // The intro arms exactly once per series lifetime — on the first
-  // empty → non-empty data seed. Remounting the chart (the `key` below)
-  // re-creates that transition, which is what the replay button does.
-  const [epoch, setEpoch] = useState(0);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, height: '100%' }}>
-      <button
-        type="button"
-        onClick={() => setEpoch((current) => current + 1)}
-        style={{
-          alignSelf: 'flex-start',
-          padding: '6px 16px',
-          borderRadius: 8,
-          border: `1px solid ${theme.tooltip.borderColor}`,
-          background: 'transparent',
-          color: theme.axis.textColor,
-          fontSize: 13,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        ▶ Replay
-      </button>
-
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <ChartContainer key={epoch} theme={theme}>
-          <LineSeries data={data} options={{ introAnimation: peakOut, introMs: 700 }} />
-          <YAxis />
-          <XAxis />
-        </ChartContainer>
-      </div>
-    </div>
+    <ChartContainer theme={theme}>
+      <LineSeries data={data} options={{ introAnimation: peakOut, introMs: 700 }} />
+      <YAxis />
+      <XAxis />
+    </ChartContainer>
   );
 }

@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from 'react';
 
 import type { AxisConfig, ChartTheme } from '@wick-charts/react';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { Code, SlidersHorizontal, X } from 'lucide-react';
 
 import { useIsMobile } from '../../hooks';
 import type { ChartCodeConfig } from '../CodePreview';
@@ -24,7 +24,7 @@ import {
   type SectionSpec,
 } from './sections';
 import { themeSurfaceVars } from './themeSurface';
-import { useCodeHeight, usePanelWidth, useSettings } from './useSettings';
+import { usePanelWidth, useSettings } from './useSettings';
 
 import './styles.css';
 
@@ -95,6 +95,13 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
   codeConfig?: (state: PlaygroundChartProps & TExtra) => ChartCodeConfig;
   gridTemplate?: string;
   gridColumns?: string;
+  /**
+   * Minimum height (px) of each stacked chart cell on mobile, where the
+   * desktop `gridTemplate` proportions don't apply. Cells still grow past it
+   * when they hold flowing DOM content (legends, tables). Tune per page so
+   * axes and legends aren't clipped. Default 260.
+   */
+  mobileRowHeight?: number;
   hideCartesian?: boolean;
   /** Whether the built-in Demo section shows a Perf HUD toggle. Off for charts
    * that don't render through `ChartContainer` (e.g. Sparkline). Default true. */
@@ -779,6 +786,49 @@ function mergeSections(
   return out.filter((s) => s.rows.length > 0);
 }
 
+// ── Panel mode tabs ──────────────────────────────────────────
+
+type PanelMode = 'controls' | 'code';
+
+/** Segmented switch naming the side panel's two faces. With no code config
+ * the single "Controls" tab still renders — it doubles as the panel title. */
+function PanelModeTabs({
+  mode,
+  onChange,
+  hasCode,
+}: {
+  mode: PanelMode;
+  onChange: (next: PanelMode) => void;
+  hasCode: boolean;
+}) {
+  return (
+    <div className="tgroup pg-panel-tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === 'controls'}
+        className={mode === 'controls' ? 'on' : undefined}
+        onClick={() => onChange('controls')}
+      >
+        <SlidersHorizontal size={13} />
+        Controls
+      </button>
+      {hasCode && (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'code'}
+          className={mode === 'code' ? 'on' : undefined}
+          onClick={() => onChange('code')}
+        >
+          <Code size={13} />
+          Code
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────
 
 export function Playground<TExtra extends object = Record<string, never>>({
@@ -790,6 +840,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
   codeConfig,
   gridTemplate = '1fr 1fr',
   gridColumns = '1fr',
+  mobileRowHeight = 260,
   hideCartesian = false,
   showPerfHud = true,
   animationKinds = ['candle', 'bar', 'line'],
@@ -819,10 +870,25 @@ export function Playground<TExtra extends object = Record<string, never>>({
   const codeConfigValue = codeConfig?.(chartProps);
 
   const { pct, containerRef, onMouseDown } = usePanelWidth();
-  const { pct: codePct, rightRef, onMouseDown: onCodeDragDown } = useCodeHeight();
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<PanelMode>('controls');
 
   const surfaceVars = useMemo(() => themeSurfaceVars(theme), [theme]);
+
+  const mode: PanelMode = codeConfigValue ? panelMode : 'controls';
+
+  const panelBody =
+    mode === 'controls' ? (
+      <Panel<CommonState & TExtra>
+        sections={allSections}
+        state={state}
+        setMany={setMany}
+        reset={reset}
+        activeCount={activeCount}
+      />
+    ) : (
+      codeConfigValue && <CodeTabs config={codeConfigValue} theme={theme} />
+    );
 
   if (mobile) {
     return (
@@ -832,8 +898,12 @@ export function Playground<TExtra extends object = Record<string, never>>({
             className="pg-main"
             style={{
               gridTemplateRows: undefined,
-              gridAutoRows: 200,
+              gridAutoRows: `minmax(${mobileRowHeight}px, auto)`,
               gridTemplateColumns: '1fr',
+              // Room for the fixed "Controls" bar so it never covers the
+              // last chart. Inline (not CSS) — the theme editor shares
+              // .pg-main on mobile but has no bar.
+              paddingBottom: 72,
             }}
           >
             {charts(chartProps)}
@@ -842,12 +912,12 @@ export function Playground<TExtra extends object = Record<string, never>>({
 
         <button
           type="button"
-          className="pg-mobile-fab"
+          className="pg-mobile-trigger"
           aria-label="Open controls"
           onClick={() => setMobileControlsOpen(true)}
         >
-          <SlidersHorizontal size={18} />
-          <span className="pg-mobile-fab-label">Controls</span>
+          <SlidersHorizontal size={16} />
+          <span>Controls</span>
         </button>
 
         {mobileControlsOpen && (
@@ -860,7 +930,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
             />
             <div className="pg-mobile-sheet" role="dialog" aria-modal="true" aria-label="Playground controls">
               <div className="pg-mobile-sheet-head">
-                <span className="pg-mobile-sheet-title">Controls</span>
+                <PanelModeTabs mode={mode} onChange={setPanelMode} hasCode={codeConfigValue !== undefined} />
                 <button
                   type="button"
                   className="pg-mobile-sheet-close"
@@ -870,16 +940,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
                   <X size={18} />
                 </button>
               </div>
-              <div className="pg-right">
-                <Panel<CommonState & TExtra>
-                  sections={allSections}
-                  state={state}
-                  setMany={setMany}
-                  reset={reset}
-                  activeCount={activeCount}
-                />
-                {codeConfigValue && <CodeTabs config={codeConfigValue} theme={theme} />}
-              </div>
+              <div className="pg-right">{panelBody}</div>
             </div>
           </>
         )}
@@ -904,25 +965,17 @@ export function Playground<TExtra extends object = Record<string, never>>({
 
         <div
           className="pg-right"
-          ref={rightRef}
           style={{
             width: `${pct}%`,
-            gridTemplateRows: codeConfigValue ? `auto 1fr auto auto minmax(0, ${codePct}%)` : 'auto 1fr auto',
+            // Controls: tabs / search / scrollable sections / reset footer.
+            // Code: tabs / full-height code panel.
+            gridTemplateRows: mode === 'controls' ? 'auto auto minmax(0, 1fr) auto' : 'auto minmax(0, 1fr)',
           }}
         >
-          <Panel<CommonState & TExtra>
-            sections={allSections}
-            state={state}
-            setMany={setMany}
-            reset={reset}
-            activeCount={activeCount}
-          />
-          {codeConfigValue && (
-            <>
-              <Splitter theme={theme} orientation="horizontal" onMouseDown={onCodeDragDown} thumbLength={36} />
-              <CodeTabs config={codeConfigValue} theme={theme} />
-            </>
-          )}
+          <div className="pg-panel-head">
+            <PanelModeTabs mode={mode} onChange={setPanelMode} hasCode={codeConfigValue !== undefined} />
+          </div>
+          {panelBody}
         </div>
       </div>
     </div>

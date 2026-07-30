@@ -531,6 +531,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       }}
       gridTemplate="1fr 1fr"
       gridColumns="1fr 1fr"
+      mobileRowHeight={420}
       hideCartesian
       // Pie's only animation control is the `animate` toggle (Display) — the
       // per-kind entry/update sliders are no-op in core and the live chart

@@ -4,6 +4,7 @@ import type { ChartTheme, OHLCData, TimePoint } from '@wick-charts/react';
 
 import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
 import { generateOHLCData } from '../../data';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { MultiChartSyncDemo } from './multi-chart-sync.example';
 import source from './multi-chart-sync.example.tsx?raw';
 
@@ -98,9 +99,21 @@ const STEPS: Step[] = [
 ];
 
 export function MultiChartSyncPage({ theme }: { theme: ChartTheme }) {
+  const mobile = useIsMobile();
   const candles = useMemo(() => generateOHLCData(COUNT, 100, INTERVAL), []);
   const volume = useMemo(() => deriveVolume(candles), [candles]);
   const rsi = useMemo(() => deriveRSI(candles), [candles]);
+
+  // The demo's three panes size themselves with flex ratios, so they need a
+  // definite height to divide. Desktop gets it from the sticky chart column;
+  // on mobile the page flows, so pin the stack's height explicitly.
+  const chart = mobile ? (
+    <div style={{ height: 560, display: 'flex', flexDirection: 'column' }}>
+      <MultiChartSyncDemo theme={theme} candles={candles} volume={volume} rsi={rsi} />
+    </div>
+  ) : (
+    <MultiChartSyncDemo theme={theme} candles={candles} volume={volume} rsi={rsi} />
+  );
 
   return (
     <AdvancedLayout
@@ -115,7 +128,7 @@ export function MultiChartSyncPage({ theme }: { theme: ChartTheme }) {
           O(n), so the pattern scales to many charts.
         </>
       }
-      chart={<MultiChartSyncDemo theme={theme} candles={candles} volume={volume} rsi={rsi} />}
+      chart={chart}
       steps={STEPS}
     />
   );

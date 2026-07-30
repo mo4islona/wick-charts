@@ -6,9 +6,23 @@ import { hexToRgba } from '../utils';
 export function ThemeDots({ t }: { t: ChartTheme }) {
   return (
     <span style={{ display: 'flex', gap: 3 }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: resolveCandlestickBodyColor(t.candlestick.up.body) }} />
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: resolveCandlestickBodyColor(t.candlestick.up.body),
+        }}
+      />
       <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.line.color }} />
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: resolveCandlestickBodyColor(t.candlestick.down.body) }} />
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: resolveCandlestickBodyColor(t.candlestick.down.body),
+        }}
+      />
     </span>
   );
 }

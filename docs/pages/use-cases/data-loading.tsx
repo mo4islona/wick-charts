@@ -181,8 +181,9 @@ export function DataLoadingPage({ theme }: { theme: ChartTheme }) {
           simulates a history fetch and shows its (now pluggable) boundary indicator.
         </>
       }
+      mobileChartHeight={420}
       chart={
-        <ChartContainer theme={theme} style={{ height: 460 }}>
+        <ChartContainer theme={theme} style={{ flex: 1, minHeight: 0 }}>
           <Title sub={`${pagesLoaded * PAGE_SIZE} candles · pan left`}>BTC/USD</Title>
           <CandlestickSeries id="candle" data={data} options={{ historyReveal: skeletonMorphIntro() }} />
           <InitialZoom bars={INITIAL_VISIBLE_BARS} />

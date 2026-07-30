@@ -73,21 +73,8 @@ export function CustomRendersPage({ theme }: { theme: ChartTheme }) {
           an ordinary transform (see Source).
         </>
       }
-      framedChart={false}
-      chart={
-        <div
-          style={{
-            flex: 1,
-            minHeight: 280,
-            maxHeight: 440,
-            border: `1px solid ${theme.tooltip.borderColor}`,
-            borderRadius: 8,
-            overflow: 'hidden',
-          }}
-        >
-          <CustomRendersDemo theme={theme} seed={seed} />
-        </div>
-      }
+      chart={<CustomRendersDemo theme={theme} seed={seed} />}
+      mobileChartHeight={380}
       steps={STEPS}
     />
   );

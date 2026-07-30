@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react';
 import type { ChartTheme } from '@wick-charts/react';
 
 import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
+import { Segmented } from '../../components/kit';
 import { generateOHLCData } from '../../data';
-import { hexToRgba } from '../../utils';
 import { RealtimeDataDemo } from './realtime-data.example';
+import source from './realtime-data.example.tsx?raw';
 
 type Mode = 'declarative' | 'imperative';
 
@@ -19,7 +20,7 @@ const DECLARATIVE_STEPS: Step[] = [
       <>
         Keep the series array in state and pass it to the series <code>data</code> prop. On every change the wrapper
         diffs the new array against the previous one and picks the cheapest mutation — append, update-in-place, roll, or
-        bulk-replace. The chart on the left runs exactly this.
+        bulk-replace. The live chart runs exactly this.
       </>
     ),
     code: `const [data, setData] = useState(seed);\n\nuseEffect(() => {\n  const id = setInterval(() => {\n    setData((prev) => [...prev, nextBar(prev)].slice(-120));\n  }, 1000);\n\n  return () => clearInterval(id);\n}, []);\n\nreturn <CandlestickSeries id="price" data={data} />;`,
@@ -82,113 +83,51 @@ const IMPERATIVE_STEPS: Step[] = [
   },
 ];
 
-function ModeToggle({ theme, mode, onMode }: { theme: ChartTheme; mode: Mode; onMode: (next: Mode) => void }) {
-  const muted = hexToRgba(theme.tooltip.textColor, 0.7);
-  const border = hexToRgba(theme.tooltip.textColor, 0.18);
-  const tabs: Array<{ id: Mode; label: string }> = [
-    { id: 'declarative', label: 'Declarative' },
-    { id: 'imperative', label: 'Imperative' },
-  ];
-
-  return (
-    <div
-      role="tablist"
-      aria-label="Streaming approach"
-      style={{
-        display: 'inline-flex',
-        alignSelf: 'flex-start',
-        border: `1px solid ${border}`,
-        borderRadius: 6,
-        overflow: 'hidden',
-        fontSize: theme.typography.fontSize - 1,
-      }}
-    >
-      {tabs.map((tab) => {
-        const active = tab.id === mode;
-
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onMode(tab.id)}
-            style={{
-              padding: '6px 16px',
-              border: 'none',
-              background: active ? hexToRgba(theme.tooltip.textColor, 0.08) : 'transparent',
-              color: active ? theme.tooltip.textColor : muted,
-              cursor: 'pointer',
-              fontFamily: theme.typography.fontFamily,
-              fontSize: 'inherit',
-              fontWeight: active ? 500 : 400,
-            }}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function RealtimeDataPage({ theme }: { theme: ChartTheme }) {
   const seed = useMemo(() => generateOHLCData(COUNT, 100, INTERVAL), []);
   const [mode, setMode] = useState<Mode>('declarative');
-  const muted = hexToRgba(theme.tooltip.textColor, 0.7);
   const steps = mode === 'declarative' ? DECLARATIVE_STEPS : IMPERATIVE_STEPS;
 
-  // The left column doubles as the intro and the mode switcher: a short primer
-  // on the two approaches, the Declarative/Imperative toggle, and the live
-  // chart. Flipping the toggle swaps the walkthrough on the right.
-  const left = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
-      <div style={{ fontSize: theme.typography.fontSize, lineHeight: 1.55, color: theme.tooltip.textColor }}>
-        <p style={{ margin: '0 0 8px' }}>Two ways to push live ticks in — pick one to walk through it:</p>
-        <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <li>
-            <strong>Declarative</strong> — keep the series in state and hand it to the <code>data</code> prop; the
-            wrapper diffs it and appends, updates, or rolls the window for you.
-          </li>
-          <li>
-            <strong>Imperative</strong> — call <code>appendData</code> / <code>updateData</code> / <code>keepLast</code>{' '}
-            on the chart instance directly.
-          </li>
-        </ul>
-        <p style={{ margin: '8px 0 0', color: muted }}>
-          Default to declarative; reach for imperative when ticks outrun your render loop or the data lives outside the
-          component tree.
-        </p>
-      </div>
-
-      <ModeToggle theme={theme} mode={mode} onMode={setMode} />
-
-      <div
-        style={{
-          flex: 1,
-          minHeight: 280,
-          maxHeight: 440,
-          border: `1px solid ${theme.tooltip.borderColor}`,
-          borderRadius: 8,
-          overflow: 'hidden',
-        }}
-      >
-        <RealtimeDataDemo theme={theme} seed={seed} />
-      </div>
-    </div>
+  const lead = (
+    <>
+      <p style={{ margin: '0 0 8px' }}>
+        A chart should absorb live ticks without remounting — repainting the canvas at 60fps in React, Vue or Svelte.
+        Two ways to push live ticks in — pick one below to walk through it:
+      </p>
+      <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <li>
+          <strong>Declarative</strong> — keep the series in state and hand it to the <code>data</code> prop; the wrapper
+          diffs it and appends, updates, or rolls the window for you.
+        </li>
+        <li>
+          <strong>Imperative</strong> — call <code>appendData</code> / <code>updateData</code> / <code>keepLast</code>{' '}
+          on the chart instance directly.
+        </li>
+      </ul>
+    </>
   );
 
   return (
     <AdvancedLayout
       theme={theme}
-      framedChart={false}
-      lead={
-        <>
-          A chart should absorb live ticks without remounting — repainting the canvas at 60fps in React, Vue or Svelte.
-          There are two ways to feed it; pick one on the left to see its walkthrough.
-        </>
+      lead={lead}
+      source={source}
+      // Swaps the walkthrough article, so it lives in the article header
+      // next to the Walkthrough/Source switch.
+      docsControls={
+        <Segmented<Mode>
+          theme={theme}
+          value={mode}
+          onChange={setMode}
+          ariaLabel="Streaming approach"
+          options={[
+            { value: 'declarative', label: 'Declarative' },
+            { value: 'imperative', label: 'Imperative' },
+          ]}
+        />
       }
-      chart={left}
+      chart={<RealtimeDataDemo theme={theme} seed={seed} />}
+      mobileChartHeight={360}
       steps={steps}
     />
   );

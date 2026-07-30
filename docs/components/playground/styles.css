@@ -92,8 +92,20 @@
   border-radius: 10px;
   overflow: hidden;
   display: grid;
-  /* grid-template-rows set inline in Playground.tsx so code height stays draggable */
+  /* grid-template-rows set inline in Playground.tsx (tabs + mode content) */
   min-height: 0;
+}
+
+/* ---------- Panel head (Controls / Code tabs) ---------- */
+.wick-playground .pg-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  min-height: 44px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg-1);
 }
 
 /* ---------- Panel (top 3 zones: search, settings, reset) ---------- */
@@ -130,9 +142,6 @@
   border-radius: 999px;
   cursor: pointer;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   font-size: 14px;
   line-height: 1;
   display: grid;
@@ -454,6 +463,13 @@
   background: color-mix(in oklab, var(--bg-1), transparent 25%);
   color: var(--fg-1);
 }
+.wick-playground .pg-panel-tabs button {
+  padding: 4px 14px;
+  font-size: 11.5px;
+}
+.wick-playground .pg-panel-tabs button svg {
+  flex-shrink: 0;
+}
 
 /* ---------- Select ---------- */
 .wick-playground .select {
@@ -627,6 +643,12 @@
   min-width: 0;
   overflow: hidden;
 }
+/* Code mode: the code panel IS the content area — flatten its card chrome
+ * so it sits flush inside the bordered pg-right instead of card-in-card. */
+.wick-playground .pg-right > .pg-code-wrap {
+  border: 0;
+  border-radius: 0;
+}
 .wick-playground .pg-code-label {
   padding: 6px 12px;
   border-bottom: 1px solid var(--line-soft);
@@ -696,7 +718,9 @@
   overflow: auto;
   flex: 1;
   font-family: var(--mono);
-  font-size: 11px;
+  /* Dense 11px default for the playground side panel; article contexts
+   * (use-case walkthroughs) pass a larger value via the custom property. */
+  font-size: var(--code-fs, 11px);
   line-height: 1.55;
   tab-size: 2;
   min-height: 0;
@@ -1111,6 +1135,19 @@
 
 /* ---------- Mobile ---------- */
 @media (max-width: 768px) {
+  /* The page flows and scrolls naturally on mobile — a viewport-locked
+   * shell would clamp the stacked chart cells and clip their content. */
+  .wick-playground[data-mobile="true"] {
+    height: auto;
+    min-height: 100%;
+  }
+  .wick-playground[data-mobile="true"] .pg-shell {
+    height: auto;
+  }
+  .wick-playground[data-mobile="true"] .pg-main {
+    gap: 10px;
+  }
+
   .wick-playground[data-mobile="true"] .pg-right {
     width: 100%;
     height: 100%;
@@ -1122,44 +1159,47 @@
     flex: 1;
     min-height: 0;
   }
+  .wick-playground[data-mobile="true"] .panel-scroll-shell {
+    flex: 1;
+  }
   .wick-playground[data-mobile="true"] .panel-scroll {
     overflow-y: auto;
   }
   .wick-playground[data-mobile="true"] .pg-code-wrap {
-    flex: 0 0 auto;
+    flex: 1;
+    min-height: 0;
   }
   .wick-playground[data-mobile="true"] .pg-code {
     overflow: auto;
   }
 
-  /* Floating button to open the controls overlay. */
-  .wick-playground .pg-mobile-fab {
+  /* Bottom bar opening the controls sheet — full-width and anchored where
+   * the thumb lives, so it reads as the page's primary affordance instead
+   * of a pill lost over chart content. */
+  .wick-playground .pg-mobile-trigger {
     position: fixed;
-    right: 14px;
-    top: 56px;
-    height: 34px;
-    padding: 0 12px;
-    gap: 6px;
-    border-radius: 17px;
+    left: 12px;
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    height: 46px;
+    gap: 8px;
+    border-radius: 12px;
     border: 1px solid var(--line);
     background: var(--bg-2);
     color: var(--fg-1);
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 150;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 13.5px;
     font-weight: 500;
     letter-spacing: 0.01em;
   }
-  .wick-playground .pg-mobile-fab-label {
-    line-height: 1;
-  }
-  .wick-playground .pg-mobile-fab:active {
-    transform: scale(0.97);
+  .wick-playground .pg-mobile-trigger:active {
+    transform: scale(0.98);
   }
 
   .wick-playground .pg-mobile-backdrop {
@@ -1174,26 +1214,28 @@
     z-index: 200;
   }
 
+  /* Bottom sheet with the Controls / Code tabs. */
   .wick-playground .pg-mobile-sheet {
     position: fixed;
+    left: 0;
     right: 0;
-    top: 0;
     bottom: 0;
-    width: min(360px, 90vw);
+    height: min(78vh, 640px);
     background: var(--bg-2);
-    border-left: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+    border-radius: 14px 14px 0 0;
     display: flex;
     flex-direction: column;
     z-index: 201;
     overflow: hidden;
-    animation: pg-mobile-slide-in 180ms ease-out;
+    animation: pg-mobile-slide-up 200ms ease-out;
   }
-  @keyframes pg-mobile-slide-in {
+  @keyframes pg-mobile-slide-up {
     from {
-      transform: translateX(100%);
+      transform: translateY(100%);
     }
     to {
-      transform: translateX(0);
+      transform: translateY(0);
     }
   }
 
@@ -1201,15 +1243,10 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 14px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--line-soft);
     color: var(--fg-1);
     flex-shrink: 0;
-  }
-  .wick-playground .pg-mobile-sheet-title {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
   }
   .wick-playground .pg-mobile-sheet-close {
     display: flex;

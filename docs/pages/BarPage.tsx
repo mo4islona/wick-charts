@@ -259,6 +259,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
     <Playground<BarSettings>
       id="bar"
       theme={theme}
+      mobileRowHeight={280}
       extraDefaults={(mobile) => ({
         stacking: 'normal',
         barWidth: 'normal',

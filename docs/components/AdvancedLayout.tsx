@@ -7,11 +7,11 @@ import {
   useState,
 } from 'react';
 
-import { type ChartTheme, isDarkBg } from '@wick-charts/react';
+import type { ChartTheme } from '@wick-charts/react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import { hexToRgba } from '../utils';
-import { Cell } from './Cell';
+import { Segmented } from './kit';
 import { HighlightedCode } from './playground/CodeView';
 import { Splitter } from './Splitter';
 
@@ -23,32 +23,64 @@ export interface Step {
 
 export interface AdvancedLayoutProps {
   theme: ChartTheme;
-  /** Short paragraph above the chart explaining what the example demonstrates. */
+  /** Short paragraph above the columns explaining what the example demonstrates. */
   lead: ReactNode;
-  /** The live chart. Wrapped in a {@link Cell} for the bordered surface. */
+  /** The live demo. Wrapped in the unified bordered demo card (see {@link framedChart}). */
   chart: ReactNode;
-  /** Walk-through entries rendered in the right rail (or below the chart on mobile). */
+  /** Walk-through entries — the article column (left on desktop, below the chart on mobile). */
   steps: Step[];
   /**
-   * Full source text of the example page (typically imported with Vite's
-   * `?raw` query). When provided, a `Walkthrough / Source` tab strip appears
-   * in the right rail and the user can swap to the full file in one click.
+   * Full source text of the example (typically imported with Vite's `?raw`
+   * query). Feeds the `Walkthrough / Source` switch in the article header.
+   * Every use-case page should pass it — the switch is part of the shared
+   * page anatomy.
    */
   source?: string;
   /**
-   * When `false`, skip the bordered {@link Cell} around the chart slot.
-   * Use for examples that wrap each chart in its own framed card (e.g.
-   * multi-chart-sync) where the outer border just doubles up. Default `true`.
+   * Controls that swap the ARTICLE content (e.g. realtime-data's
+   * Declarative/Imperative). Rendered in the article header row, beside the
+   * Walkthrough/Source switch. Build them from the kit (`Segmented`).
+   */
+  docsControls?: ReactNode;
+  /**
+   * Controls that drive the LIVE DEMO (e.g. Replay, marker-shape pickers).
+   * Rendered in a row above the demo card, sticky along with it on desktop.
+   * Build them from the kit (`Segmented`, `ToggleChip`, `Button`).
+   */
+  chartControls?: ReactNode;
+  /**
+   * Definite height (px) of the demo card on mobile. Demos size themselves
+   * with `height: 100%`, so the card must resolve to a real height — a
+   * min-height leaves the ChartContainer at its 240px fallback. Default 380.
+   */
+  mobileChartHeight?: number;
+  /**
+   * When `false`, skip the bordered demo card around the chart slot. Use for
+   * examples that frame each chart themselves (e.g. multi-chart-sync's three
+   * pane cards) where the outer border just doubles up. Default `true`.
    */
   framedChart?: boolean;
 }
 
 type RailMode = 'walkthrough' | 'source';
 
-const MIN_RAIL_WIDTH = 320;
+const MIN_DOCS_WIDTH = 360;
 /** Minimum chart width — the splitter clamps so the chart stays usable. */
 const MIN_CHART_WIDTH = 360;
-const STORAGE_KEY = 'use-cases-rail-width';
+const STORAGE_KEY = 'use-cases-docs-width';
+
+const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
+/**
+ * Height of the sticky chart column on desktop. Deliberately shorter than
+ * the viewport — a hero-height chart reads as a wall next to the article;
+ * ~half the screen keeps the demo present without dominating.
+ */
+const STICKY_CHART_HEIGHT = 'clamp(340px, 52vh, 540px)';
+
+/** Walkthrough code blocks render a notch larger than the playground panel's
+ * dense 11px default — article code is meant to be read, not skimmed. */
+const DOCS_CODE_STYLE = { '--code-fs': '12px' } as CSSProperties;
 
 function readStoredWidth(): number | null {
   // localStorage `getItem` can throw in privacy mode / sandboxed iframes /
@@ -68,49 +100,62 @@ function readStoredWidth(): number | null {
 }
 
 /**
- * Two-column shell for advanced docs examples: live chart on the left, narrative
- * walkthrough with inline code on the right. A vertical splitter lets the
- * reader resize the panels; the choice is persisted across visits.
- * Stacks to one column on mobile (no splitter).
+ * The shared use-case page anatomy:
+ *
+ *   lead
+ *   ┌ article column ───────────────┐ ┌ chart column (sticky) ┐
+ *   │ [Walkthrough|Source] [docs…]  │ │ [chart controls…]     │
+ *   │ steps / full source           │ │ ┌ demo card ────────┐ │
+ *   │ …                             │ │ │ live chart        │ │
+ *   └───────────────────────────────┘ │ └───────────────────┘ │
+ *                                     └───────────────────────┘
+ *
+ * Article on the left (where reading starts), demo pinned on the right with
+ * `position: sticky` so it stays in view while the page scrolls. A vertical
+ * splitter resizes the columns; the choice is persisted. Stacks to one
+ * column on mobile — controls + chart first, article below, page flow.
  */
-export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart = true }: AdvancedLayoutProps) {
+export function AdvancedLayout({
+  theme,
+  lead,
+  chart,
+  steps,
+  source,
+  docsControls,
+  chartControls,
+  mobileChartHeight = 380,
+  framedChart = true,
+}: AdvancedLayoutProps) {
   const mobile = useIsMobile();
   const muted = hexToRgba(theme.tooltip.textColor, 0.7);
-  // On dark themes the rail's textColor-based bg sits as a 4% white tint
-  // over a dark page — visible enough. On light themes the same alpha is a
-  // 4% black tint over white that reads as a heavier panel — drop to 2%
-  // so the surface stays subtle.
-  const railBgAlpha = isDarkBg(theme.background) ? 0.04 : 0.02;
   const [mode, setMode] = useState<RailMode>('walkthrough');
   // `null` until the reader drags the splitter — that's the even 50/50 default
-  // (chart and rail both `flex: 1`). A drag switches it to an explicit px width.
-  const [railWidth, setRailWidth] = useState<number | null>(readStoredWidth);
+  // (docs and chart both `flex: 1`). A drag switches it to an explicit px width.
+  const [docsWidth, setDocsWidth] = useState<number | null>(readStoredWidth);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const showSource = source !== undefined && mode === 'source';
 
   useEffect(() => {
-    // Nothing to persist until the reader drags (railWidth === null is the
+    // Nothing to persist until the reader drags (docsWidth === null is the
     // default 50/50 split). Same swallow as readStoredWidth — the persisted
     // width is a nicety, not load-bearing, so a write failure mustn't bubble up.
-    if (typeof localStorage === 'undefined' || railWidth === null) return;
+    if (typeof localStorage === 'undefined' || docsWidth === null) return;
     try {
-      localStorage.setItem(STORAGE_KEY, String(Math.round(railWidth)));
+      localStorage.setItem(STORAGE_KEY, String(Math.round(docsWidth)));
     } catch {
       // ignore
     }
-  }, [railWidth]);
+  }, [docsWidth]);
 
   const onSplitterDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const container = containerRef.current;
     if (!container) return;
 
-    const startX = e.clientX;
-    const startWidth = railWidth;
-    const containerRight = container.getBoundingClientRect().right;
+    const containerLeft = container.getBoundingClientRect().left;
     const containerWidth = container.getBoundingClientRect().width;
-    const maxRail = Math.max(MIN_RAIL_WIDTH, containerWidth - MIN_CHART_WIDTH);
+    const maxDocs = Math.max(MIN_DOCS_WIDTH, containerWidth - MIN_CHART_WIDTH);
 
     // Pointer capture so a fast-moving drag doesn't lose events when the
     // cursor leaves the 1px-wide handle. Uses the same element that fired
@@ -119,13 +164,9 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
     handle.setPointerCapture(e.pointerId);
 
     const onMove = (ev: PointerEvent) => {
-      // Right-rail width grows as cursor moves left.
-      const next = Math.min(maxRail, Math.max(MIN_RAIL_WIDTH, containerRight - ev.clientX));
-      setRailWidth(next);
-      // Avoid the unused-but-needed binding warning while keeping startX/startWidth
-      // useful for future "snap on shift-drag" extensions.
-      void startX;
-      void startWidth;
+      // Docs column width grows as the cursor moves right.
+      const next = Math.min(maxDocs, Math.max(MIN_DOCS_WIDTH, ev.clientX - containerLeft));
+      setDocsWidth(next);
     };
 
     const onUp = (ev: PointerEvent) => {
@@ -142,12 +183,57 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
     window.addEventListener('pointercancel', onUp);
   };
 
-  // Default: an even 50/50 split — the rail rides `flex: 1` next to the chart's
-  // own `flex: 1`. Once the reader drags the splitter it pins to an explicit px
-  // width. On mobile the panels stack, so the rail is always full-width.
-  const desktopRail: CSSProperties =
-    railWidth === null ? { flex: 1, minWidth: 0 } : { width: railWidth, flexShrink: 0 };
-  const railSizing: CSSProperties = mobile ? { width: '100%' } : desktopRail;
+  // Default: an even 50/50 split — both columns ride `flex: 1`. Once the
+  // reader drags the splitter the docs column pins to an explicit px width.
+  // On mobile the panels stack, so the article is always full-width.
+  const docsSizing: CSSProperties = mobile
+    ? { width: '100%' }
+    : docsWidth === null
+      ? { flex: 1, minWidth: 0 }
+      : { width: docsWidth, flexShrink: 0 };
+
+  // The unified demo card: one border, one radius, on every use-case page.
+  // Mobile needs a definite height (demos fill with `height: 100%`); desktop
+  // fills the sticky wrapper.
+  const cardSizing: CSSProperties = mobile ? { height: mobileChartHeight } : { flex: 1, minHeight: 0 };
+  const chartInner = framedChart ? (
+    <div
+      style={{
+        ...cardSizing,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        border: `1px solid ${theme.tooltip.borderColor}`,
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
+    >
+      {chart}
+    </div>
+  ) : (
+    <div
+      style={{
+        ...(mobile ? {} : cardSizing),
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {chart}
+    </div>
+  );
+
+  // Desktop pins the chart with `position: sticky` inside its column, so it
+  // tracks the reader through the article. On mobile the page just flows.
+  const chartWrap: CSSProperties = mobile
+    ? { display: 'flex', flexDirection: 'column' }
+    : {
+        position: 'sticky',
+        top: 8,
+        height: STICKY_CHART_HEIGHT,
+        display: 'flex',
+        flexDirection: 'column',
+      };
 
   return (
     <div
@@ -155,17 +241,15 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
-        padding: mobile ? 8 : '8px 16px 32px',
+        padding: mobile ? 8 : '8px 16px 48px',
         color: theme.tooltip.textColor,
-        height: '100%',
-        minHeight: 0,
       }}
     >
       <div
         style={{
-          fontSize: theme.typography.fontSize,
+          fontSize: theme.typography.fontSize + 1,
           color: muted,
-          lineHeight: 1.5,
+          lineHeight: 1.6,
           maxWidth: 880,
         }}
       >
@@ -177,77 +261,79 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
         style={{
           display: 'flex',
           flexDirection: mobile ? 'column' : 'row',
-          gap: mobile ? 16 : 0,
-          flex: 1,
-          minHeight: 0,
+          gap: mobile ? 20 : 0,
+          alignItems: 'stretch',
         }}
       >
-        {framedChart ? (
-          <Cell theme={theme} style={{ flex: 1, minWidth: 0, minHeight: mobile ? 320 : 0 }}>
-            {chart}
-          </Cell>
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              minHeight: mobile ? 320 : 0,
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            {chart}
-          </div>
-        )}
-
-        {!mobile && <Splitter theme={theme} onPointerDown={onSplitterDown} />}
-
+        {/* Article column — first in reading order on desktop, below the chart on mobile. */}
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 12,
-            overflow: 'hidden',
-            minHeight: 0,
-            ...railSizing,
-            // Bordered card around the rail — matches the chart's `<Cell>`
-            // and the playground's `pg-right` panel so chart + walkthrough
-            // sit on equally-weighted surfaces.
-            border: `1px solid ${theme.tooltip.borderColor}`,
-            borderRadius: 8,
-            background: hexToRgba(theme.tooltip.textColor, railBgAlpha),
-            padding: mobile ? 12 : 14,
+            gap: 16,
+            minWidth: 0,
+            order: mobile ? 2 : 1,
+            paddingRight: mobile ? 0 : 8,
+            ...docsSizing,
           }}
         >
-          {source !== undefined && <RailTabs mode={mode} onChange={setMode} theme={theme} muted={muted} />}
+          {(source !== undefined || docsControls) && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              {source !== undefined && (
+                <Segmented<RailMode>
+                  theme={theme}
+                  value={mode}
+                  onChange={setMode}
+                  ariaLabel="Walkthrough or full source"
+                  options={[
+                    { value: 'walkthrough', label: 'Walkthrough' },
+                    { value: 'source', label: 'Source' },
+                  ]}
+                />
+              )}
+              {docsControls}
+            </div>
+          )}
 
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: showSource ? 0 : 18,
-              overflow: 'auto',
-              flex: 1,
-              minHeight: 0,
-              // Soft fade at top + bottom edges so clipped content reveals
-              // a scroll affordance. Skipped in source-mode — the code
-              // block already has its own framing and fading the syntax
-              // highlight would just look like a rendering bug.
-              ...(showSource
-                ? {}
-                : {
-                    maskImage:
-                      'linear-gradient(to bottom, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)',
-                    WebkitMaskImage:
-                      'linear-gradient(to bottom, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)',
-                  }),
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, maxWidth: 680 }}>
             {showSource ? (
-              <HighlightedCode code={source ?? ''} theme={theme} label="Full source" />
+              <HighlightedCode code={source ?? ''} theme={theme} label="Full source" style={DOCS_CODE_STYLE} />
             ) : (
-              steps.map((step, i) => <StepBlock key={`${i}-${step.heading}`} step={step} theme={theme} muted={muted} />)
+              steps.map((step, i) => (
+                <StepBlock key={`${i}-${step.heading}`} step={step} theme={theme} muted={muted} first={i === 0} />
+              ))
             )}
+          </div>
+        </div>
+
+        {/* Column divider — sticky alongside the chart so the drag handle stays in view. */}
+        {!mobile && (
+          <div style={{ order: 2, alignSelf: 'stretch' }}>
+            <div style={{ position: 'sticky', top: 8, height: STICKY_CHART_HEIGHT, display: 'flex' }}>
+              <Splitter theme={theme} onPointerDown={onSplitterDown} ariaLabel="Resize walkthrough column" />
+            </div>
+          </div>
+        )}
+
+        {/* Chart column — sticky so the demo stays in view while reading. */}
+        <div style={{ flex: 1, minWidth: 0, order: mobile ? 1 : 3 }}>
+          <div style={chartWrap}>
+            {chartControls && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 10,
+                  fontSize: theme.typography.fontSize - 1,
+                  color: muted,
+                }}
+              >
+                {chartControls}
+              </div>
+            )}
+            {chartInner}
           </div>
         </div>
       </div>
@@ -255,102 +341,40 @@ export function AdvancedLayout({ theme, lead, chart, steps, source, framedChart 
   );
 }
 
-function RailTabs({
-  mode,
-  onChange,
-  theme,
-  muted,
-}: {
-  mode: RailMode;
-  onChange: (next: RailMode) => void;
-  theme: ChartTheme;
-  muted: string;
-}) {
-  const border = hexToRgba(theme.tooltip.textColor, 0.18);
-  const tabs: Array<{ id: RailMode; label: string }> = [
-    { id: 'walkthrough', label: 'Walkthrough' },
-    { id: 'source', label: 'Source' },
-  ];
+function StepBlock({ step, theme, muted, first }: { step: Step; theme: ChartTheme; muted: string; first: boolean }) {
+  const hairline = hexToRgba(theme.tooltip.textColor, 0.1);
 
   return (
     <div
-      role="tablist"
       style={{
-        display: 'inline-flex',
-        gap: 0,
-        alignSelf: 'flex-start',
-        border: `1px solid ${border}`,
-        borderRadius: 6,
-        overflow: 'hidden',
-        fontSize: theme.typography.fontSize - 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        paddingTop: first ? 0 : 24,
+        marginTop: first ? 0 : 24,
+        borderTop: first ? undefined : `1px solid ${hairline}`,
       }}
     >
-      {tabs.map((tab) => {
-        const active = tab.id === mode;
-        return (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(tab.id)}
-            style={{
-              padding: '5px 12px',
-              border: 'none',
-              background: active ? hexToRgba(theme.tooltip.textColor, 0.08) : 'transparent',
-              color: active ? theme.tooltip.textColor : muted,
-              cursor: 'pointer',
-              fontFamily: theme.typography.fontFamily,
-              fontSize: 'inherit',
-              fontWeight: active ? 500 : 400,
-            }}
-          >
-            {tab.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function StepBlock({ step, theme, muted }: { step: Step; theme: ChartTheme; muted: string }) {
-  // Subtle card under heading + body. Vertical padding only — horizontal is
-  // zero so the text sits flush with the code block's flush-padded lines (see
-  // the inline <style> override at the rail root).
-  const textCardStyle: CSSProperties = {
-    // background: hexToRgba(theme.tooltip.textColor, 0.04),
-    borderRadius: 8,
-    padding: '10px 0',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  };
-
-  const numberStyle: CSSProperties = {
-    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-    fontSize: theme.typography.fontSize - 2,
-    color: muted,
-    letterSpacing: '0.04em',
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={textCardStyle}>
-        <div style={numberStyle}>{step.heading}</div>
-        <div
-          style={{
-            fontSize: theme.typography.fontSize,
-            lineHeight: 1.55,
-            color: theme.tooltip.textColor,
-            textAlign: 'justify',
-            textJustify: 'inter-word',
-            hyphens: 'auto',
-          }}
-        >
-          {step.body}
-        </div>
+      <div
+        style={{
+          fontFamily: MONO,
+          fontSize: theme.typography.fontSize - 1,
+          color: muted,
+          letterSpacing: '0.05em',
+        }}
+      >
+        {step.heading}
       </div>
-      {step.code && <HighlightedCode code={step.code} theme={theme} style={{ padding: 0 }} />}
+      <div
+        style={{
+          fontSize: theme.typography.fontSize + 1,
+          lineHeight: 1.65,
+          color: theme.tooltip.textColor,
+        }}
+      >
+        {step.body}
+      </div>
+      {step.code && <HighlightedCode code={step.code} theme={theme} style={{ ...DOCS_CODE_STYLE, marginTop: 4 }} />}
     </div>
   );
 }

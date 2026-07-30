@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import {
   ChartContainer,
@@ -100,184 +100,81 @@ function buildMetric(): { time: number; value: number }[] {
   return out;
 }
 
-const SHAPES: MarkerShape[] = ['arrow-down', 'dot', 'circle', 'arrow-up'];
+export interface AnnotationsDemoProps {
+  theme: ChartTheme;
+  /** Shape of the "peak" marker glyph. */
+  shape: MarkerShape;
+  /** Open-ended window (`to="now"`) + pulsing marker while the incident runs. */
+  ongoing: boolean;
+  /** Callout chips on markers vs bare glyphs. */
+  labeled: boolean;
+}
 
-export function AnnotationsDemo({ theme }: { theme: ChartTheme }) {
+export function AnnotationsDemo({ theme, shape, ongoing, labeled }: AnnotationsDemoProps) {
   const metric = useMemo(buildMetric, []);
-  const [shape, setShape] = useState<MarkerShape>('arrow-down');
-  const [ongoing, setOngoing] = useState(false);
-  const [labeled, setLabeled] = useState(true);
 
   const timeAt = (i: number) => metric[i].time;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
-      <Controls
-        theme={theme}
-        shape={shape}
-        onShape={setShape}
-        ongoing={ongoing}
-        onOngoing={setOngoing}
-        labeled={labeled}
-        onLabeled={setLabeled}
-      />
+    <div style={{ height: '100%', minHeight: 0, padding: 12, boxSizing: 'border-box' }}>
+      <ChartContainer theme={theme} style={{ width: '100%', height: '100%' }}>
+        <LineSeries
+          id="metric"
+          data={{ label: 'requests/s', data: metric }}
+          options={{
+            area: { visible: true },
+            strokeWidth: 2.5,
+            curve: 'smooth',
+            pulse: false,
+            // Calm blue below the limit, hot red above it — the breach reads in
+            // the line itself, not just the window band. `below` defaults to the
+            // series color, so it tracks the theme.
+            threshold: { value: LIMIT, above: '#f0556a' },
+          }}
+        />
 
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <ChartContainer theme={theme} style={{ width: '100%', height: '100%' }}>
-          <LineSeries
-            id="metric"
-            data={{ label: 'requests/s', data: metric }}
-            options={{
-              area: { visible: true },
-              strokeWidth: 2.5,
-              curve: 'smooth',
-              pulse: false,
-              // Calm blue below the limit, hot red above it — the breach reads in
-              // the line itself, not just the window band. `below` defaults to the
-              // series color, so it tracks the theme.
-              threshold: { value: LIMIT, above: '#f0556a' },
-            }}
-          />
-
-          {/* Region — shade the window. Open-ended (`to="now"`) while ongoing:
+        {/* Region — shade the window. Open-ended (`to="now"`) while ongoing:
               it extends to the right edge; closed at a timestamp once settled. */}
-          <TimeRegion
-            from={timeAt(WINDOW_FROM_I)}
-            to={ongoing ? 'now' : timeAt(WINDOW_TO_I)}
-            fill={hexToRgba('#f0556a', 0.12)}
-            color="#f0556a"
-            label="window"
-          />
+        <TimeRegion
+          from={timeAt(WINDOW_FROM_I)}
+          to={ongoing ? 'now' : timeAt(WINDOW_TO_I)}
+          fill={hexToRgba('#f0556a', 0.12)}
+          color="#f0556a"
+          label="window"
+        />
 
-          {/* Reference lines — horizontal baseline + limit, vertical event. The
+        {/* Reference lines — horizontal baseline + limit, vertical event. The
               deploy line is violet, not blue, so it never reads as the data line. */}
-          <ReferenceLine value={BASELINE} label="baseline" />
-          <ReferenceLine value={LIMIT} label={`limit ${LIMIT}`} color="#f0a83c" />
-          <ReferenceLine time={timeAt(DEPLOY_I)} label="deploy v2.1.0" color="#cba6f7" />
+        <ReferenceLine value={BASELINE} label="baseline" />
+        <ReferenceLine value={LIMIT} label={`limit ${LIMIT}`} color="#f0a83c" />
+        <ReferenceLine time={timeAt(DEPLOY_I)} label="deploy v2.1.0" color="#cba6f7" />
 
-          {/* Markers — pin the moments, snapped to the metric line. With a
+        {/* Markers — pin the moments, snapped to the metric line. With a
               label the marker renders as a callout chip (the tail replaces an
               arrow glyph); bare markers show the raw glyph. */}
+        <Marker
+          time={timeAt(PEAK_I)}
+          seriesId="metric"
+          shape={shape}
+          pulse={ongoing}
+          label={labeled ? 'peak' : undefined}
+          color="#f0556a"
+        />
+        {!ongoing && (
           <Marker
-            time={timeAt(PEAK_I)}
+            time={timeAt(WINDOW_TO_I)}
             seriesId="metric"
-            shape={shape}
-            pulse={ongoing}
-            label={labeled ? 'peak' : undefined}
-            color="#f0556a"
+            shape="dot"
+            label={labeled ? 'settled' : undefined}
+            color="#46b78f"
           />
-          {!ongoing && (
-            <Marker
-              time={timeAt(WINDOW_TO_I)}
-              seriesId="metric"
-              shape="dot"
-              label={labeled ? 'settled' : undefined}
-              color="#46b78f"
-            />
-          )}
+        )}
 
-          <Tooltip />
-          <Crosshair />
-          <YAxis />
-          <TimeAxis />
-        </ChartContainer>
-      </div>
-    </div>
-  );
-}
-
-interface ControlsProps {
-  theme: ChartTheme;
-  shape: MarkerShape;
-  onShape: (next: MarkerShape) => void;
-  ongoing: boolean;
-  onOngoing: (next: boolean) => void;
-  labeled: boolean;
-  onLabeled: (next: boolean) => void;
-}
-
-function Controls({ theme, shape, onShape, ongoing, onOngoing, labeled, onLabeled }: ControlsProps) {
-  const border = hexToRgba(theme.tooltip.textColor, 0.18);
-  const muted = hexToRgba(theme.tooltip.textColor, 0.7);
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        alignItems: 'center',
-        gap: 10,
-        padding: '0 0 10px',
-        fontSize: theme.typography.fontSize - 1,
-        fontFamily: theme.typography.fontFamily,
-        color: muted,
-      }}
-    >
-      <span>Marker shape:</span>
-
-      <div style={{ display: 'inline-flex', border: `1px solid ${border}`, borderRadius: 6, overflow: 'hidden' }}>
-        {SHAPES.map((s) => {
-          const active = s === shape;
-
-          return (
-            <button
-              key={s}
-              type="button"
-              onClick={() => onShape(s)}
-              style={{
-                padding: '5px 10px',
-                border: 'none',
-                background: active ? hexToRgba(theme.tooltip.textColor, 0.08) : 'transparent',
-                color: active ? theme.tooltip.textColor : muted,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontSize: 'inherit',
-                fontWeight: active ? 500 : 400,
-              }}
-            >
-              {s}
-            </button>
-          );
-        })}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onLabeled(!labeled)}
-        aria-pressed={labeled}
-        style={{
-          padding: '5px 12px',
-          border: `1px solid ${border}`,
-          borderRadius: 6,
-          background: labeled ? hexToRgba(theme.tooltip.textColor, 0.08) : 'transparent',
-          color: labeled ? theme.tooltip.textColor : muted,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
-          fontWeight: labeled ? 500 : 400,
-        }}
-      >
-        {labeled ? 'labels — callout chips' : 'no labels — bare glyphs'}
-      </button>
-
-      <button
-        type="button"
-        onClick={() => onOngoing(!ongoing)}
-        aria-pressed={ongoing}
-        style={{
-          padding: '5px 12px',
-          border: `1px solid ${border}`,
-          borderRadius: 6,
-          background: ongoing ? hexToRgba('#f0556a', 0.15) : 'transparent',
-          color: ongoing ? '#f0556a' : muted,
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
-          fontWeight: ongoing ? 500 : 400,
-        }}
-      >
-        {ongoing ? 'ongoing — band to edge, marker pulses' : 'settled — band closed'}
-      </button>
+        <Tooltip />
+        <Crosshair />
+        <YAxis />
+        <TimeAxis />
+      </ChartContainer>
     </div>
   );
 }

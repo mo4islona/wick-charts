@@ -416,6 +416,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       id="line"
       theme={theme}
       animationKinds={['line']}
+      mobileRowHeight={300}
       extraDefaults={(mobile) => ({
         dataMode: 'wave',
         areaVisible: true,
