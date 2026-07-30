@@ -59,14 +59,17 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     return chart.yScale.formatY(value);
   }
 
+  // Snapped, not raw: the canvas strokes its gridline on a whole device pixel,
+  // so a label placed at the unrounded position sits up to half a CSS pixel
+  // off the line it names.
   function positionSpan(el: HTMLSpanElement, value: number): void {
     if (axis === 'x') {
-      el.style.left = `${chart.timeScale.timeToX(value)}px`;
+      el.style.left = `${chart.timeScale.timeToSnappedX(value)}px`;
 
       return;
     }
 
-    el.style.top = `${chart.yScale.valueToY(value)}px`;
+    el.style.top = `${chart.yScale.valueToSnappedY(value)}px`;
   }
 
   // Theme-derived styles are written to inline `style`, so they're effectively

@@ -3,6 +3,7 @@ import type { TickTrackerSnapshot } from '../scales/tick-tracker';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
+import { crispCenterOffset, crispLineWidth } from '../utils/pixel-grid';
 
 export interface RenderGridArgs {
   scope: BitmapCoordinateSpace;
@@ -47,10 +48,10 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks,
 
   // Scale the stroke to device pixels so gridlines stay 1 CSS-px crisp at any
   // DPR (matching the series strokes), instead of rendering at a faint 0.5
-  // CSS-px on HiDPI. Half-pixel center snap only when the width is odd — even
-  // widths land cleanly on an integer device-pixel boundary.
-  const yLineWidth = Math.max(1, Math.round(verticalPixelRatio));
-  const yHalf = yLineWidth % 2 === 1 ? 0.5 : 0;
+  // CSS-px on HiDPI. Shared with the scales' `valueToSnappedY` so DOM axis
+  // labels land on the same pixel as the line they name.
+  const yLineWidth = crispLineWidth(verticalPixelRatio);
+  const yHalf = crispCenterOffset(verticalPixelRatio);
   context.lineWidth = yLineWidth;
   for (const { value, opacity } of yTicks.entries) {
     const faded = opacity * alpha;
@@ -64,8 +65,8 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks,
     context.stroke();
   }
 
-  const xLineWidth = Math.max(1, Math.round(horizontalPixelRatio));
-  const xHalf = xLineWidth % 2 === 1 ? 0.5 : 0;
+  const xLineWidth = crispLineWidth(horizontalPixelRatio);
+  const xHalf = crispCenterOffset(horizontalPixelRatio);
   context.lineWidth = xLineWidth;
   for (const { value, opacity } of timeTicks.entries) {
     const faded = opacity * alpha;
