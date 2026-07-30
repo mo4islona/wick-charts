@@ -3434,38 +3434,6 @@
             "name": "AnimationsConfig",
             "props": [
               {
-                "name": "flowLag",
-                "type": "false | { maxMs?: AnimationTime; jumpPx?: number; }",
-                "optional": true,
-                "defaultValue": null,
-                "deprecated": null,
-                "description": "Let the trailing vertex lag behind the axis on a large move.\n\nA new point is normally drawn at its true value on the frame it arrives,\nwhile the Y bound is still travelling to make room for it. Holding the tip\nback reverses the order: the axis opens first and the line follows it down.\n\nThe lag is not fixed — it scales with how far the point jumped on screen,\nso a calm feed keeps its values live and only a move big enough to need\naxis travel pays any latency:\n\n```\nlagMs = maxMs × clamp(0, 1, jumped / jumpPx)\n```\n\nOff by default: this trades data freshness for smoothness, which is a\nproduct call, not a default. `maxMs: 0` (or `false`) disables it.\n\nLine and bar series only — candlestick draws its trailing bar from the\nstore directly.",
-                "see": [],
-                "nested": {
-                  "name": "",
-                  "props": [
-                    {
-                      "name": "maxMs",
-                      "type": "AnimationTime",
-                      "optional": true,
-                      "defaultValue": null,
-                      "deprecated": null,
-                      "description": "Duration at and above {@link jumpPx }. `0` disables.",
-                      "see": []
-                    },
-                    {
-                      "name": "jumpPx",
-                      "type": "number",
-                      "optional": true,
-                      "defaultValue": "60ms",
-                      "deprecated": null,
-                      "description": "Jump that earns the full duration.",
-                      "see": []
-                    }
-                  ]
-                }
-              },
-              {
                 "name": "axis",
                 "type": "false | { y?: | false | { curve?: TransitionFactory<YRange>; settle?: AnimationTime; sticky?: AnimationTime | { min?: AnimationTime; max?: AnimationTime }; gesture?: AnimationTime; }; x?: | false | { curve?: TransitionFactory<VisibleRange>; settle?: AnimationTime; gesture?: AnimationTime; }; ticks?: AnimationTime; grid?: AnimationTime; }",
                 "optional": true,

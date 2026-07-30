@@ -98,10 +98,6 @@ export const DEFAULT_X_GESTURE_MS = 150;
  */
 export const DEFAULT_Y_SETTLE_MS = 250;
 
-/** Vertical jump, in pixels, at which {@link AnimationsConfig.flowLag} reaches
- *  its full duration. Below it the lag scales down linearly to nothing. */
-export const DEFAULT_FLOW_LAG_JUMP_PX = 60;
-
 /**
  * Inward Y settle *cap* — the time to contract by a full range's worth after
  * a recent extreme leaves the window. The engine scales the actual contract
@@ -175,35 +171,6 @@ export const DEFAULT_GRID_MS = 400;
  * is a hard disable that overrides per-series.
  */
 export interface AnimationsConfig {
-  /**
-   * Let the trailing vertex lag behind the axis on a large move.
-   *
-   * A new point is normally drawn at its true value on the frame it arrives,
-   * while the Y bound is still travelling to make room for it. Holding the tip
-   * back reverses the order: the axis opens first and the line follows it down.
-   *
-   * The lag is not fixed — it scales with how far the point jumped on screen,
-   * so a calm feed keeps its values live and only a move big enough to need
-   * axis travel pays any latency:
-   *
-   * ```
-   * lagMs = maxMs × clamp(0, 1, jumped / jumpPx)
-   * ```
-   *
-   * Off by default: this trades data freshness for smoothness, which is a
-   * product call, not a default. `maxMs: 0` (or `false`) disables it.
-   *
-   * Line and bar series only — candlestick draws its trailing bar from the
-   * store directly.
-   */
-  flowLag?:
-    | false
-    | {
-        /** Duration at and above {@link jumpPx}. `0` disables. */
-        maxMs?: AnimationTime;
-        /** Jump that earns the full duration. @default {@link DEFAULT_FLOW_LAG_JUMP_PX} */
-        jumpPx?: number;
-      };
   /**
    * Axis-level animation. `false` collapses both axes and ticks to instant.
    */
@@ -530,16 +497,6 @@ function resolveSticky(raw: AnimationTime | { min?: AnimationTime; max?: Animati
   return { stickyMs: fixed, stickyFloorMs: fixed };
 }
 
-function resolveFlowLag(raw: AnimationsConfig['flowLag']): { maxMs: number; jumpPx: number } {
-  if (raw === undefined || raw === false) {
-    return { maxMs: 0, jumpPx: DEFAULT_FLOW_LAG_JUMP_PX };
-  }
-
-  const jumpPx = raw.jumpPx !== undefined && raw.jumpPx > 0 ? raw.jumpPx : DEFAULT_FLOW_LAG_JUMP_PX;
-
-  return { maxMs: resolveAnimationTime(raw.maxMs, 0), jumpPx };
-}
-
 /**
  * Resolved animation config. Pass the user's `ChartOptions.animations` to
  * {@link AnimationConfig.resolve} once at chart construction; reads stay
@@ -557,18 +514,15 @@ export class AnimationConfig {
   };
   readonly toggleMs: number;
   readonly series: ResolvedSeriesAnimations;
-  readonly flowLag: { maxMs: number; jumpPx: number };
 
   private constructor(
     axis: { y: ResolvedYAxisAnimation; x: ResolvedXAxisAnimation; ticksMs: number; gridMs: number },
     toggleMs: number,
     series: ResolvedSeriesAnimations,
-    flowLag: { maxMs: number; jumpPx: number },
   ) {
     this.axis = axis;
     this.toggleMs = toggleMs;
     this.series = series;
-    this.flowLag = flowLag;
   }
 
   /**
@@ -588,7 +542,6 @@ export class AnimationConfig {
         },
         0,
         ZERO_SERIES_ANIMATIONS,
-        { maxMs: 0, jumpPx: DEFAULT_FLOW_LAG_JUMP_PX },
       );
     }
 
@@ -634,9 +587,8 @@ export class AnimationConfig {
     const gridMs = rawGrid === false ? 0 : resolveAnimationTime(rawGrid, DEFAULT_GRID_MS);
     const toggleMs = resolveAnimationTime(rawToggle, DEFAULT_TOGGLE_MS);
     const series = resolveSeriesAnimations(rawSeries);
-    const flowLag = resolveFlowLag(cfg?.flowLag);
 
-    return new AnimationConfig({ y, x, ticksMs, gridMs }, toggleMs, series, flowLag);
+    return new AnimationConfig({ y, x, ticksMs, gridMs }, toggleMs, series);
   }
 
   /**
