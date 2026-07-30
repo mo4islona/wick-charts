@@ -51,10 +51,8 @@ export class YScale {
   private pixelRatio = 1;
   /**
    * Range the tick set and interval resolve against — the viewport's target,
-   * not the frame's easing position. Membership stays put for the whole tween
-   * (lines glide to their places instead of popping in and out at the edges,
-   * and a tier change can't restage the entire set mid-slide). `null` falls
-   * back to the visual range, which is what a bare `update()` gives.
+   * so membership holds for the whole tween instead of churning at the edges.
+   * `null` tracks the visual range.
    */
   private tickRange: YRange | null = null;
 

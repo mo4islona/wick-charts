@@ -518,8 +518,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.yScale.tickTracker.setFadeMs(ticksMs);
 
     // Starts at 0 whatever `grid.visible` says — the first render frame
-    // retargets to 1, which snaps when the resolved duration is 0. The reveal
-    // is decoration, so reduced-motion collapses it to that snap.
+    // retargets to 1, which snaps at duration 0.
     this.#gridFade = new Animator<number>({
       initial: 0,
       duration: prefersReducedMotion() ? 0 : this.#animationsConfig.axis.gridMs,
@@ -2840,12 +2839,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const chartWidth = size.media.width - this.yAxisWidth;
     const chartHeight = size.media.height - this.xAxisHeight;
 
-    // Ticks resolve against where the viewport is *going*, positions against
-    // where it is now. The tracker keeps the outgoing set alive at a falling
-    // opacity, so a retarget is one cross-fade held for the whole tween
-    // instead of per-frame membership churn as the eased range sweeps past
-    // each tick boundary. Set before `update` so its resolve sees the target;
-    // a degenerate target (pre-data mount) falls back to the visual range.
+    // Ticks resolve against where the viewport is going, positions against
+    // where it is now — one cross-fade per retarget instead of per-frame churn
+    // as the eased range sweeps past each boundary. Before `update` so its
+    // resolve sees the target; a degenerate target falls back to the visual.
     const target = this.#engine.getTarget();
     const yTickRange = this.#padYRange({ min: target.y.min, max: target.y.max, chartHeight });
     this.yScale.setTickRange(yTickRange.max > yTickRange.min ? yTickRange : null);
@@ -2971,12 +2968,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         this.emit('tickFrame');
       }
 
-      // Hold the reveal until there are gridlines to reveal. A chart whose
-      // data arrives a tick after mount paints empty frames first, and
-      // starting there would burn the ramp against nothing — the real grid
-      // would then appear already opaque. Hiding needs no such gate.
-      // Retargeting before the tick keeps a same-frame `setGrid` from landing
-      // one frame late.
+      // Wait for ticks to exist: a dataset landing after mount would otherwise
+      // burn the ramp on empty frames and arrive already opaque. Hiding needs
+      // no gate. Retarget before the tick so a same-frame `setGrid` lands now.
       const gridTarget = this.#grid ? 1 : 0;
       if (gridTarget === 0 || yTickSnap.entries.length > 0 || timeTickSnap.entries.length > 0) {
         this.#gridFade.setTarget(gridTarget, { now });
@@ -3091,9 +3085,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // streaming + zoom don't churn the tracker — only real set changes do.
     const trackersStillFading = yTickAnimating || timeTickAnimating;
 
-    // Neither fade owns a scheduler wake: the engine stops calling markDirty
-    // on the frame it settles, so a tick cross-fade or grid ramp outliving it
-    // would freeze mid-way.
+    // The engine stops calling markDirty on the frame it settles, so a fade
+    // outliving it would freeze mid-way.
     if (trackersStillFading || gridFadeAnimating) {
       this.#mainScheduler.markDirty();
     }
@@ -3146,9 +3139,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     alpha: number;
   }): void {
     const { scope, paneBitmapWidth, paneBitmapHeight, timeTicks, alpha } = args;
-    // Gate on the grid *flag*, not the layer fade: the taper below owns the
-    // whole overrun strip, so keeping it tied to `#grid` preserves what a
-    // grid-less chart did while still tapering the stubs mid-fade.
+    // Gate on the flag, not the fade: the taper below owns the whole overrun
+    // strip, not just the stubs.
     if ((!this.#grid && alpha <= 0.01) || this.xAxisHeight === 0) return;
     const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
     const start = Math.round(paneBitmapHeight);

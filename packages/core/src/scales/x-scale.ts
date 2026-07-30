@@ -28,12 +28,7 @@ export class XScale {
   private width = 1;
   private pixelRatio = 1;
   private dataInterval: number | null = null;
-  /**
-   * Range the tick set and interval resolve against — the viewport's target,
-   * not the frame's easing position, so membership holds for the whole tween
-   * instead of churning as `from` sweeps past each tick boundary. See
-   * {@link YScale} for the full reasoning; `null` tracks the visual range.
-   */
+  /** Target range ticks resolve against; `null` tracks the visual range. See {@link YScale}. */
   private tickRange: XRange | null = null;
 
   // Label density knobs — written by <TimeAxis labelCount=… minLabelSpacing=…>.
