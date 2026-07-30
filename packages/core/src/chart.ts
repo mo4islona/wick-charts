@@ -3124,13 +3124,68 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       context.stroke();
     }
 
+    context.restore();
+
     // Taper the stubs: nothing erased at the pane floor, total at the tip.
-    context.globalAlpha = 1;
-    context.setLineDash([]);
+    this.#applyTailFade(scope, paneBitmapHeight);
+  }
+
+  /**
+   * Erase ramp over the below-pane overrun strip — the gridline tail stubs
+   * on the main layer, the crosshair's overrun on the overlay. Nothing
+   * erased at the pane floor, total at the strip's bottom edge, so whatever
+   * crosses the floor tapers out short of the time-axis labels.
+   */
+  #applyTailFade(scope: BitmapCoordinateSpace, paneBitmapHeight: number): void {
+    if (this.xAxisHeight === 0) return;
+
+    const start = Math.round(paneBitmapHeight);
+    const height = Math.round(GRID_TAIL_PX * scope.verticalPixelRatio);
+    if (height < 1) return;
+
+    const { context } = scope;
+    context.save();
     context.globalCompositeOperation = 'destination-out';
     context.fillStyle = this.#tailFadeGradient({ context, start, height });
     context.fillRect(0, start, scope.bitmapSize.width, height);
     context.restore();
+  }
+
+  /**
+   * Crosshair hairlines with the same edge melt the main layer runs: the
+   * pane clip widens by the right-fade intrusion and by a gridline-tail's
+   * overrun below the floor, then the shared erase ramps dissolve the
+   * overhangs — the vertical line tapers toward the time-axis labels in
+   * step with the gridline stubs and the horizontal line rides under the
+   * Y-axis column toward its label instead of stopping dead at the pane
+   * edge. Erases alpha (destination-out), so it must run while the
+   * crosshair is the only content on the layer.
+   */
+  #drawCrosshair(args: { scope: BitmapCoordinateSpace; chartBitmapWidth: number; chartBitmapHeight: number }): void {
+    const pos = this.#crosshairPos;
+    if (pos === null) return;
+
+    const { scope, chartBitmapWidth, chartBitmapHeight } = args;
+    const { context } = scope;
+    const rightFade = this.#rightFadeZone(scope, chartBitmapWidth);
+    const tail = this.xAxisHeight > 0 ? Math.round(GRID_TAIL_PX * scope.verticalPixelRatio) : 0;
+
+    context.save();
+    context.beginPath();
+    context.rect(0, 0, chartBitmapWidth + rightFade.intrusion, chartBitmapHeight + tail);
+    context.clip();
+    renderCrosshair({
+      scope,
+      bitmapX: pos.mediaX * scope.horizontalPixelRatio,
+      bitmapY: pos.mediaY * scope.verticalPixelRatio,
+      theme: this.#theme,
+      pane: { width: chartBitmapWidth, height: chartBitmapHeight },
+    });
+    context.restore();
+
+    this.#applyTailFade(scope, chartBitmapHeight);
+    this.#applyTopFade(scope, chartBitmapHeight);
+    this.#applyXFades(scope, chartBitmapWidth);
   }
 
   /**
@@ -3356,20 +3411,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
 
+      // Base crosshair lines under every other overlay element. Skip when the
+      // only visible series is pie — crosshair hairlines read as time/price
+      // coordinates, which have no meaning on a pie and would just obscure
+      // the disk. Must paint while the layer is otherwise empty: the melt
+      // masks inside erase every pixel already on the layer.
+      if (this.#crosshairPos && this.#hasTimeSeries()) {
+        this.#drawCrosshair({ scope, chartBitmapWidth, chartBitmapHeight });
+      }
+
       scope.context.save();
       scope.context.beginPath();
       scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       scope.context.clip();
-
-      // Base crosshair lines on top of the clipped area. Skip when the only
-      // visible series is pie — crosshair hairlines read as time/price
-      // coordinates, which have no meaning on a pie and would just obscure
-      // the disk.
-      if (this.#crosshairPos && this.#hasTimeSeries()) {
-        const bx = this.#crosshairPos.mediaX * size.horizontalPixelRatio;
-        const by = this.#crosshairPos.mediaY * size.verticalPixelRatio;
-        renderCrosshair(scope, bx, by, this.#theme);
-      }
 
       // Dispatch to each renderer's overlay hook — crosshair dots, pulses, etc.
       const ovpad = this.#padding;

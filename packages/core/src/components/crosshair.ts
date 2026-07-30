@@ -1,13 +1,26 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { ChartTheme } from '../theme/types';
 
-export function renderCrosshair(
-  scope: BitmapCoordinateSpace,
-  bitmapX: number,
-  bitmapY: number,
-  theme: ChartTheme,
-): void {
+export interface CrosshairRenderArgs {
+  scope: BitmapCoordinateSpace;
+  bitmapX: number;
+  bitmapY: number;
+  theme: ChartTheme;
+  /** Pane extent in bitmap px. A hairline whose anchor coordinate sits past
+   *  it is skipped — the pointer is over an axis strip, where only the cross
+   *  line still anchored inside the pane should show. The caller's clip may
+   *  extend past the pane (edge-melt overhangs); this gate keeps an
+   *  outside-pane anchor from painting into those overhangs. */
+  pane: { width: number; height: number };
+}
+
+export function renderCrosshair(args: CrosshairRenderArgs): void {
+  const { scope, bitmapX, bitmapY, theme, pane } = args;
   const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
+
+  const drawVertical = bitmapX <= pane.width;
+  const drawHorizontal = bitmapY <= pane.height;
+  if (!drawVertical && !drawHorizontal) return;
 
   // Match device-pixel stroke width to the series so the crosshair reads as
   // crisp as the candles instead of a faint 0.5 CSS-px hairline on HiDPI.
@@ -23,10 +36,14 @@ export function renderCrosshair(
   const y = Math.round(bitmapY) + (vLineWidth % 2 === 1 ? 0.5 : 0);
 
   context.beginPath();
-  context.moveTo(x, 0);
-  context.lineTo(x, bitmapSize.height);
-  context.moveTo(0, y);
-  context.lineTo(bitmapSize.width, y);
+  if (drawVertical) {
+    context.moveTo(x, 0);
+    context.lineTo(x, bitmapSize.height);
+  }
+  if (drawHorizontal) {
+    context.moveTo(0, y);
+    context.lineTo(bitmapSize.width, y);
+  }
   context.stroke();
 
   context.setLineDash([]);

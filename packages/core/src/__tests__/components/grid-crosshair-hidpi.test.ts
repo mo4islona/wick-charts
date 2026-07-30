@@ -47,7 +47,13 @@ describe('grid / crosshair HiDPI stroke width', () => {
 
   it('crosshair scales lineWidth to device pixels at DPR 2', () => {
     const built = buildRenderContext({ pixelRatio: 2 });
-    renderCrosshair(built.ctx.scope, 100, 100, built.ctx.theme);
+    renderCrosshair({
+      scope: built.ctx.scope,
+      bitmapX: 100,
+      bitmapY: 100,
+      theme: built.ctx.theme,
+      pane: { width: 1600, height: 800 },
+    });
 
     const strokes = built.spy.callsOf('stroke');
     expect(strokes.length).toBeGreaterThan(0);
@@ -58,7 +64,13 @@ describe('grid / crosshair HiDPI stroke width', () => {
 
   it('crosshair stays 1px at DPR 1 (no regression)', () => {
     const built = buildRenderContext({ pixelRatio: 1 });
-    renderCrosshair(built.ctx.scope, 100, 100, built.ctx.theme);
+    renderCrosshair({
+      scope: built.ctx.scope,
+      bitmapX: 100,
+      bitmapY: 100,
+      theme: built.ctx.theme,
+      pane: { width: 800, height: 400 },
+    });
 
     for (const s of built.spy.callsOf('stroke')) {
       expect(s.lineWidth).toBe(1);
