@@ -73,7 +73,7 @@ export interface SparklineProps {
   width?: number;
   /** Overall height (default: 48) */
   height?: number;
-  /** Stroke width in CSS pixels (default: 1.5) */
+  /** Stroke width in CSS pixels (default: 1) */
   strokeWidth?: number;
   /** Show chart background gradient (default: true) */
   gradient?: boolean;
@@ -115,7 +115,7 @@ export function Sparkline({
   flow,
   width = 140,
   height = 48,
-  strokeWidth = 1.5,
+  strokeWidth = 1,
   gradient = true,
   style,
 }: SparklineProps) {

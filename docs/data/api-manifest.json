@@ -2224,7 +2224,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Stroke width in CSS pixels (default: 1.5)",
+          "description": "Stroke width in CSS pixels (default: 1)",
           "see": []
         },
         {
