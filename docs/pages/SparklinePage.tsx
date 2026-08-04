@@ -43,7 +43,7 @@ const SPARK_POINTS_MAX = SPARK_HISTORY;
 const SPARK_POINTS_DEFAULT = 80;
 
 // Line thickness in CSS px — mirrors the Sparkline component's strokeWidth default.
-const SPARK_STROKE_DEFAULT = 1.5;
+const SPARK_STROKE_DEFAULT = 1;
 
 // Streaming cadence — sparklines look better moving at a brisk pace than the
 // canonical 5s bar interval. Faster speed = fresh bars every ~500ms.
