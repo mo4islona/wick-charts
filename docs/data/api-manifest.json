@@ -3135,7 +3135,7 @@
                       "optional": true,
                       "defaultValue": "55",
                       "deprecated": null,
-                      "description": "Width in CSS pixels. Default: 55.",
+                      "description": "Width in CSS pixels. Default: 55. Spatial-only charts automatically collapse the default to 0; set an explicit width to reserve a column.",
                       "see": []
                     },
                     {
@@ -3369,7 +3369,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Soft fade-out at the top of the plot area, so series content dissolves\nunder a floating `<Title>` / `<InfoBar>` instead of colliding with it —\na Y-axis spring lag, a streaming spike, or a warm-up burst glides into\ntransparency. The mask erases canvas alpha rather than painting a cover\ncolor, so it stays correct over the default background gradient. Live.\n\nTwo directions, independently controlled:\n\n**X (under the axis)** — panning content slides under the Y-axis column\nand dissolves instead of hard-clipping at the pane edge. **On by\ndefault** as a 60px ramp that finishes just inside the axis column,\nbefore the label glyphs; `{ right }` overrides the total ramp width in\nCSS px (`0` disables). `{ left }` adds the mirror zone at the left pane\nedge (default off).\n\n**Top (under the header)** — opt-in. `true` enables the auto zone\n(measured header + 24px run-out, half the header fold-in released so\ndata rides up into the zone at rest), `{ top }` sets the zone height\nexplicitly, and `{ overlap }` tunes how many px of the fold-in to\nrelease (0 keeps the strict fold-in). Off unless one of those is set.\n\n`false` — every mask off, strict edges everywhere.",
+          "description": "Soft fade-out at the top of the plot area, so series content dissolves\nunder a floating `<Title>` / `<InfoBar>` instead of colliding with it —\na Y-axis spring lag, a streaming spike, or a warm-up burst glides into\ntransparency. The mask erases canvas alpha rather than painting a cover\ncolor, so it stays correct over the default background gradient. Live.\n\nTwo directions, independently controlled:\n\n**X (under the axis)** — panning content slides under the Y-axis column\nand dissolves instead of hard-clipping at the pane edge. **On by\ndefault** as a 60px ramp on time-series charts; spatial-only charts keep\ntheir right edge clear. `{ right }` overrides the total ramp width in\nCSS px (`0` disables), including on spatial-only charts. `{ left }` adds\nthe mirror zone at the left pane edge (default off).\n\n**Top (under the header)** — opt-in. `true` enables the auto zone\n(measured header + 24px run-out, half the header fold-in released so\ndata rides up into the zone at rest), `{ top }` sets the zone height\nexplicitly, and `{ overlap }` tunes how many px of the fold-in to\nrelease (0 keeps the strict fold-in). Off unless one of those is set.\n\n`false` — every mask off, strict edges everywhere.",
           "see": [],
           "nested": {
             "name": "",

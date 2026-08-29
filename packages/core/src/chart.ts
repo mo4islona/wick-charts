@@ -369,7 +369,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   get yAxisWidth(): number {
     const y = this.#axis.y;
-    return y?.visible === false ? 0 : (y?.width ?? 55);
+    if (y?.visible === false) return 0;
+    if (y?.width !== undefined) return y.width;
+
+    return this.#isSpatialOnly() ? 0 : 55;
   }
 
   get xAxisHeight(): number {
@@ -696,12 +699,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     };
     const renderer = def.create({ theme: this.#theme, layerCount }, merged);
 
+    const previousYAxisWidth = this.yAxisWidth;
     const entryLabels = labels ?? (typeof label === 'string' ? [label] : undefined);
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
     this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
+    this.#syncYAxisWidth(previousYAxisWidth);
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
 
@@ -712,10 +717,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   removeSeries(id: string): void {
     const idx = this.#series.findIndex((s) => s.id === id);
     if (idx >= 0) {
+      const previousYAxisWidth = this.yAxisWidth;
       this.#series[idx].renderer.dispose();
       this.#series.splice(idx, 1);
       this.#seriesIdCache = null;
       this.#syncInteractionMode();
+      this.#syncYAxisWidth(previousYAxisWidth);
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
       this.#bumpOverlayVersion();
@@ -1278,9 +1285,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || entry.visible === visible) return;
 
+    const previousYAxisWidth = this.yAxisWidth;
     entry.visible = visible;
     this.#bumpOverlayVersion();
     this.#syncInteractionMode();
+    this.#syncYAxisWidth(previousYAxisWidth);
 
     // Renderer-owned alpha fade — kicks off independently of the engine's
     // Y retarget below so the cross-fade lives next to the geometry that
@@ -1626,6 +1635,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     return false;
+  }
+
+  /** A populated chart with no visible time series has no value-axis column to reserve. */
+  #isSpatialOnly(): boolean {
+    return this.#series.length > 0 && !this.#hasTimeSeries();
+  }
+
+  /** Refresh scales and overlays when the auto Y-axis column appears or collapses. */
+  #syncYAxisWidth(previous: number): void {
+    if (this.yAxisWidth === previous) return;
+
+    this.syncScales();
+    this.#mainScheduler.markDirty();
+    this.#overlayScheduler.markDirty();
+    this.emit('viewportChange');
   }
 
   /**
@@ -3271,29 +3295,28 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Bitmap geometry of the right fade zone. The ramp finishes just inside
-   * the Y-axis column — {@link RIGHT_FADE_END_GAP_PX} past the pane edge,
-   * still short of where the right-anchored label glyphs start — so content
-   * is fully erased before it can cross any axis text. Everything wider
-   * spills backward into the pane as the soft lead-in. `width: 0` (axis
-   * hidden, or `right: 0`) means no zone; `intrusion` is what the pane clip
-   * extends by (content past the ramp is total-erased anyway, so the clip
-   * stops with the ramp).
+   * Bitmap geometry of the right fade zone. The automatic zone only exists
+   * for a chart with a visible time series; it finishes just inside the
+   * Y-axis column — {@link RIGHT_FADE_END_GAP_PX} past the pane edge, still
+   * short of where the right-anchored label glyphs start. An explicit zone
+   * also works without that column and ends at the canvas edge. `width: 0`
+   * means no zone; `intrusion` is what the pane clip extends by (content past
+   * the ramp is total-erased anyway, so the clip stops with the ramp).
    */
   #rightFadeZone(
     scope: BitmapCoordinateSpace,
     paneBitmapWidth: number,
   ): { start: number; width: number; intrusion: number } {
     const off = { start: 0, width: 0, intrusion: 0 };
+    const automatic = this.#fade.right === null;
+    if (automatic && this.#isSpatialOnly()) return off;
+
     const column = Math.max(0, Math.round(scope.bitmapSize.width - paneBitmapWidth));
-    if (column === 0) return off;
+    if (automatic && column === 0) return off;
 
     const hpr = scope.horizontalPixelRatio;
     const intrusion = Math.min(Math.round(RIGHT_FADE_END_GAP_PX * hpr), column);
-    const total =
-      this.#fade.right === null
-        ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr)
-        : Math.round(this.#fade.right * hpr);
+    const total = automatic ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr) : Math.round(this.#fade.right * hpr);
     if (total < 1) return off;
 
     const end = paneBitmapWidth + intrusion;

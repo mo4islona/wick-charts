@@ -1,5 +1,6 @@
+import { act } from '@testing-library/react';
 import { ChartInstance } from '@wick-charts/core';
-import { CandlestickSeries, Title } from '@wick-charts/react';
+import { CandlestickSeries, HeatmapSeries, LineSeries, PieSeries, Title } from '@wick-charts/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CanvasRecorder, RecordedCall } from '../../../../core/src/testing/recording-context';
@@ -33,6 +34,23 @@ describe('edge fade masks', () => {
     low: 95 + i,
     close: 102 + i,
   }));
+
+  const pieSlices = [
+    { label: 'alpha', value: 4 },
+    { label: 'beta', value: 6 },
+  ];
+
+  const heatmapCells = [
+    { x: 'mon', y: 'api', value: 1 },
+    { x: 'tue', y: 'api', value: 3 },
+  ];
+
+  const lineData = [
+    [
+      { time: 1_000_000, value: 100 },
+      { time: 1_060_000, value: 110 },
+    ],
+  ];
 
   /** Every mask erase, excluding the below-pane gridline-tail taper — the
    *  masks are anchored at y = 0 while the taper fills the axis-row strip. */
@@ -68,6 +86,80 @@ describe('edge fade masks', () => {
     // bitmap height, so the gridline tail stubs melt with their lines.
     const rects = rightFadeRects(mounted.mainSpy);
     expect(rects.length).toBeGreaterThan(0);
+    expect(rects[rects.length - 1].args).toEqual([697, 0, 60, 400]);
+  });
+
+  it('keeps pie-only charts clear of the automatic X mask and Y-axis column', () => {
+    mounted = mountChart(<PieSeries data={pieSlices} />, { width: 800, height: 400 });
+
+    expect(mounted.chart.yAxisWidth).toBe(0);
+    expect(mounted.chart.getLayout().chartArea.width).toBe(800);
+    expect(rightFadeRects(mounted.mainSpy)).toHaveLength(0);
+
+    const clipRects = mounted.mainSpy.callsOf('rect').filter((c) => c.args[3] === 370);
+    expect(clipRects.some((c) => c.args[2] === 800)).toBe(true);
+  });
+
+  it('keeps heatmap-only charts clear of the automatic X mask and Y-axis column', () => {
+    mounted = mountChart(<HeatmapSeries data={heatmapCells} />, { width: 800, height: 400 });
+
+    expect(mounted.chart.yAxisWidth).toBe(0);
+    expect(mounted.chart.getLayout().chartArea.width).toBe(800);
+    expect(rightFadeRects(mounted.mainSpy)).toHaveLength(0);
+  });
+
+  it('keeps the automatic mask and column when a spatial chart also has a time series', () => {
+    mounted = mountChart(
+      <>
+        <LineSeries data={lineData} />
+        <PieSeries data={pieSlices} />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    expect(mounted.chart.yAxisWidth).toBe(55);
+    const rects = rightFadeRects(mounted.mainSpy);
+    expect(rects[rects.length - 1].args).toEqual([697, 0, 60, 400]);
+  });
+
+  it('drops the automatic mask and column when its last time series is hidden', () => {
+    mounted = mountChart(
+      <>
+        <LineSeries id="line" data={lineData} />
+        <PieSeries data={pieSlices} />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    expect(mounted.chart.yAxisWidth).toBe(55);
+
+    mounted.mainSpy.reset();
+    act(() => {
+      mounted?.chart.setSeriesVisible('line', false);
+    });
+    mounted.flushScheduler();
+
+    expect(mounted.chart.yAxisWidth).toBe(0);
+    expect(rightFadeRects(mounted.mainSpy)).toHaveLength(0);
+  });
+
+  it('keeps an explicit right fade on a pie-only chart at its full-width edge', () => {
+    mounted = mountChart(<PieSeries data={pieSlices} />, {
+      width: 800,
+      height: 400,
+      fade: { right: 20 },
+    });
+
+    expect(mounted.chart.yAxisWidth).toBe(0);
+    const rects = rightFadeRects(mounted.mainSpy);
+    expect(rects[rects.length - 1].args).toEqual([780, 0, 20, 400]);
+  });
+
+  it('keeps the automatic mask for an empty chart', () => {
+    mounted = mountChart(null, { width: 800, height: 400 });
+
+    expect(mounted.chart.yAxisWidth).toBe(55);
+    const rects = rightFadeRects(mounted.mainSpy);
     expect(rects[rects.length - 1].args).toEqual([697, 0, 60, 400]);
   });
 

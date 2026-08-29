@@ -157,12 +157,11 @@ export interface FadeConfig {
   top?: number;
   /**
    * Total width in CSS pixels of the horizontal dissolve at the right edge.
-   * The ramp finishes just inside the Y-axis column — 12px past the pane
-   * edge, before the right-anchored label glyphs start — so content melts
-   * on approach (pan / tail-scroll exit) and is fully gone before it can
-   * cross any axis text; the rest of the width runs backward into the pane
-   * as a soft lead-in. **Defaults to a 60px ramp** — on out of the box;
-   * `0` disables. A no-op while the Y axis is hidden.
+   * When automatic, the ramp is active only on charts with a visible time
+   * series and finishes just inside the Y-axis column — 12px past the pane
+   * edge, before the right-anchored label glyphs start. **Defaults to a 60px
+   * ramp**; `0` disables. An explicit value also works on spatial-only charts
+   * and with the Y axis hidden, ending at the canvas edge.
    */
   right?: number;
   /** Fade-zone width in CSS pixels at the left pane edge — content panning

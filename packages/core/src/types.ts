@@ -957,7 +957,7 @@ export interface HeatmapSeriesOptions {
 
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
-  /** Width in CSS pixels. Default: 55. */
+  /** Width in CSS pixels. Default: 55. Spatial-only charts automatically collapse the default to 0; set an explicit width to reserve a column. */
   width?: number;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
