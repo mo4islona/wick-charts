@@ -137,10 +137,10 @@ export interface ChartContainerProps {
    *
    * **X (under the axis)** — panning content slides under the Y-axis column
    * and dissolves instead of hard-clipping at the pane edge. **On by
-   * default** as a 60px ramp that finishes just inside the axis column,
-   * before the label glyphs; `{ right }` overrides the total ramp width in
-   * CSS px (`0` disables). `{ left }` adds the mirror zone at the left pane
-   * edge (default off).
+   * default** as a 60px ramp on time-series charts; spatial-only charts keep
+   * their right edge clear. `{ right }` overrides the total ramp width in
+   * CSS px (`0` disables), including on spatial-only charts. `{ left }` adds
+   * the mirror zone at the left pane edge (default off).
    *
    * **Top (under the header)** — opt-in. `true` enables the auto zone
    * (measured header + 24px run-out, half the header fold-in released so
