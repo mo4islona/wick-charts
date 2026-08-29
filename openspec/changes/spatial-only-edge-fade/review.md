@@ -1,96 +1,63 @@
-# Review — Stop the edge fade masking pie and heatmap charts
+# Review — Stop the edge fade masking pie and heatmap charts (round 2)
 
-## Summary
+## What changed since round 1
 
-The behavioral change is sound and well-tested: `#isSpatialOnly()` correctly reuses
-`#hasTimeSeries()` (the same predicate already gating `canPanZoom`/the crosshair), gates both the
-`yAxisWidth` getter and `#rightFadeZone`'s automatic branch, and the `#syncYAxisWidth` guard at
-every series mutation site (`addSeries`, `removeSeries`, `setSeriesVisible`) keeps scales/scheduler
-state consistent when the column appears or disappears live. I traced every other consumer of
-`yAxisWidth` (`navigator/controller.ts`, `YAxis.tsx`, `TimeAxis.tsx`, `YLabel.tsx`, `Tooltip.tsx`,
-`getLayout()`) and each either recomputes it live off `chart.yAxisWidth` on a render/subscription
-path that already fires on the events this diff emits (`overlayChange` via the pre-existing
-`#bumpOverlayVersion()` calls in the same three methods covers the navigator's canvas resize; the
-new `viewportChange` emit covers the React DOM components via `store-bridge.ts`), or is unaffected.
-No caching of `yAxisWidth` anywhere goes stale.
+- `#rightFadeZone` (`chart.ts:3306`) now binds `this.#fade.right` to a local `const right` and
+  branches on that local throughout, instead of re-reading `this.#fade.right` inside the ternary.
+  This fixes the `TS2531` narrowing failure from round 1 without changing behavior — same
+  conditions, same arithmetic, just a local binding TypeScript can track.
+- `pnpm-workspace.yaml` dropped the stray placeholder `allowBuilds` block.
+- A new test, "drops the automatic mask and column when its last time series is hidden"
+  (`top-fade.test.tsx`), was added. It isn't one of `proposal.md`'s six declared Acceptance
+  scenarios, so it doesn't get its own Matrix row, but it's the harness's only direct exercise of
+  the "Risk" called out in the proposal's Key Points: hiding the last time series while a pie
+  stays visible flips `yAxisWidth` and the mask off mid-frame. It passes.
+- `proposal.md` itself is untouched — the stale "745 wide, not 757" text from round 1 is still
+  there.
 
-That said, this passes the mechanical bar and still does not get an `approve`: a real build break
-survives, and there is at least one piece of scope creep worth removing before merge.
+## Reading the diff against the specification
 
-## Findings
+**Correctness of the fix.** `#isSpatialOnly()` (`chart.ts:1641`) — `this.#series.length > 0 &&
+!this.#hasTimeSeries()` — is exactly the predicate the proposal specifies: a populated chart with
+no visible time series. `yAxisWidth` (`chart.ts:370`) and `#rightFadeZone` (`chart.ts:3306`) both
+consult it, and both respect an explicit override first (`y?.width !== undefined` /
+`right === null` check) before falling back to the automatic collapse — matching "an explicit
+value... also works on spatial-only charts" from the options.ts TSDoc. The three series-mutation
+call sites that can flip `#isSpatialOnly()`'s answer — `addSeries` (`chart.ts:702`), `removeSeries`
+(`chart.ts:720`), `setSeriesVisible` (`chart.ts:1288`) — all snapshot `yAxisWidth` before the
+mutation and call `#syncYAxisWidth` after, which only does the (relatively expensive)
+`syncScales()` + dirty-marking + `viewportChange` emit when the value actually changed. That's the
+right shape: no redundant rescale on every series toggle, only on the ones that cross the
+spatial-only boundary.
 
-### 1. `tsc --noEmit` fails — blocking
+**The fixed TS error.** Confirmed by direct reading, not just the tsc run: `right` is a `const`
+bound once at the top of the function body and never reassigned, so every read of it downstream is
+provably the same value TypeScript already narrowed at the `right === null` check — this is a
+correct fix, not a suppression.
 
-`packages/core/src/chart.ts:3319`:
+**Scope discipline.** The diff still touches exactly what the proposal says it will: the one
+predicate and its call sites in `chart.ts`, the `FadeConfig.right` / `YAxisConfig.width` TSDoc, the
+regenerated manifest, and the test file. Nothing in `ChartContainer.tsx` beyond the doc-comment
+change quoted in the diff.
 
-```ts
-const automatic = this.#fade.right === null;
-...
-const total = automatic ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr) : Math.round(this.#fade.right * hpr);
-```
+## Remaining findings
 
-`error TS2531: Object is possibly 'null'.` The old code inlined the null check directly in the
-ternary condition (`this.#fade.right === null ? ... : ... this.#fade.right ...`), which TypeScript
-narrows correctly. Refactoring the condition out into a separately-computed `automatic` boolean
-breaks that narrowing — TS does not propagate nullability facts through an intermediate `boolean`
-variable, so `this.#fade.right` in the `else` branch is still typed `number | null`. This is the
-*only* type error in the entire repository (confirmed via a clean `tsc --noEmit` run) and CI runs
-exactly this check on every PR (`.github/workflows/pr.yml:33`, `pnpm typecheck`). None of the
-project's other gates catch it: `biome check` doesn't type-check, and `vitest` transpiles through
-esbuild without type-checking, so the 26/26 green tests in `top-fade.test.tsx` give no signal here
-— this is precisely the class of defect the second lens exists to catch and the first can't.
+- `proposal-acceptance-stale-geometry` (minor, carried over from round 1, unresolved) —
+  `proposal.md:68` still says the pane clip should be "745 wide, not 757" for the pie-only
+  scenario, which is the `fade-only` scope's number. `decisions.md` records the owner picking the
+  wider `collapse-column` scope, and the shipped/tested behavior (`yAxisWidth === 0`,
+  `chartArea.width === 800`) matches that decision, not this stale figure. Purely a proposal.md
+  wording issue — the code and tests are correct against the more authoritative, later decision.
+  Recommend a follow-up edit to `proposal.md` to replace "745 wide, not 757" with "800 wide, not
+  757" (or drop the specific numbers and just assert `yAxisWidth === 0`). Not blocking — nothing in
+  the codebase or its behavior needs to change for this.
 
-The project's own conventions (`CLAUDE.md`: no `!` non-null assertion) rule out the easy fix.
-The straightforward correct fix is binding `this.#fade.right` to a local once and branching on
-that local, e.g. `const right = this.#fade.right; ... const total = right === null ? ... :
-Math.round(right * hpr);` — narrowing survives through a `const` alias of the same expression.
+No new findings from this round's reading pass. Both round-1 blocking/minor code findings are
+fixed and confirmed by direct code reading plus a clean `tsc --noEmit` run.
 
-### 2. `pnpm-workspace.yaml` gained an unrelated, non-functional block — minor, but should be reverted
+## Verdict rationale
 
-```yaml
-allowBuilds:
-  esbuild: set this to true or false
-  puppeteer: set this to true or false
-```
-
-Nothing in `proposal.md` or `tasks.md` touches package-manager config, and this has no connection
-to fade geometry or Y-axis width. It also does not do what its shape implies: pnpm's `allowBuilds`
-consumer switches on `value === true` / `value === false`; the literal placeholder string matches
-neither arm, so both `esbuild` and `puppeteer` stay in the same "undecided" state they'd be in
-without this block at all (confirmed empirically — see `verification.md`). It reads as a
-half-finished `pnpm approve-builds` scaffold that was accidentally committed instead of filled in
-or discarded. It should come out of this branch; it isn't observed to break `pnpm install` any
-differently than baseline in this sandbox, but it's dead config that will confuse the next person
-who reads it expecting it to mean something.
-
-### 3. `proposal.md`'s Acceptance scenario 1 has stale geometry — minor, documentation only
-
-"Pie-only chart draws no right edge fade" specifies "the pane clip rect is 745 wide, not 757" —
-that number is only correct under the "fade-only" scope (`yAxisWidth` staying 55, only the
-intrusion-widening backing off). `decisions.md` records the owner answering "Also auto-collapse the
-Y-axis column" the same day, and `tasks.md` ("collapse the automatic Y-axis column for
-spatial-only charts") and the actual shipped/tested behavior (`yAxisWidth === 0`,
-`chartArea.width === 800`) all agree with the *later* decision, not the Acceptance text. Nothing
-here indicates the code is wrong — the decision is dated after and clearly supersedes the
-recommended default the Acceptance section was originally written against — but `proposal.md` was
-never updated to match, so a future reader comparing the shipped behavior against this proposal's
-own numbers will see a mismatch and reasonably wonder which one is authoritative. Worth a follow-up
-edit to `proposal.md` so the artifact is internally consistent.
-
-### 4. Unrelated pre-existing test failure — informational, not counted against this change
-
-`docs/__tests__/useSettings.test.ts` (4 tests) fails in this sandbox with
-`TypeError: Cannot read properties of undefined (reading 'clear')` on the global `localStorage`,
-alongside a Node `ExperimentalWarning` about `--localstorage-file`. This file has nothing to do
-with charts, axes, or fades, and the failure mode (Node's built-in `localStorage` global vs. a
-jsdom/happy-dom polyfill the test expects) is an environment/Node-version artifact, not something
-this diff touches or could have caused.
-
-## Coverage read against the diff
-
-Every predicate change in `chart.ts` (`yAxisWidth` getter, `#isSpatialOnly`, `#rightFadeZone`'s new
-early return, `#syncYAxisWidth` at all three call sites) has a corresponding assertion in
-`top-fade.test.tsx`, including the live-toggle path (`drops the automatic mask and column when its
-last time series is hidden`), which is the one most likely to have a stale-state bug and is
-exactly the case the proposal's own "Risk" section calls out. I don't see an uncovered scenario
-from `proposal.md`; the six declared Acceptance scenarios all have a direct, passing test.
+Both lenses agree: the Matrix is fully green (six declared scenarios, six passing individually-run
+assertions), the round-1 blocking build break is gone, the fix is a correct, minimal, in-scope
+change, and the only outstanding item is a non-blocking documentation staleness note that doesn't
+touch behavior or tests. `approve`.
