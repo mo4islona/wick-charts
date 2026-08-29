@@ -3308,15 +3308,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     paneBitmapWidth: number,
   ): { start: number; width: number; intrusion: number } {
     const off = { start: 0, width: 0, intrusion: 0 };
-    const automatic = this.#fade.right === null;
-    if (automatic && this.#isSpatialOnly()) return off;
+    const right = this.#fade.right;
+    if (right === null && this.#isSpatialOnly()) return off;
 
     const column = Math.max(0, Math.round(scope.bitmapSize.width - paneBitmapWidth));
-    if (automatic && column === 0) return off;
+    if (right === null && column === 0) return off;
 
     const hpr = scope.horizontalPixelRatio;
     const intrusion = Math.min(Math.round(RIGHT_FADE_END_GAP_PX * hpr), column);
-    const total = automatic ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr) : Math.round(this.#fade.right * hpr);
+    const total = right === null ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr) : Math.round(right * hpr);
     if (total < 1) return off;
 
     const end = paneBitmapWidth + intrusion;
