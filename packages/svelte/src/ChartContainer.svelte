@@ -58,8 +58,8 @@ export let viewport: { maxVisibleBars?: number; initialRange?: VisibleRangeSpec 
  * use `viewport.initialRange` instead.
  */
 export let visibleRange: VisibleRangeSpec | undefined = undefined;
-/** Show the chart background gradient. Live. Defaults to true. */
-export let gradient: boolean = true;
+/** Show the chart background gradient. Live. Defaults to false. */
+export let gradient: boolean = false;
 /**
  * Enable zoom, pan, and crosshair interactions. Defaults to true.
  *
@@ -73,7 +73,7 @@ export let grid: { visible: boolean } | undefined = undefined;
  * Soft fade-out at the top of the plot area, so series content dissolves
  * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
  * The mask erases canvas alpha rather than painting a cover color, so it
- * stays correct over the default background gradient. Live.
+ * stays correct over a background gradient. Live.
  *
  * Two directions, independently controlled:
  *

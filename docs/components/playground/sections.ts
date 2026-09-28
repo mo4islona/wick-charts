@@ -98,7 +98,7 @@ export const COMMON_DEFAULTS: CommonState = {
   perfHudVisible: false,
   gridVisible: true,
   gridStyle: 'solid',
-  bgGradient: true,
+  bgGradient: false,
   headerLayout: 'overlay',
   yAxisVisible: true,
   xAxisVisible: true,

@@ -224,7 +224,7 @@ describe('<Title> + <InfoBar> with headerLayout="inline"', () => {
         <Title>BTC</Title>
         <CandlestickSeries data={bars} />
       </>,
-      { width: 400, height: 240, headerLayout: 'inline' },
+      { width: 400, height: 240, headerLayout: 'inline', gradient: true },
     );
     const outer = mounted.container.firstElementChild as HTMLElement;
     expect(outer.style.background).toContain('linear-gradient');

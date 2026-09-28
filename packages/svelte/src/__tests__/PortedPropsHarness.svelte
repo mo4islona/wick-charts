@@ -20,7 +20,8 @@ import {
  * format with NumberFormatOptions.
  */
 export let variant:
-  | 'gradient-off'
+  | 'gradient-default'
+  | 'gradient-on'
   | 'header-overlay'
   | 'header-inline'
   | 'padded'
@@ -36,7 +37,7 @@ export let variant:
   | 'title-sub-both'
   | 'title-no-sub'
   | 'numberflow-options'
-  | 'numberflow-fn' = 'gradient-off';
+  | 'numberflow-fn' = 'gradient-default';
 
 export let candlestickData: OHLCInput[] = [];
 export let pieData: PieSliceData[] = [];
@@ -45,8 +46,12 @@ export let minLabelSpacing: number | undefined = undefined;
 export let yLabelCount: number | undefined = undefined;
 </script>
 
-{#if variant === 'gradient-off'}
-  <ChartContainer theme={catppuccin.theme} gradient={false}>
+{#if variant === 'gradient-default'}
+  <ChartContainer theme={catppuccin.theme}>
+    <CandlestickSeries data={candlestickData} />
+  </ChartContainer>
+{:else if variant === 'gradient-on'}
+  <ChartContainer theme={catppuccin.theme} gradient>
     <CandlestickSeries data={candlestickData} />
   </ChartContainer>
 {:else if variant === 'header-overlay'}

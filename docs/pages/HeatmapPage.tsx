@@ -371,7 +371,7 @@ export function HeatmapPage({ theme }: { theme: ChartTheme }) {
       )}
       codeConfig={(s) => {
         const containerProps: Record<string, PropValue> = {};
-        if (!s.gradient) containerProps.gradient = false;
+        if (s.gradient) containerProps.gradient = true;
         if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         return {
