@@ -10,10 +10,16 @@
  * time-series, full media size for pie).
  */
 export interface TooltipPositionArgs {
-  /** Cursor or anchor x in CSS pixels, relative to the chart area origin. */
+  /** Cursor or anchor x in CSS pixels, relative to the overlay container. */
   x: number;
   /** Cursor or anchor y in CSS pixels, relative to the chart area origin. */
   y: number;
+  /**
+   * Left edge of the plot area in the same space as `x` — `chart.plotLeft`
+   * for a time-series tooltip, so it stays clear of a left-side Y axis.
+   * The result is in that space too. Default `0`.
+   */
+  chartLeft?: number;
   /** Plot-area width in CSS pixels. */
   chartWidth: number;
   /** Plot-area height in CSS pixels. */
@@ -33,14 +39,16 @@ export interface TooltipPosition {
 }
 
 export function computeTooltipPosition(args: TooltipPositionArgs): TooltipPosition {
-  const { x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX = 16, offsetY = 16 } = args;
+  const { y, chartLeft = 0, chartWidth, chartHeight, tooltipWidth, tooltipHeight, offsetX = 16, offsetY = 16 } = args;
+  const x = args.x - chartLeft;
+
   const rawLeft = x + offsetX + tooltipWidth > chartWidth ? x - offsetX - tooltipWidth : x + offsetX;
   const rawTop = y + offsetY + tooltipHeight > chartHeight ? y - offsetY - tooltipHeight : y + offsetY;
   const maxLeft = Math.max(0, chartWidth - tooltipWidth);
   const maxTop = Math.max(0, chartHeight - tooltipHeight);
 
   return {
-    left: Math.max(0, Math.min(maxLeft, rawLeft)),
+    left: chartLeft + Math.max(0, Math.min(maxLeft, rawLeft)),
     top: Math.max(0, Math.min(maxTop, rawTop)),
   };
 }

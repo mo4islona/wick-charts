@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { mountAxisLabels } from '@wick-charts/core';
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useAxisLayout } from '../composables';
 import { useChartInstance } from '../context';
 
 const props = defineProps<{
@@ -12,6 +13,8 @@ const props = defineProps<{
 }>();
 
 const chart = useChartInstance();
+const layout = useAxisLayout(chart);
+const onLeft = computed(() => layout.value.yAxisPosition === 'left');
 const containerRef = ref<HTMLDivElement | null>(null);
 
 const applyDensity = () => {
@@ -42,10 +45,10 @@ onUnmounted(() => {
     ref="containerRef"
     :style="{
       position: 'absolute',
-      left: '0',
+      left: (onLeft ? layout.yAxisWidth : 0) + 'px',
       bottom: '0',
-      right: chart.yAxisWidth + 'px',
-      height: chart.xAxisHeight + 'px',
+      right: (onLeft ? 0 : layout.yAxisWidth) + 'px',
+      height: layout.xAxisHeight + 'px',
       pointerEvents: 'none',
       display: 'flex',
       alignItems: 'center',

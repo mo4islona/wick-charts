@@ -104,16 +104,18 @@ watchEffect((onCleanup) => {
 const floatingPos = computed<{ left: number; top: number } | null>(() => {
   if (!crosshair.value || snapshots.value.length === 0) return null;
   const mediaSize = chart.getMediaSize();
+  const chartLeft = chart.plotLeft;
   const chartWidth = mediaSize.width - chart.yAxisWidth;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if (hasCustomSlot.value) {
     const size = measuredSize.value;
-    if (!size) return { left: 0, top: 0 };
+    if (!size) return { left: chartLeft, top: 0 };
 
     return computeTooltipPosition({
       x: crosshair.value.mediaX,
       y: crosshair.value.mediaY,
+      chartLeft,
       chartWidth,
       chartHeight,
       tooltipWidth: size.width,
@@ -129,6 +131,7 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
   return computeTooltipPosition({
     x: crosshair.value.mediaX,
     y: crosshair.value.mediaY,
+    chartLeft,
     chartWidth,
     chartHeight,
     tooltipWidth,

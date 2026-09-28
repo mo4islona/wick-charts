@@ -12,13 +12,16 @@ export interface CrosshairRenderArgs {
    *  extend past the pane (edge-melt overhangs); this gate keeps an
    *  outside-pane anchor from painting into those overhangs. */
   pane: { width: number; height: number };
+  /** Bitmap px the horizontal line starts left of the pane — a left Y-axis
+   *  column's fade intrusion. Default `0`. */
+  leftOverhang?: number;
 }
 
 export function renderCrosshair(args: CrosshairRenderArgs): void {
-  const { scope, bitmapX, bitmapY, theme, pane } = args;
+  const { scope, bitmapX, bitmapY, theme, pane, leftOverhang = 0 } = args;
   const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
-  const drawVertical = bitmapX <= pane.width;
+  const drawVertical = bitmapX >= 0 && bitmapX <= pane.width;
   const drawHorizontal = bitmapY <= pane.height;
   if (!drawVertical && !drawHorizontal) return;
 
@@ -34,6 +37,7 @@ export function renderCrosshair(args: CrosshairRenderArgs): void {
   // device boundary already).
   const x = Math.round(bitmapX) + (hLineWidth % 2 === 1 ? 0.5 : 0);
   const y = Math.round(bitmapY) + (vLineWidth % 2 === 1 ? 0.5 : 0);
+  const lineStart = leftOverhang > 0 ? -leftOverhang : 0;
 
   context.beginPath();
   if (drawVertical) {
@@ -41,7 +45,7 @@ export function renderCrosshair(args: CrosshairRenderArgs): void {
     context.lineTo(x, bitmapSize.height);
   }
   if (drawHorizontal) {
-    context.moveTo(0, y);
+    context.moveTo(lineStart, y);
     context.lineTo(bitmapSize.width, y);
   }
   context.stroke();

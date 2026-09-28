@@ -68,8 +68,8 @@ $: labelStyle = theme
 </script>
 
 {#if position && chart && theme}
-  <!-- Y label on right axis -->
-  <div style="position:absolute;right:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
+  <!-- Y label on the value axis -->
+  <div style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
     {chart.yScale.formatY(position.y)}
   </div>
   <!-- Time label on bottom axis -->

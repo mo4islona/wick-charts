@@ -273,8 +273,8 @@ const effectiveFormat = computed<ValueFormatter>(() => {
       <div
         :style="{
           position: 'absolute',
-          left: '0',
-          right: chart.yAxisWidth + 'px',
+          left: chart.plotLeft + 'px',
+          right: (chart.yAxisPosition === 'left' ? 0 : chart.yAxisWidth) + 'px',
           top: y + 'px',
           height: '0',
           borderTop: '1px dashed ' + bgColor,
@@ -286,7 +286,7 @@ const effectiveFormat = computed<ValueFormatter>(() => {
       <div
         :style="{
           position: 'absolute',
-          right: '4px',
+          [chart.yAxisPosition]: '4px',
           top: y + 'px',
           transform: 'translateY(-50%)',
           opacity: opacity,

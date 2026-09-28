@@ -12,7 +12,7 @@ import {
   catppuccin,
 } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defineComponent, h, nextTick } from 'vue';
+import { defineComponent, h, nextTick, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
@@ -115,7 +115,8 @@ describe('Vue overlays — ported props', () => {
     const spy = vi.spyOn(ChartInstance.prototype, 'setTimeAxisLabelDensity');
     const App = defineComponent({
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc }), h(TimeAxis)]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc }), h(TimeAxis)]);
       },
     });
     const wrapper = mount(App, { attachTo: host });
@@ -171,6 +172,62 @@ describe('Vue overlays — ported props', () => {
     expect(reset).toBeDefined();
 
     spy.mockRestore();
+  });
+
+  it('pins the overlay header to the left edge and reports its height to the chart', async () => {
+    const spy = vi.spyOn(ChartInstance.prototype, 'setHeaderHeight');
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, axis: { y: { position: 'left' } } }, () => [
+            h(Title, null, () => 'BTC'),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const header = host.querySelector<HTMLElement>('[data-chart-top-overlay]');
+    expect(header?.style.left).toBe('0px');
+    expect(spy).toHaveBeenLastCalledWith(header?.getBoundingClientRect().height);
+
+    spy.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('axis.y.position anchors <YAxis> / <TimeAxis> to the axis side and follows a runtime flip', async () => {
+    const position = ref<'left' | 'right'>('left');
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, axis: { y: { position: position.value } } }, () => [
+            h(CandlestickSeries, { data: ohlc }),
+            h(YAxis),
+            h(TimeAxis),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const yHost = () => host.querySelector('span[style*="translateY(-50%)"]')?.parentElement;
+    const timeHost = () => host.querySelector<HTMLElement>('div[style*="height: 30px"][style*="align-items: center"]');
+
+    expect(yHost()?.style.left).toBe('0px');
+    expect(yHost()?.style.right).toBe('');
+    expect(timeHost()?.style.left).toBe('55px');
+    expect(timeHost()?.style.right).toBe('0px');
+
+    position.value = 'right';
+    await settle();
+
+    expect(yHost()?.style.right).toBe('0px');
+    expect(yHost()?.style.left).toBe('');
+    expect(timeHost()?.style.left).toBe('0px');
+    expect(timeHost()?.style.right).toBe('55px');
+
+    wrapper.unmount();
   });
 
   it('<PieLegend position="bottom"> teleports into the bottom legend anchor', async () => {

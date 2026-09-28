@@ -102,14 +102,17 @@ function BollingerBand({ band, color }: { band: BandPoint[]; color: string }) {
       .map((x, i) => `L ${x} ${midYs[i + 1]}`)
       .join(' ');
 
+  // The plot area, whichever side the Y axis sits on.
+  const { chartArea } = chart.getLayout();
+
   return (
     <svg
       style={{
         position: 'absolute',
-        left: 0,
-        top: 0,
-        right: chart.yAxisWidth,
-        bottom: chart.xAxisHeight,
+        left: chartArea.x,
+        top: chartArea.y,
+        width: chartArea.width,
+        height: chartArea.height,
         pointerEvents: 'none',
         zIndex: 1,
       }}
@@ -137,12 +140,11 @@ const STEPS: Step[] = [
     body: (
       <>
         Read the chart's scales: <code>timeScale.timeToX(time)</code> and <code>yScale.valueToY(value)</code>. Both
-        return CSS pixels in the overlay's coordinate space, so an SVG positioned at{' '}
-        <code>{`{ inset: 0, right: chart.yAxisWidth, bottom: chart.xAxisHeight }`}</code> aligns perfectly with the plot
-        area.
+        return CSS pixels inside the plot area, so an SVG sized to <code>chart.getLayout().chartArea</code> lines up
+        with it exactly — on either side of a left or right Y axis.
       </>
     ),
-    code: `const xs = points.map((p) => chart.timeScale.timeToX(p.time));\nconst ys = points.map((p) => chart.yScale.valueToY(p.value));`,
+    code: `const { chartArea } = chart.getLayout(); // { x, y, width, height }\nconst xs = points.map((p) => chart.timeScale.timeToX(p.time));\nconst ys = points.map((p) => chart.yScale.valueToY(p.value));`,
   },
   {
     heading: '03 — REDRAW ON CHANGE',

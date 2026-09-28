@@ -1,4 +1,5 @@
 import type { XScale } from '../scales/x-scale';
+import { clamp } from '../utils/math';
 import type { PanZoomTarget } from './pan-zoom-target';
 
 export class ZoomHandler {
@@ -16,9 +17,9 @@ export class ZoomHandler {
     const sensitivity = 0.005;
     const factor = Math.exp(delta * sensitivity);
 
-    // Clamp offsetX to chart area (exclude Y axis).
+    // Clamp the cursor to the chart area (exclude the Y axis on either side).
     const chartWidth = this.timeScale.getMediaWidth();
-    const x = Math.min(e.offsetX, chartWidth);
+    const x = clamp(e.offsetX - (this.target.plotLeft ?? 0), 0, chartWidth);
     const cursorTime = this.timeScale.xToTime(x);
 
     this.target.zoomAt(cursorTime, factor, chartWidth);

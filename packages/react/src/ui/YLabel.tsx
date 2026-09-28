@@ -249,8 +249,8 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
       <div
         style={{
           position: 'absolute',
-          left: 0,
-          right: chart.yAxisWidth,
+          left: chart.plotLeft,
+          right: chart.yAxisPosition === 'left' ? 0 : chart.yAxisWidth,
           top: y,
           height: 0,
           borderTop: `1px dashed ${bgColor}`,
@@ -262,7 +262,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
       <div
         style={{
           position: 'absolute',
-          right: 4,
+          [chart.yAxisPosition]: 4,
           top: y,
           transform: 'translateY(-50%)',
           opacity,

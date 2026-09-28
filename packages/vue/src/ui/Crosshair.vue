@@ -56,11 +56,11 @@ const labelStyle = computed(() => ({
 
 <template>
   <template v-if="position">
-    <!-- Y label on right axis -->
+    <!-- Y label on the value axis -->
     <div
       :style="{
         position: 'absolute',
-        right: '0',
+        [chart.yAxisPosition]: '0',
         top: position.mediaY + 'px',
         transform: 'translateY(-50%)',
         ...labelStyle,

@@ -110,15 +110,17 @@ function measureOnResize(node: HTMLDivElement) {
 
 $: floatingPos = (() => {
   if (!crosshair || !chart || !mediaSize || snapshots.length === 0) return null;
+  const chartLeft = chart.plotLeft;
   const chartWidth = mediaSize.width - chart.yAxisWidth;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if ($$slots.default) {
-    if (!measuredSize) return { left: 0, top: 0 };
+    if (!measuredSize) return { left: chartLeft, top: 0 };
 
     return computeTooltipPosition({
       x: crosshair.mediaX,
       y: crosshair.mediaY,
+      chartLeft,
       chartWidth,
       chartHeight,
       tooltipWidth: measuredSize.width,
@@ -134,6 +136,7 @@ $: floatingPos = (() => {
   return computeTooltipPosition({
     x: crosshair.mediaX,
     y: crosshair.mediaY,
+    chartLeft,
     chartWidth,
     chartHeight,
     tooltipWidth,

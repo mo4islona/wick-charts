@@ -16,6 +16,8 @@
 import type { ChartInstance } from '../chart';
 import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
+import type { YAxisPosition } from '../types';
+import { clamp } from '../utils/math';
 
 export interface MountAxisLabelsOptions {
   readonly chart: ChartInstance;
@@ -43,6 +45,8 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // Last theme whose colors/fonts were written to the spans' inline styles.
   // A reference change in `sync` triggers a one-shot restyle of reused spans.
   let appliedTheme: ChartTheme | null = null;
+  // Y-axis side the spans are anchored for; a flip re-anchors reused spans.
+  let appliedSide: YAxisPosition | null = null;
   const tracker = axis === 'x' ? chart.timeScale.tickTracker : chart.yScale.tickTracker;
 
   function currentTicks(): { ticks: readonly number[]; tickInterval: number } {
@@ -81,6 +85,28 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     el.style.fontFamily = theme.typography.fontFamily;
   }
 
+  // Y labels hug the outer edge of the column on either side — the mirror of
+  // each other, and a label wider than the column spills into the plot
+  // rather than off the chart.
+  function applyYAnchor(el: HTMLSpanElement, side: YAxisPosition): void {
+    const outer = side === 'left' ? 'left' : 'right';
+    const inner = side === 'left' ? 'right' : 'left';
+    el.style[outer] = '8px';
+    el.style[inner] = '';
+  }
+
+  // A left axis shares its column with the header: a label fades out across
+  // its own height as it rises underneath.
+  function headerClearance(value: number, theme: ChartTheme): number {
+    const header = chart.headerHeight;
+    if (axis !== 'y' || header <= 0 || chart.yAxisPosition !== 'left') return 1;
+
+    const labelHeight = resolveAxisFontSize(theme, axis);
+    const labelTop = chart.yScale.valueToSnappedY(value) - labelHeight / 2;
+
+    return clamp((labelTop - header + labelHeight) / labelHeight, 0, 1);
+  }
+
   function createSpan(value: number, tickInterval: number, theme: ChartTheme): HTMLSpanElement {
     const el = document.createElement('span');
     el.textContent = formatLabel(value, tickInterval);
@@ -93,7 +119,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       el.style.transform = 'translateX(-50%)';
       el.style.whiteSpace = 'nowrap';
     } else {
-      el.style.right = '8px';
+      applyYAnchor(el, chart.yAxisPosition);
       el.style.transform = 'translateY(-50%)';
       el.style.fontVariantNumeric = 'tabular-nums';
     }
@@ -112,6 +138,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     const themeChanged = theme !== appliedTheme;
     appliedTheme = theme;
 
+    const side = chart.yAxisPosition;
+    const sideChanged = axis === 'y' && side !== appliedSide;
+    appliedSide = side;
+
     const { ticks, tickInterval } = currentTicks();
     tracker.setCurrentTicks(ticks);
     const { entries } = tracker.snapshot();
@@ -129,10 +159,11 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
         const next = formatLabel(value, tickInterval);
         if (el.textContent !== next) el.textContent = next;
         if (themeChanged) applyThemeStyles(el, theme);
+        if (sideChanged) applyYAnchor(el, side);
       }
 
       positionSpan(el, value);
-      el.style.opacity = String(opacity);
+      el.style.opacity = String(opacity * headerClearance(value, theme));
     }
 
     for (const [value, el] of spans) {

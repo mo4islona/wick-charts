@@ -197,7 +197,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
       // and clamp so a noisy single-frame spread can't snap the viewport.
       if (dist > 0 && this.lastTouchDist > 0) {
         const factor = clamp(this.lastTouchDist / dist, 0.1, 10);
-        const centerTime = this.timeScale.xToTime(center - rect.left);
+        const centerTime = this.timeScale.xToTime(center - rect.left - (this.target.plotLeft ?? 0));
         this.target.zoomAt(centerTime, factor, this.timeScale.getMediaWidth());
       }
 
@@ -268,10 +268,12 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private posFromOffset(offsetX: number, offsetY: number): CrosshairPosition {
+    const plotX = offsetX - (this.target.plotLeft ?? 0);
+
     return {
       mediaX: offsetX,
       mediaY: offsetY,
-      time: this.timeScale.xToTime(offsetX),
+      time: this.timeScale.xToTime(plotX),
       y: this.yScale.yToValue(offsetY),
     };
   }

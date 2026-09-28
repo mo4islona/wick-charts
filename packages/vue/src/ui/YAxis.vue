@@ -2,6 +2,7 @@
 import { type ValueFormatter, mountAxisLabels } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { useAxisLayout } from '../composables';
 import { useChartInstance } from '../context';
 
 const props = defineProps<{
@@ -17,6 +18,7 @@ const props = defineProps<{
 }>();
 
 const chart = useChartInstance();
+const layout = useAxisLayout(chart);
 const containerRef = ref<HTMLDivElement | null>(null);
 
 // Route the formatter through yScale so Crosshair / YLabel fallback use
@@ -52,10 +54,10 @@ onUnmounted(() => {
     ref="containerRef"
     :style="{
       position: 'absolute',
-      right: '0',
+      [layout.yAxisPosition]: '0',
       top: '0',
-      bottom: chart.xAxisHeight + 'px',
-      width: chart.yAxisWidth + 'px',
+      bottom: layout.xAxisHeight + 'px',
+      width: layout.yAxisWidth + 'px',
       pointerEvents: 'none',
     }"
   />

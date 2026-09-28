@@ -59,4 +59,47 @@ describe('computeTooltipPosition', () => {
     expect(pos.left).toBeGreaterThanOrEqual(0);
     expect(pos.top).toBeGreaterThanOrEqual(0);
   });
+  describe('with the plot area offset by a left Y axis (chartLeft = 55)', () => {
+    const chartLeft = 55;
+    const plotWidth = 745;
+
+    it('returns container coordinates beside the cursor', () => {
+      const pos = computeTooltipPosition({
+        x: 155,
+        y: 100,
+        chartLeft,
+        chartWidth: plotWidth,
+        chartHeight,
+        tooltipWidth,
+        tooltipHeight,
+      });
+      expect(pos.left).toBe(155 + 16);
+    });
+
+    it('flips against the right edge of the offset plot area', () => {
+      const pos = computeTooltipPosition({
+        x: 780,
+        y: 100,
+        chartLeft,
+        chartWidth: plotWidth,
+        chartHeight,
+        tooltipWidth,
+        tooltipHeight,
+      });
+      expect(pos.left).toBe(780 - 16 - tooltipWidth);
+    });
+
+    it('never clamps into the axis column', () => {
+      const pos = computeTooltipPosition({
+        x: 150,
+        y: 100,
+        chartLeft,
+        chartWidth: 200,
+        chartHeight,
+        tooltipWidth,
+        tooltipHeight,
+      });
+      expect(pos.left).toBe(chartLeft);
+    });
+  });
 });

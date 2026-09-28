@@ -80,9 +80,11 @@ export let grid: { visible: boolean } | undefined = undefined;
  * **X (under the axis)** — panning content slides under the Y-axis column
  * and dissolves instead of hard-clipping at the pane edge. **On by
  * default** as a 60px ramp that finishes just inside the axis column,
- * before the label glyphs; `{ right }` overrides the total ramp width in
- * CSS px (`0` disables). `{ left }` adds the mirror zone at the left pane
- * edge (default off).
+ * before the label glyphs — on whichever side `axis.y.position` puts it
+ * (a left-axis ramp ends at the pane edge instead). The axis side's key
+ * (`{ right }` by default, `{ left }` for a left axis) overrides the total
+ * ramp width in CSS px (`0` disables); the other key adds a plain zone at
+ * the opposite pane edge (default off).
  *
  * **Top (under the header)** — opt-in. `true` enables the auto zone
  * (measured header + 24px run-out, half the header fold-in released so
@@ -439,11 +441,15 @@ $: if (instance) {
   applyPadding();
 }
 
+$: if (instance) {
+  instance.setHeaderHeight(headerLayout === 'overlay' ? topOverlayHeight : 0);
+}
+
 // Fade rides the instance identity too, so a rebuilt chart (an `animations`
 // change) receives the current zones again; `setFade` no-ops on unchanged
-// values, so the extra runs are free. Omitting `right` keeps the core's
-// under-the-axis default armed; only `false` (every mask off) or an
-// explicit `right` overrides it.
+// values, so the extra runs are free. Omitting a side keeps the core's auto
+// default (the under-the-axis ramp on the Y-axis side); only `false` (every
+// mask off) or an explicit value overrides it.
 $: if (instance) {
   if (fade === false) {
     instance.setFade({ top: 0, right: 0, left: 0 });

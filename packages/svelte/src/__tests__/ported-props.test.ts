@@ -192,6 +192,48 @@ describe('Svelte ported props parity', () => {
     spy.mockRestore();
   });
 
+  it('<ChartContainer headerLayout="overlay"> pins the header to the left edge and reports its height', async () => {
+    const spy = vi.spyOn(ChartInstance.prototype, 'setHeaderHeight');
+    const result = render(PortedPropsHarness, { variant: 'header-overlay', candlestickData });
+    await settle();
+
+    const header = result.container.querySelector<HTMLElement>('[data-chart-top-overlay]');
+    expect(header?.style.left).toBe('0px');
+    expect(spy).toHaveBeenLastCalledWith(header?.getBoundingClientRect().height);
+
+    spy.mockRestore();
+    result.unmount();
+  });
+
+  it('axis.y.position anchors <YAxis> / <TimeAxis> to the axis side and follows a runtime flip', async () => {
+    const result = render(PortedPropsHarness, {
+      variant: 'y-axis-position',
+      candlestickData,
+      yAxisPosition: 'left',
+    });
+    await settle();
+
+    // Match on parsed styles — Svelte writes some style attributes verbatim
+    // and others normalized, so attribute-substring selectors are brittle.
+    const divs = () => Array.from(result.container.querySelectorAll('div'));
+    const yHost = () => divs().find((d) => d.style.width === '55px' && d.style.top === '0px');
+    const timeHost = () => divs().find((d) => d.style.height === '30px' && d.style.alignItems === 'center');
+
+    expect(yHost()?.style.left).toBe('0px');
+    expect(yHost()?.style.right).toBe('');
+    expect(timeHost()?.style.left).toBe('55px');
+    expect(timeHost()?.style.right).toBe('0px');
+
+    await result.rerender({ variant: 'y-axis-position', candlestickData, yAxisPosition: 'right' });
+    await settle();
+
+    expect(yHost()?.style.right).toBe('0px');
+    expect(yHost()?.style.left).toBe('');
+    expect(timeHost()?.style.left).toBe('0px');
+    expect(timeHost()?.style.right).toBe('55px');
+    result.unmount();
+  });
+
   it('<PieLegend position="bottom"> portals into the bottom legend anchor', async () => {
     const result = render(PortedPropsHarness, { variant: 'pie-legend-bottom', pieData });
     await settle();

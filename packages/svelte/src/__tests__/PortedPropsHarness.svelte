@@ -29,6 +29,7 @@ export let variant:
   | 'time-axis-density'
   | 'time-axis-default'
   | 'y-axis-density'
+  | 'y-axis-position'
   | 'pie-legend-bottom'
   | 'pie-legend-right'
   | 'pie-legend-overlay'
@@ -44,6 +45,7 @@ export let pieData: PieSliceData[] = [];
 export let labelCount: number | undefined = undefined;
 export let minLabelSpacing: number | undefined = undefined;
 export let yLabelCount: number | undefined = undefined;
+export let yAxisPosition: 'left' | 'right' = 'right';
 </script>
 
 {#if variant === 'gradient-default'}
@@ -90,6 +92,12 @@ export let yLabelCount: number | undefined = undefined;
   <ChartContainer theme={catppuccin.theme}>
     <CandlestickSeries data={candlestickData} />
     <YAxis labelCount={yLabelCount} />
+  </ChartContainer>
+{:else if variant === 'y-axis-position'}
+  <ChartContainer theme={catppuccin.theme} axis={{ y: { position: yAxisPosition } }}>
+    <CandlestickSeries data={candlestickData} />
+    <YAxis />
+    <TimeAxis />
   </ChartContainer>
 {:else if variant === 'pie-legend-bottom'}
   <ChartContainer theme={catppuccin.theme}>

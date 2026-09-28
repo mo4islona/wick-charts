@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 
-import type { AxisConfig, ChartTheme } from '@wick-charts/react';
+import type { AxisConfig, ChartTheme, YAxisPosition } from '@wick-charts/react';
 import { Code, SlidersHorizontal, X } from 'lucide-react';
 
 import { useIsMobile } from '../../hooks';
@@ -122,6 +122,7 @@ function stateToChartProps<TExtra extends object>(
 
   const axis: AxisConfig = {
     y: {
+      position: state.yAxisPosition,
       width: state.yAxisWidth,
       min: parseBound(state.minBound),
       max: parseBound(state.maxBound),
@@ -341,6 +342,22 @@ function buildBuiltinSections({
           key: 'yAxisVisible',
           label: 'Visible',
           render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+        } as RowSpec,
+        {
+          key: 'yAxisPosition',
+          label: 'Position',
+          hint: 'Side of the plot the axis sits on',
+          visible: (s) => s.yAxisVisible === true,
+          render: (v, onChange) => (
+            <ToggleGroup<YAxisPosition>
+              value={v as YAxisPosition}
+              options={[
+                { value: 'left', label: 'Left' },
+                { value: 'right', label: 'Right' },
+              ]}
+              onChange={onChange as (v: YAxisPosition) => void}
+            />
+          ),
         } as RowSpec,
         {
           key: 'yAxisWidth',

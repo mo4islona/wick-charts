@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import type { YAxisPosition } from '@wick-charts/react';
+
 // ── Types ────────────────────────────────────────────────────
 
 export type GridStyle = 'solid' | 'dashed' | 'dotted';
@@ -33,6 +35,7 @@ export interface CommonState {
   headerLayout: HeaderLayout;
   // Axes
   yAxisVisible: boolean;
+  yAxisPosition: YAxisPosition;
   xAxisVisible: boolean;
   yAxisWidth: number;
   xAxisHeight: number;
@@ -101,6 +104,7 @@ export const COMMON_DEFAULTS: CommonState = {
   bgGradient: false,
   headerLayout: 'overlay',
   yAxisVisible: true,
+  yAxisPosition: 'right',
   xAxisVisible: true,
   yAxisWidth: 55,
   xAxisHeight: 30,

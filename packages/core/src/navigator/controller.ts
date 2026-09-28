@@ -31,8 +31,9 @@ export interface NavigatorControllerParams {
  * left handle, right handle. The overlay is purely visual; pointer input is
  * captured on the canvas and hit-tested against the current window geometry.
  *
- * Both layers reserve `chart.yAxisWidth` on the right so the navigator's
- * active zone aligns with the main chart's plot area (matches the TimeAxis).
+ * Both layers reserve `chart.yAxisWidth` on the Y-axis side so the
+ * navigator's active zone aligns with the main chart's plot area (matches
+ * the TimeAxis).
  *
  * Event topology — navigator is a pure listener on the chart side, never emits:
  *   chart.viewportChange → reposition window DOM on next frame (canvas untouched)
@@ -271,7 +272,8 @@ export class NavigatorController {
   // --- internals ---------------------------------------------------------
 
   /** Effective drawing width — the navigator reserves the main chart's
-   *  `yAxisWidth` on the right so its active zone lines up with the plot area. */
+   *  `yAxisWidth` on the Y-axis side so its active zone lines up with the
+   *  plot area. */
   get #activeWidth(): number {
     return Math.max(0, this.#mediaWidth - this.#chart.yAxisWidth);
   }
@@ -311,6 +313,12 @@ export class NavigatorController {
     if (this.#canvas.style.width !== cssWidth) {
       this.#canvas.style.width = cssWidth;
       this.#overlay.style.width = cssWidth;
+    }
+
+    const cssLeft = `${this.#chart.plotLeft}px`;
+    if (this.#canvas.style.left !== cssLeft) {
+      this.#canvas.style.left = cssLeft;
+      this.#overlay.style.left = cssLeft;
     }
   }
 
@@ -502,7 +510,7 @@ export class NavigatorController {
     // Inset top + bottom hairlines via box-shadow on the canvas — the canvas
     // is sized to the active zone (full width minus the chart's y-axis reserve),
     // so the border tracks the strip's actual content instead of bleeding into
-    // the empty y-axis column on the right.
+    // the empty y-axis column.
     this.#canvas.style.boxShadow = `inset 0 1px 0 ${theme.borderColor}, inset 0 -1px 0 ${theme.borderColor}`;
 
     renderBackground(rc);
@@ -563,7 +571,8 @@ export class NavigatorController {
     if (this.#activeWidth <= 0 || this.#mediaHeight <= 0) return;
 
     const bitmapWidth = Math.round(this.#activeWidth * this.#pixelRatio);
-    if (this.#canvas.width !== bitmapWidth) {
+    const moved = this.#canvas.style.left !== `${this.#chart.plotLeft}px`;
+    if (this.#canvas.width !== bitmapWidth || moved) {
       this.#render();
 
       return;

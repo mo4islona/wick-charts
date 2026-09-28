@@ -19,6 +19,9 @@ export interface RenderGridArgs {
    * to fully opaque for callers that don't animate the layer.
    */
   alpha?: number;
+  /** Bitmap px the horizontal lines start left of the pane — a left Y-axis
+   *  column's fade intrusion. Default `0`. */
+  leftOverhang?: number;
 }
 
 /**
@@ -32,7 +35,16 @@ export interface RenderGridArgs {
  * `alpha` scales every tick on top of its own fade — one reveal / hide ramp for
  * the layer, per-tick timelines untouched.
  */
-export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks, alpha = 1 }: RenderGridArgs): void {
+export function renderGrid({
+  scope,
+  timeScale,
+  yScale,
+  theme,
+  yTicks,
+  timeTicks,
+  alpha = 1,
+  leftOverhang = 0,
+}: RenderGridArgs): void {
   if (alpha <= 0.01) return;
 
   const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
@@ -50,6 +62,7 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks,
   // the scales' `valueToSnappedY` so labels land on the same pixel.
   const yLineWidth = crispLineWidth(verticalPixelRatio);
   const yHalf = crispCenterOffset(verticalPixelRatio);
+  const lineStart = leftOverhang > 0 ? -leftOverhang : 0;
   context.lineWidth = yLineWidth;
   for (const { value, opacity } of yTicks.entries) {
     const faded = opacity * alpha;
@@ -58,7 +71,7 @@ export function renderGrid({ scope, timeScale, yScale, theme, yTicks, timeTicks,
     const y = Math.round(yScale.valueToBitmapY(value)) + yHalf;
     context.globalAlpha = faded;
     context.beginPath();
-    context.moveTo(0, y);
+    context.moveTo(lineStart, y);
     context.lineTo(bitmapSize.width, y);
     context.stroke();
   }
