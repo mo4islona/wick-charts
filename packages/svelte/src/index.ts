@@ -128,6 +128,7 @@ export type {
   WaveIntroTransform,
   XAxisConfig,
   YAxisConfig,
+  YAxisPosition,
   YRange,
 } from '@wick-charts/core';
 // Painters — custom per-element drawing for bar / candle / line series.

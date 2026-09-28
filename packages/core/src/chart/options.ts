@@ -100,9 +100,9 @@ export interface ChartOptions {
    * Soft alpha fade applied at the edges of the plot area. Anything the main
    * layer draws inside a zone (series, grid, time-region bands) dissolves to
    * transparent as it approaches the edge: horizontally sliding under the
-   * Y-axis labels on the right (`right`, **on by default**), toward a
-   * floating Title / InfoBar at the top (`top`), or out the left edge
-   * (`left`). The mask *erases* pixels rather than painting a cover color,
+   * Y-axis labels (the axis side, **on by default**), toward a floating
+   * Title / InfoBar at the top (`top`), or out the edge opposite the axis.
+   * The mask *erases* pixels rather than painting a cover color,
    * so it stays correct over any container background — including the
    * optional CSS gradient. Live — `chart.setFade()` updates it after
    * construction.
@@ -156,26 +156,35 @@ export interface FadeConfig {
    *  area. `0` / omitted disables the mask. */
   top?: number;
   /**
-   * Total width in CSS pixels of the horizontal dissolve at the right edge.
-   * The ramp finishes just inside the Y-axis column — 12px past the pane
-   * edge, before the right-anchored label glyphs start — so content melts
-   * on approach (pan / tail-scroll exit) and is fully gone before it can
-   * cross any axis text; the rest of the width runs backward into the pane
-   * as a soft lead-in. **Defaults to a 60px ramp** — on out of the box;
+   * Width in CSS pixels of the horizontal dissolve at the right edge.
+   *
+   * On the Y-axis side (the default `axis.y.position`) this is the total
+   * width of a ramp that finishes just inside the axis column — 12px past
+   * the pane edge, before the label glyphs start — so content melts on
+   * approach (pan / tail-scroll exit) and is fully gone before it can cross
+   * any axis text; the rest of the width runs backward into the pane as a
+   * soft lead-in. **Defaults to a 60px ramp** there — on out of the box;
    * `0` disables. A no-op while the Y axis is hidden.
+   *
+   * On the side opposite the axis it's a plain zone at the pane edge —
+   * content leaving the plot dissolves instead of hard-clipping at the
+   * canvas boundary. Off by default.
    */
   right?: number;
-  /** Fade-zone width in CSS pixels at the left pane edge — content panning
-   *  out to the left dissolves instead of hard-clipping at the canvas
-   *  boundary. `0` / omitted disables. */
+  /**
+   * Width in CSS pixels of the horizontal dissolve at the left edge. Same
+   * rules as {@link right}, except that with `axis.y.position: 'left'` the
+   * ramp (60px by default) finishes at the pane edge rather than under the
+   * column: data scrolls out through the left edge and isn't drawn past it.
+   */
   left?: number;
 }
 
 export interface ResolvedFade {
   top: number;
-  /** `null` = auto: the built-in lead-in + end-gap ramp (60px total). */
+  /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other. */
   right: number | null;
-  left: number;
+  left: number | null;
 }
 
 /** Non-negative finite pixels, or `0` for anything else. */
@@ -186,14 +195,14 @@ function resolveFadeSize(value: number | undefined): number {
 }
 
 /** Collapse the `fade` option into concrete pixel sizes — negative and
- *  non-finite values resolve to `0` (mask off). `right` is the one edge that
- *  is on by default: omitted resolves to `null`, meaning "match the Y-axis
- *  column width at draw time". */
+ *  non-finite values resolve to `0` (mask off). An omitted side resolves to
+ *  `null` (auto): which side that turns on depends on the Y-axis position,
+ *  so the draw pass decides. */
 export function resolveFade(input: ChartOptions['fade']): ResolvedFade {
   return {
     top: resolveFadeSize(input?.top),
     right: input?.right === undefined ? null : resolveFadeSize(input.right),
-    left: resolveFadeSize(input?.left),
+    left: input?.left === undefined ? null : resolveFadeSize(input.left),
   };
 }
 

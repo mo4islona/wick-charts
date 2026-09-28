@@ -103,9 +103,12 @@ const props = withDefaults(
      * **X (under the axis)** — panning content slides under the Y-axis
      * column and dissolves instead of hard-clipping at the pane edge. **On
      * by default** as a 60px ramp that finishes just inside the axis
-     * column, before the label glyphs; `{ right }` overrides the total
-     * ramp width in CSS px (`0` disables). `{ left }` adds the mirror zone
-     * at the left pane edge (default off).
+     * column, before the label glyphs — on whichever side
+     * `axis.y.position` puts it (a left-axis ramp ends at the pane edge
+     * instead). The axis side's key (`{ right }` by default, `{ left }` for
+     * a left axis) overrides the total ramp width in CSS px (`0` disables);
+     * the other key adds a plain zone at the opposite pane edge (default
+     * off).
      *
      * **Top (under the header)** — opt-in. `true` enables the auto zone
      * (measured header + 24px run-out, half the header fold-in released so
@@ -229,6 +232,13 @@ provide(NavigatorAnchorKey, navigatorAnchor);
 let resizeObserver: ResizeObserver | null = null;
 const topOverlayHeight = ref(0);
 
+// Watching `chart` hands a rebuilt instance the current height too.
+watch(
+  () => [chart.value, props.headerLayout === 'overlay' ? topOverlayHeight.value : 0] as const,
+  ([instance, height]) => instance?.setHeaderHeight(height),
+  { immediate: true },
+);
+
 /** Run-out below the measured header (CSS px) for the auto `fade` zone —
  *  content starts dissolving this far before it slides under the header. */
 const FADE_AUTO_BAND = 24;
@@ -310,8 +320,9 @@ function applyFade() {
     return;
   }
 
-  // Omitting `right` keeps the core's under-the-axis default armed; only an
-  // explicit value (or the all-off branch above) overrides it.
+  // Omitting a side keeps the core's auto default (the under-the-axis ramp
+  // on the Y-axis side); only an explicit value (or the all-off branch
+  // above) overrides it.
   const next: FadeConfig = { top: resolvedFadeTop.value };
   if (typeof props.fade === 'object') {
     if (props.fade.right !== undefined) next.right = props.fade.right;

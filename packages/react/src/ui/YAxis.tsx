@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { type ValueFormatter, mountAxisLabels } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
-import { useYRange } from '../store-bridge';
+import { useAxisLayout, useYRange } from '../store-bridge';
 
 export interface YAxisProps {
   /**
@@ -23,6 +23,7 @@ export interface YAxisProps {
 export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) {
   const chart = useChartInstance();
   useYRange(chart);
+  const layout = useAxisLayout(chart);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -57,10 +58,10 @@ export function YAxis({ format, labelCount, minLabelSpacing }: YAxisProps = {}) 
       ref={containerRef}
       style={{
         position: 'absolute',
-        right: 0,
+        [layout.yAxisPosition]: 0,
         top: 0,
-        bottom: chart.xAxisHeight,
-        width: chart.yAxisWidth,
+        bottom: layout.xAxisHeight,
+        width: layout.yAxisWidth,
         pointerEvents: 'none',
       }}
     />

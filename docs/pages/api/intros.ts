@@ -21,7 +21,7 @@ export const INTROS: Record<string, string> = {
   TimeAxis:
     'Renders tick marks and labels along the time axis. Density adapts to viewport width and is bounded by the `labelCount` and `minLabelSpacing` props (which override the chart-level defaults).',
   YAxis:
-    'Renders ticks and labels along the right edge of the chart. The 1-2-5 “nice number” snap keeps tick values readable at any zoom; pass `format` to customise the label string.',
+    "Renders ticks and labels in the value-axis column — on the right by default, or on the left with `axis={{ y: { position: 'left' } }}` on `<ChartContainer>`. The 1-2-5 “nice number” snap keeps tick values readable at any zoom; pass `format` to customise the label string.",
   Tooltip:
     'Floating glass panel that appears on hover, showing per-series snapshots at the crosshair time. Use the render-prop child to replace the panel contents while keeping the positioned container (with flip/clamp).',
   Crosshair:

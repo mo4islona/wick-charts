@@ -293,6 +293,7 @@ export type {
   XAxisConfig,
   XRange,
   YAxisConfig,
+  YAxisPosition,
   YRange,
 } from './types';
 // Utils

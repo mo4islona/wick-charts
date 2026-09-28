@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { mountAxisLabels } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
-import { useVisibleRange } from '../store-bridge';
+import { useAxisLayout, useVisibleRange } from '../store-bridge';
 
 export interface TimeAxisProps {
   /** Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`. */
@@ -17,6 +17,8 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
   // Subscribe so the container re-renders when chart geometry shifts
   // (yAxisWidth / xAxisHeight can change on resize, legend mount, etc.).
   useVisibleRange(chart);
+  const layout = useAxisLayout(chart);
+  const onLeft = layout.yAxisPosition === 'left';
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -43,10 +45,10 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
       ref={containerRef}
       style={{
         position: 'absolute',
-        left: 0,
+        left: onLeft ? layout.yAxisWidth : 0,
         bottom: 0,
-        right: chart.yAxisWidth,
-        height: chart.xAxisHeight,
+        right: onLeft ? 0 : layout.yAxisWidth,
+        height: layout.xAxisHeight,
         pointerEvents: 'none',
         display: 'flex',
         alignItems: 'center',

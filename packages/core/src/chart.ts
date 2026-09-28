@@ -26,7 +26,7 @@ import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
 import { computeTargetYRange, resolveBound } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
-import { renderGrid } from './components/grid';
+import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
 import {
@@ -72,6 +72,7 @@ import type {
   ValueColor,
   VisibleRangeSpec,
   XRange,
+  YAxisPosition,
   YRange,
 } from './types';
 import { clamp } from './utils/math';
@@ -92,21 +93,21 @@ const EDGE_EXIT_FADE_MS = 200;
  *  must not anchor a morph for an unrelated prepend. */
 const EDGE_HANDOFF_FRESH_MS = 1500;
 
-/** Lead-in the auto right fade runs inside the pane (CSS px): the dissolve
- *  ramp starts this far before the Y-axis column, so the exit reads as a
- *  melt instead of a cliff right after the pane edge. Kept short — the
+/** Lead-in the auto axis-side fade runs inside the pane (CSS px): the
+ *  dissolve ramp starts this far before the Y-axis column, so the exit reads
+ *  as a melt instead of a cliff right after the pane edge. Kept short — the
  *  newest candles live at the right edge, and a long ramp visibly washes
  *  them out at rest; paired with the ease-in cube below, dimming inside the
  *  pane stays subtle and the aggressive erase concentrates under the axis
  *  column. */
-const RIGHT_FADE_LEAD_IN_PX = 48;
+const AXIS_FADE_LEAD_IN_PX = 48;
 
-/** Where the right fade ramp *finishes*, in CSS px past the pane edge. The
- *  Y-axis labels are right-anchored 8px from the canvas edge, so with the
+/** Where the axis-side fade ramp *finishes*, in CSS px past the pane edge.
+ *  The Y-axis labels are anchored 8px from the canvas edge, so with the
  *  default 55px column a typical 5-digit price's glyphs start ~13-15px past
  *  the pane edge — the ramp completes just before that, and content never
  *  crosses the axis text at visible opacity. */
-const RIGHT_FADE_END_GAP_PX = 12;
+const AXIS_FADE_END_GAP_PX = 12;
 
 /** How far the vertical gridlines run past the pane floor (CSS px), toward
  *  the time-axis labels. Mirrors the X-fade treatment of the horizontal
@@ -292,18 +293,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * this is what keeps `fitToData` tick churn from flickering the reveal.
    */
   #gridFade: Animator<number>;
-  /** Resolved edge-fade zones — `right: null` tracks the live Y-axis width. */
+  /** Resolved edge-fade zones — a `null` side is auto: the axis-column ramp on the Y-axis side, off on the other. */
   #fade: ResolvedFade;
+  /** See {@link headerHeight}. */
+  #headerHeight = 0;
   /** Memoized destination-out mask gradients, one per edge, keyed by the
    *  zone's bitmap geometry so a resize / DPR change / `setFade` rebuilds
    *  them and steady frames reuse them. */
   #fadeGradientCache: {
     top: { height: number; gradient: CanvasGradient } | null;
-    right: { start: number; width: number; gradient: CanvasGradient } | null;
-    left: { width: number; gradient: CanvasGradient } | null;
+    /** Ramp under the Y-axis column, on whichever side it sits. */
+    axis: { inner: number; outer: number; gradient: CanvasGradient } | null;
+    /** Plain zone at the pane edge opposite the axis. */
+    edge: { edge: number; inner: number; gradient: CanvasGradient } | null;
     /** Erase ramp for the below-pane gridline tail stubs. */
     tail: { start: number; height: number; gradient: CanvasGradient } | null;
-  } = { top: null, right: null, left: null, tail: null };
+    /** Erase ramp for the gridlines running under a left Y-axis column. */
+    overhang: { start: number; end: number; gradient: CanvasGradient } | null;
+  } = { top: null, axis: null, edge: null, tail: null, overhang: null };
   /** Detected time interval between data points (milliseconds). */
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
@@ -370,6 +377,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   get yAxisWidth(): number {
     const y = this.#axis.y;
     return y?.visible === false ? 0 : (y?.width ?? 55);
+  }
+
+  /** Side of the plot area the Y-axis column sits on. */
+  get yAxisPosition(): YAxisPosition {
+    return this.#axis.y?.position ?? 'right';
+  }
+
+  /**
+   * Left edge of the plot area in container CSS px — the Y-axis width when
+   * the axis sits on the left, `0` otherwise. Scales map into the plot area,
+   * so add this to `timeScale.timeToX()` to get a container coordinate.
+   */
+  get plotLeft(): number {
+    return this.yAxisPosition === 'left' ? this.yAxisWidth : 0;
+  }
+
+  /** CSS px height of the floating Title / InfoBar header, `0` without one. A left
+   *  axis shares its column with it, so tick labels fade out underneath. */
+  get headerHeight(): number {
+    return this.#headerHeight;
   }
 
   get xAxisHeight(): number {
@@ -1553,7 +1580,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     if (current !== null && current.time === time && current.y === y) return;
 
-    const mediaX = this.timeScale.timeToX(time);
+    const mediaX = this.plotLeft + this.timeScale.timeToX(time);
     const mediaY = this.yScale.valueToY(y);
 
     // Anchor flips only past the idempotency check — an echo of the same
@@ -1856,6 +1883,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   setAxis(config: AxisConfig): void {
     const prevYW = this.yAxisWidth;
     const prevXH = this.xAxisHeight;
+    const prevSide = this.yAxisPosition;
 
     this.#axis = config;
     // Sync Y bounds from axis config
@@ -1864,9 +1892,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const now = performance.now();
     this.#engine.onAxisReconfig(now);
     this.#applyEngineState(now);
-    if (this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH) {
+
+    const layoutChanged = this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH || this.yAxisPosition !== prevSide;
+    if (layoutChanged) {
       this.syncScales();
+      // DOM axis / label components anchor to the gutters — let them re-read
+      // the layout, as they do after a resize.
+      this.emit('viewportChange');
     }
+
     this.#mainScheduler.markDirty();
   }
 
@@ -1921,8 +1955,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const yAxisWidth = this.yAxisWidth;
     const xAxisHeight = this.xAxisHeight;
     return {
-      chartArea: { x: 0, y: 0, width: media.width - yAxisWidth, height: media.height - xAxisHeight },
+      chartArea: { x: this.plotLeft, y: 0, width: media.width - yAxisWidth, height: media.height - xAxisHeight },
       yAxisWidth,
+      yAxisPosition: this.yAxisPosition,
       xAxisHeight,
     };
   }
@@ -1994,6 +2029,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#fade = next;
     this.#mainScheduler.markDirty();
+  }
+
+  /** Report the floating header's height (see {@link headerHeight}). The
+   *  framework wrappers keep it in sync with the measured Title / InfoBar. */
+  setHeaderHeight(height: number): void {
+    const next = Number.isFinite(height) && height > 0 ? height : 0;
+    if (next === this.#headerHeight) return;
+
+    this.#headerHeight = next;
+    this.#bumpOverlayVersion();
   }
 
   /**
@@ -2125,7 +2170,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (!entry.renderer.hitTest || !entry.renderer.setHoverIndex) continue;
       let index = -1;
       if (pos) {
-        const bx = pos.mediaX * size.horizontalPixelRatio;
+        const bx = (pos.mediaX - this.plotLeft) * size.horizontalPixelRatio;
         const by = pos.mediaY * size.verticalPixelRatio;
         index = entry.renderer.hitTest(bx, by, size.bitmap.width, size.bitmap.height, padding);
       }
@@ -2156,7 +2201,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       top: vpad.top * size.verticalPixelRatio,
       bottom: vpad.bottom * size.verticalPixelRatio,
     };
-    const bx = pos.mediaX * size.horizontalPixelRatio;
+    const bx = (pos.mediaX - this.plotLeft) * size.horizontalPixelRatio;
     const by = pos.mediaY * size.verticalPixelRatio;
 
     for (const entry of this.#series) {
@@ -2205,7 +2250,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     let next: CrosshairPosition;
     if (this.#crosshairAnchor === 'pointer') {
-      const time = this.timeScale.xToTime(pos.mediaX);
+      const time = this.timeScale.xToTime(pos.mediaX - this.plotLeft);
       const y = this.yScale.yToValue(pos.mediaY);
 
       // A degenerate scale (zero-width range, zero-size canvas) can derive
@@ -2228,7 +2273,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         return;
       }
 
-      const mediaX = this.timeScale.timeToX(pos.time);
+      const mediaX = this.plotLeft + this.timeScale.timeToX(pos.time);
       const mediaY = this.yScale.valueToY(pos.y);
 
       if (!Number.isFinite(mediaX) || !Number.isFinite(mediaY)) return;
@@ -2920,16 +2965,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const { context, bitmapSize } = scope;
       const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
+      const paneLeft = this.#paneBitmapLeft(scope);
 
       // Clear canvas (background gradient is applied via CSS on the container)
       context.clearRect(0, 0, bitmapSize.width, bitmapSize.height);
 
+      // Everything up to the restore below draws in pane-local coordinates —
+      // scales and renderers never see the left-axis offset.
       context.save();
+      context.translate(paneLeft, 0);
       context.beginPath();
-      // The clip widens by the right-fade intrusion so panning content can
-      // slide under the Y-axis column before the mask below dissolves it.
-      const rightFade = this.#rightFadeZone(scope, chartBitmapWidth);
-      context.rect(0, 0, chartBitmapWidth + rightFade.intrusion, chartBitmapHeight);
+      // The clip widens by the axis-side fade intrusion so panning content
+      // can slide under a right Y-axis column before the mask dissolves it.
+      context.rect(0, 0, this.#paneClipWidth(scope, chartBitmapWidth), chartBitmapHeight);
       context.clip();
 
       // Diff current tick sets against the previous frame's and route the
@@ -2975,7 +3023,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       gridFadeAnimating = this.#gridFade.tick(now);
       const gridAlpha = this.#gridFade.current;
 
-      renderGrid({
+      const grid: RenderGridArgs = {
         scope,
         timeScale: this.timeScale,
         yScale: this.yScale,
@@ -2983,7 +3031,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         yTicks: yTickSnap,
         timeTicks: timeTickSnap,
         alpha: gridAlpha,
-      });
+      };
+      const gridOverhang = this.#gridOverhang(scope, chartBitmapWidth);
+      if (gridOverhang === 0) renderGrid(grid);
 
       // Time-region bands sit between the grid and the series so the data reads
       // on top of the shading.
@@ -3032,23 +3082,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       context.restore();
 
-      // Gridline tail stubs below the pane floor — drawn outside the pane
-      // clip, before the X fades so a stub near the right edge melts under
-      // the Y-axis column in step with its line above.
-      this.#drawGridTails({
-        scope,
-        paneBitmapWidth: chartBitmapWidth,
-        paneBitmapHeight: chartBitmapHeight,
-        timeTicks: timeTickSnap,
-        alpha: gridAlpha,
-      });
-
       // Last passes on the main layer: dissolve everything drawn above into
       // the fade zones. Run outside the pane clip on purpose — the top mask
-      // spans the full bitmap width and the right mask lives entirely in the
+      // spans the full bitmap width and the axis-side mask reaches into the
       // axis column the clip extension opened up.
+      const pane = { left: paneLeft, width: chartBitmapWidth, height: chartBitmapHeight };
+      if (gridOverhang === 0) {
+        // Before the axis fade, so a tail stub near the right edge melts
+        // under the Y-axis column in step with its line above.
+        this.#drawGridTails({ scope, pane, timeTicks: timeTickSnap, alpha: gridAlpha });
+        this.#applyAxisFade(scope, chartBitmapWidth);
+      } else {
+        this.#applyAxisFade(scope, chartBitmapWidth);
+        this.#drawGridBehind({ grid, pane, overhang: gridOverhang });
+      }
+      this.#applyEdgeFade(scope, chartBitmapWidth);
       this.#applyTopFade(scope, chartBitmapHeight);
-      this.#applyXFades(scope, chartBitmapWidth);
     });
 
     // Advance the overlay-intro latch every main frame, not just when an
@@ -3129,18 +3178,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   #drawGridTails(args: {
     scope: BitmapCoordinateSpace;
-    paneBitmapWidth: number;
-    paneBitmapHeight: number;
+    /** Pane rect in canvas bitmap px — `left` is the Y-axis column when it sits on the left. */
+    pane: { left: number; width: number; height: number };
     timeTicks: TickTrackerSnapshot;
     /** Layer fade from `#gridFade` — the stubs ride their line's opacity. */
     alpha: number;
   }): void {
-    const { scope, paneBitmapWidth, paneBitmapHeight, timeTicks, alpha } = args;
+    const { scope, pane, timeTicks, alpha } = args;
     // Gate on the flag, not the fade: the taper below owns the whole overrun
     // strip, not just the stubs.
     if ((!this.#grid && alpha <= 0.01) || this.xAxisHeight === 0) return;
     const { context, horizontalPixelRatio, verticalPixelRatio } = scope;
-    const start = Math.round(paneBitmapHeight);
+    const start = Math.round(pane.height);
     const height = Math.round(GRID_TAIL_PX * verticalPixelRatio);
     if (height < 1) return;
 
@@ -3160,14 +3209,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     context.lineWidth = crispLineWidth(horizontalPixelRatio);
     const half = crispCenterOffset(horizontalPixelRatio);
 
-    const paneWidth = Math.round(paneBitmapWidth);
+    const paneWidth = Math.round(pane.width);
     for (const { value, opacity } of timeTicks.entries) {
       const faded = opacity * alpha;
       if (faded <= 0.01) continue;
 
-      const x = Math.round(this.timeScale.timeToBitmapX(value)) + half;
-      if (x < 0 || x > paneWidth) continue;
+      const localX = Math.round(this.timeScale.timeToBitmapX(value)) + half;
+      if (localX < 0 || localX > paneWidth) continue;
 
+      const x = pane.left + localX;
       context.globalAlpha = faded;
       context.beginPath();
       context.moveTo(x, start);
@@ -3178,7 +3228,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     context.restore();
 
     // Taper the stubs: nothing erased at the pane floor, total at the tip.
-    this.#applyTailFade(scope, paneBitmapHeight);
+    this.#applyTailFade(scope, pane.height);
   }
 
   /**
@@ -3204,7 +3254,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /**
    * Crosshair hairlines with the same edge melt the main layer runs: the
-   * pane clip widens by the right-fade intrusion and by a gridline-tail's
+   * pane clip widens by the axis-side fade intrusion and by a gridline-tail's
    * overrun below the floor, then the shared erase ramps dissolve the
    * overhangs — the vertical line tapers toward the time-axis labels in
    * step with the gridline stubs and the horizontal line rides under the
@@ -3218,88 +3268,203 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const { scope, chartBitmapWidth, chartBitmapHeight } = args;
     const { context } = scope;
-    const rightFade = this.#rightFadeZone(scope, chartBitmapWidth);
+    const paneLeft = this.#paneBitmapLeft(scope);
+    const clipWidth = this.#paneClipWidth(scope, chartBitmapWidth);
+    const overhang = this.#gridOverhang(scope, chartBitmapWidth);
     const tail = this.xAxisHeight > 0 ? Math.round(GRID_TAIL_PX * scope.verticalPixelRatio) : 0;
 
     context.save();
+    context.translate(paneLeft, 0);
     context.beginPath();
-    context.rect(0, 0, chartBitmapWidth + rightFade.intrusion, chartBitmapHeight + tail);
+    context.rect(-overhang, 0, clipWidth + overhang, chartBitmapHeight + tail);
     context.clip();
     renderCrosshair({
       scope,
-      bitmapX: pos.mediaX * scope.horizontalPixelRatio,
+      bitmapX: pos.mediaX * scope.horizontalPixelRatio - paneLeft,
       bitmapY: pos.mediaY * scope.verticalPixelRatio,
       theme: this.#theme,
       pane: { width: chartBitmapWidth, height: chartBitmapHeight },
+      leftOverhang: overhang,
     });
     context.restore();
 
+    // Under a left column the hairline tapers like a gridline, not like data.
     this.#applyTailFade(scope, chartBitmapHeight);
+    if (overhang === 0) {
+      this.#applyAxisFade(scope, chartBitmapWidth);
+    } else {
+      this.#applyOverhangFade(scope, overhang);
+    }
+    this.#applyEdgeFade(scope, chartBitmapWidth);
     this.#applyTopFade(scope, chartBitmapHeight);
-    this.#applyXFades(scope, chartBitmapWidth);
   }
 
   /**
-   * Horizontal companions to {@link #applyTopFade}: dissolve content that
-   * rides under the Y-axis column on the right (the pane clip is widened by
-   * the same zone) and, when configured, content leaving through the left
-   * pane edge. Same destination-out erase — background-safe over gradients.
+   * Horizontal companion to {@link #applyTopFade}: dissolve content that
+   * rides under the Y-axis column (the pane clip is widened by the same
+   * zone). Same destination-out erase — background-safe over gradients.
    * Runs the full bitmap height so the below-pane gridline tail stubs melt
    * at the edges in step with their lines above.
    */
-  #applyXFades(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
+  #applyAxisFade(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
+    const zone = this.#axisFadeZone(scope, paneBitmapWidth);
+    if (zone === null) return;
+
     const { context } = scope;
-    const height = scope.bitmapSize.height;
+    const x = Math.min(zone.inner, zone.outer);
+    const width = Math.abs(zone.outer - zone.inner);
 
-    const zone = this.#rightFadeZone(scope, paneBitmapWidth);
-    if (zone.width >= 1) {
-      context.save();
-      context.globalCompositeOperation = 'destination-out';
-      context.fillStyle = this.#rightFadeGradient({ context, start: zone.start, width: zone.width });
-      context.fillRect(zone.start, 0, zone.width, height);
-      context.restore();
-    }
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = this.#axisFadeGradient({ context, zone });
+    context.fillRect(x, 0, width, scope.bitmapSize.height);
+    context.restore();
+  }
 
-    const left = Math.min(Math.round(this.#fade.left * scope.horizontalPixelRatio), Math.round(paneBitmapWidth));
-    if (left >= 1) {
-      context.save();
-      context.globalCompositeOperation = 'destination-out';
-      context.fillStyle = this.#leftFadeGradient(context, left);
-      context.fillRect(0, 0, left, height);
-      context.restore();
-    }
+  /** Dissolve content leaving through the pane edge opposite the Y axis,
+   *  when that side's fade is configured. */
+  #applyEdgeFade(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
+    const zone = this.#edgeFadeZone(scope, paneBitmapWidth);
+    if (zone === null) return;
+
+    const { context } = scope;
+    const x = Math.min(zone.edge, zone.inner);
+    const width = Math.abs(zone.inner - zone.edge);
+
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = this.#edgeFadeGradient({ context, zone });
+    context.fillRect(x, 0, width, scope.bitmapSize.height);
+    context.restore();
+  }
+
+  /** Bitmap px the gridlines and crosshair run under a left Y-axis column, where
+   *  data can't follow (see {@link #axisFadeZone}). `0` on the right or with the fade off. */
+  #gridOverhang(scope: BitmapCoordinateSpace, paneBitmapWidth: number): number {
+    if (this.yAxisPosition !== 'left' || this.#axisFadeZone(scope, paneBitmapWidth) === null) return 0;
+
+    return Math.min(Math.round(AXIS_FADE_END_GAP_PX * scope.horizontalPixelRatio), this.#paneBitmapLeft(scope));
+  }
+
+  /** Left-axis grid pass, run after the axis fade: `destination-over` keeps the
+   *  gridlines out of the data ramp, then they taper out under the column. */
+  #drawGridBehind(args: {
+    grid: RenderGridArgs;
+    /** Pane rect in canvas bitmap px. */
+    pane: { left: number; width: number; height: number };
+    overhang: number;
+  }): void {
+    const { grid, pane, overhang } = args;
+    const { scope } = grid;
+    const { context } = scope;
+
+    context.save();
+    context.globalCompositeOperation = 'destination-over';
+
+    context.save();
+    context.translate(pane.left, 0);
+    context.beginPath();
+    context.rect(-overhang, 0, pane.width + overhang, pane.height);
+    context.clip();
+    renderGrid({ ...grid, leftOverhang: overhang });
+    context.restore();
+
+    this.#drawGridTails({ scope, pane, timeTicks: grid.timeTicks, alpha: grid.alpha ?? 1 });
+    context.restore();
+
+    this.#applyOverhangFade(scope, overhang);
+  }
+
+  /** Erase the {@link #gridOverhang} strip: none at the pane edge, total at its outer end. */
+  #applyOverhangFade(scope: BitmapCoordinateSpace, overhang: number): void {
+    const end = this.#paneBitmapLeft(scope);
+    const start = end - overhang;
+    const { context } = scope;
+
+    context.save();
+    context.globalCompositeOperation = 'destination-out';
+    context.fillStyle = this.#overhangFadeGradient({ context, start, end });
+    context.fillRect(start, 0, overhang, scope.bitmapSize.height);
+    context.restore();
+  }
+
+  /** Canvas bitmap x of the pane's left edge — whole device pixels, so the
+   *  translated pane keeps crisp strokes. */
+  #paneBitmapLeft(scope: BitmapCoordinateSpace): number {
+    return Math.round(this.plotLeft * scope.horizontalPixelRatio);
+  }
+
+  /** Pane-local width of the pane clip: the pane plus the axis-side fade
+   *  intrusion, so content can slide under a right Y-axis column before the
+   *  mask dissolves it. */
+  #paneClipWidth(scope: BitmapCoordinateSpace, paneBitmapWidth: number): number {
+    const intrusion = this.#axisFadeZone(scope, paneBitmapWidth)?.intrusion ?? 0;
+
+    return paneBitmapWidth + intrusion;
   }
 
   /**
-   * Bitmap geometry of the right fade zone. The ramp finishes just inside
-   * the Y-axis column — {@link RIGHT_FADE_END_GAP_PX} past the pane edge,
-   * still short of where the right-anchored label glyphs start — so content
-   * is fully erased before it can cross any axis text. Everything wider
-   * spills backward into the pane as the soft lead-in. `width: 0` (axis
-   * hidden, or `right: 0`) means no zone; `intrusion` is what the pane clip
-   * extends by (content past the ramp is total-erased anyway, so the clip
-   * stops with the ramp).
+   * Bitmap geometry of the fade zone on the Y-axis side. On the right the
+   * ramp finishes just inside the column — {@link AXIS_FADE_END_GAP_PX} past
+   * the pane edge, still short of where the label glyphs start — so content
+   * is fully erased before it can cross any axis text; everything wider
+   * spills back into the pane as the soft lead-in. On the left it finishes
+   * at the pane edge. Erasing starts at `inner` and is total at `outer`;
+   * `intrusion` is what the pane clip extends by (content past the ramp is
+   * total-erased anyway). `null` when the axis is hidden or its side's fade
+   * is `0`.
    */
-  #rightFadeZone(
+  #axisFadeZone(
     scope: BitmapCoordinateSpace,
     paneBitmapWidth: number,
-  ): { start: number; width: number; intrusion: number } {
-    const off = { start: 0, width: 0, intrusion: 0 };
-    const column = Math.max(0, Math.round(scope.bitmapSize.width - paneBitmapWidth));
-    if (column === 0) return off;
+  ): { inner: number; outer: number; intrusion: number } | null {
+    const onLeft = this.yAxisPosition === 'left';
+    const bitmapWidth = scope.bitmapSize.width;
+    const column = onLeft ? this.#paneBitmapLeft(scope) : Math.max(0, Math.round(bitmapWidth - paneBitmapWidth));
+    if (column === 0) return null;
 
     const hpr = scope.horizontalPixelRatio;
-    const intrusion = Math.min(Math.round(RIGHT_FADE_END_GAP_PX * hpr), column);
-    const total =
-      this.#fade.right === null
-        ? intrusion + Math.round(RIGHT_FADE_LEAD_IN_PX * hpr)
-        : Math.round(this.#fade.right * hpr);
-    if (total < 1) return off;
+    const endGap = Math.round(AXIS_FADE_END_GAP_PX * hpr);
+    const leadIn = Math.round(AXIS_FADE_LEAD_IN_PX * hpr);
+    // Data scrolls out through the left edge and renderers draw only one point
+    // past it, so nothing can slide under a left column: no intrusion there.
+    const intrusion = onLeft ? 0 : Math.min(endGap, column);
+    const autoWidth = onLeft ? endGap + leadIn : intrusion + leadIn;
+    const configured = onLeft ? this.#fade.left : this.#fade.right;
+    const total = configured === null ? autoWidth : Math.round(configured * hpr);
+    if (total < 1) return null;
 
-    const end = paneBitmapWidth + intrusion;
-    const width = Math.min(total, end);
+    if (onLeft) {
+      const outer = column;
+      const width = Math.min(total, bitmapWidth - outer);
 
-    return { start: end - width, width, intrusion };
+      return { inner: outer + width, outer, intrusion };
+    }
+
+    const outer = paneBitmapWidth + intrusion;
+    const width = Math.min(total, outer);
+
+    return { inner: outer - width, outer, intrusion };
+  }
+
+  /** Bitmap geometry of the plain fade at the pane edge opposite the Y axis
+   *  — total erase at the canvas `edge`, none at `inner`. Off unless that
+   *  side's fade is configured. */
+  #edgeFadeZone(scope: BitmapCoordinateSpace, paneBitmapWidth: number): { edge: number; inner: number } | null {
+    const onLeft = this.yAxisPosition === 'left';
+    const configured = onLeft ? this.#fade.right : this.#fade.left;
+    if (configured === null) return null;
+
+    const width = Math.min(Math.round(configured * scope.horizontalPixelRatio), Math.round(paneBitmapWidth));
+    if (width < 1) return null;
+
+    if (onLeft) {
+      const edge = scope.bitmapSize.width;
+
+      return { edge, inner: edge - width };
+    }
+
+    return { edge: 0, inner: width };
   }
 
   /** Memoized mask gradient — rebuilt only when the bitmap zone height
@@ -3320,22 +3485,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return gradient;
   }
 
-  /** Right-zone mask — erase grows from 0 at the ramp's inner start to
+  /** Axis-column mask — erase grows from 0 at the ramp's inner start to
    *  total at its outer end on an ease-in (`s³`): zero slope *and* zero
    *  curvature at the entry, so the in-pane lead-in barely dims the newest
    *  candles at rest and the aggressive erasing all happens deep under the
    *  axis column. Nine stops keep the piecewise interpolation smooth across
    *  the zone. */
-  #rightFadeGradient(zone: { context: CanvasRenderingContext2D; start: number; width: number }): CanvasGradient {
-    const cached = this.#fadeGradientCache.right;
-    if (cached !== null && cached.start === zone.start && cached.width === zone.width) return cached.gradient;
+  #axisFadeGradient(args: {
+    context: CanvasRenderingContext2D;
+    zone: { inner: number; outer: number };
+  }): CanvasGradient {
+    const { context, zone } = args;
+    const cached = this.#fadeGradientCache.axis;
+    if (cached !== null && cached.inner === zone.inner && cached.outer === zone.outer) return cached.gradient;
 
-    const gradient = zone.context.createLinearGradient(zone.start, 0, zone.start + zone.width, 0);
+    const gradient = context.createLinearGradient(zone.inner, 0, zone.outer, 0);
     for (let i = 0; i <= 8; i++) {
       const s = i / 8;
       gradient.addColorStop(s, `rgba(0, 0, 0, ${s * s * s})`);
     }
-    this.#fadeGradientCache.right = { start: zone.start, width: zone.width, gradient };
+    this.#fadeGradientCache.axis = { inner: zone.inner, outer: zone.outer, gradient };
 
     return gradient;
   }
@@ -3357,18 +3526,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return gradient;
   }
 
-  /** Left-zone mask — mirror of the top ramp: total erase at the canvas
-   *  edge, fully opaque at the zone's inner boundary. */
-  #leftFadeGradient(context: CanvasRenderingContext2D, width: number): CanvasGradient {
-    const cached = this.#fadeGradientCache.left;
-    if (cached !== null && cached.width === width) return cached.gradient;
+  /** Gridline overhang ramp — ease-in (`t²`) like the tail stubs. */
+  #overhangFadeGradient(zone: { context: CanvasRenderingContext2D; start: number; end: number }): CanvasGradient {
+    const cached = this.#fadeGradientCache.overhang;
+    if (cached !== null && cached.start === zone.start && cached.end === zone.end) return cached.gradient;
 
-    const gradient = context.createLinearGradient(0, 0, width, 0);
+    const gradient = zone.context.createLinearGradient(zone.end, 0, zone.start, 0);
+    for (let i = 0; i <= 4; i++) {
+      const t = i / 4;
+      gradient.addColorStop(t, `rgba(0, 0, 0, ${t * t})`);
+    }
+    this.#fadeGradientCache.overhang = { start: zone.start, end: zone.end, gradient };
+
+    return gradient;
+  }
+
+  /** Opposite-edge mask — mirror of the top ramp: total erase at the
+   *  canvas edge, fully opaque at the zone's inner boundary. */
+  #edgeFadeGradient(args: {
+    context: CanvasRenderingContext2D;
+    zone: { edge: number; inner: number };
+  }): CanvasGradient {
+    const { context, zone } = args;
+    const cached = this.#fadeGradientCache.edge;
+    if (cached !== null && cached.edge === zone.edge && cached.inner === zone.inner) return cached.gradient;
+
+    const gradient = context.createLinearGradient(zone.edge, 0, zone.inner, 0);
     for (let i = 0; i <= 4; i++) {
       const t = i / 4;
       gradient.addColorStop(t, `rgba(0, 0, 0, ${1 - t * t})`);
     }
-    this.#fadeGradientCache.left = { width, gradient };
+    this.#fadeGradientCache.edge = { edge: zone.edge, inner: zone.inner, gradient };
 
     return gradient;
   }
@@ -3472,6 +3660,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
 
       scope.context.save();
+      scope.context.translate(this.#paneBitmapLeft(scope), 0);
       scope.context.beginPath();
       scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
       scope.context.clip();

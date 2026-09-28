@@ -34,11 +34,11 @@ export function Crosshair() {
 
   return (
     <>
-      {/* Y label on right axis */}
+      {/* Y label on the value axis */}
       <div
         style={{
           position: 'absolute',
-          right: 0,
+          [chart.yAxisPosition]: 0,
           top: position.mediaY,
           transform: 'translateY(-50%)',
           ...labelStyle,

@@ -4,6 +4,7 @@ import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
 import { getChartContext } from '../context';
+import { createAxisLayout } from '../stores';
 
 /** Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`. */
 export let labelCount: number | undefined = undefined;
@@ -11,6 +12,9 @@ export let labelCount: number | undefined = undefined;
 export let minLabelSpacing: number | undefined = undefined;
 
 const chart = get(getChartContext());
+const layout = chart !== null ? createAxisLayout(chart) : null;
+
+$: onLeft = $layout?.yAxisPosition === 'left';
 
 let container: HTMLDivElement | null = null;
 let cleanup: (() => void) | null = null;
@@ -34,9 +38,9 @@ onDestroy(() => {
 });
 </script>
 
-{#if chart !== null}
+{#if chart !== null && $layout}
   <div
     bind:this={container}
-    style="position:absolute;left:0;bottom:0;right:{chart.yAxisWidth}px;height:{chart.xAxisHeight}px;pointer-events:none;display:flex;align-items:center;"
+    style="position:absolute;left:{onLeft ? $layout.yAxisWidth : 0}px;bottom:0;right:{onLeft ? 0 : $layout.yAxisWidth}px;height:{$layout.xAxisHeight}px;pointer-events:none;display:flex;align-items:center;"
   />
 {/if}

@@ -89,6 +89,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
   const theme = chart.getTheme();
   const dataInterval = chart.getDataInterval();
   const mediaSize = chart.getMediaSize();
+  const chartLeft = chart.plotLeft;
   const chartWidth = mediaSize.width - chart.yAxisWidth;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
@@ -97,6 +98,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
       <CustomFloatingTooltip
         x={crosshair.mediaX}
         y={crosshair.mediaY}
+        chartLeft={chartLeft}
         chartWidth={chartWidth}
         chartHeight={chartHeight}
         theme={theme}
@@ -116,6 +118,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
       displayTime={crosshair.time}
       x={crosshair.mediaX}
       y={crosshair.mediaY}
+      chartLeft={chartLeft}
       chartWidth={chartWidth}
       chartHeight={chartHeight}
       theme={theme}
@@ -128,6 +131,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
 function CustomFloatingTooltip({
   x,
   y,
+  chartLeft,
   chartWidth,
   chartHeight,
   theme,
@@ -135,6 +139,7 @@ function CustomFloatingTooltip({
 }: {
   x: number;
   y: number;
+  chartLeft: number;
   chartWidth: number;
   chartHeight: number;
   theme: ChartTheme;
@@ -165,8 +170,16 @@ function CustomFloatingTooltip({
   }, []);
 
   const position = size
-    ? computeTooltipPosition({ x, y, chartWidth, chartHeight, tooltipWidth: size.width, tooltipHeight: size.height })
-    : { left: 0, top: 0 };
+    ? computeTooltipPosition({
+        x,
+        y,
+        chartLeft,
+        chartWidth,
+        chartHeight,
+        tooltipWidth: size.width,
+        tooltipHeight: size.height,
+      })
+    : { left: chartLeft, top: 0 };
 
   return (
     <div
@@ -206,6 +219,7 @@ function FloatingTooltip({
   displayTime,
   x,
   y,
+  chartLeft,
   chartWidth,
   chartHeight,
   theme,
@@ -217,6 +231,7 @@ function FloatingTooltip({
   displayTime: number;
   x: number;
   y: number;
+  chartLeft: number;
   chartWidth: number;
   chartHeight: number;
   theme: ChartTheme;
@@ -229,7 +244,15 @@ function FloatingTooltip({
   const tooltipWidth = 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
-  const { left, top } = computeTooltipPosition({ x, y, chartWidth, chartHeight, tooltipWidth, tooltipHeight });
+  const { left, top } = computeTooltipPosition({
+    x,
+    y,
+    chartLeft,
+    chartWidth,
+    chartHeight,
+    tooltipWidth,
+    tooltipHeight,
+  });
 
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;

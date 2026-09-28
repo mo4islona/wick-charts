@@ -1,4 +1,4 @@
-import type { ChartInstance, CrosshairPosition, VisibleRange, YRange } from '@wick-charts/core';
+import type { ChartInstance, CrosshairPosition, VisibleRange, YAxisPosition, YRange } from '@wick-charts/core';
 import { type Ref, onMounted, onUnmounted, ref } from 'vue';
 
 export function useVisibleRange(chart: ChartInstance): Ref<VisibleRange> {
@@ -19,6 +19,40 @@ export function useYRange(chart: ChartInstance): Ref<YRange> {
   onMounted(() => chart.on('viewportChange', handler));
   onUnmounted(() => chart.off('viewportChange', handler));
   return range;
+}
+
+export interface AxisLayout {
+  yAxisPosition: YAxisPosition;
+  yAxisWidth: number;
+  xAxisHeight: number;
+}
+
+function readAxisLayout(chart: ChartInstance): AxisLayout {
+  return { yAxisPosition: chart.yAxisPosition, yAxisWidth: chart.yAxisWidth, xAxisHeight: chart.xAxisHeight };
+}
+
+/** The axis gutters overlays anchor to — refreshed on a Y-axis side or gutter size change. */
+export function useAxisLayout(chart: ChartInstance): Ref<AxisLayout> {
+  const layout = ref<AxisLayout>(readAxisLayout(chart)) as Ref<AxisLayout>;
+  const handler = () => {
+    const next = readAxisLayout(chart);
+    const prev = layout.value;
+    const unchanged =
+      prev.yAxisPosition === next.yAxisPosition &&
+      prev.yAxisWidth === next.yAxisWidth &&
+      prev.xAxisHeight === next.xAxisHeight;
+    if (unchanged) return;
+
+    layout.value = next;
+  };
+  onMounted(() => {
+    // The axis watcher may have landed a new config between setup and mount.
+    handler();
+    chart.on('viewportChange', handler);
+  });
+  onUnmounted(() => chart.off('viewportChange', handler));
+
+  return layout;
 }
 
 export function useLastYValue(chart: ChartInstance, seriesId: string): Ref<{ value: number; isLive: boolean } | null> {
