@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react';
 
-import type { ChartInstance, CrosshairPosition, VisibleRange, YRange } from '@wick-charts/core';
+import type { ChartInstance, CrosshairPosition, VisibleRange, YAxisPosition, YRange } from '@wick-charts/core';
 
 type ChartEvent = 'crosshairMove' | 'viewportChange' | 'dataUpdate' | 'seriesChange';
 
@@ -38,6 +38,67 @@ export function useYRange(chart: ChartInstance): YRange {
     [chart],
   );
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
+}
+
+export interface AxisLayout {
+  yAxisPosition: YAxisPosition;
+  yAxisWidth: number;
+  xAxisHeight: number;
+}
+
+function readAxisLayout(chart: ChartInstance): AxisLayout {
+  return { yAxisPosition: chart.yAxisPosition, yAxisWidth: chart.yAxisWidth, xAxisHeight: chart.xAxisHeight };
+}
+
+function sameAxisLayout(a: AxisLayout, b: AxisLayout): boolean {
+  return a.yAxisPosition === b.yAxisPosition && a.yAxisWidth === b.yAxisWidth && a.xAxisHeight === b.xAxisHeight;
+}
+
+/**
+ * The axis gutters overlays anchor to. Re-renders only when the Y-axis side
+ * or a gutter size actually changes — an axis config update, not every
+ * viewport tick. `null` while there is no chart yet.
+ */
+export function useAxisLayout(chart: ChartInstance): AxisLayout;
+export function useAxisLayout(chart: ChartInstance | null): AxisLayout | null;
+export function useAxisLayout(chart: ChartInstance | null): AxisLayout | null {
+  const store = useMemo(() => {
+    let snapshot = chart === null ? null : readAxisLayout(chart);
+
+    const refresh = (): boolean => {
+      if (chart === null) return false;
+
+      const next = readAxisLayout(chart);
+      if (snapshot !== null && sameAxisLayout(snapshot, next)) return false;
+
+      snapshot = next;
+
+      return true;
+    };
+
+    return {
+      subscribe: (callback: () => void) => {
+        if (chart === null) return () => {};
+
+        // The layout can change between useMemo and subscribe (the axis
+        // effect runs after children render) — reconcile before listening.
+        refresh();
+        const onChange = () => {
+          if (refresh()) callback();
+        };
+        chart.on('viewportChange', onChange);
+
+        return () => {
+          chart.off('viewportChange', onChange);
+        };
+      },
+      getSnapshot: () => snapshot,
+    };
+  }, [chart]);
+
+  // Doubles as the server snapshot: `ChartContainer` calls this before its
+  // chart exists (always so on the server), where the snapshot is `null`.
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
 export function useLastYValue(chart: ChartInstance, seriesId: string): { value: number; isLive: boolean } | null {

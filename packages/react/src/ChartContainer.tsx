@@ -138,9 +138,11 @@ export interface ChartContainerProps {
    * **X (under the axis)** — panning content slides under the Y-axis column
    * and dissolves instead of hard-clipping at the pane edge. **On by
    * default** as a 60px ramp that finishes just inside the axis column,
-   * before the label glyphs; `{ right }` overrides the total ramp width in
-   * CSS px (`0` disables). `{ left }` adds the mirror zone at the left pane
-   * edge (default off).
+   * before the label glyphs — on whichever side `axis.y.position` puts it
+   * (a left-axis ramp ends at the pane edge instead). The axis side's key
+   * (`{ right }` by default, `{ left }` for a left axis) overrides the total
+   * ramp width in CSS px (`0` disables); the other key adds a plain zone at
+   * the opposite pane edge (default off).
    *
    * **Top (under the header)** — opt-in. `true` enables the auto zone
    * (measured header + 24px run-out, half the header fold-in released so
@@ -469,7 +471,15 @@ export function ChartContainer({
     if (chartRef.current && axis) {
       chartRef.current.setAxis(axis);
     }
-  }, [axis?.y?.width, axis?.y?.min, axis?.y?.max, axis?.y?.visible, axis?.x?.height, axis?.x?.visible]);
+  }, [
+    axis?.y?.position,
+    axis?.y?.width,
+    axis?.y?.min,
+    axis?.y?.max,
+    axis?.y?.visible,
+    axis?.x?.height,
+    axis?.x?.visible,
+  ]);
 
   // Top-overlay height (title + info bar) — measured below. Declared here so
   // the padding effect can fold it into `padding.top`.
@@ -534,12 +544,19 @@ export function ChartContainer({
 
   const chart = chartRef.current;
 
+  // `chart` in the deps hands a rebuilt instance the current height too.
+  const floatingHeaderHeight = headerLayout === 'overlay' ? topOverlayHeight : 0;
+  useLayoutEffect(() => {
+    chart?.setHeaderHeight(floatingHeaderHeight);
+  }, [chart, floatingHeaderHeight]);
+
   // Edge fades — `chart` is in the deps so a rebuilt instance (a genuine
   // `animations` change) receives the current zones again; `setFade` no-ops
   // on unchanged values, so the extra fires are free. useLayoutEffect lands
   // the zones before the browser paints the first frame with data. Omitting
-  // `right` keeps the core's under-the-axis default armed; only `false`
-  // (every mask off) or an explicit `right` overrides it.
+  // a side keeps the core's auto default (the under-the-axis ramp on the
+  // Y-axis side); only `false` (every mask off) or an explicit value
+  // overrides it.
   const fadeRight = typeof fade === 'object' ? fade.right : undefined;
   const fadeLeft = typeof fade === 'object' ? fade.left : undefined;
   const fadeAllOff = fade === false;

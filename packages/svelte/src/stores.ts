@@ -1,4 +1,4 @@
-import type { ChartInstance, CrosshairPosition, VisibleRange, YRange } from '@wick-charts/core';
+import type { ChartInstance, CrosshairPosition, VisibleRange, YAxisPosition, YRange } from '@wick-charts/core';
 import { readable } from 'svelte/store';
 
 export function createVisibleRange(chart: ChartInstance) {
@@ -13,6 +13,40 @@ export function createYRange(chart: ChartInstance) {
   return readable<YRange>(chart.getYRange(), (set) => {
     const handler = () => set(chart.getYRange());
     chart.on('viewportChange', handler);
+    return () => chart.off('viewportChange', handler);
+  });
+}
+
+export interface AxisLayout {
+  yAxisPosition: YAxisPosition;
+  yAxisWidth: number;
+  xAxisHeight: number;
+}
+
+function readAxisLayout(chart: ChartInstance): AxisLayout {
+  return { yAxisPosition: chart.yAxisPosition, yAxisWidth: chart.yAxisWidth, xAxisHeight: chart.xAxisHeight };
+}
+
+/** The axis gutters overlays anchor to — emits on a Y-axis side or gutter size change. */
+export function createAxisLayout(chart: ChartInstance) {
+  let current = readAxisLayout(chart);
+
+  return readable<AxisLayout>(current, (set) => {
+    const handler = () => {
+      const next = readAxisLayout(chart);
+      const unchanged =
+        current.yAxisPosition === next.yAxisPosition &&
+        current.yAxisWidth === next.yAxisWidth &&
+        current.xAxisHeight === next.xAxisHeight;
+      if (unchanged) return;
+
+      current = next;
+      set(next);
+    };
+
+    handler();
+    chart.on('viewportChange', handler);
+
     return () => chart.off('viewportChange', handler);
   });
 }

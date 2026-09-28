@@ -112,6 +112,34 @@ describe('ZoomHandler.handleWheel', () => {
     const [, factor] = target.zoomAt.mock.calls[0];
     expect(factor).toBe(1);
   });
+
+  describe('with a left Y axis (target.plotLeft = 55)', () => {
+    function setupLeft() {
+      const target = { pan: vi.fn(), zoomAt: vi.fn(), plotLeft: 55 } as unknown as PanZoomTarget & {
+        zoomAt: ReturnType<typeof vi.fn>;
+      };
+      const timeScale = {
+        getMediaWidth: vi.fn(() => 745),
+        xToTime: vi.fn((x: number) => x * 100),
+      } as unknown as XScale;
+
+      return { target, timeScale, handler: new ZoomHandler(target, timeScale) };
+    }
+
+    it('zooms around the cursor in pane coordinates', () => {
+      const { timeScale, handler } = setupLeft();
+      handler.handleWheel(makeWheel({ deltaY: -50, offsetX: 455 }));
+
+      expect(timeScale.xToTime).toHaveBeenCalledWith(400);
+    });
+
+    it('clamps a wheel over the left axis column to the pane edge', () => {
+      const { timeScale, handler } = setupLeft();
+      handler.handleWheel(makeWheel({ deltaY: -50, offsetX: 20 }));
+
+      expect(timeScale.xToTime).toHaveBeenCalledWith(0);
+    });
+  });
 });
 
 describe('ZoomHandler rebound removal', () => {

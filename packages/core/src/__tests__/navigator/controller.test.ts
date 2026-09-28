@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ChartInstance } from '../../chart';
 import { NavigatorController } from '../../navigator/controller';
 import type { NavigatorData } from '../../navigator/types';
+import { installRaf } from '../helpers/fake-raf';
 
 const INTERVAL = 60_000;
 
@@ -113,5 +114,31 @@ describe('NavigatorController', () => {
     expect(after.to).toBeGreaterThan(before.to);
 
     nav.destroy();
+  });
+
+  it('reserves the Y-axis column on whichever side it sits', () => {
+    const raf = installRaf();
+    try {
+      chart.setAxis({ y: { position: 'left' } });
+      const nav = new NavigatorController({ container: navContainer, chart, data: lineData(chart) });
+      const canvas = navContainer.querySelector('canvas');
+      const overlay = navContainer.querySelector<HTMLElement>('[data-chart-navigator-overlay]');
+      if (!canvas || !overlay) throw new Error('navigator layers missing');
+
+      expect(canvas.style.left).toBe('55px');
+      expect(canvas.style.width).toBe('745px');
+      expect(overlay.style.left).toBe('55px');
+
+      // A flip at runtime re-anchors on the next frame.
+      chart.setAxis({ y: { position: 'right' } });
+      raf.flush();
+
+      expect(canvas.style.left).toBe('0px');
+      expect(overlay.style.left).toBe('0px');
+
+      nav.destroy();
+    } finally {
+      raf.uninstall();
+    }
   });
 });

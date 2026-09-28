@@ -4,6 +4,7 @@ import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
 import { getChartContext } from '../context';
+import { createAxisLayout } from '../stores';
 
 /** Custom tick-label formatter. Overrides the built-in range-adaptive default. */
 export let format: ValueFormatter | undefined = undefined;
@@ -16,6 +17,7 @@ export let labelCount: number | undefined = undefined;
 export let minLabelSpacing: number | undefined = undefined;
 
 const chart = get(getChartContext());
+const layout = chart !== null ? createAxisLayout(chart) : null;
 
 let container: HTMLDivElement | null = null;
 let cleanup: (() => void) | null = null;
@@ -48,9 +50,9 @@ onDestroy(() => {
 });
 </script>
 
-{#if chart !== null}
+{#if chart !== null && $layout}
   <div
     bind:this={container}
-    style="position:absolute;right:0;top:0;bottom:{chart.xAxisHeight}px;width:{chart.yAxisWidth}px;pointer-events:none;"
+    style="position:absolute;{$layout.yAxisPosition}:0;top:0;bottom:{$layout.xAxisHeight}px;width:{$layout.yAxisWidth}px;pointer-events:none;"
   />
 {/if}

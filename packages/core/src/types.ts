@@ -154,8 +154,10 @@ export interface CrosshairPosition {
 
 /** Layout metrics describing the chart area, Y axis, and time axis sizes. */
 export interface ChartLayout {
+  /** Plot area in container CSS px — `x` is the Y-axis width when the axis sits on the left. */
   chartArea: Rect;
   yAxisWidth: number;
+  yAxisPosition: YAxisPosition;
   xAxisHeight: number;
 }
 
@@ -955,8 +957,17 @@ export interface HeatmapSeriesOptions {
   updateMs?: number;
 }
 
+/** Side of the plot area the Y axis column sits on. */
+export type YAxisPosition = 'left' | 'right';
+
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
+  /**
+   * Side the axis column sits on — the plot area shifts right by the axis
+   * width when it's `'left'`. The default edge fade follows the axis to
+   * whichever side it's on. Default: 'right'.
+   */
+  position?: YAxisPosition;
   /** Width in CSS pixels. Default: 55. */
   width?: number;
   /** Minimum bound. Default: 'auto'. */

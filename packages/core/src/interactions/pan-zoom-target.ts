@@ -22,4 +22,10 @@ export interface PanZoomTarget {
    * chart keeps working. Targets that omit the hook are always pan/zoomable.
    */
   canPanZoom?(): boolean;
+  /**
+   * Left edge of the plot area in canvas CSS px — nonzero when the Y axis
+   * sits on the left. Pointer offsets subtract it before mapping through the
+   * time scale. Omitted means `0`.
+   */
+  readonly plotLeft?: number;
 }

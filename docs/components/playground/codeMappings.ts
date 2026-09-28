@@ -193,6 +193,7 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
   if (s.headerLayout !== 'overlay') out.headerLayout = s.headerLayout;
 
   const y: Record<string, PropValue> = {};
+  if (s.axis?.y?.position === 'left') y.position = 'left';
   if (s.axis?.y?.width !== undefined && s.axis.y.width !== AXIS_Y_WIDTH_DEFAULT) {
     y.width = s.axis.y.width;
   }
