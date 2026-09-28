@@ -104,7 +104,7 @@ export interface ChartOptions {
    * floating Title / InfoBar at the top (`top`), or out the left edge
    * (`left`). The mask *erases* pixels rather than painting a cover color,
    * so it stays correct over any container background — including the
-   * default CSS gradient. Live — `chart.setFade()` updates it after
+   * optional CSS gradient. Live — `chart.setFade()` updates it after
    * construction.
    */
   fade?: FadeConfig;

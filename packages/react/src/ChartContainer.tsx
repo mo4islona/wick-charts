@@ -112,7 +112,7 @@ export interface ChartContainerProps {
    * use `viewport.initialRange` instead.
    */
   visibleRange?: VisibleRangeSpec;
-  /** Show the chart background gradient. Live. Defaults to true. */
+  /** Show the chart background gradient. Live. Defaults to false. */
   gradient?: boolean;
   /**
    * Enable zoom, pan, and crosshair interactions. Defaults to true.
@@ -131,7 +131,7 @@ export interface ChartContainerProps {
    * under a floating `<Title>` / `<InfoBar>` instead of colliding with it —
    * a Y-axis spring lag, a streaming spike, or a warm-up burst glides into
    * transparency. The mask erases canvas alpha rather than painting a cover
-   * color, so it stays correct over the default background gradient. Live.
+   * color, so it stays correct over a background gradient. Live.
    *
    * Two directions, independently controlled:
    *
@@ -334,7 +334,7 @@ export function ChartContainer({
   axis,
   padding,
   viewport,
-  gradient = true,
+  gradient = false,
   interactive,
   grid,
   fade,

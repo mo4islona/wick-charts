@@ -91,11 +91,10 @@ describe('Vue <ChartContainer> ported props', () => {
     uninstallRaf();
   });
 
-  it('gradient=false drops the linear-gradient and falls back to the flat background colour', async () => {
+  it('omitted gradient (default) renders the flat background colour', async () => {
     const App = defineComponent({
       setup() {
-        return () =>
-          h(ChartContainer, { theme: catppuccin.theme, gradient: false }, () => [h(CandlestickSeries, { data: ohlc })]);
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc })]);
       },
     });
     const wrapper = mount(App, { attachTo: host });
@@ -106,10 +105,11 @@ describe('Vue <ChartContainer> ported props', () => {
     wrapper.unmount();
   });
 
-  it('gradient=true (default) keeps the linear-gradient background', async () => {
+  it('gradient=true renders the linear-gradient background', async () => {
     const App = defineComponent({
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc })]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, gradient: true }, () => [h(CandlestickSeries, { data: ohlc })]);
       },
     });
     const wrapper = mount(App, { attachTo: host });
