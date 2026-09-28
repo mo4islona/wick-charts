@@ -42,7 +42,7 @@ interface SparklineProps {
   width?: number;                         // chart width, default: 140
   height?: number;                        // container height, default: 48
   strokeWidth?: number;                 // default: 1
-  gradient?: boolean;                     // background gradient, default: true
+  gradient?: boolean;                     // background gradient, default: false
   style?: CSSProperties;                  // container style override
 }
 ```

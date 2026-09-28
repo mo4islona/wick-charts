@@ -189,7 +189,7 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
   const out: Record<string, PropValue> = {};
 
   if (!s.grid.visible) out.grid = { visible: false };
-  if (!s.gradient) out.gradient = false;
+  if (s.gradient) out.gradient = true;
   if (s.headerLayout !== 'overlay') out.headerLayout = s.headerLayout;
 
   const y: Record<string, PropValue> = {};

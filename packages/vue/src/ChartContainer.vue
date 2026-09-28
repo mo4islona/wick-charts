@@ -81,7 +81,7 @@ const props = withDefaults(
      * change, use `viewport.initialRange` instead.
      */
     visibleRange?: VisibleRangeSpec;
-    /** Show the chart background gradient. Live. Defaults to true. */
+    /** Show the chart background gradient. Live. Defaults to false. */
     gradient?: boolean;
     /**
      * Enable zoom, pan, and crosshair interactions. Defaults to true.
@@ -96,7 +96,7 @@ const props = withDefaults(
      * Soft fade-out at the top of the plot area, so series content dissolves
      * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
      * The mask erases canvas alpha rather than painting a cover color, so it
-     * stays correct over the default background gradient. Live.
+     * stays correct over a background gradient. Live.
      *
      * Two directions, independently controlled:
      *
@@ -185,7 +185,7 @@ const props = withDefaults(
   }>(),
   {
     theme: () => catppuccin.theme,
-    gradient: true,
+    gradient: false,
     // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
     // `false` (not `undefined`) — without this explicit default, every chart
     // that didn't pass `:interactive="true"` silently got zero pan/zoom/

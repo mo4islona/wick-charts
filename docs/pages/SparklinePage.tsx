@@ -511,7 +511,7 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
           props.yRange = range;
         }
 
-        if (!s.gradient) props.gradient = false;
+        if (s.gradient) props.gradient = true;
 
         return {
           theme: 'catppuccin.theme',

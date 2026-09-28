@@ -68,12 +68,21 @@ describe('Svelte ported props parity', () => {
     restoreSize();
   });
 
-  it('<ChartContainer gradient={false}> drops the linear-gradient background', async () => {
-    const result = render(PortedPropsHarness, { variant: 'gradient-off', candlestickData });
+  it('<ChartContainer> renders a flat background by default', async () => {
+    const result = render(PortedPropsHarness, { variant: 'gradient-default', candlestickData });
     await settle();
 
     const root = result.container.querySelector('div') as HTMLElement;
     expect(root.style.background).not.toContain('linear-gradient');
+    result.unmount();
+  });
+
+  it('<ChartContainer gradient> renders the linear-gradient background', async () => {
+    const result = render(PortedPropsHarness, { variant: 'gradient-on', candlestickData });
+    await settle();
+
+    const root = result.container.querySelector('div') as HTMLElement;
+    expect(root.style.background).toContain('linear-gradient');
     result.unmount();
   });
 

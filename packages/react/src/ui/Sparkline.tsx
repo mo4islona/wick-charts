@@ -75,7 +75,7 @@ export interface SparklineProps {
   height?: number;
   /** Stroke width in CSS pixels (default: 1) */
   strokeWidth?: number;
-  /** Show chart background gradient (default: true) */
+  /** Show chart background gradient (default: false) */
   gradient?: boolean;
   /** Container style override */
   style?: CSSProperties;
@@ -116,7 +116,7 @@ export function Sparkline({
   width = 140,
   height = 48,
   strokeWidth = 1,
-  gradient = true,
+  gradient = false,
   style,
 }: SparklineProps) {
   // Default area-visible = true. `area` wins if caller passes it; otherwise
