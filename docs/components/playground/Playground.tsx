@@ -1,6 +1,6 @@
 import { type ReactNode, useMemo, useState } from 'react';
 
-import type { AxisConfig, ChartTheme, YAxisPosition } from '@wick-charts/react';
+import { type AxisConfig, type ChartTheme, type YAxisPosition, logScale } from '@wick-charts/react';
 import { Code, SlidersHorizontal, X } from 'lucide-react';
 
 import { useIsMobile } from '../../hooks';
@@ -22,6 +22,7 @@ import {
   type LineEntryAnim,
   type RowSpec,
   type SectionSpec,
+  type YScaleKind,
 } from './sections';
 import { themeSurfaceVars } from './themeSurface';
 import { usePanelWidth, useSettings } from './useSettings';
@@ -124,6 +125,7 @@ function stateToChartProps<TExtra extends object>(
     y: {
       position: state.yAxisPosition,
       width: state.yAxisWidth,
+      scale: state.yScaleType === 'log' ? logScale() : undefined,
       min: parseBound(state.minBound),
       max: parseBound(state.maxBound),
       visible: state.yAxisVisible,
@@ -356,6 +358,21 @@ function buildBuiltinSections({
                 { value: 'right', label: 'Right' },
               ]}
               onChange={onChange as (v: YAxisPosition) => void}
+            />
+          ),
+        } as RowSpec,
+        {
+          key: 'yScaleType',
+          label: 'Scale',
+          hint: 'Log spaces powers of ten evenly; values ≤ 0 are skipped',
+          render: (v, onChange) => (
+            <ToggleGroup<YScaleKind>
+              value={v as YScaleKind}
+              options={[
+                { value: 'linear', label: 'Linear' },
+                { value: 'log', label: 'Log' },
+              ]}
+              onChange={onChange as (v: YScaleKind) => void}
             />
           ),
         } as RowSpec,

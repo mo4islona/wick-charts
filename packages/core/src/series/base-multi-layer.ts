@@ -3,11 +3,11 @@ import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
-import type { TimePoint, TimePointInput, ValueColor } from '../types';
+import type { StackingMode, TimePoint, TimePointInput, ValueColor } from '../types';
 import { resolveColor } from '../utils/color';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
+import type { SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 
 /**
  * Shape of the options that {@link BaseMultiLayerSeries} reads directly.
@@ -851,13 +851,18 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.stores[0]?.getVisibleData(from, to) ?? [];
   }
 
-  getValueRange(from: number, to: number): { min: number; max: number } | null {
+  get stacking(): StackingMode {
+    return this.options.stacking;
+  }
+
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
     const stacking = this.options.stacking;
     if (stacking === 'percent') {
       return { min: 0, max: 100 };
     }
 
     const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
+    const plottable = opts?.plottable;
 
     if (stacking === 'off') {
       // Union of all layers' individual ranges. Skip non-finite values so
@@ -867,6 +872,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       for (const data of layers) {
         for (const d of data) {
           if (!Number.isFinite(d.value)) continue;
+          if (plottable && !plottable(d.value)) continue;
+
           if (d.value < min) min = d.value;
           if (d.value > max) max = d.value;
         }
@@ -874,6 +881,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
       return min < Infinity ? { min, max } : null;
     }
+
+    if (plottable) return plottableStackedRange(layers, plottable);
 
     // Normal stacking: compute stacked totals. Non-finite values are treated
     // as 0 for the stack — don't crash the range because one layer has a gap.
@@ -904,4 +913,49 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
     return max > min ? { min, max } : null;
   }
+}
+
+/**
+ * Stacked range for a non-linear Y scale. Values the scale can't place add
+ * nothing to the stack, and every drawn edge counts — the zero baseline only
+ * when the scale can place it. On log that makes a column's lowest edge its
+ * first positive running total, since the floor carries the bottom slice.
+ */
+function plottableStackedRange(
+  layers: readonly (readonly TimePoint[])[],
+  plottable: (value: number) => boolean,
+): { min: number; max: number } | null {
+  const columns = new Map<number, number[]>();
+  for (let li = 0; li < layers.length; li++) {
+    for (const d of layers[li]) {
+      let column = columns.get(d.time);
+      if (!column) {
+        column = new Array(layers.length).fill(0);
+        columns.set(d.time, column);
+      }
+      column[li] = plottable(d.value) ? d.value : 0;
+    }
+  }
+
+  const baseline = plottable(0);
+  let min = baseline ? 0 : Infinity;
+  let max = baseline ? 0 : -Infinity;
+  for (const column of columns.values()) {
+    let positive = 0;
+    let negative = 0;
+    for (const v of column) {
+      if (v === 0) continue;
+
+      if (v > 0) positive += v;
+      else negative += v;
+
+      const edge = v > 0 ? positive : negative;
+      if (!plottable(edge)) continue;
+
+      if (edge < min) min = edge;
+      if (edge > max) max = edge;
+    }
+  }
+
+  return min < Infinity ? { min, max } : null;
 }

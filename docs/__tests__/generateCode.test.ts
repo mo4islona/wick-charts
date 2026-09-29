@@ -216,4 +216,22 @@ describe('generateCode', () => {
       expect(code).toContain('theme={catppuccin.theme}');
     });
   });
+
+  it('imports factory calls nested inside container props', () => {
+    const code = generateCode(
+      {
+        theme: 'catppuccin.theme',
+        containerProps: {
+          axis: { y: { scale: 'logScale()' } },
+          animations: { axis: { y: { curve: 'spring()' } } },
+        },
+        components: [{ component: 'LineSeries', props: { data: 'data' } }],
+      },
+      'react',
+    );
+
+    expect(code).toContain('scale: logScale()');
+    expect(code).toMatch(/import \{[^}]*\blogScale\b[^}]*\} from '@wick-charts\/react';/);
+    expect(code).toMatch(/import \{[^}]*\bspring\b[^}]*\} from '@wick-charts\/react';/);
+  });
 });

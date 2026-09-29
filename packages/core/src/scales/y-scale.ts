@@ -1,4 +1,4 @@
-import type { YRange } from '../types';
+import type { YRange, YScaleTransform } from '../types';
 import { type ValueFormatter, formatCompact } from '../utils/format';
 import { crispCenterOffset } from '../utils/pixel-grid';
 import { AxisTickTracker } from './tick-tracker';
@@ -37,6 +37,13 @@ const MAX_TICKS = 50;
 /** Default minimum pixel gap between adjacent Y labels when no config is supplied. */
 const DEFAULT_MIN_LABEL_SPACING = 50;
 
+/** Whether `value` is finite and inside `transform`'s domain (`null` = linear). */
+export function isPlottableOn(transform: YScaleTransform | null, value: number): boolean {
+  if (!Number.isFinite(value)) return false;
+
+  return transform?.isPlottable?.(value) ?? true;
+}
+
 /**
  * Maps values to vertical pixel positions (and vice versa).
  * Also provides tick generation and value formatting for the Y axis.
@@ -45,8 +52,13 @@ export class YScale {
   /** Shared fade state for Y ticks; see {@link TimeScale.tickTracker}. */
   readonly tickTracker = new AxisTickTracker();
 
+  /** Non-linear value mapping (`axis.y.scale`); `null` is linear. */
+  private transform: YScaleTransform | null = null;
   private min = 0;
   private max = 0;
+  /** Domain bounds in scale space — `transform.forward` of `min` / `max`. */
+  private lo = 0;
+  private hi = 0;
   private height = 1;
   private pixelRatio = 1;
 
@@ -67,6 +79,9 @@ export class YScale {
    */
   private lastRawInterval: number | null = null;
 
+  /** The transform's own ticks (e.g. powers of ten); `null` while linear ticks are in use. */
+  private ownTicks: readonly number[] | null = null;
+
   /** Custom formatter (driven by `<YAxis format=…>`). */
   private customFormat: ValueFormatter | null = null;
   /** Custom tick generator — bypasses {1,2,5}×10^k resolution in `niceTickValues` when set. */
@@ -86,26 +101,66 @@ export class YScale {
     this.max = range.max;
     this.height = mediaHeight;
     this.pixelRatio = pixelRatio;
-    this.resolveInterval();
+    this.updateDomain();
+    this.resolveTicks();
+  }
+
+  /** Install a non-linear value mapping, or `null` for linear. The range is kept as-is — the chart refits it. */
+  setTransform(transform: YScaleTransform | null): void {
+    if (transform === this.transform) return;
+
+    this.transform = transform;
+    this.resetHysteresis();
+    this.updateDomain();
+    this.resolveTicks();
+  }
+
+  getTransform(): YScaleTransform | null {
+    return this.transform;
+  }
+
+  /**
+   * Whether `value` has a position on this scale: finite, and inside the
+   * transform's domain (positive on log). Renderers skip values that fail —
+   * {@link valueToY} still maps them (to the plot floor) so nothing
+   * downstream sees NaN.
+   */
+  isPlottable(value: number): boolean {
+    return isPlottableOn(this.transform, value);
   }
 
   /** Desired label count. Invalid values (NaN, <2, Infinity) clear the hint. */
   setLabelCount(n: number | null | undefined): void {
     this.labelCountHintValue = normalizeLabelCount(n);
     this.resetHysteresis();
-    this.resolveInterval();
+    this.resolveTicks();
   }
 
   /** Minimum pixel gap between adjacent labels. */
   setMinSpacing(px: number | null | undefined): void {
     this.minSpacingValue = normalizeSpacing(px);
     this.resetHysteresis();
-    this.resolveInterval();
+    this.resolveTicks();
   }
 
   private resetHysteresis(): void {
     this.lastInterval = null;
     this.lastRawInterval = null;
+  }
+
+  /** A transformed domain needs both bounds plottable; anything else collapses to a flat one. */
+  private updateDomain(): void {
+    const transform = this.transform;
+    if (transform === null) {
+      this.lo = this.min;
+      this.hi = this.max;
+
+      return;
+    }
+
+    const valid = this.isPlottable(this.min) && this.isPlottable(this.max);
+    this.lo = valid ? transform.forward(this.min) : 0;
+    this.hi = valid ? transform.forward(this.max) : 0;
   }
 
   /** Install (or clear) a custom formatter. */
@@ -128,14 +183,22 @@ export class YScale {
     this.resetHysteresis();
   }
 
-  /** Convert a value to a Y position in CSS (media) pixels. */
+  /**
+   * Convert a value to a Y position in CSS (media) pixels. A value the
+   * transform can't place (≤ 0 on log) lands on the plot floor.
+   */
   valueToY(value: number): number {
-    const range = this.max - this.min;
+    const span = this.hi - this.lo;
     // Flat range (single-value series or zoom-collapsed) would divide by zero
     // and poison the render pipeline with NaN. Anchor at mid-height instead.
-    if (range === 0) return this.height / 2;
+    if (span === 0) return this.height / 2;
 
-    return (1 - (value - this.min) / range) * this.height;
+    const transform = this.transform;
+    if (transform === null) return (1 - (value - this.lo) / span) * this.height;
+
+    if (!this.isPlottable(value)) return this.height;
+
+    return (1 - (transform.forward(value) - this.lo) / span) * this.height;
   }
 
   /** Convert a value to a Y position in physical (bitmap) pixels, snapped to
@@ -162,12 +225,14 @@ export class YScale {
     return (this.valueToBitmapY(value) + crispCenterOffset(this.pixelRatio)) / this.pixelRatio;
   }
 
-  /** Convert a Y position in CSS pixels back to a value. */
+  /** Convert a Y position in CSS pixels back to a value — the exact inverse of {@link valueToY}. */
   yToValue(y: number): number {
-    const range = this.max - this.min;
-    if (range === 0) return this.min;
+    const span = this.hi - this.lo;
+    if (span === 0) return this.min;
 
-    return this.max - (y / this.height) * range;
+    const scaled = this.hi - (y / this.height) * span;
+
+    return this.transform === null ? scaled : this.transform.inverse(scaled);
   }
 
   /**
@@ -177,6 +242,13 @@ export class YScale {
   niceTickValues(): number[] {
     if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
 
+    if (this.ownTicks !== null) return this.ownTicks.slice(0, MAX_TICKS);
+
+    return this.linearTickValues();
+  }
+
+  /** {1,2,5}×10^k ticks at the resolved interval, limited to what the transform can place. */
+  private linearTickValues(): number[] {
     if (this.resolvedInterval == null) return [];
 
     const interval = this.resolvedInterval;
@@ -187,7 +259,9 @@ export class YScale {
     // Multiplicative indexing avoids cumulative fp drift of `p += interval`.
     for (let i = 0; i < count; i++) ticks.push(start + i * interval);
 
-    return ticks;
+    if (this.transform === null) return ticks;
+
+    return ticks.filter((tick) => this.isPlottable(tick));
   }
 
   getRange(): YRange {
@@ -208,6 +282,10 @@ export class YScale {
   formatY(value: number): string {
     if (this.customFormat) return this.customFormat(value);
 
+    // A transform's own ticks (powers of ten) share no interval to derive decimals from.
+    const ownFormat = this.ownTicks !== null ? this.transform?.format : undefined;
+    if (ownFormat) return ownFormat(value);
+
     // Kick into K/M/B/T suffixes once labels would otherwise balloon past ~7
     // characters. Keeping the threshold at ≥ 1e6 preserves readable raw
     // numbers up through "50000" / "99999" tick labels.
@@ -222,9 +300,57 @@ export class YScale {
     return value.toFixed(decimals);
   }
 
+  private resolveTicks(): void {
+    this.ownTicks = null;
+
+    const transform = this.transform;
+    if (transform === null) {
+      this.resolveInterval(((this.max - this.min) * this.minLabelSpacing) / this.height);
+
+      return;
+    }
+
+    const span = this.hi - this.lo;
+    if (!(span > 0) || this.height <= 0) {
+      this.resolvedInterval = null;
+
+      return;
+    }
+
+    this.resolveInterval(this.transformedGapFloor(transform, span));
+    if (!transform.ticks) return;
+
+    const linear = this.linearTickValues();
+    const picked = transform.ticks({
+      min: this.min,
+      max: this.max,
+      height: this.height,
+      minSpacing: this.minLabelSpacing,
+      labelCount: this.labelCountHint,
+      linear,
+    });
+    // Handing `linear` back keeps the linear ticks, and with them the linear formatter.
+    this.ownTicks = picked === linear ? null : picked;
+  }
+
+  /**
+   * Smallest linear interval whose ticks stay `minLabelSpacing` apart on the
+   * transformed axis. A monotonic mapping squeezes its gaps hardest at one
+   * end — the top for log (concave), the bottom for a convex one — so
+   * checking both ends covers it.
+   */
+  private transformedGapFloor(transform: YScaleTransform, span: number): number {
+    const spacing = (this.minLabelSpacing / this.height) * span;
+    const atTop = this.max - transform.inverse(Math.max(this.lo, this.hi - spacing));
+    const atBottom = transform.inverse(Math.min(this.hi, this.lo + spacing)) - this.min;
+
+    return Math.max(atTop, atBottom);
+  }
+
   /**
    * Resolve the interval to a {1,2,5}×10^k tick size that satisfies the pixel
-   * floor and (optionally) targets `labelCountHint` labels.
+   * floor and (optionally) targets `labelCountHint` labels. `gapFloorValue` is
+   * the smallest interval that clears `minLabelSpacing` anywhere on the axis.
    *
    * Hysteresis: the band [0.8×, 1.25×] is anchored to **rawInterval at last
    * snap**, not to `lastInterval`. After an escalation (e.g. 100 → 200),
@@ -233,14 +359,13 @@ export class YScale {
    * *not* de-escalate. This prevents the 2-tier flicker users see when new
    * candles nudge the Y range across a raw-interval threshold.
    */
-  private resolveInterval(): void {
+  private resolveInterval(gapFloorValue: number): void {
     if (this.max <= this.min || this.height <= 0) {
       this.resolvedInterval = null;
       return;
     }
 
     const range = this.max - this.min;
-    const gapFloorValue = (range * this.minLabelSpacing) / this.height;
 
     // For the hint path we use `labelCount` (not `labelCount - 1`) as the gap
     // target: the ceiling 1-2-5 snap tends to swallow a tick at boundary

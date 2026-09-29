@@ -28,7 +28,7 @@ import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
 import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
-import type { SeriesRenderContext, TimeSeriesRenderer } from './types';
+import type { SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -163,6 +163,13 @@ interface CandlePass {
   /** Corner radius in bitmap px (CSS px × horizontalPixelRatio), before the
    *  per-body clamp applied at the fill site. */
   radius: number;
+}
+
+/** Every price has a position on the Y scale — otherwise the whole candle is skipped. */
+function isPlottableCandle(candle: OHLCData, plottable: (value: number) => boolean): boolean {
+  const prices = [candle.open, candle.high, candle.low, candle.close];
+
+  return prices.every((price) => Number.isFinite(price) && plottable(price));
 }
 
 function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOptions {
@@ -517,14 +524,18 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     return this.store.getVisibleData(from, to);
   }
 
-  getValueRange(from: number, to: number): { min: number; max: number } | null {
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
     const visible = this.store.getVisibleData(from, to);
+    const plottable = opts?.plottable;
 
     // Independent finite guards per bound — mirrors the y-target fallback this
     // replaces, so a poisoned high/low (NaN / ±Infinity) can't corrupt the range.
     let min = Infinity;
     let max = -Infinity;
     for (const candle of visible) {
+      // Same gate the render applies on a non-linear scale, so the axis fits what's drawn.
+      if (plottable && !isPlottableCandle(candle, plottable)) continue;
+
       if (Number.isFinite(candle.low) && candle.low < min) min = candle.low;
       if (Number.isFinite(candle.high) && candle.high > max) max = candle.high;
     }
@@ -544,6 +555,9 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     const decimated = visibleData.length > pixelWidth * 2;
     if (decimated) {
       visibleData = decimateOHLCData(visibleData, Math.round(pixelWidth * 1.5));
+    }
+    if (yScale.getTransform() !== null) {
+      visibleData = visibleData.filter((candle) => isPlottableCandle(candle, (value) => yScale.isPlottable(value)));
     }
     if (visibleData.length === 0) return;
 
