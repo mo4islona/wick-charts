@@ -169,6 +169,9 @@ export interface FadeConfig {
    * On the side opposite the axis it's a plain zone at the pane edge —
    * content leaving the plot dissolves instead of hard-clipping at the
    * canvas boundary. Off by default.
+   *
+   * A chart whose series are all spatial (pie, heatmap) has no axis column,
+   * so both sides take the plain zone, off by default.
    */
   right?: number;
   /**
@@ -182,7 +185,8 @@ export interface FadeConfig {
 
 export interface ResolvedFade {
   top: number;
-  /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other. */
+  /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other
+   *  and on both sides of a spatial-only chart. */
   right: number | null;
   left: number | null;
 }

@@ -968,7 +968,7 @@ export interface YAxisConfig {
    * whichever side it's on. Default: 'right'.
    */
   position?: YAxisPosition;
-  /** Width in CSS pixels. Default: 55. */
+  /** Width in CSS pixels. Default: 55, or 0 when every series is spatial (pie, heatmap). */
   width?: number;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
@@ -980,7 +980,7 @@ export interface YAxisConfig {
 
 /** Configuration for the X (time) axis. */
 export interface XAxisConfig {
-  /** Height in CSS pixels. Default: 30. */
+  /** Height in CSS pixels. Default: 30, or 0 when every series is spatial (pie, heatmap). */
   height?: number;
   /** Whether the axis is visible. Default: true. When false, height is treated as 0. */
   visible?: boolean;
