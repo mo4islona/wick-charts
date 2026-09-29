@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { type AnimationsConfig, hermite, snap, spring } from '@wick-charts/react';
+import { type AnimationsConfig, type AxisConfig, type StackingMode, hermite, snap, spring } from '@wick-charts/react';
 
 import type { PropValue } from '../CodePreview';
 import type { PlaygroundChartProps } from './Playground';
@@ -180,6 +180,18 @@ function pickAnimations(s: PlaygroundChartProps, curveAs: 'string' | 'factory'):
   return nonEmpty(out);
 }
 
+/** `axis` with the Y scale pinned to linear — for demo data a log axis can't show. */
+export function withLinearY(axis: AxisConfig): AxisConfig {
+  if (axis.y?.type !== 'log') return axis;
+
+  return { ...axis, y: { ...axis.y, type: 'linear' } };
+}
+
+/** A log Y scale rejects percent stacking, so a 100% chart stays linear. */
+export function axisForStacking(axis: AxisConfig, stacking: StackingMode): AxisConfig {
+  return stacking === 'percent' ? withLinearY(axis) : axis;
+}
+
 /**
  * Build ChartContainer props shared across cartesian playground pages.
  * Emits only fields that differ from library defaults so the snippet stays minimal —
@@ -194,6 +206,7 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
 
   const y: Record<string, PropValue> = {};
   if (s.axis?.y?.position === 'left') y.position = 'left';
+  if (s.axis?.y?.type === 'log') y.type = 'log';
   if (s.axis?.y?.width !== undefined && s.axis.y.width !== AXIS_Y_WIDTH_DEFAULT) {
     y.width = s.axis.y.width;
   }

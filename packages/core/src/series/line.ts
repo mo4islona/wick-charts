@@ -507,7 +507,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           for (let li = 0; li < this.stores.length; li++) {
             if (this.getLayerAlpha(li) <= 0 || !this.stores[li].isVisible()) continue;
 
-            const finite = layerData(li).filter((d) => Number.isFinite(d.value));
+            const finite = layerData(li).filter((d) => yScale.isPlottable(d.value));
             if (finite.length < 2) continue;
 
             pathCache = finite.map((d) => ({
@@ -679,7 +679,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const last = this.stores[layerIndex].last();
     if (last !== undefined && head.time >= last.time) {
-      if (!Number.isFinite(last.value)) return null;
+      if (!yScale.isPlottable(last.value)) return null;
 
       const endpoint = this.trailingEndpoint(ctx, layerIndex);
       if (endpoint === null) return null;
@@ -689,7 +689,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const first = data[0];
     if (head.time <= first.time) {
-      if (!Number.isFinite(first.value)) return null;
+      if (!yScale.isPlottable(first.value)) return null;
 
       const startValue = this.effectiveValue(ctx, layerIndex, first.time, first.value);
 
@@ -701,7 +701,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
 
     const value = valueAtTime(data, head.time, (p) => this.effectiveValue(ctx, layerIndex, p.time, p.value));
-    if (value === null) return null;
+    if (value === null || !yScale.isPlottable(value)) return null;
 
     return { x: head.x, y: yScale.valueToBitmapYExact(value), value };
   }
@@ -869,7 +869,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const { timeScale, yScale } = ctx;
     const anchor = all[anchorIdx];
-    if (!Number.isFinite(anchor.value)) return null;
+    if (!yScale.isPlottable(anchor.value)) return null;
 
     let prevX = timeScale.timeToBitmapXExact(anchor.time);
     let prevY = yScale.valueToBitmapYExact(this.effectiveValue(ctx, layerIndex, anchor.time, anchor.value));
@@ -877,7 +877,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const positions = new Map<number, { x: number; y: number }>();
     for (let k = 0; k < chain.length; k++) {
       const point = all[anchorIdx + 1 + k];
-      if (!Number.isFinite(point.value)) return null;
+      if (!yScale.isPlottable(point.value)) return null;
 
       // Ease the unfurl so each head decelerates into its resting spot
       // instead of hard-stopping at settle. Linear `progress` still drives
@@ -1084,7 +1084,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
 
       // Line — break the path at any non-finite value (null / NaN / Infinity /
-      // undefined). A naive single-path draw would either stroke through NaN
+      // undefined), and at values ≤ 0 on a log scale. A naive single-path draw would either stroke through NaN
       // coordinates or leak the area-fill polygon across gaps, so we collect
       // finite *runs* and render each independently: stroke = one subpath per
       // run, fill = one closed polygon per run anchored to the chart bottom.
@@ -1094,7 +1094,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       let current: { x: number; y: number }[] | null = null;
       for (let i = 0; i < bodyEnd; i++) {
         const v = data[i].value;
-        if (!Number.isFinite(v)) {
+        if (!yScale.isPlottable(v)) {
           current = null;
           continue;
         }
@@ -1118,7 +1118,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // point is finite. A poisoned last value would produce a NaN trailing
       // endpoint; skip it instead of contaminating the polygon.
       const lastValue = data[bodyEnd]?.value;
-      const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && Number.isFinite(lastValue);
+      const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && yScale.isPlottable(lastValue);
       // The trailing endpoint moves every frame only during a 'grow' entrance;
       // a smooth builder keeps that run's last segment straight (grew=true) so
       // the head can't wobble. Other runs / styles are fully settled.
@@ -1312,13 +1312,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (percent) {
         for (let li = 0; li < this.stores.length; li++) {
           const v = valueMaps[li].get(t);
-          if (Number.isFinite(v)) total += v as number;
+          if (v !== undefined && yScale.isPlottable(v)) total += v;
         }
       }
       let running = 0;
       for (let li = 0; li < this.stores.length; li++) {
+        // ≤ 0 adds nothing on a log scale, the same as a gap.
         const v = valueMaps[li].get(t);
-        const raw = Number.isFinite(v) ? (v as number) : 0;
+        const raw = v !== undefined && yScale.isPlottable(v) ? v : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }
@@ -1631,6 +1632,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
         const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
         if (!closest) continue;
+        if (stacking === 'off' && !yScale.isPlottable(closest.value)) continue;
 
         // Resolve the dot at the layer's raw value under the cursor so a
         // value-fn color matches the segment the crosshair is on.
@@ -1704,6 +1706,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const color = this.resolveLayerColor(li, lastValue);
 
         if (stacking === 'off') {
+          if (!yScale.isPlottable(lastValue)) continue;
+
           // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
           // entrance so the dot glides from penultimate toward the new point in
           // lockstep with the line's trailing segment.

@@ -201,6 +201,7 @@ export type {
   SeriesRenderer,
   SliceInfo,
   TimeSeriesRenderer,
+  ValueRangeOptions,
 } from './series/types';
 export { isTimeSeriesRenderer } from './series/types';
 export type {
@@ -295,6 +296,7 @@ export type {
   YAxisConfig,
   YAxisPosition,
   YRange,
+  YScaleType,
 } from './types';
 // Utils
 export { mixColors, sampleRamp } from './utils/color';

@@ -411,8 +411,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       for (const d of visibleData) {
         // Skip poisoned values (null / NaN / ±Infinity / undefined) — the
-        // renderer must not draw a NaN-height bar.
-        if (!Number.isFinite(d.value)) continue;
+        // renderer must not draw a NaN-height bar — and, on a log scale, values ≤ 0.
+        if (!yScale.isPlottable(d.value)) continue;
 
         // The intro's value directive scales the drawn value (growth from
         // the baseline); color resolves from the settled value so a
@@ -477,7 +477,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       for (let li = 0; li < layers.length; li++) {
         const alpha = this.getLayerAlpha(li);
         for (const d of layers[li]) {
-          if (!Number.isFinite(d.value)) continue;
+          if (!yScale.isPlottable(d.value)) continue;
           let arr = timeMap.get(d.time);
           if (!arr) {
             arr = [];
@@ -617,8 +617,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           arr = new Array(layers.length).fill(0);
           timeMap.set(d.time, arr);
         }
-        // Non-finite → 0 in the stack so one gap doesn't NaN-out the column.
-        const raw = Number.isFinite(d.value) ? d.value : 0;
+        // Non-finite (or ≤ 0 on a log scale) → 0 in the stack so one gap
+        // doesn't NaN-out the column.
+        const raw = yScale.isPlottable(d.value) ? d.value : 0;
         let value = this.effectiveValue(ctx, li, d.time, raw) * alpha;
         if (growEntrance && !this.isProjectedTime(d.time)) {
           value *= this.entranceProgress(li, d.time);

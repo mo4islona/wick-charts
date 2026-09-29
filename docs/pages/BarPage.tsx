@@ -20,10 +20,12 @@ import {
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
 import {
+  axisForStacking,
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
   buildNavigatorComponent,
   useAnimationsProp,
+  withLinearY,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
@@ -67,17 +69,20 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   });
   const display = props.streaming ? datasets[0] : singleData;
   const animations = useAnimationsProp(props);
+  // Up/Down bars are signed, and a log axis has no place for values ≤ 0.
+  const axis = withLinearY(props.axis);
+  const heldLinear = axis !== props.axis;
 
   return (
     <ChartContainer
       theme={props.theme}
-      axis={props.axis}
+      axis={axis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub="Up/Down">Single</Title>
+      <Title sub={heldLinear ? 'Up/Down · linear' : 'Up/Down'}>Single</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={[display]}
@@ -106,10 +111,13 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   });
   const display = props.streaming ? datasets : layers;
   const chartAxis = useMemo<AxisConfig>(() => {
-    if (props.stacking === 'off') return { ...props.axis, y: { min: 0, ...props.axis?.y } };
+    const axis = axisForStacking(props.axis ?? {}, props.stacking);
+    // Overlapping bars read from a zero floor — a log axis has no zero.
+    if (props.stacking === 'off' && axis.y?.type !== 'log') return { ...axis, y: { min: 0, ...axis.y } };
 
-    return props.axis ?? {};
+    return axis;
   }, [props.axis, props.stacking]);
+  const heldLinear = props.stacking === 'percent' && props.axis?.y?.type === 'log';
   const animations = useAnimationsProp(props);
 
   return (
@@ -121,7 +129,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub={`${LAYER_COUNT} layers`}>{props.title}</Title>
+      <Title sub={heldLinear ? `${LAYER_COUNT} layers · linear` : `${LAYER_COUNT} layers`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={display}
@@ -166,6 +174,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'stacking',
       label: 'Stack',
+      hint: '100% stays on a linear Y axis',
       render: (v, onChange) => (
         <ToggleGroup<StackingMode>
           value={v as StackingMode}
@@ -291,7 +300,7 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
         );
       }}
       codeConfig={(s) => {
-        const containerProps = buildCartesianContainerProps(s) ?? {};
+        const containerProps = buildCartesianContainerProps({ ...s, axis: axisForStacking(s.axis, s.stacking) }) ?? {};
         if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
         const options: Record<string, PropValue> = {

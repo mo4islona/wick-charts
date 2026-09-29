@@ -7,6 +7,7 @@ import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
 import { computeFitToData } from './chart/fit-to-data';
 import { getLastValue, getPreviousClose, getStackedLastValue } from './chart/last-value';
+import { assertLogStacking, warnNonPositiveBounds, warnNonPositiveValues } from './chart/log-scale-guards';
 import {
   type ChartOptions,
   type EdgeReachedInfo,
@@ -24,7 +25,7 @@ import { computePan, computeZoom } from './chart/pan-zoom-math';
 import { StreamingCadence } from './chart/streaming-cadence';
 import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
-import { computeTargetYRange, resolveBound } from './chart/y-target';
+import { computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
@@ -557,6 +558,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
     this.timeScale = new XScale();
     this.yScale = new YScale();
+    this.yScale.setType(this.#axis.y?.type ?? 'linear');
+    warnNonPositiveBounds(this.#axis.y);
     this.timeScale.setLocale(options?.locale);
     this.timeScale.setTimeZone(options?.timeZone);
 
@@ -732,6 +735,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       [key: string]: unknown;
     };
     const layerCount = layers ?? 1;
+
+    if (this.yScale.getType() === 'log') {
+      assertLogStacking({ seriesId: id ?? def.type, stacking: rest.stacking });
+    }
 
     // Merge order matches the old per-type adders: theme defaults (injected by
     // the definition) -> animation defaults -> user options -> forced-off overrides.
@@ -1073,7 +1080,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * underlying animator mutates between frames.
    */
   getAnimationState(): AnimationState {
-    return this.#engine.getAnimationState();
+    return this.#toValueSpace(this.#engine.getAnimationState());
+  }
+
+  /** The engine animates Y in scale space (log10 on a log axis); readers outside it get values. */
+  #toValueSpace(state: AnimationState): AnimationState {
+    const type = this.yScale.getType();
+    if (type === 'linear') return state;
+
+    return { ...state, yRange: fromScaleSpace(state.yRange, type) };
   }
 
   /**
@@ -1253,6 +1268,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
+
+    if (this.yScale.getType() === 'log' && 'stacking' in options) {
+      assertLogStacking({ seriesId: id, stacking: options.stacking });
+    }
 
     // Framework wrappers (notably Vue's deep watch) replay this method on
     // every render with a fresh options object, usually identical. Bumping
@@ -1593,8 +1612,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     } else if (current !== null) {
       y = current.y;
     } else {
-      const yRange = this.#yRange;
-      y = (yRange.min + yRange.max) / 2;
+      y = this.yScale.yToValue(this.yScale.getMediaHeight() / 2);
     }
 
     // Reject non-finite y same as time — `valueToY(NaN)` produces NaN
@@ -1935,13 +1953,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Update axis configuration and re-render. */
   setAxis(config: AxisConfig): void {
+    const nextType = config.y?.type ?? 'linear';
+    if (nextType === 'log') {
+      for (const entry of this.#series) {
+        if (!isTimeSeriesRenderer(entry.renderer)) continue;
+
+        assertLogStacking({ seriesId: entry.id, stacking: entry.renderer.stacking });
+      }
+    }
+
     const prevGutters = this.#readGutters();
+    const typeChanged = nextType !== this.yScale.getType();
 
     this.#axis = config;
     // Sync Y bounds from axis config
     this.#yBounds = { min: config.y?.min, max: config.y?.max };
-    this.#yInited = true;
+    warnNonPositiveBounds(config.y);
     const now = performance.now();
+
+    if (typeChanged) {
+      this.yScale.setType(nextType);
+      // Old tick values would fade out at their positions on the new mapping.
+      this.yScale.tickTracker.reset();
+      // The engine holds Y in the old scale space. With no data to refit to,
+      // park it on a range that is neutral in both spaces.
+      if (this.#computeYTarget() === null) this.#engine.snap({ y: { min: 0, max: 0 } }, now);
+    }
+
+    this.#yInited = true;
     this.#engine.onAxisReconfig(now);
     this.#applyEngineState(now);
 
@@ -2518,9 +2557,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #prevYMin = Number.NaN;
   #prevYMax = Number.NaN;
 
+  /** Dev warning for values ≤ 0 on a log axis — fires once per chart. */
+  #warnedNonPositive = false;
+
   /**
-   * Sample the visible data window and return the resolved Y bounds, or
-   * `null` when no series has data inside the X destination range.
+   * Sample the visible data window and return the resolved Y bounds in scale
+   * space (see {@link resolveYTarget}), or `null` when no series has data
+   * inside the X destination range.
    * Sampling runs against `logicalRange` (the X target, not the animating
    * current), so Y stays on a stable target while X eases — both dimensions
    * converge together. Clears {@link #yInited} on empty so the next emit
@@ -2535,16 +2578,40 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       (this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto' && typeof this.#yBounds.max !== 'number');
     const allValues: number[] | null = needsAllValues ? [] : null;
 
-    const raw = computeTargetYRange(targetVisible, this.#series, allValues);
+    const type = this.yScale.getType();
+    const positiveOnly = type === 'log';
+    if (positiveOnly) this.#checkNonPositiveInView(targetVisible);
+
+    const raw = computeTargetYRange({ targetVisible, series: this.#series, allValues, positiveOnly });
     if (raw === null) {
       this.#yInited = false;
       return null;
     }
 
-    const min = resolveBound(this.#yBounds.min, raw.min, raw.max, allValues ?? [], 'min');
-    const max = resolveBound(this.#yBounds.max, raw.max, raw.min, allValues ?? [], 'max');
+    return resolveYTarget({ raw, bounds: this.#yBounds, allValues: allValues ?? [], type });
+  }
 
-    return { min, max };
+  /** Dev-only sweep behind {@link warnNonPositiveValues}; stops once it has warned. */
+  #checkNonPositiveInView(window: XRange): void {
+    if (this.#warnedNonPositive || process.env.NODE_ENV === 'production') return;
+
+    for (const entry of this.#series) {
+      if (!entry.visible || !isTimeSeriesRenderer(entry.renderer)) continue;
+
+      const range = entry.renderer.getValueRange(window.from, window.to);
+      if (range === null) continue;
+
+      // A stack's range always reaches its zero baseline, and a zero layer
+      // adds nothing either way — only a negative total drops values.
+      const stacked = entry.renderer.stacking === 'normal';
+      const dropsValues = stacked ? range.min < 0 : range.min <= 0;
+      if (!dropsValues) continue;
+
+      this.#warnedNonPositive = true;
+      warnNonPositiveValues({ seriesId: entry.id, min: range.min });
+
+      return;
+    }
   }
 
   /**
@@ -2769,10 +2836,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Apply pixel-padding to the engine's raw Y target and store the
-   * result in `#yRange`. Mirrors the old `Viewport.setYRange` contract:
+   * Apply pixel-padding to the engine's Y (scale space) and return it as
+   * values for `#yRange`. Mirrors the old `Viewport.setYRange` contract:
    * symmetric pad top / bottom from `#padding`, suppressed on the side
-   * that has an explicit (fixed) axis bound.
+   * that has an explicit (fixed) axis bound. Padding in scale space keeps
+   * the pixel gutters even on a log axis.
    */
   #padYRange(args: { min: number; max: number; chartHeight: number }): YRange {
     const { min, max, chartHeight } = args;
@@ -2781,18 +2849,29 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const padTop = chartHeight > 0 ? (this.#padding.top / chartHeight) * dataRange : 0;
     const padBottom = chartHeight > 0 ? (this.#padding.bottom / chartHeight) * dataRange : 0;
 
-    return {
+    const padded = {
       min: fixedMin ? min : min - padBottom,
       max: fixedMax ? max : max + padTop,
     };
+
+    return fromScaleSpace(padded, this.yScale.getType());
   }
 
   /** Which Y edges the user pinned — a pinned edge takes no padding. */
   #fixedYBounds(): { min: boolean; max: boolean } {
     return {
-      min: this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto',
-      max: this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto',
+      min: this.#isPinnedBound(this.#yBounds.min),
+      max: this.#isPinnedBound(this.#yBounds.max),
     };
+  }
+
+  #isPinnedBound(bound: AxisBound | undefined): boolean {
+    if (bound === undefined || bound === 'auto') return false;
+
+    // A log axis drops a fixed bound ≤ 0 for auto (see `resolveYTarget`).
+    const droppedByLog = this.yScale.getType() === 'log' && typeof bound === 'number' && !(bound > 0);
+
+    return !droppedByLog;
   }
 
   /**
@@ -3086,6 +3165,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       const vpad = this.#padding;
       const padding = { top: vpad.top, bottom: vpad.bottom };
+      const seriesState = this.#toValueSpace(animationState);
       const perfMon = this.#perfMonitor;
       for (const entry of this.#series) {
         // Renderer-owned per-series alpha drives the show/hide fade. A
@@ -3104,7 +3184,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           theme: this.#theme,
           dataInterval: this.#dataInterval,
           padding,
-          state: animationState,
+          state: seriesState,
           seriesId: entry.id,
         };
 
@@ -3730,7 +3810,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // Dispatch to each renderer's overlay hook — crosshair dots, pulses, etc.
       const ovpad = this.#padding;
       const overlayPadding = { top: ovpad.top, bottom: ovpad.bottom };
-      const overlayState = this.#engine.getAnimationState();
+      const overlayState = this.getAnimationState();
       for (const entry of this.#series) {
         if (!entry.visible) continue;
         entry.renderer.drawOverlay?.({

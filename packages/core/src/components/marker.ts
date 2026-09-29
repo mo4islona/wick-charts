@@ -89,7 +89,7 @@ export function renderMarker(args: RenderMarkerArgs): void {
 
   const bx = timeScale.timeToBitmapX(marker.time);
   const by = yScale.valueToBitmapY(marker.value);
-  if (!Number.isFinite(bx) || !Number.isFinite(by)) return;
+  if (!yScale.isPlottable(marker.value) || !Number.isFinite(bx) || !Number.isFinite(by)) return;
 
   const radius = GLYPH_RADIUS_MEDIA * hpr;
   const isArrow = marker.shape === 'arrow-up' || marker.shape === 'arrow-down';

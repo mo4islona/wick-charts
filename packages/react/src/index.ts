@@ -130,6 +130,7 @@ export type {
   YAxisConfig,
   YAxisPosition,
   YRange,
+  YScaleType,
 } from '@wick-charts/core';
 // Painters — custom per-element drawing for bar / candle / line series.
 export {

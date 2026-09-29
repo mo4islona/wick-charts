@@ -6,7 +6,7 @@ import type { PlaceholderBar } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
-import type { OHLCData, TimePoint, ValueColor } from '../types';
+import type { OHLCData, StackingMode, TimePoint, ValueColor } from '../types';
 
 /**
  * Vertical padding reserved at the top/bottom of the chart area.
@@ -324,8 +324,21 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   sampleTimes(maxCount: number): number[];
   /** Visible points in `[from, to]` (layer 0 for multi-layer). */
   getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint)[];
-  /** Effective min/max for auto-range (stacked totals for multi-layer; raw min/max otherwise). */
-  getValueRange(from: number, to: number): { min: number; max: number } | null;
+  /**
+   * Effective min/max for auto-range (stacked totals for multi-layer; raw
+   * min/max otherwise). With `opts.positiveOnly` (a log Y scale) values ≤ 0
+   * are left out, so `min` is the smallest value the scale can place; `null`
+   * when nothing positive is in view.
+   */
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
+  /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a log Y scale. */
+  readonly stacking?: StackingMode;
+}
+
+/** Options for {@link TimeSeriesRenderer.getValueRange}. */
+export interface ValueRangeOptions {
+  /** Leave out values ≤ 0 — a log Y scale has no position for them. */
+  positiveOnly?: boolean;
 }
 
 /** A spatial renderer with no time axis (Pie). Has no time-series queries. */

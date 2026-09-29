@@ -1,6 +1,7 @@
-import type { YRange } from '../types';
+import type { YRange, YScaleType } from '../types';
 import { type ValueFormatter, formatCompact } from '../utils/format';
 import { crispCenterOffset } from '../utils/pixel-grid';
+import { logDecadeTicks } from './log-ticks';
 import { AxisTickTracker } from './tick-tracker';
 
 /** Custom tick-value generator — replaces the built-in {1,2,5}×10^k resolution entirely when installed. */
@@ -45,8 +46,12 @@ export class YScale {
   /** Shared fade state for Y ticks; see {@link TimeScale.tickTracker}. */
   readonly tickTracker = new AxisTickTracker();
 
+  private type: YScaleType = 'linear';
   private min = 0;
   private max = 0;
+  /** Domain bounds in scale space — `log10` of `min` / `max` on a log scale. */
+  private lo = 0;
+  private hi = 0;
   private height = 1;
   private pixelRatio = 1;
 
@@ -67,6 +72,15 @@ export class YScale {
    */
   private lastRawInterval: number | null = null;
 
+  /** Power-of-ten ticks on a log scale; `null` when linear ticks are in use. */
+  private logTicks: number[] | null = null;
+  /**
+   * Whether the log scale last picked linear ticks (narrow range). `null`
+   * until the first pick — drives the hold that keeps a range drifting across
+   * the tie from flipping the whole label set.
+   */
+  private logUsesLinear: boolean | null = null;
+
   /** Custom formatter (driven by `<YAxis format=…>`). */
   private customFormat: ValueFormatter | null = null;
   /** Custom tick generator — bypasses {1,2,5}×10^k resolution in `niceTickValues` when set. */
@@ -86,26 +100,67 @@ export class YScale {
     this.max = range.max;
     this.height = mediaHeight;
     this.pixelRatio = pixelRatio;
-    this.resolveInterval();
+    this.updateDomain();
+    this.resolveTicks();
+  }
+
+  /** Switch between linear and log mapping. The range is kept as-is — the chart refits it. */
+  setType(type: YScaleType): void {
+    if (type === this.type) return;
+
+    this.type = type;
+    this.resetHysteresis();
+    this.updateDomain();
+    this.resolveTicks();
+  }
+
+  getType(): YScaleType {
+    return this.type;
+  }
+
+  /**
+   * Whether `value` has a position on this scale: finite, and positive on a
+   * log scale. Renderers skip values that fail — {@link valueToY} still maps
+   * them (to the plot floor on a log scale) so nothing downstream sees NaN.
+   */
+  isPlottable(value: number): boolean {
+    if (!Number.isFinite(value)) return false;
+
+    return this.type === 'linear' || value > 0;
   }
 
   /** Desired label count. Invalid values (NaN, <2, Infinity) clear the hint. */
   setLabelCount(n: number | null | undefined): void {
     this.labelCountHintValue = normalizeLabelCount(n);
     this.resetHysteresis();
-    this.resolveInterval();
+    this.resolveTicks();
   }
 
   /** Minimum pixel gap between adjacent labels. */
   setMinSpacing(px: number | null | undefined): void {
     this.minSpacingValue = normalizeSpacing(px);
     this.resetHysteresis();
-    this.resolveInterval();
+    this.resolveTicks();
   }
 
   private resetHysteresis(): void {
     this.lastInterval = null;
     this.lastRawInterval = null;
+    this.logUsesLinear = null;
+  }
+
+  /** A log domain needs both bounds positive; anything else collapses to a flat one. */
+  private updateDomain(): void {
+    if (this.type === 'linear') {
+      this.lo = this.min;
+      this.hi = this.max;
+
+      return;
+    }
+
+    const valid = this.min > 0 && this.max > 0;
+    this.lo = valid ? Math.log10(this.min) : 0;
+    this.hi = valid ? Math.log10(this.max) : 0;
   }
 
   /** Install (or clear) a custom formatter. */
@@ -128,14 +183,21 @@ export class YScale {
     this.resetHysteresis();
   }
 
-  /** Convert a value to a Y position in CSS (media) pixels. */
+  /**
+   * Convert a value to a Y position in CSS (media) pixels. On a log scale a
+   * value ≤ 0 lands on the plot floor — log has no zero.
+   */
   valueToY(value: number): number {
-    const range = this.max - this.min;
+    const span = this.hi - this.lo;
     // Flat range (single-value series or zoom-collapsed) would divide by zero
     // and poison the render pipeline with NaN. Anchor at mid-height instead.
-    if (range === 0) return this.height / 2;
+    if (span === 0) return this.height / 2;
 
-    return (1 - (value - this.min) / range) * this.height;
+    if (this.type === 'linear') return (1 - (value - this.lo) / span) * this.height;
+
+    if (!(value > 0)) return this.height;
+
+    return (1 - (Math.log10(value) - this.lo) / span) * this.height;
   }
 
   /** Convert a value to a Y position in physical (bitmap) pixels, snapped to
@@ -162,12 +224,14 @@ export class YScale {
     return (this.valueToBitmapY(value) + crispCenterOffset(this.pixelRatio)) / this.pixelRatio;
   }
 
-  /** Convert a Y position in CSS pixels back to a value. */
+  /** Convert a Y position in CSS pixels back to a value — the exact inverse of {@link valueToY}. */
   yToValue(y: number): number {
-    const range = this.max - this.min;
-    if (range === 0) return this.min;
+    const span = this.hi - this.lo;
+    if (span === 0) return this.min;
 
-    return this.max - (y / this.height) * range;
+    const scaled = this.hi - (y / this.height) * span;
+
+    return this.type === 'linear' ? scaled : 10 ** scaled;
   }
 
   /**
@@ -176,6 +240,8 @@ export class YScale {
    */
   niceTickValues(): number[] {
     if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
+
+    if (this.logTicks !== null) return this.logTicks.slice(0, MAX_TICKS);
 
     if (this.resolvedInterval == null) return [];
 
@@ -208,6 +274,9 @@ export class YScale {
   formatY(value: number): string {
     if (this.customFormat) return this.customFormat(value);
 
+    // Power-of-ten ticks share no interval to derive decimals from.
+    if (this.logTicks !== null) return trimFractionZeros(formatCompact(value));
+
     // Kick into K/M/B/T suffixes once labels would otherwise balloon past ~7
     // characters. Keeping the threshold at ≥ 1e6 preserves readable raw
     // numbers up through "50000" / "99999" tick labels.
@@ -222,9 +291,68 @@ export class YScale {
     return value.toFixed(decimals);
   }
 
+  private resolveTicks(): void {
+    if (this.type === 'log') {
+      this.resolveLogTicks();
+
+      return;
+    }
+
+    this.logTicks = null;
+    this.resolveInterval(((this.max - this.min) * this.minLabelSpacing) / this.height);
+  }
+
+  /**
+   * Powers of ten, unless the range is too narrow to catch enough of them —
+   * then linear {1,2,5}×10^k ticks, spaced so the tightest gap (at the top,
+   * where log compresses) still clears `minLabelSpacing`.
+   */
+  private resolveLogTicks(): void {
+    const span = this.hi - this.lo;
+    if (!(span > 0) || this.height <= 0) {
+      this.logTicks = null;
+      this.resolvedInterval = null;
+
+      return;
+    }
+
+    const decadeTicks = logDecadeTicks({
+      min: this.min,
+      max: this.max,
+      height: this.height,
+      minSpacing: this.minLabelSpacing,
+      labelCount: this.labelCountHint,
+    });
+
+    const pxPerDecade = this.height / span;
+    this.resolveInterval(this.max * (1 - 10 ** (-this.minLabelSpacing / pxPerDecade)));
+    const linearCount = this.resolvedInterval === null ? 0 : this.countTicks(this.resolvedInterval);
+
+    const useLinear = this.prefersLinearTicks({ logCount: decadeTicks.length, linearCount });
+    this.logUsesLinear = useLinear;
+    this.logTicks = useLinear ? null : decadeTicks;
+  }
+
+  /** Pick the tick kind whose count lands closer to the target, holding the current kind on near-ties. */
+  private prefersLinearTicks(args: { logCount: number; linearCount: number }): boolean {
+    const { logCount, linearCount } = args;
+    if (linearCount < 2) return false;
+    if (logCount < 2) return true;
+
+    const target = this.labelCountHint ?? Math.max(2, Math.floor(this.height / this.minLabelSpacing));
+    const logMiss = Math.abs(logCount - target);
+    const linearMiss = Math.abs(linearCount - target);
+
+    if (this.logUsesLinear === true) return linearMiss <= logMiss + 1;
+    if (this.logUsesLinear === false) return linearMiss + 1 < logMiss;
+
+    return linearMiss < logMiss;
+  }
+
   /**
    * Resolve the interval to a {1,2,5}×10^k tick size that satisfies the pixel
-   * floor and (optionally) targets `labelCountHint` labels.
+   * floor and (optionally) targets `labelCountHint` labels. `gapFloorValue` is
+   * the smallest interval that clears `minLabelSpacing` anywhere on the axis.
    *
    * Hysteresis: the band [0.8×, 1.25×] is anchored to **rawInterval at last
    * snap**, not to `lastInterval`. After an escalation (e.g. 100 → 200),
@@ -233,14 +361,13 @@ export class YScale {
    * *not* de-escalate. This prevents the 2-tier flicker users see when new
    * candles nudge the Y range across a raw-interval threshold.
    */
-  private resolveInterval(): void {
+  private resolveInterval(gapFloorValue: number): void {
     if (this.max <= this.min || this.height <= 0) {
       this.resolvedInterval = null;
       return;
     }
 
     const range = this.max - this.min;
-    const gapFloorValue = (range * this.minLabelSpacing) / this.height;
 
     // For the hint path we use `labelCount` (not `labelCount - 1`) as the gap
     // target: the ceiling 1-2-5 snap tends to swallow a tick at boundary
@@ -289,6 +416,11 @@ export class YScale {
 
     return Math.max(0, Math.floor((this.max - start) / interval) + 1);
   }
+}
+
+/** `"1.00K"` → `"1K"`, `"2.50M"` → `"2.5M"`, `"20.00"` → `"20"`. */
+function trimFractionZeros(label: string): string {
+  return label.replace(/(\.\d*?)0+([KMBT]?)$/, '$1$2').replace(/\.([KMBT]?)$/, '$1');
 }
 
 function normalizeLabelCount(n: number | null | undefined): number | null {

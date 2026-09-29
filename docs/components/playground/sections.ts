@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import type { YAxisPosition } from '@wick-charts/react';
+import type { YAxisPosition, YScaleType } from '@wick-charts/react';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export interface CommonState {
   // Axes
   yAxisVisible: boolean;
   yAxisPosition: YAxisPosition;
+  yScaleType: YScaleType;
   xAxisVisible: boolean;
   yAxisWidth: number;
   xAxisHeight: number;
@@ -105,6 +106,7 @@ export const COMMON_DEFAULTS: CommonState = {
   headerLayout: 'overlay',
   yAxisVisible: true,
   yAxisPosition: 'right',
+  yScaleType: 'linear',
   xAxisVisible: true,
   yAxisWidth: 55,
   xAxisHeight: 30,

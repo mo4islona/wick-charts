@@ -960,6 +960,12 @@ export interface HeatmapSeriesOptions {
 /** Side of the plot area the Y axis column sits on. */
 export type YAxisPosition = 'left' | 'right';
 
+/**
+ * How values map onto the Y axis. `'log'` spaces each power of ten evenly;
+ * values ≤ 0 have no position there — see {@link YAxisConfig.type}.
+ */
+export type YScaleType = 'linear' | 'log';
+
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
   /**
@@ -970,6 +976,18 @@ export interface YAxisConfig {
   position?: YAxisPosition;
   /** Width in CSS pixels. Default: 55, or 0 when every series is spatial (pie, heatmap). */
   width?: number;
+  /**
+   * Value mapping. `'log'` gives each power of ten equal height — for series
+   * spanning orders of magnitude. Ticks sit on powers of ten (with 2× / 5×
+   * steps when zoomed in), and autoscale and Y animations run in log space.
+   *
+   * On a log scale, values ≤ 0 are skipped (a gap in a line, no bar or
+   * candle), a non-positive `min` / `max` bound falls back to `'auto'`, and
+   * area fills close to the plot floor. Percent stacking is rejected — it
+   * pins the axis to 0–100%, and 0 has no position on a log axis.
+   * Default: `'linear'`. Live — switching refits the Y range.
+   */
+  type?: YScaleType;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
   /** Maximum bound. Default: 'auto'. */
