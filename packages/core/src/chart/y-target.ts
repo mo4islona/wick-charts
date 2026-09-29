@@ -13,8 +13,9 @@
  * The chart's `#computeYTarget` wires both stages together.
  */
 
+import { isPlottableOn } from '../scales/y-scale';
 import { type SeriesRenderer, isTimeSeriesRenderer } from '../series/types';
-import type { AxisBound, XRange, YRange, YScaleType } from '../types';
+import type { AxisBound, XRange, YRange, YScaleTransform } from '../types';
 
 export interface YTargetSeries {
   readonly renderer: SeriesRenderer;
@@ -34,11 +35,11 @@ export function computeTargetYRange(args: {
   targetVisible: XRange;
   series: readonly YTargetSeries[];
   allValues: number[] | null;
-  /** Leave out values ≤ 0 (log Y scale). */
-  positiveOnly?: boolean;
+  /** Leave out values the Y scale can't place (≤ 0 on log). */
+  plottable?: (value: number) => boolean;
 }): { min: number; max: number } | null {
-  const { targetVisible, series, allValues, positiveOnly = false } = args;
-  const rangeOptions = positiveOnly ? { positiveOnly } : undefined;
+  const { targetVisible, series, allValues, plottable } = args;
+  const rangeOptions = plottable ? { plottable } : undefined;
 
   let min = Infinity;
   let max = -Infinity;
@@ -54,17 +55,17 @@ export function computeTargetYRange(args: {
 
     const r = entry.renderer.getValueRange(targetVisible.from, targetVisible.to, rangeOptions);
     if (!r) continue;
-    // A custom renderer may not honor `positiveOnly` — keep what a log axis can place.
-    if (positiveOnly && !(r.max > 0)) continue;
+    // A custom renderer may not honor `plottable` — keep what the scale can place.
+    if (plottable && !plottable(r.max)) continue;
 
     if (r.max > max) max = r.max;
-    if (r.min < min && (!positiveOnly || r.min > 0)) min = r.min;
+    if (r.min < min && (!plottable || plottable(r.min))) min = r.min;
     allValues?.push(r.min, r.max);
   }
 
   if (max === -Infinity) return null;
-  // Only non-compliant renderers contributed: span one decade below their max.
-  if (min === Infinity) min = max / 10;
+  // Only renderers that ignored `plottable` contributed — a flat range at their max.
+  if (min === Infinity) min = max;
 
   return { min, max };
 }
@@ -78,55 +79,62 @@ export interface YBounds {
 /**
  * Apply axis bounds to the raw data range and return the Y target in *scale
  * space* — the space the viewport engine animates in, so autoscale easing and
- * sticky-Y contraction run evenly on the axis the user sees. Linear: the
- * resolved bounds as-is. Log: their `log10`.
+ * sticky-Y contraction run evenly on the axis the user sees. Linear
+ * (`transform` null): the resolved bounds as-is. Otherwise their `forward`.
  *
- * On a log scale a percentage bound (`"+10%"`) pads by a share of the range in
- * log space, and a non-positive fixed or computed bound falls back to auto.
+ * Under a transform a percentage bound (`"+10%"`) pads by a share of the
+ * range in scale space, and a fixed or computed bound the scale can't place
+ * falls back to auto.
  */
-export function resolveYTarget(args: { raw: YRange; bounds: YBounds; allValues: number[]; type: YScaleType }): YRange {
-  const { raw, bounds, allValues, type } = args;
+export function resolveYTarget(args: {
+  raw: YRange;
+  bounds: YBounds;
+  allValues: number[];
+  transform: YScaleTransform | null;
+}): YRange {
+  const { raw, bounds, allValues, transform } = args;
 
-  if (type === 'linear') {
+  if (transform === null) {
     return {
       min: resolveBound(bounds.min, raw.min, raw.max, allValues, 'min'),
       max: resolveBound(bounds.max, raw.max, raw.min, allValues, 'max'),
     };
   }
 
-  const logRaw = { min: Math.log10(raw.min), max: Math.log10(raw.max) };
+  const scaledRaw = { min: transform.forward(raw.min), max: transform.forward(raw.max) };
 
   return {
-    min: resolveLogBound({ bound: bounds.min, raw, logRaw, allValues, side: 'min' }),
-    max: resolveLogBound({ bound: bounds.max, raw, logRaw, allValues, side: 'max' }),
+    min: resolveScaledBound({ bound: bounds.min, raw, scaledRaw, allValues, side: 'min', transform }),
+    max: resolveScaledBound({ bound: bounds.max, raw, scaledRaw, allValues, side: 'max', transform }),
   };
 }
 
-function resolveLogBound(args: {
+function resolveScaledBound(args: {
   bound: AxisBound | undefined;
   raw: YRange;
-  logRaw: YRange;
+  scaledRaw: YRange;
   allValues: number[];
   side: 'min' | 'max';
+  transform: YScaleTransform;
 }): number {
-  const { bound, raw, logRaw, allValues, side } = args;
+  const { bound, raw, scaledRaw, allValues, side, transform } = args;
   const other = side === 'min' ? 'max' : 'min';
 
   if (typeof bound === 'string' && bound !== 'auto') {
-    return resolveBound(bound, logRaw[side], logRaw[other], [], side);
+    return resolveBound(bound, scaledRaw[side], scaledRaw[other], [], side);
   }
 
   const value = resolveBound(bound, raw[side], raw[other], allValues, side);
-  const placeable = Number.isFinite(value) && value > 0;
+  const placeable = isPlottableOn(transform, value);
 
-  return Math.log10(placeable ? value : raw[side]);
+  return transform.forward(placeable ? value : raw[side]);
 }
 
 /** Map a scale-space range (see {@link resolveYTarget}) back to values. */
-export function fromScaleSpace(range: YRange, type: YScaleType): YRange {
-  if (type === 'linear') return range;
+export function fromScaleSpace(range: YRange, transform: YScaleTransform | null): YRange {
+  if (transform === null) return range;
 
-  return { min: 10 ** range.min, max: 10 ** range.max };
+  return { min: transform.inverse(range.min), max: transform.inverse(range.max) };
 }
 
 /** Resolve an {@link AxisBound} to a concrete numeric value. */

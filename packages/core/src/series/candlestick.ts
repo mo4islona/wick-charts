@@ -165,11 +165,11 @@ interface CandlePass {
   radius: number;
 }
 
-/** Every price is positive and finite — the candle has a place on a log Y scale. */
-function isPositiveCandle(candle: OHLCData): boolean {
+/** Every price has a position on the Y scale — otherwise the whole candle is skipped. */
+function isPlottableCandle(candle: OHLCData, plottable: (value: number) => boolean): boolean {
   const prices = [candle.open, candle.high, candle.low, candle.close];
 
-  return prices.every((price) => Number.isFinite(price) && price > 0);
+  return prices.every((price) => Number.isFinite(price) && plottable(price));
 }
 
 function normalize(options: CandlestickSeriesOptions): ResolvedCandlestickOptions {
@@ -526,15 +526,15 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
     const visible = this.store.getVisibleData(from, to);
-    const positiveOnly = opts?.positiveOnly === true;
+    const plottable = opts?.plottable;
 
     // Independent finite guards per bound — mirrors the y-target fallback this
     // replaces, so a poisoned high/low (NaN / ±Infinity) can't corrupt the range.
     let min = Infinity;
     let max = -Infinity;
     for (const candle of visible) {
-      // Same gate the log-scale render applies, so the axis fits what's drawn.
-      if (positiveOnly && !isPositiveCandle(candle)) continue;
+      // Same gate the render applies on a non-linear scale, so the axis fits what's drawn.
+      if (plottable && !isPlottableCandle(candle, plottable)) continue;
 
       if (Number.isFinite(candle.low) && candle.low < min) min = candle.low;
       if (Number.isFinite(candle.high) && candle.high > max) max = candle.high;
@@ -556,8 +556,8 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     if (decimated) {
       visibleData = decimateOHLCData(visibleData, Math.round(pixelWidth * 1.5));
     }
-    if (yScale.getType() === 'log') {
-      visibleData = visibleData.filter(isPositiveCandle);
+    if (yScale.getTransform() !== null) {
+      visibleData = visibleData.filter((candle) => isPlottableCandle(candle, (value) => yScale.isPlottable(value)));
     }
     if (visibleData.length === 0) return;
 

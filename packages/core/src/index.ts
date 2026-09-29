@@ -105,6 +105,7 @@ export { NavigatorController } from './navigator';
 // Performance instrumentation
 export type { FrameKind, PercentileSample, PerfConfig, PerfMonitorOptions, PerfStats } from './perf';
 export { PerfMonitor, perfHud } from './perf';
+export { type LogScaleOptions, logScale } from './scales/log-scale';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
@@ -282,6 +283,7 @@ export type {
   PieOtherOptions,
   PieSeriesOptions,
   PieSliceData,
+  ScaleTickArgs,
   SeriesLayer,
   SeriesType,
   StackingMode,
@@ -296,7 +298,7 @@ export type {
   YAxisConfig,
   YAxisPosition,
   YRange,
-  YScaleType,
+  YScaleTransform,
 } from './types';
 // Utils
 export { mixColors, sampleRamp } from './utils/color';

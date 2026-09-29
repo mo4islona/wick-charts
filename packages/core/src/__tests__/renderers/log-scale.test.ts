@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
+import { logScale } from '../../scales/log-scale';
 import { BarRenderer } from '../../series/bar';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { LineRenderer } from '../../series/line';
@@ -21,7 +22,7 @@ describe('series on a log Y scale', () => {
   it('line breaks at values ≤ 0 and hands the canvas no NaN', () => {
     const r = new LineRenderer(1, { area: { visible: false }, entryAnimation: 'none' });
     r.setData(points([1, 10, 0, 100, -3, 1000, 5000]), 0);
-    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 10_000 }, yScaleType: 'log' });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 10_000 }, yTransform: logScale() });
     r.render(ctx);
 
     // Runs: [1, 10] · [100] (orphan dot) · [1000, 5000].
@@ -34,7 +35,7 @@ describe('series on a log Y scale', () => {
   it('line area fill closes to the plot floor', () => {
     const r = new LineRenderer(1, { area: { visible: true }, entryAnimation: 'none' });
     r.setData(points([2, 20, 200]), 0);
-    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 1000 }, yScaleType: 'log' });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 1000 }, yTransform: logScale() });
     r.render(ctx);
 
     const floorDrops = spy.callsOf('lineTo').filter((call) => call.args[1] === 400);
@@ -44,7 +45,7 @@ describe('series on a log Y scale', () => {
   it('bar skips values ≤ 0', () => {
     const r = new BarRenderer(1, { cornerRadius: 0, entryAnimation: 'none' });
     r.setData(points([0, 10, -5, 100, 1000]));
-    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 10_000 }, yScaleType: 'log' });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 10_000 }, yTransform: logScale() });
     r.render(ctx);
 
     expect(spy.countOf('fillRect')).toBe(3);
@@ -59,7 +60,7 @@ describe('series on a log Y scale', () => {
       { time: 50, open: 100, high: 120, low: 90, close: 110 },
     ]);
     const r = new CandlestickRenderer(store, { cornerRadius: 0 });
-    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 1000 }, yScaleType: 'log' });
+    const { ctx, spy } = buildRenderContext({ yRange: { min: 1, max: 1000 }, yTransform: logScale() });
     r.render(ctx);
 
     // Two candles × (wick + body).
@@ -68,20 +69,22 @@ describe('series on a log Y scale', () => {
   });
 });
 
-describe('getValueRange({ positiveOnly })', () => {
+const positive = (value: number) => value > 0;
+
+describe('getValueRange({ plottable })', () => {
   it('line leaves out values ≤ 0', () => {
     const r = new LineRenderer(1);
     r.setData(points([-4, 0, 3, 50]), 0);
 
     expect(r.getValueRange(0, 100)).toEqual({ min: -4, max: 50 });
-    expect(r.getValueRange(0, 100, { positiveOnly: true })).toEqual({ min: 3, max: 50 });
+    expect(r.getValueRange(0, 100, { plottable: positive })).toEqual({ min: 3, max: 50 });
   });
 
   it('line returns null when nothing positive is in view', () => {
     const r = new LineRenderer(1);
     r.setData(points([-4, 0]), 0);
 
-    expect(r.getValueRange(0, 100, { positiveOnly: true })).toBeNull();
+    expect(r.getValueRange(0, 100, { plottable: positive })).toBeNull();
   });
 
   it('a normal stack bottoms out at its lowest positive edge, not at zero', () => {
@@ -90,7 +93,7 @@ describe('getValueRange({ positiveOnly })', () => {
     r.setData(points([10, 20, -3]), 1);
 
     // Columns: 5 → 15 · 20 (layer 0 is zero) · 8 (layer 1 is negative, adds nothing).
-    expect(r.getValueRange(0, 100, { positiveOnly: true })).toEqual({ min: 5, max: 20 });
+    expect(r.getValueRange(0, 100, { plottable: positive })).toEqual({ min: 5, max: 20 });
   });
 
   it('candlestick leaves out candles with a price ≤ 0', () => {
@@ -101,6 +104,6 @@ describe('getValueRange({ positiveOnly })', () => {
     ]);
     const r = new CandlestickRenderer(store);
 
-    expect(r.getValueRange(0, 100, { positiveOnly: true })).toEqual({ min: 4, max: 8 });
+    expect(r.getValueRange(0, 100, { plottable: positive })).toEqual({ min: 4, max: 8 });
   });
 });

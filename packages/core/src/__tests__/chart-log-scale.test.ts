@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartInstance } from '../chart';
 import type { ChartOptions } from '../chart/options';
-import type { TimePoint } from '../types';
+import { logScale } from '../scales/log-scale';
+import type { TimePoint, YScaleTransform } from '../types';
 import { installRaf, makeChartContainer } from './helpers/fake-raf';
 
 const INTERVAL = 60_000;
@@ -18,12 +19,12 @@ function series(values: number[]): TimePoint[] {
   return values.map((value, i) => ({ time: START + i * INTERVAL, value }));
 }
 
-describe('ChartInstance with a log Y scale', () => {
+describe('ChartInstance with a non-linear Y scale', () => {
   let raf: ReturnType<typeof installRaf>;
   let container: HTMLElement;
   let chart: ChartInstance;
 
-  function makeChart(options: ChartOptions = { axis: { y: { type: 'log' } } }): ChartInstance {
+  function makeChart(options: ChartOptions = { axis: { y: { scale: logScale() } } }): ChartInstance {
     container = makeChartContainer();
     chart = new ChartInstance(container, { interactive: false, ...options });
 
@@ -91,7 +92,7 @@ describe('ChartInstance with a log Y scale', () => {
 
   it('ignores a fixed bound ≤ 0 in favor of auto, with a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    makeChart({ axis: { y: { type: 'log', min: 0 } } });
+    makeChart({ axis: { y: { scale: logScale(), min: 0 } } });
     const id = chart.addSeries('line');
     chart.setSeriesData(id, series([10, 100, 1000]));
 
@@ -144,19 +145,55 @@ describe('ChartInstance with a log Y scale', () => {
       makeChart();
       const id = chart.addSeries('bar', { layers: 2, stacking: 'normal' });
 
-      expect(() => chart.updateSeriesOptions(id, { stacking: 'percent' })).toThrow(/log Y scale/);
+      expect(() => chart.updateSeriesOptions(id, { stacking: 'percent' })).toThrow(/no position for 0/);
     });
 
     it('blocks switching the axis to log, leaving it linear', () => {
       makeChart({});
       chart.addSeries('line', { layers: 2, stacking: 'percent' });
 
-      expect(() => chart.setAxis({ y: { type: 'log' } })).toThrow(/stacking: 'percent'/);
-      expect(chart.yScale.getType()).toBe('linear');
+      expect(() => chart.setAxis({ y: { scale: logScale() } })).toThrow(/stacking: 'percent'/);
+      expect(chart.yScale.getTransform()).toBeNull();
     });
   });
 
-  describe('switching the type at runtime', () => {
+  describe('a custom scale', () => {
+    const sqrtScale: YScaleTransform = {
+      forward: Math.sqrt,
+      inverse: (scaled) => scaled * scaled,
+      isPlottable: (value) => value >= 0,
+    };
+
+    it('fits and maps through its own forward', () => {
+      makeChart({ axis: { y: { scale: sqrtScale } } });
+      const id = chart.addSeries('line');
+      chart.setSeriesData(id, series([1, 25, 100]));
+
+      // Padded in sqrt space: 1 → 1, 100 → 10, 25 halfway between.
+      expect(chart.yScale.valueToY(100)).toBeCloseTo(GUTTER, 6);
+      expect(chart.yScale.valueToY(1)).toBeCloseTo(PLOT_HEIGHT - GUTTER, 6);
+      expect(chart.yScale.valueToY(25)).toBeCloseTo(GUTTER + ((PLOT_HEIGHT - 2 * GUTTER) * 5) / 9, 6);
+    });
+
+    it('drops the padding that would run past its domain', () => {
+      makeChart({ axis: { y: { scale: sqrtScale } } });
+      const id = chart.addSeries('line');
+      chart.setSeriesData(id, series([0, 25, 100]));
+
+      // No room below 0 on sqrt: the bottom edge sits on the floor, the top keeps its gutter.
+      expect(chart.getYRange().min).toBe(0);
+      expect(chart.yScale.valueToY(0)).toBe(PLOT_HEIGHT);
+      expect(chart.yScale.valueToY(100)).toBeCloseTo((20 * PLOT_HEIGHT) / (PLOT_HEIGHT + 20), 6);
+    });
+
+    it('accepts percent stacking when it can place 0', () => {
+      makeChart({ axis: { y: { scale: sqrtScale } } });
+
+      expect(() => chart.addSeries('line', { layers: 2, stacking: 'percent' })).not.toThrow();
+    });
+  });
+
+  describe('switching the scale at runtime', () => {
     it('refits to the new mapping without stale ticks or NaN', () => {
       makeChart({});
       const id = chart.addSeries('line');
@@ -164,7 +201,7 @@ describe('ChartInstance with a log Y scale', () => {
       raf.flush(40);
       expect(chart.yScale.valueToY(5000.5)).toBeCloseTo(PLOT_HEIGHT / 2, 6);
 
-      chart.setAxis({ y: { type: 'log' } });
+      chart.setAxis({ y: { scale: logScale() } });
       expect(chart.yScale.valueToY(10_000)).toBeCloseTo(GUTTER, 6);
       expect(chart.yScale.valueToY(1)).toBeCloseTo(PLOT_HEIGHT - GUTTER, 6);
 
@@ -173,7 +210,7 @@ describe('ChartInstance with a log Y scale', () => {
       expect(logTicks).toEqual([1, 10, 100, 1000, 10_000]);
 
       chart.setAxis({});
-      expect(chart.yScale.getType()).toBe('linear');
+      expect(chart.yScale.getTransform()).toBeNull();
       expect(chart.yScale.valueToY(5000.5)).toBeCloseTo(PLOT_HEIGHT / 2, 6);
     });
 
@@ -183,7 +220,7 @@ describe('ChartInstance with a log Y scale', () => {
       chart.setSeriesData(id, series([-50, -10, -1]));
       vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-      chart.setAxis({ y: { type: 'log' } });
+      chart.setAxis({ y: { scale: logScale() } });
       raf.flush(10);
 
       const { min, max } = chart.getYRange();

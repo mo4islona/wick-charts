@@ -475,7 +475,7 @@ export function ChartContainer({
   }, [
     axis?.y?.position,
     axis?.y?.width,
-    axis?.y?.type,
+    axis?.y?.scale,
     axis?.y?.min,
     axis?.y?.max,
     axis?.y?.visible,

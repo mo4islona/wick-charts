@@ -326,19 +326,19 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint)[];
   /**
    * Effective min/max for auto-range (stacked totals for multi-layer; raw
-   * min/max otherwise). With `opts.positiveOnly` (a log Y scale) values ≤ 0
-   * are left out, so `min` is the smallest value the scale can place; `null`
-   * when nothing positive is in view.
+   * min/max otherwise). With `opts.plottable` (a non-linear Y scale) values
+   * it rejects are left out, so the range covers only what the scale can
+   * place; `null` when nothing plottable is in view.
    */
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
-  /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a log Y scale. */
+  /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a Y scale with no 0. */
   readonly stacking?: StackingMode;
 }
 
 /** Options for {@link TimeSeriesRenderer.getValueRange}. */
 export interface ValueRangeOptions {
-  /** Leave out values ≤ 0 — a log Y scale has no position for them. */
-  positiveOnly?: boolean;
+  /** Whether a value has a position on the Y scale (e.g. `v > 0` on log); others are left out. */
+  plottable?: (value: number) => boolean;
 }
 
 /** A spatial renderer with no time axis (Pie). Has no time-series queries. */

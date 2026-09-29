@@ -113,11 +113,11 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   const chartAxis = useMemo<AxisConfig>(() => {
     const axis = axisForStacking(props.axis ?? {}, props.stacking);
     // Overlapping bars read from a zero floor — a log axis has no zero.
-    if (props.stacking === 'off' && axis.y?.type !== 'log') return { ...axis, y: { min: 0, ...axis.y } };
+    if (props.stacking === 'off' && axis.y?.scale === undefined) return { ...axis, y: { min: 0, ...axis.y } };
 
     return axis;
   }, [props.axis, props.stacking]);
-  const heldLinear = props.stacking === 'percent' && props.axis?.y?.type === 'log';
+  const heldLinear = props.stacking === 'percent' && props.axis?.y?.scale !== undefined;
   const animations = useAnimationsProp(props);
 
   return (

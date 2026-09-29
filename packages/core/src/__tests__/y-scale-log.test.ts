@@ -1,16 +1,28 @@
 import { describe, expect, it } from 'vitest';
 
+import { logScale } from '../scales/log-scale';
 import { YScale } from '../scales/y-scale';
+import type { YScaleTransform } from '../types';
 
-function makeLog(min: number, max: number, height = 400): YScale {
+function makeScale(args: { transform: YScaleTransform; min: number; max: number; height?: number }): YScale {
   const s = new YScale();
-  s.setType('log');
-  s.update({ min, max }, height, 2);
+  s.setTransform(args.transform);
+  s.update({ min: args.min, max: args.max }, args.height ?? 400, 2);
 
   return s;
 }
 
-describe('YScale — log type', () => {
+function makeLog(min: number, max: number, height = 400): YScale {
+  return makeScale({ transform: logScale(), min, max, height });
+}
+
+const sqrtScale: YScaleTransform = {
+  forward: Math.sqrt,
+  inverse: (scaled) => scaled * scaled,
+  isPlottable: (value) => value >= 0,
+};
+
+describe('YScale — logScale()', () => {
   describe('coordinate mapping', () => {
     it('gives every decade the same height', () => {
       const s = makeLog(1, 10_000, 400);
@@ -171,20 +183,107 @@ describe('YScale — log type', () => {
     });
   });
 
-  describe('switching type', () => {
+  describe('base', () => {
+    it('maps the same for every base — only ticks move', () => {
+      const base10 = makeLog(1, 4096, 400);
+      const base2 = makeScale({ transform: logScale({ base: 2 }), min: 1, max: 4096 });
+
+      for (const value of [1, 3, 64, 1000, 4096]) {
+        expect(base2.valueToY(value)).toBeCloseTo(base10.valueToY(value), 9);
+      }
+    });
+
+    it('puts base-2 ticks on powers of two, thinned to clear the spacing', () => {
+      // 12 doublings over 400px → 33px each: every 2nd power clears 50px.
+      const s = makeScale({ transform: logScale({ base: 2 }), min: 1, max: 4096 });
+
+      expect(s.niceTickValues()).toEqual([1, 4, 16, 64, 256, 1024, 4096]);
+    });
+
+    it('returns one shared scale per base, so an inline call stays the same scale', () => {
+      expect(logScale()).toBe(logScale({ base: 10 }));
+      expect(logScale({ base: 2 })).toBe(logScale({ base: 2 }));
+      expect(logScale({ base: 2 })).not.toBe(logScale());
+    });
+
+    it('rejects a base that has no logarithm', () => {
+      for (const base of [1, 0, -2, Number.NaN]) {
+        expect(() => logScale({ base })).toThrow(/base must be/);
+      }
+    });
+  });
+
+  describe('switching scales', () => {
     it('re-resolves ticks for the new mapping', () => {
       const s = new YScale();
       s.update({ min: 1, max: 1_000_000 }, 400, 1);
       const linearTicks = s.niceTickValues();
       expect(linearTicks).not.toContain(10);
 
-      s.setType('log');
-      expect(s.getType()).toBe('log');
+      s.setTransform(logScale());
+      expect(s.getTransform()).toBe(logScale());
       expect(s.niceTickValues()).toEqual([1, 10, 100, 1000, 10_000, 100_000, 1_000_000]);
 
-      s.setType('linear');
+      s.setTransform(null);
       expect(s.niceTickValues()).toEqual(linearTicks);
       expect(s.valueToY(500_000.5)).toBeCloseTo(200, 6);
     });
+  });
+});
+
+describe('YScale — custom transform', () => {
+  it('maps through forward and inverts through inverse', () => {
+    const s = makeScale({ transform: sqrtScale, min: 0, max: 100 });
+
+    expect(s.valueToY(0)).toBe(400);
+    expect(s.valueToY(25)).toBeCloseTo(200, 9);
+    expect(s.valueToY(100)).toBe(0);
+    expect(s.yToValue(s.valueToY(42))).toBeCloseTo(42, 9);
+  });
+
+  it('skips values outside isPlottable and lands them on the floor', () => {
+    const s = makeScale({ transform: sqrtScale, min: 0, max: 100 });
+
+    expect(s.isPlottable(-1)).toBe(false);
+    expect(s.isPlottable(0)).toBe(true);
+    expect(s.valueToY(-1)).toBe(400);
+  });
+
+  it('spaces linear ticks for the mapping when it has no ticks of its own', () => {
+    // sqrt compresses the top, so the tightest gap is there and must clear 50px.
+    const s = makeScale({ transform: sqrtScale, min: 0, max: 10_000 });
+    const ys = s.niceTickValues().map((v) => s.valueToY(v));
+
+    expect(ys.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i - 1] - ys[i]).toBeGreaterThanOrEqual(50 - 1e-9);
+    }
+  });
+
+  it('keeps gaps clear at the bottom of a convex mapping', () => {
+    const square: YScaleTransform = {
+      forward: (value) => value * value,
+      inverse: Math.sqrt,
+      isPlottable: (value) => value >= 0,
+    };
+    const s = makeScale({ transform: square, min: 0, max: 100 });
+    const ys = s.niceTickValues().map((v) => s.valueToY(v));
+
+    expect(ys.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < ys.length; i++) {
+      expect(ys[i - 1] - ys[i]).toBeGreaterThanOrEqual(50 - 1e-9);
+    }
+  });
+
+  it('formats with its own formatter only while its own ticks are shown', () => {
+    const labelled: YScaleTransform = {
+      ...sqrtScale,
+      ticks: ({ min, max }) => [min, max],
+      format: (value) => `~${value}`,
+    };
+    const s = makeScale({ transform: labelled, min: 0, max: 100, height: 100 });
+
+    expect(s.niceTickValues()).toEqual([0, 100]);
+    expect(s.formatY(100)).toBe('~100');
   });
 });

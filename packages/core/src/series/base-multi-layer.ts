@@ -862,7 +862,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
 
     const layers = this.stores.map((s) => (s.isVisible() ? s.getVisibleData(from, to) : []));
-    const positiveOnly = opts?.positiveOnly === true;
+    const plottable = opts?.plottable;
 
     if (stacking === 'off') {
       // Union of all layers' individual ranges. Skip non-finite values so
@@ -872,7 +872,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       for (const data of layers) {
         for (const d of data) {
           if (!Number.isFinite(d.value)) continue;
-          if (positiveOnly && d.value <= 0) continue;
+          if (plottable && !plottable(d.value)) continue;
 
           if (d.value < min) min = d.value;
           if (d.value > max) max = d.value;
@@ -882,7 +882,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       return min < Infinity ? { min, max } : null;
     }
 
-    if (positiveOnly) return positiveStackedRange(layers);
+    if (plottable) return plottableStackedRange(layers, plottable);
 
     // Normal stacking: compute stacked totals. Non-finite values are treated
     // as 0 for the stack — don't crash the range because one layer has a gap.
@@ -916,35 +916,46 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 }
 
 /**
- * Stacked range for a log Y scale. Values ≤ 0 add nothing to the stack, so
- * each column's lowest drawn edge is its first positive running total — the
- * floor carries the bottom slice, there is no zero baseline to include.
+ * Stacked range for a non-linear Y scale. Values the scale can't place add
+ * nothing to the stack, and every drawn edge counts — the zero baseline only
+ * when the scale can place it. On log that makes a column's lowest edge its
+ * first positive running total, since the floor carries the bottom slice.
  */
-function positiveStackedRange(layers: readonly (readonly TimePoint[])[]): { min: number; max: number } | null {
-  const totals = new Map<number, number[]>();
+function plottableStackedRange(
+  layers: readonly (readonly TimePoint[])[],
+  plottable: (value: number) => boolean,
+): { min: number; max: number } | null {
+  const columns = new Map<number, number[]>();
   for (let li = 0; li < layers.length; li++) {
     for (const d of layers[li]) {
-      let column = totals.get(d.time);
+      let column = columns.get(d.time);
       if (!column) {
         column = new Array(layers.length).fill(0);
-        totals.set(d.time, column);
+        columns.set(d.time, column);
       }
-      column[li] = Number.isFinite(d.value) && d.value > 0 ? d.value : 0;
+      column[li] = plottable(d.value) ? d.value : 0;
     }
   }
 
-  let min = Infinity;
-  let max = -Infinity;
-  for (const column of totals.values()) {
-    let running = 0;
+  const baseline = plottable(0);
+  let min = baseline ? 0 : Infinity;
+  let max = baseline ? 0 : -Infinity;
+  for (const column of columns.values()) {
+    let positive = 0;
+    let negative = 0;
     for (const v of column) {
-      if (v <= 0) continue;
+      if (v === 0) continue;
 
-      if (running === 0 && v < min) min = v;
-      running += v;
+      if (v > 0) positive += v;
+      else negative += v;
+
+      const edge = v > 0 ? positive : negative;
+      if (!plottable(edge)) continue;
+
+      if (edge < min) min = edge;
+      if (edge > max) max = edge;
     }
-    if (running > max) max = running;
   }
 
-  return min < Infinity && max > 0 ? { min, max } : null;
+  return min < Infinity ? { min, max } : null;
 }

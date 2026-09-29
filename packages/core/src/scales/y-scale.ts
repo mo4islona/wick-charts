@@ -1,7 +1,6 @@
-import type { YRange, YScaleType } from '../types';
+import type { YRange, YScaleTransform } from '../types';
 import { type ValueFormatter, formatCompact } from '../utils/format';
 import { crispCenterOffset } from '../utils/pixel-grid';
-import { logDecadeTicks } from './log-ticks';
 import { AxisTickTracker } from './tick-tracker';
 
 /** Custom tick-value generator — replaces the built-in {1,2,5}×10^k resolution entirely when installed. */
@@ -38,6 +37,13 @@ const MAX_TICKS = 50;
 /** Default minimum pixel gap between adjacent Y labels when no config is supplied. */
 const DEFAULT_MIN_LABEL_SPACING = 50;
 
+/** Whether `value` is finite and inside `transform`'s domain (`null` = linear). */
+export function isPlottableOn(transform: YScaleTransform | null, value: number): boolean {
+  if (!Number.isFinite(value)) return false;
+
+  return transform?.isPlottable?.(value) ?? true;
+}
+
 /**
  * Maps values to vertical pixel positions (and vice versa).
  * Also provides tick generation and value formatting for the Y axis.
@@ -46,10 +52,11 @@ export class YScale {
   /** Shared fade state for Y ticks; see {@link TimeScale.tickTracker}. */
   readonly tickTracker = new AxisTickTracker();
 
-  private type: YScaleType = 'linear';
+  /** Non-linear value mapping (`axis.y.scale`); `null` is linear. */
+  private transform: YScaleTransform | null = null;
   private min = 0;
   private max = 0;
-  /** Domain bounds in scale space — `log10` of `min` / `max` on a log scale. */
+  /** Domain bounds in scale space — `transform.forward` of `min` / `max`. */
   private lo = 0;
   private hi = 0;
   private height = 1;
@@ -72,14 +79,8 @@ export class YScale {
    */
   private lastRawInterval: number | null = null;
 
-  /** Power-of-ten ticks on a log scale; `null` when linear ticks are in use. */
-  private logTicks: number[] | null = null;
-  /**
-   * Whether the log scale last picked linear ticks (narrow range). `null`
-   * until the first pick — drives the hold that keeps a range drifting across
-   * the tie from flipping the whole label set.
-   */
-  private logUsesLinear: boolean | null = null;
+  /** The transform's own ticks (e.g. powers of ten); `null` while linear ticks are in use. */
+  private ownTicks: readonly number[] | null = null;
 
   /** Custom formatter (driven by `<YAxis format=…>`). */
   private customFormat: ValueFormatter | null = null;
@@ -104,29 +105,28 @@ export class YScale {
     this.resolveTicks();
   }
 
-  /** Switch between linear and log mapping. The range is kept as-is — the chart refits it. */
-  setType(type: YScaleType): void {
-    if (type === this.type) return;
+  /** Install a non-linear value mapping, or `null` for linear. The range is kept as-is — the chart refits it. */
+  setTransform(transform: YScaleTransform | null): void {
+    if (transform === this.transform) return;
 
-    this.type = type;
+    this.transform = transform;
     this.resetHysteresis();
     this.updateDomain();
     this.resolveTicks();
   }
 
-  getType(): YScaleType {
-    return this.type;
+  getTransform(): YScaleTransform | null {
+    return this.transform;
   }
 
   /**
-   * Whether `value` has a position on this scale: finite, and positive on a
-   * log scale. Renderers skip values that fail — {@link valueToY} still maps
-   * them (to the plot floor on a log scale) so nothing downstream sees NaN.
+   * Whether `value` has a position on this scale: finite, and inside the
+   * transform's domain (positive on log). Renderers skip values that fail —
+   * {@link valueToY} still maps them (to the plot floor) so nothing
+   * downstream sees NaN.
    */
   isPlottable(value: number): boolean {
-    if (!Number.isFinite(value)) return false;
-
-    return this.type === 'linear' || value > 0;
+    return isPlottableOn(this.transform, value);
   }
 
   /** Desired label count. Invalid values (NaN, <2, Infinity) clear the hint. */
@@ -146,21 +146,21 @@ export class YScale {
   private resetHysteresis(): void {
     this.lastInterval = null;
     this.lastRawInterval = null;
-    this.logUsesLinear = null;
   }
 
-  /** A log domain needs both bounds positive; anything else collapses to a flat one. */
+  /** A transformed domain needs both bounds plottable; anything else collapses to a flat one. */
   private updateDomain(): void {
-    if (this.type === 'linear') {
+    const transform = this.transform;
+    if (transform === null) {
       this.lo = this.min;
       this.hi = this.max;
 
       return;
     }
 
-    const valid = this.min > 0 && this.max > 0;
-    this.lo = valid ? Math.log10(this.min) : 0;
-    this.hi = valid ? Math.log10(this.max) : 0;
+    const valid = this.isPlottable(this.min) && this.isPlottable(this.max);
+    this.lo = valid ? transform.forward(this.min) : 0;
+    this.hi = valid ? transform.forward(this.max) : 0;
   }
 
   /** Install (or clear) a custom formatter. */
@@ -184,8 +184,8 @@ export class YScale {
   }
 
   /**
-   * Convert a value to a Y position in CSS (media) pixels. On a log scale a
-   * value ≤ 0 lands on the plot floor — log has no zero.
+   * Convert a value to a Y position in CSS (media) pixels. A value the
+   * transform can't place (≤ 0 on log) lands on the plot floor.
    */
   valueToY(value: number): number {
     const span = this.hi - this.lo;
@@ -193,11 +193,12 @@ export class YScale {
     // and poison the render pipeline with NaN. Anchor at mid-height instead.
     if (span === 0) return this.height / 2;
 
-    if (this.type === 'linear') return (1 - (value - this.lo) / span) * this.height;
+    const transform = this.transform;
+    if (transform === null) return (1 - (value - this.lo) / span) * this.height;
 
-    if (!(value > 0)) return this.height;
+    if (!this.isPlottable(value)) return this.height;
 
-    return (1 - (Math.log10(value) - this.lo) / span) * this.height;
+    return (1 - (transform.forward(value) - this.lo) / span) * this.height;
   }
 
   /** Convert a value to a Y position in physical (bitmap) pixels, snapped to
@@ -231,7 +232,7 @@ export class YScale {
 
     const scaled = this.hi - (y / this.height) * span;
 
-    return this.type === 'linear' ? scaled : 10 ** scaled;
+    return this.transform === null ? scaled : this.transform.inverse(scaled);
   }
 
   /**
@@ -241,8 +242,13 @@ export class YScale {
   niceTickValues(): number[] {
     if (this.customTickGenerator) return this.customTickGenerator({ min: this.min, max: this.max }).slice(0, MAX_TICKS);
 
-    if (this.logTicks !== null) return this.logTicks.slice(0, MAX_TICKS);
+    if (this.ownTicks !== null) return this.ownTicks.slice(0, MAX_TICKS);
 
+    return this.linearTickValues();
+  }
+
+  /** {1,2,5}×10^k ticks at the resolved interval, limited to what the transform can place. */
+  private linearTickValues(): number[] {
     if (this.resolvedInterval == null) return [];
 
     const interval = this.resolvedInterval;
@@ -253,7 +259,9 @@ export class YScale {
     // Multiplicative indexing avoids cumulative fp drift of `p += interval`.
     for (let i = 0; i < count; i++) ticks.push(start + i * interval);
 
-    return ticks;
+    if (this.transform === null) return ticks;
+
+    return ticks.filter((tick) => this.isPlottable(tick));
   }
 
   getRange(): YRange {
@@ -274,8 +282,9 @@ export class YScale {
   formatY(value: number): string {
     if (this.customFormat) return this.customFormat(value);
 
-    // Power-of-ten ticks share no interval to derive decimals from.
-    if (this.logTicks !== null) return trimFractionZeros(formatCompact(value));
+    // A transform's own ticks (powers of ten) share no interval to derive decimals from.
+    const ownFormat = this.ownTicks !== null ? this.transform?.format : undefined;
+    if (ownFormat) return ownFormat(value);
 
     // Kick into K/M/B/T suffixes once labels would otherwise balloon past ~7
     // characters. Keeping the threshold at ≥ 1e6 preserves readable raw
@@ -292,61 +301,50 @@ export class YScale {
   }
 
   private resolveTicks(): void {
-    if (this.type === 'log') {
-      this.resolveLogTicks();
+    this.ownTicks = null;
+
+    const transform = this.transform;
+    if (transform === null) {
+      this.resolveInterval(((this.max - this.min) * this.minLabelSpacing) / this.height);
 
       return;
     }
 
-    this.logTicks = null;
-    this.resolveInterval(((this.max - this.min) * this.minLabelSpacing) / this.height);
-  }
-
-  /**
-   * Powers of ten, unless the range is too narrow to catch enough of them —
-   * then linear {1,2,5}×10^k ticks, spaced so the tightest gap (at the top,
-   * where log compresses) still clears `minLabelSpacing`.
-   */
-  private resolveLogTicks(): void {
     const span = this.hi - this.lo;
     if (!(span > 0) || this.height <= 0) {
-      this.logTicks = null;
       this.resolvedInterval = null;
 
       return;
     }
 
-    const decadeTicks = logDecadeTicks({
+    this.resolveInterval(this.transformedGapFloor(transform, span));
+    if (!transform.ticks) return;
+
+    const linear = this.linearTickValues();
+    const picked = transform.ticks({
       min: this.min,
       max: this.max,
       height: this.height,
       minSpacing: this.minLabelSpacing,
       labelCount: this.labelCountHint,
+      linear,
     });
-
-    const pxPerDecade = this.height / span;
-    this.resolveInterval(this.max * (1 - 10 ** (-this.minLabelSpacing / pxPerDecade)));
-    const linearCount = this.resolvedInterval === null ? 0 : this.countTicks(this.resolvedInterval);
-
-    const useLinear = this.prefersLinearTicks({ logCount: decadeTicks.length, linearCount });
-    this.logUsesLinear = useLinear;
-    this.logTicks = useLinear ? null : decadeTicks;
+    // Handing `linear` back keeps the linear ticks, and with them the linear formatter.
+    this.ownTicks = picked === linear ? null : picked;
   }
 
-  /** Pick the tick kind whose count lands closer to the target, holding the current kind on near-ties. */
-  private prefersLinearTicks(args: { logCount: number; linearCount: number }): boolean {
-    const { logCount, linearCount } = args;
-    if (linearCount < 2) return false;
-    if (logCount < 2) return true;
+  /**
+   * Smallest linear interval whose ticks stay `minLabelSpacing` apart on the
+   * transformed axis. A monotonic mapping squeezes its gaps hardest at one
+   * end — the top for log (concave), the bottom for a convex one — so
+   * checking both ends covers it.
+   */
+  private transformedGapFloor(transform: YScaleTransform, span: number): number {
+    const spacing = (this.minLabelSpacing / this.height) * span;
+    const atTop = this.max - transform.inverse(Math.max(this.lo, this.hi - spacing));
+    const atBottom = transform.inverse(Math.min(this.hi, this.lo + spacing)) - this.min;
 
-    const target = this.labelCountHint ?? Math.max(2, Math.floor(this.height / this.minLabelSpacing));
-    const logMiss = Math.abs(logCount - target);
-    const linearMiss = Math.abs(linearCount - target);
-
-    if (this.logUsesLinear === true) return linearMiss <= logMiss + 1;
-    if (this.logUsesLinear === false) return linearMiss + 1 < logMiss;
-
-    return linearMiss < logMiss;
+    return Math.max(atTop, atBottom);
   }
 
   /**
@@ -416,11 +414,6 @@ export class YScale {
 
     return Math.max(0, Math.floor((this.max - start) / interval) + 1);
   }
-}
-
-/** `"1.00K"` → `"1K"`, `"2.50M"` → `"2.5M"`, `"20.00"` → `"20"`. */
-function trimFractionZeros(label: string): string {
-  return label.replace(/(\.\d*?)0+([KMBT]?)$/, '$1$2').replace(/\.([KMBT]?)$/, '$1');
 }
 
 function normalizeLabelCount(n: number | null | undefined): number | null {

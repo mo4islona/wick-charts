@@ -182,9 +182,9 @@ function pickAnimations(s: PlaygroundChartProps, curveAs: 'string' | 'factory'):
 
 /** `axis` with the Y scale pinned to linear — for demo data a log axis can't show. */
 export function withLinearY(axis: AxisConfig): AxisConfig {
-  if (axis.y?.type !== 'log') return axis;
+  if (axis.y?.scale === undefined) return axis;
 
-  return { ...axis, y: { ...axis.y, type: 'linear' } };
+  return { ...axis, y: { ...axis.y, scale: undefined } };
 }
 
 /** A log Y scale rejects percent stacking, so a 100% chart stays linear. */
@@ -206,7 +206,7 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
 
   const y: Record<string, PropValue> = {};
   if (s.axis?.y?.position === 'left') y.position = 'left';
-  if (s.axis?.y?.type === 'log') y.type = 'log';
+  if (s.axis?.y?.scale !== undefined) y.scale = 'logScale()';
   if (s.axis?.y?.width !== undefined && s.axis.y.width !== AXIS_Y_WIDTH_DEFAULT) {
     y.width = s.axis.y.width;
   }

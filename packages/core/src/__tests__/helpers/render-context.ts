@@ -5,15 +5,15 @@ import type { OverlayRenderContext, SeriesRenderContext } from '../../series/typ
 import { type CanvasRecorder, createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
 import type { ChartTheme } from '../../theme/types';
-import type { YScaleType } from '../../types';
+import type { YScaleTransform } from '../../types';
 
 export interface BuildContextOptions {
   /** Viewport X range in data units. Defaults to [0, 100]. */
   timeRange?: { from: number; to: number };
   /** Viewport Y range. Defaults to [0, 100]. */
   yRange?: { min: number; max: number };
-  /** Y value mapping. Defaults to `'linear'`. */
-  yScaleType?: YScaleType;
+  /** Non-linear Y value mapping (`axis.y.scale`). Defaults to linear. */
+  yTransform?: YScaleTransform | null;
   /** CSS pixel size. Defaults to 800x400. */
   mediaWidth?: number;
   mediaHeight?: number;
@@ -52,7 +52,7 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
   const {
     timeRange = { from: 0, to: 100 },
     yRange = { min: 0, max: 100 },
-    yScaleType = 'linear',
+    yTransform = null,
     mediaWidth = 800,
     mediaHeight = 400,
     pixelRatio = 1,
@@ -79,7 +79,7 @@ export function buildRenderContext(opts: BuildContextOptions = {}): BuiltRenderC
   timeScale.update(timeRange, mediaWidth, pixelRatio);
 
   const yScale = new YScale();
-  yScale.setType(yScaleType);
+  yScale.setTransform(yTransform);
   yScale.update(yRange, mediaHeight, pixelRatio);
 
   const ctx: SeriesRenderContext = {

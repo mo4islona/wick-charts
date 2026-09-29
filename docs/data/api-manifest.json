@@ -3148,13 +3148,17 @@
                       "see": []
                     },
                     {
-                      "name": "type",
-                      "type": "YScaleType",
+                      "name": "scale",
+                      "type": "YScaleTransform",
                       "optional": true,
-                      "defaultValue": "'linear'",
+                      "defaultValue": null,
                       "deprecated": null,
-                      "description": "Value mapping. `'log'` gives each power of ten equal height — for series\nspanning orders of magnitude. Ticks sit on powers of ten (with 2× / 5×\nsteps when zoomed in), and autoscale and Y animations run in log space.\n\nOn a log scale, values ≤ 0 are skipped (a gap in a line, no bar or\ncandle), a non-positive `min` / `max` bound falls back to `'auto'`, and\narea fills close to the plot floor. Percent stacking is rejected — it\npins the axis to 0–100%, and 0 has no position on a log axis.\nDefault: `'linear'`. Live — switching refits the Y range.",
-                      "see": []
+                      "description": "Value mapping. Omitted: linear. `logScale()` gives each power of ten equal\nheight — for series spanning orders of magnitude; `logScale({ base: 2 })`\nputs the ticks on powers of two. Any YScaleTransform works.\n\nAutoscale and Y animations run in the scale's space. Values the scale\ncan't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle —\na fixed `min` / `max` it can't place falls back to `'auto'`, and area\nfills close to the plot floor. Percent stacking is rejected when the\nscale has no position for 0. Live — a different scale refits the Y range.",
+                      "see": [],
+                      "nested": {
+                        "name": "YScaleTransform",
+                        "props": []
+                      }
                     },
                     {
                       "name": "min",

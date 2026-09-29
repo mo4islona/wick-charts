@@ -960,11 +960,62 @@ export interface HeatmapSeriesOptions {
 /** Side of the plot area the Y axis column sits on. */
 export type YAxisPosition = 'left' | 'right';
 
+/** What a {@link YScaleTransform.ticks} generator is asked to fill. */
+export interface ScaleTickArgs {
+  /** Visible value range. Both bounds are plottable on the scale. */
+  min: number;
+  max: number;
+  /** Plot height in CSS pixels. */
+  height: number;
+  /** Minimum pixel gap between adjacent labels. */
+  minSpacing: number;
+  /** Desired label count from `<YAxis labelCount>`, or `null`. */
+  labelCount: number | null;
+  /**
+   * Linear {1,2,5}×10^k ticks already spaced for this mapping (with the axis's
+   * anti-flicker hold). Return this array itself to keep them.
+   */
+  linear: readonly number[];
+}
+
 /**
- * How values map onto the Y axis. `'log'` spaces each power of ten evenly;
- * values ≤ 0 have no position there — see {@link YAxisConfig.type}.
+ * A non-linear value mapping for the Y axis — pass one as `axis.y.scale`.
+ * `logScale()` is the built-in one; any monotonic mapping works, e.g. a
+ * square-root axis:
+ *
+ * ```ts
+ * const sqrtScale: YScaleTransform = {
+ *   forward: Math.sqrt,
+ *   inverse: (s) => s * s,
+ *   isPlottable: (v) => v >= 0,
+ * };
+ * ```
+ *
+ * Everything vertical runs in the transformed space: pixel positions,
+ * autoscale padding and the Y animations. Keep the object stable — define it
+ * outside a component, since a new object means a new scale and resets the
+ * Y range.
  */
-export type YScaleType = 'linear' | 'log';
+export interface YScaleTransform {
+  /** Value → scale space. Must be strictly increasing over the plottable values. */
+  forward(value: number): number;
+  /** Scale space → value; the exact inverse of {@link forward}. */
+  inverse(scaled: number): number;
+  /**
+   * Whether a finite value has a position on this scale — one contiguous
+   * interval, e.g. `v > 0` for log. Values that fail are skipped: a gap in a
+   * line, no bar or candle, left out of autoscale. Default: every finite value.
+   */
+  isPlottable?(value: number): boolean;
+  /**
+   * The scale's own tick values (e.g. powers of ten), or `args.linear` to keep
+   * the linear ticks — say, on a range too narrow for its own. Omitted: linear
+   * ticks, spaced so the tightest gap on this mapping clears `minSpacing`.
+   */
+  ticks?(args: ScaleTickArgs): readonly number[];
+  /** Label format while the scale's own ticks are in use. Default: the linear formatter. */
+  format?(value: number): string;
+}
 
 /** Configuration for the Y axis. */
 export interface YAxisConfig {
@@ -977,17 +1028,17 @@ export interface YAxisConfig {
   /** Width in CSS pixels. Default: 55, or 0 when every series is spatial (pie, heatmap). */
   width?: number;
   /**
-   * Value mapping. `'log'` gives each power of ten equal height — for series
-   * spanning orders of magnitude. Ticks sit on powers of ten (with 2× / 5×
-   * steps when zoomed in), and autoscale and Y animations run in log space.
+   * Value mapping. Omitted: linear. `logScale()` gives each power of ten equal
+   * height — for series spanning orders of magnitude; `logScale({ base: 2 })`
+   * puts the ticks on powers of two. Any {@link YScaleTransform} works.
    *
-   * On a log scale, values ≤ 0 are skipped (a gap in a line, no bar or
-   * candle), a non-positive `min` / `max` bound falls back to `'auto'`, and
-   * area fills close to the plot floor. Percent stacking is rejected — it
-   * pins the axis to 0–100%, and 0 has no position on a log axis.
-   * Default: `'linear'`. Live — switching refits the Y range.
+   * Autoscale and Y animations run in the scale's space. Values the scale
+   * can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle —
+   * a fixed `min` / `max` it can't place falls back to `'auto'`, and area
+   * fills close to the plot floor. Percent stacking is rejected when the
+   * scale has no position for 0. Live — a different scale refits the Y range.
    */
-  type?: YScaleType;
+  scale?: YScaleTransform;
   /** Minimum bound. Default: 'auto'. */
   min?: AxisBound;
   /** Maximum bound. Default: 'auto'. */
