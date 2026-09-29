@@ -116,6 +116,17 @@ const AXIS_FADE_END_GAP_PX = 12;
  *  the default 30px axis row, their cap height starts ~10px down. */
 const GRID_TAIL_PX = 9;
 
+const BOTH_EDGE_SIDES: readonly EdgeSide[] = ['left', 'right'];
+const LEFT_EDGE_SIDE: readonly EdgeSide[] = ['left'];
+const RIGHT_EDGE_SIDE: readonly EdgeSide[] = ['right'];
+
+/** The layout the DOM axis / label components anchor to. */
+interface AxisGutters {
+  yAxisWidth: number;
+  xAxisHeight: number;
+  yAxisPosition: YAxisPosition;
+}
+
 /**
  * Payload for `pointClick` / `pointDoubleClick`. `spatialHit` resolves a
  * no-time-axis series (pie, heatmap, or a custom spatial kind) directly
@@ -304,13 +315,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     top: { height: number; gradient: CanvasGradient } | null;
     /** Ramp under the Y-axis column, on whichever side it sits. */
     axis: { inner: number; outer: number; gradient: CanvasGradient } | null;
-    /** Plain zone at the pane edge opposite the axis. */
-    edge: { edge: number; inner: number; gradient: CanvasGradient } | null;
+    /** Plain zones at the canvas edges without an axis ramp. */
+    edge: Record<EdgeSide, { edge: number; inner: number; gradient: CanvasGradient } | null>;
     /** Erase ramp for the below-pane gridline tail stubs. */
     tail: { start: number; height: number; gradient: CanvasGradient } | null;
     /** Erase ramp for the gridlines running under a left Y-axis column. */
     overhang: { start: number; end: number; gradient: CanvasGradient } | null;
-  } = { top: null, axis: null, edge: null, tail: null, overhang: null };
+  } = { top: null, axis: null, edge: { left: null, right: null }, tail: null, overhang: null };
   /** Detected time interval between data points (milliseconds). */
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
@@ -374,9 +385,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   #overlayVersion = 0;
 
+  /** CSS px of the Y-axis column. The default collapses to `0` on a spatial-only chart. */
   get yAxisWidth(): number {
     const y = this.#axis.y;
-    return y?.visible === false ? 0 : (y?.width ?? 55);
+    if (y?.visible === false) return 0;
+    if (y?.width !== undefined) return y.width;
+
+    return this.#isSpatialOnly() ? 0 : 55;
   }
 
   /** Side of the plot area the Y-axis column sits on. */
@@ -399,9 +414,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return this.#headerHeight;
   }
 
+  /** CSS px of the time-axis row. The default collapses to `0` on a spatial-only chart. */
   get xAxisHeight(): number {
     const x = this.#axis.x;
-    return x?.visible === false ? 0 : (x?.height ?? 30);
+    if (x?.visible === false) return 0;
+    if (x?.height !== undefined) return x.height;
+
+    return this.#isSpatialOnly() ? 0 : 30;
   }
 
   /** Resolved animation config derived from `options.animations` at construction. */
@@ -726,9 +745,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entryLabels = labels ?? (typeof label === 'string' ? [label] : undefined);
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
+    const prevGutters = this.#readGutters();
     this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
+    this.#syncGutters(prevGutters);
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
 
@@ -739,10 +760,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   removeSeries(id: string): void {
     const idx = this.#series.findIndex((s) => s.id === id);
     if (idx >= 0) {
+      const prevGutters = this.#readGutters();
       this.#series[idx].renderer.dispose();
       this.#series.splice(idx, 1);
       this.#seriesIdCache = null;
       this.#syncInteractionMode();
+      this.#syncGutters(prevGutters);
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
       this.#bumpOverlayVersion();
@@ -1656,6 +1679,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * True when series exist and none has a time axis (pie, heatmap): those
+   * renderers lay out against the whole canvas, so there are no axis gutters
+   * to reserve and nothing slides under an axis column. Reads registration,
+   * not visibility — a legend toggle must not shift the layout.
+   */
+  #isSpatialOnly(): boolean {
+    if (this.#series.length === 0) return false;
+
+    return this.#series.every((entry) => !isTimeSeriesRenderer(entry.renderer));
+  }
+
+  #readGutters(): AxisGutters {
+    return { yAxisWidth: this.yAxisWidth, xAxisHeight: this.xAxisHeight, yAxisPosition: this.yAxisPosition };
+  }
+
+  /** Resync the scales after the axis gutters moved, and let DOM axis / label
+   *  components re-read the layout, as they do after a resize. */
+  #syncGutters(prev: AxisGutters): void {
+    const next = this.#readGutters();
+    const moved =
+      next.yAxisWidth !== prev.yAxisWidth ||
+      next.xAxisHeight !== prev.xAxisHeight ||
+      next.yAxisPosition !== prev.yAxisPosition;
+    if (!moved) return;
+
+    this.syncScales();
+    this.emit('viewportChange');
+    this.#mainScheduler.markDirty();
+  }
+
+  /**
    * Whether pan/zoom gestures currently apply — true when any visible series
    * has a time axis. Part of the {@link PanZoomTarget} surface: on a
    * spatial-only chart (pie, heatmap) the interaction layer stops capturing
@@ -1881,9 +1935,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Update axis configuration and re-render. */
   setAxis(config: AxisConfig): void {
-    const prevYW = this.yAxisWidth;
-    const prevXH = this.xAxisHeight;
-    const prevSide = this.yAxisPosition;
+    const prevGutters = this.#readGutters();
 
     this.#axis = config;
     // Sync Y bounds from axis config
@@ -1893,14 +1945,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#engine.onAxisReconfig(now);
     this.#applyEngineState(now);
 
-    const layoutChanged = this.yAxisWidth !== prevYW || this.xAxisHeight !== prevXH || this.yAxisPosition !== prevSide;
-    if (layoutChanged) {
-      this.syncScales();
-      // DOM axis / label components anchor to the gutters — let them re-read
-      // the layout, as they do after a resize.
-      this.emit('viewportChange');
-    }
-
+    this.#syncGutters(prevGutters);
     this.#mainScheduler.markDirty();
   }
 
@@ -3321,21 +3366,31 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     context.restore();
   }
 
-  /** Dissolve content leaving through the pane edge opposite the Y axis,
-   *  when that side's fade is configured. */
+  /** Dissolve content leaving through a plain canvas edge — the side opposite
+   *  the Y axis, or either side on a spatial-only chart — when configured. */
   #applyEdgeFade(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
-    const zone = this.#edgeFadeZone(scope, paneBitmapWidth);
-    if (zone === null) return;
-
     const { context } = scope;
-    const x = Math.min(zone.edge, zone.inner);
-    const width = Math.abs(zone.inner - zone.edge);
 
-    context.save();
-    context.globalCompositeOperation = 'destination-out';
-    context.fillStyle = this.#edgeFadeGradient({ context, zone });
-    context.fillRect(x, 0, width, scope.bitmapSize.height);
-    context.restore();
+    for (const side of this.#plainEdgeSides()) {
+      const zone = this.#edgeFadeZone({ scope, paneBitmapWidth, side });
+      if (zone === null) continue;
+
+      const x = Math.min(zone.edge, zone.inner);
+      const width = Math.abs(zone.inner - zone.edge);
+
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      context.fillStyle = this.#edgeFadeGradient({ context, side, zone });
+      context.fillRect(x, 0, width, scope.bitmapSize.height);
+      context.restore();
+    }
+  }
+
+  /** Sides whose fade is a plain edge zone rather than the axis-column ramp. */
+  #plainEdgeSides(): readonly EdgeSide[] {
+    if (this.#isSpatialOnly()) return BOTH_EDGE_SIDES;
+
+    return this.yAxisPosition === 'left' ? RIGHT_EDGE_SIDE : LEFT_EDGE_SIDE;
   }
 
   /** Bitmap px the gridlines and crosshair run under a left Y-axis column, where
@@ -3411,13 +3466,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * spills back into the pane as the soft lead-in. On the left it finishes
    * at the pane edge. Erasing starts at `inner` and is total at `outer`;
    * `intrusion` is what the pane clip extends by (content past the ramp is
-   * total-erased anyway). `null` when the axis is hidden or its side's fade
-   * is `0`.
+   * total-erased anyway). `null` when the axis is hidden, its side's fade
+   * is `0`, or the chart is spatial-only.
    */
   #axisFadeZone(
     scope: BitmapCoordinateSpace,
     paneBitmapWidth: number,
   ): { inner: number; outer: number; intrusion: number } | null {
+    // Even under an explicitly sized column: both sides are plain edge zones there.
+    if (this.#isSpatialOnly()) return null;
+
     const onLeft = this.yAxisPosition === 'left';
     const bitmapWidth = scope.bitmapSize.width;
     const column = onLeft ? this.#paneBitmapLeft(scope) : Math.max(0, Math.round(bitmapWidth - paneBitmapWidth));
@@ -3447,18 +3505,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return { inner: outer - width, outer, intrusion };
   }
 
-  /** Bitmap geometry of the plain fade at the pane edge opposite the Y axis
-   *  — total erase at the canvas `edge`, none at `inner`. Off unless that
-   *  side's fade is configured. */
-  #edgeFadeZone(scope: BitmapCoordinateSpace, paneBitmapWidth: number): { edge: number; inner: number } | null {
-    const onLeft = this.yAxisPosition === 'left';
-    const configured = onLeft ? this.#fade.right : this.#fade.left;
+  /** Bitmap geometry of a plain fade at the `side` canvas edge — total erase
+   *  at `edge`, none at `inner`. Off unless that side's fade is configured. */
+  #edgeFadeZone(args: {
+    scope: BitmapCoordinateSpace;
+    paneBitmapWidth: number;
+    side: EdgeSide;
+  }): { edge: number; inner: number } | null {
+    const { scope, paneBitmapWidth, side } = args;
+    const configured = this.#fade[side];
     if (configured === null) return null;
 
     const width = Math.min(Math.round(configured * scope.horizontalPixelRatio), Math.round(paneBitmapWidth));
     if (width < 1) return null;
 
-    if (onLeft) {
+    if (side === 'right') {
       const edge = scope.bitmapSize.width;
 
       return { edge, inner: edge - width };
@@ -3545,10 +3606,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *  canvas edge, fully opaque at the zone's inner boundary. */
   #edgeFadeGradient(args: {
     context: CanvasRenderingContext2D;
+    side: EdgeSide;
     zone: { edge: number; inner: number };
   }): CanvasGradient {
-    const { context, zone } = args;
-    const cached = this.#fadeGradientCache.edge;
+    const { context, side, zone } = args;
+    const cached = this.#fadeGradientCache.edge[side];
     if (cached !== null && cached.edge === zone.edge && cached.inner === zone.inner) return cached.gradient;
 
     const gradient = context.createLinearGradient(zone.edge, 0, zone.inner, 0);
@@ -3556,7 +3618,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const t = i / 4;
       gradient.addColorStop(t, `rgba(0, 0, 0, ${1 - t * t})`);
     }
-    this.#fadeGradientCache.edge = { edge: zone.edge, inner: zone.inner, gradient };
+    this.#fadeGradientCache.edge[side] = { edge: zone.edge, inner: zone.inner, gradient };
 
     return gradient;
   }

@@ -84,7 +84,8 @@ export let grid: { visible: boolean } | undefined = undefined;
  * (a left-axis ramp ends at the pane edge instead). The axis side's key
  * (`{ right }` by default, `{ left }` for a left axis) overrides the total
  * ramp width in CSS px (`0` disables); the other key adds a plain zone at
- * the opposite pane edge (default off).
+ * the opposite pane edge (default off). A chart with only pie / heatmap
+ * series has no axis column, so both keys add plain zones there.
  *
  * **Top (under the header)** — opt-in. `true` enables the auto zone
  * (measured header + 24px run-out, half the header fold-in released so
