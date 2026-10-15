@@ -81,7 +81,7 @@ export function renderReferenceLine(args: RenderReferenceLineArgs): void {
   // DPR (matching the grid).
   if (line.orientation === 'horizontal') {
     const y = yScale.valueToBitmapY(line.coord);
-    if (!Number.isFinite(y) || y < 0 || y > plotHeight) {
+    if (!yScale.isPlottable(line.coord) || !Number.isFinite(y) || y < 0 || y > plotHeight) {
       context.restore();
 
       return;

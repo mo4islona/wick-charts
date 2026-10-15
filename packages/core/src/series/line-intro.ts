@@ -49,11 +49,20 @@ export interface LineIntroFrame {
   xToTime(x: number): number;
   /** Value → bitmap Y through the live Y scale. */
   valueToY(value: number): number;
+  /**
+   * The value `t` of the way from `from` to `to` on the Y axis — a plain lerp
+   * on a linear axis, a geometric one on log. Move values through this, or a
+   * log axis bunches the motion at one end and overshoots past 0.
+   */
+  lerpValue(from: number, to: number, t: number): number;
   /** Number of layers in the series. */
   layerCount: number;
   /** Visible data of one layer (memoized per frame). */
   layerData(layerIndex: number): readonly TimePoint[];
-  /** Mean of the layer's visible finite values, or `null` for an empty/poisoned layer (memoized per frame). */
+  /**
+   * Mean of the layer's visible plottable values, taken on the Y axis (the
+   * geometric mean on log), or `null` for an empty/poisoned layer (memoized per frame).
+   */
   layerMean(layerIndex: number): number | null;
   /**
    * Bitmap-space polyline of the first visible layer (finite values only,
@@ -146,7 +155,7 @@ export function unfoldIntro(options: { stagger?: number } = {}): LineIntroFn {
 
       const local = clamp01((frame.progress - stagger * position) / (1 - stagger));
 
-      return anchor + (value - anchor) * easeOutBack(local);
+      return frame.lerpValue(anchor, value, easeOutBack(local));
     },
   });
 }

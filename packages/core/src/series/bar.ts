@@ -1,4 +1,5 @@
 import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH, DEFAULT_HISTORY_REVEAL } from '../animation/config';
+import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
 import { type BarIntroDirectives, growIntro } from './bar-intro';
@@ -6,6 +7,7 @@ import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
+import { ScaleStack } from './scale-stack';
 import type { SeriesRenderContext } from './types';
 import { fadeIntro } from './wave-intro';
 
@@ -82,6 +84,36 @@ interface BarPass {
    *  {@link BarRenderer.drawAnimatedBar} clamps it to each bar's geometry so the
    *  value handed to a painter honors the pre-clamped `radius` contract. */
   radius: number;
+}
+
+/** Per-layer settled value and presence (fade × entrance) of one stacked column. */
+interface ColumnShares {
+  settled: number[];
+  weights: number[];
+}
+
+/** Per-layer segment edges of one stacked column: `base` sits on the stack below, `end` is the outer edge. */
+interface SegmentEdges {
+  base: number[];
+  end: number[];
+}
+
+/** Plain running sums — positive and negative segments stack away from 0 separately. */
+function sumEdges(values: readonly number[]): SegmentEdges {
+  const base: number[] = [];
+  const end: number[] = [];
+  let positive = 0;
+  let negative = 0;
+  for (const value of values) {
+    const below = value > 0 ? positive : negative;
+    base.push(below);
+    end.push(below + value);
+
+    if (value > 0) positive += value;
+    else negative += value;
+  }
+
+  return { base, end };
 }
 
 /** One bar's draw spec for {@link BarRenderer.drawAnimatedBar} — grouped into
@@ -284,6 +316,11 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * scope.horizontalPixelRatio,
     };
 
+    const valueAxis = {
+      baseline: yScale.baselineValue(),
+      lerpValue: (from: number, to: number, t: number) => yScale.lerpValue(from, to, t),
+    };
+
     // Resolve the intro's per-frame directives while the wave is in flight.
     // The intro function owns the choreography (clip window, per-value
     // transform, per-bar transform); the render paths below apply it on top
@@ -303,6 +340,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         height: yScale.getMediaHeight() * scope.verticalPixelRatio,
         range,
         timeToX: (time) => timeScale.timeToBitmapX(time),
+        ...valueAxis,
       });
     }
 
@@ -320,6 +358,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           height: yScale.getMediaHeight() * scope.verticalPixelRatio,
           range: historyRange,
           timeToX: (time) => timeScale.timeToBitmapX(time),
+          ...valueAxis,
         });
       }
     }
@@ -411,8 +450,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       for (const d of visibleData) {
         // Skip poisoned values (null / NaN / ±Infinity / undefined) — the
-        // renderer must not draw a NaN-height bar.
-        if (!Number.isFinite(d.value)) continue;
+        // renderer must not draw a NaN-height bar — and, on a log scale, values ≤ 0.
+        if (!yScale.isPlottable(d.value)) continue;
 
         // The intro's value directive scales the drawn value (growth from
         // the baseline); color resolves from the settled value so a
@@ -463,8 +502,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
     } else {
       // Multi-layer: collect per-time, draw tallest first so shorter bars appear in front.
-      // Drawn value = effectiveValue × getLayerAlpha — geometry shrinks toward
-      // the baseline as the layer fades, so the bar stays inside the Y range
+      // Drawn value moves from the baseline to effectiveValue by getLayerAlpha —
+      // geometry shrinks toward the baseline as the layer fades, so the bar stays inside the Y range
       // that is simultaneously contracting to "without this layer". Without
       // the alpha-weight, a tall bar (value=500) keeps full height while the
       // Y axis eases to a much smaller max → topY goes negative and the bar
@@ -474,17 +513,19 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         this.getLayerAlpha(li) > 0 ? store.getVisibleData(range.from, range.to) : [],
       );
       const timeMap = new Map<number, { layer: number; value: number; colorValue: number }[]>();
+      const baseline = yScale.baselineValue();
       for (let li = 0; li < layers.length; li++) {
         const alpha = this.getLayerAlpha(li);
         for (const d of layers[li]) {
-          if (!Number.isFinite(d.value)) continue;
+          if (!yScale.isPlottable(d.value)) continue;
           let arr = timeMap.get(d.time);
           if (!arr) {
             arr = [];
             timeMap.set(d.time, arr);
           }
 
-          const scaled = this.effectiveValue(ctx, li, d.time, d.value) * alpha;
+          const settled = this.effectiveValue(ctx, li, d.time, d.value);
+          const scaled = alpha === 1 ? settled : yScale.lerpValue(baseline, settled, alpha);
           arr.push({
             layer: li,
             value: this.introValue({ layerIndex: li, time: d.time, value: scaled }),
@@ -608,6 +649,11 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const style = this.options.entryAnimation ?? 'fade-grow';
     const growEntrance = style === 'grow' || style === 'fade-grow';
 
+    // Scaling a value doesn't move its edge evenly on a non-linear axis: there
+    // the weights go through `ScaleStack`, and the intro moves the drawn edges.
+    const scaleStacked = yScale.getTransform() !== null && !percent;
+    const shares = new Map<number, ColumnShares>();
+
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
       const alpha = this.getLayerAlpha(li);
@@ -617,17 +663,42 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
           arr = new Array(layers.length).fill(0);
           timeMap.set(d.time, arr);
         }
-        // Non-finite → 0 in the stack so one gap doesn't NaN-out the column.
-        const raw = Number.isFinite(d.value) ? d.value : 0;
-        let value = this.effectiveValue(ctx, li, d.time, raw) * alpha;
+        // Non-finite (or ≤ 0 on a log scale) → 0 in the stack so one gap
+        // doesn't NaN-out the column.
+        const raw = yScale.isPlottable(d.value) ? d.value : 0;
+        const settled = this.effectiveValue(ctx, li, d.time, raw);
+        let value = settled * alpha;
+        let weight = alpha;
         if (growEntrance && !this.isProjectedTime(d.time)) {
-          value *= this.entranceProgress(li, d.time);
+          const entrance = this.entranceProgress(li, d.time);
+          value *= entrance;
+          weight *= entrance;
+        }
+
+        if (scaleStacked) {
+          arr[li] = value;
+          let share = shares.get(d.time);
+          if (!share) {
+            share = { settled: new Array(layers.length).fill(0), weights: new Array(layers.length).fill(0) };
+            shares.set(d.time, share);
+          }
+          share.settled[li] = settled;
+          share.weights[li] = weight;
+          continue;
         }
 
         // The intro's value directive bakes growth into the stacked values
         // the same way — the whole column rises (or overshoots) as one
         // attached unit.
         arr[li] = this.introValue({ layerIndex: li, time: d.time, value });
+      }
+    }
+
+    const edges = new Map<number, SegmentEdges>();
+    if (!percent) {
+      for (const [time, values] of timeMap) {
+        const share = shares.get(time);
+        edges.set(time, share === undefined ? sumEdges(values) : this.scaleEdges({ time, share, yScale }));
       }
     }
 
@@ -661,16 +732,6 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         if (raw === 0) continue;
 
         const cx = timeScale.timeToBitmapX(time);
-
-        // Sum of previous layers for stacking offset
-        let basePositive = 0;
-        let baseNegative = 0;
-        for (let prev = 0; prev < li; prev++) {
-          const v = values[prev];
-          if (v > 0) basePositive += v;
-          else baseNegative += v;
-        }
-
         const progress = this.entranceProgress(li, time);
         const isProjected = this.isProjectedTime(time);
         const roundEdge: RoundEdge =
@@ -683,6 +744,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               : 'none';
 
         if (percent) {
+          // Sum of previous layers for stacking offset
+          let basePositive = 0;
+          let baseNegative = 0;
+          for (let prev = 0; prev < li; prev++) {
+            const v = values[prev];
+            if (v > 0) basePositive += v;
+            else baseNegative += v;
+          }
+
           // Normalize to 0–100%
           let totalPositive = 0;
           let totalNegative = 0;
@@ -733,9 +803,14 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             });
           }
         } else {
+          const column = edges.get(time);
+          if (column === undefined) continue;
+
+          const base = column.base[li];
+          const end = column.end[li];
           if (raw > 0) {
-            const topY = yScale.valueToBitmapY(basePositive + raw);
-            const bottomY = yScale.valueToBitmapY(basePositive);
+            const topY = yScale.valueToBitmapY(end);
+            const bottomY = yScale.valueToBitmapY(base);
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
@@ -752,8 +827,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               growBaked: true,
             });
           } else {
-            const topY = yScale.valueToBitmapY(baseNegative);
-            const bottomY = yScale.valueToBitmapY(baseNegative + raw);
+            const topY = yScale.valueToBitmapY(base);
+            const bottomY = yScale.valueToBitmapY(end);
             const h = Math.max(1, bottomY - topY);
             this.drawAnimatedBar({
               context,
@@ -773,6 +848,35 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
       }
     }
+  }
+
+  /**
+   * Segment edges of one column on a non-linear axis. Fades and entrances
+   * stack through {@link ScaleStack}; the intro then moves each drawn edge,
+   * so the column grows from the floor as one unit at an even pixel speed.
+   */
+  private scaleEdges(args: { time: number; share: ColumnShares; yScale: YScale }): SegmentEdges {
+    const { time, share, yScale } = args;
+
+    const stacks = { positive: new ScaleStack(yScale), negative: new ScaleStack(yScale) };
+    // The intro leaves the bottom edge alone, as on a linear axis.
+    const drawn = { positive: stacks.positive.edge, negative: stacks.negative.edge };
+
+    const base: number[] = [];
+    const end: number[] = [];
+    for (let li = 0; li < share.settled.length; li++) {
+      const value = share.settled[li];
+      const side = value < 0 ? 'negative' : 'positive';
+
+      const top = stacks[side].push(value, share.weights[li]);
+      const moved = this.introValue({ layerIndex: li, time, value: top });
+
+      base.push(drawn[side]);
+      end.push(moved);
+      drawn[side] = moved;
+    }
+
+    return { base, end };
   }
 
   /**

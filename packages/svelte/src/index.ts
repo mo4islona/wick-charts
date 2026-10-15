@@ -61,6 +61,7 @@ export type {
   LineSeriesOptions,
   LoadingIndicatorArgs,
   LoadingIndicatorFn,
+  LogScaleOptions,
   MarkerConfig,
   MarkerShape,
   MultiLayerData,
@@ -86,6 +87,7 @@ export type {
   ReferenceLineStyle,
   RenderPadding,
   RoundedRectArgs,
+  ScaleTickArgs,
   SeriesCreateEnv,
   SeriesDefinition,
   SeriesHoverInfo,
@@ -130,6 +132,7 @@ export type {
   YAxisConfig,
   YAxisPosition,
   YRange,
+  YScaleTransform,
 } from '@wick-charts/core';
 // Painters — custom per-element drawing for bar / candle / line series.
 export {
@@ -173,6 +176,7 @@ export {
   isTimeSeriesRenderer,
   lavenderMist,
   lightPink,
+  logScale,
   materialPalenight,
   minimalLight,
   mintBreeze,

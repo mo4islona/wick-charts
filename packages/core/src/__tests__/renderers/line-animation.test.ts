@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { logScale } from '../../scales/log-scale';
 import { LineRenderer } from '../../series/line';
 import type { TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
@@ -167,6 +168,36 @@ describe('LineRenderer — animation', () => {
       renderFrame(r);
     }
     expect(r.getStackedLastValue()?.value).toBeCloseTo(finalTotal, 0);
+  });
+
+  it('on a log axis, the last-value query matches where the entering marker is drawn', () => {
+    const r = new LineRenderer(1, { area: { visible: false }, entryMs: 1000 });
+    r.setData([
+      { time: 10, value: 1 },
+      { time: 20, value: 10 },
+    ]);
+    const frame = () => {
+      const built = buildRenderContext({
+        timeRange: { from: 0, to: 100 },
+        yRange: { min: 1, max: 1000 },
+        yTransform: logScale(),
+      });
+      r.render(built.ctx);
+
+      return built;
+    };
+    frame();
+
+    r.appendPoint({ time: 30, value: 1000 });
+    advance(300);
+    const { spy, yScale } = frame();
+
+    const markerY = spy.callsOf('lineTo').at(-1)?.args[1] as number;
+    const value = r.getStackedLastValue()?.value ?? null;
+    expect(value).not.toBeNull();
+    expect(value).toBeGreaterThan(10);
+    expect(value).toBeLessThan(1000);
+    expect(yScale.valueToBitmapYExact(value ?? 0)).toBeCloseTo(markerY, 6);
   });
 
   describe('stacked mode live-tracking', () => {
