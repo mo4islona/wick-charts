@@ -435,9 +435,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   ): LineIntroFrame {
     const { timeScale, yScale, scope } = ctx;
     const { progress, range, width } = opts;
+    const percent = this.options.stacking === 'percent';
 
     const dataCache: Array<readonly TimePoint[] | undefined> = new Array(this.stores.length);
     const meanCache: Array<number | null | undefined> = new Array(this.stores.length);
+    let shareMeans: Array<number | null> | undefined;
     let pathCache: Array<{ x: number; y: number; time: number }> | null | undefined;
 
     const layerData = (layerIndex: number): readonly TimePoint[] => {
@@ -465,7 +467,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       layerMean: (layerIndex) => {
         let mean = meanCache[layerIndex];
         if (mean === undefined) {
-          mean = scaleMean(layerData(layerIndex), yScale);
+          if (percent) {
+            shareMeans ??= this.meanShares(layerData, yScale);
+            mean = shareMeans[layerIndex];
+          } else {
+            mean = scaleMean(layerData(layerIndex), yScale);
+          }
           meanCache[layerIndex] = mean;
         }
 
@@ -507,6 +514,83 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     rawValue: number,
   ): number {
     const value = super.effectiveValue(ctx, layerIndex, time, rawValue);
+
+    // A percent stack moves each layer's share instead (`introShare`): raw values
+    // decades apart overshoot below zero and blow up the column total.
+    if (this.options.stacking === 'percent') return value;
+
+    return this.introValue(ctx, { layerIndex, time, value });
+  }
+
+  /** Layer's share of its column in percent, passed through the intro value transform. */
+  private introShare(
+    ctx: SeriesRenderContext | OverlayRenderContext,
+    column: { layerIndex: number; time: number; value: number; total: number },
+  ): number {
+    const { layerIndex, time, value, total } = column;
+    if (total <= 0) return value;
+
+    const share = (value / total) * 100;
+
+    // An overshoot below 0 would cross the edge beneath.
+    return Math.max(0, this.introValue(ctx, { layerIndex, time, value: share }));
+  }
+
+  /**
+   * What `layerMean` reports on a percent stack: each layer's mean share over
+   * the shared columns, alpha-weighted like the stacked pass, or `null` when it has none.
+   * A layer counts 0 where it has no sample yet, so the means sum to 100.
+   */
+  private meanShares(layerData: (layerIndex: number) => readonly TimePoint[], yScale: YScale): Array<number | null> {
+    const layerCount = this.stores.length;
+
+    const times = new Set<number>();
+    for (let li = 0; li < layerCount; li++) {
+      for (const d of layerData(li)) {
+        times.add(d.time);
+      }
+    }
+
+    const sums = new Array<number>(layerCount).fill(0);
+    const present = new Array<boolean>(layerCount).fill(false);
+    const values = new Array<number | null>(layerCount);
+    let columns = 0;
+    for (const t of times) {
+      let total = 0;
+      for (let li = 0; li < layerCount; li++) {
+        values[li] = null;
+
+        const alpha = this.getLayerAlpha(li);
+        const data = layerData(li);
+        if (alpha <= 0 || data.length === 0 || t < data[0].time) continue;
+
+        const v = valueAtTime(data, t, { resolve: (p) => p.value });
+        if (v === null || !yScale.isPlottable(v)) continue;
+
+        values[li] = v * alpha;
+        total += v * alpha;
+      }
+      if (total <= 0) continue;
+
+      columns++;
+      for (let li = 0; li < layerCount; li++) {
+        const v = values[li];
+        if (v === null) continue;
+
+        sums[li] += (v / total) * 100;
+        present[li] = true;
+      }
+    }
+
+    return sums.map((sum, li) => (present[li] ? sum / columns : null));
+  }
+
+  /** The active history-reveal or intro value transform applied to one value. */
+  private introValue(
+    ctx: SeriesRenderContext | OverlayRenderContext,
+    args: { layerIndex: number; time: number; value: number },
+  ): number {
+    const { layerIndex, time, value } = args;
 
     // History reveal owns the prepended points — position anchored at the
     // data boundary (`0` there, `1` at the deepest new point).
@@ -757,24 +841,37 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       return stack.edge;
     }
 
-    const valueAt = (lj: number): number => {
+    const valueAt = (lj: number): number | null => {
       const alpha = this.getLayerAlpha(lj);
-      if (alpha <= 0) return 0;
+      if (alpha <= 0) return null;
+
+      // A layer yet to start still unfolds from its anchor; skipping it breaks the anchors' sum of 100.
+      const data = this.stores[lj].getAll();
+      if (percent && data.length > 0 && queryT < data[0].time) return 0;
 
       const v = settledAt(lj);
 
-      return v === null ? 0 : v * alpha;
+      return v === null ? null : v * alpha;
     };
 
     let total = 0;
     if (percent) {
-      for (let lj = 0; lj < this.stores.length; lj++) total += valueAt(lj);
+      for (let lj = 0; lj < this.stores.length; lj++) {
+        total += valueAt(lj) ?? 0;
+      }
     }
 
     let running = 0;
     for (let lj = 0; lj <= layerIndex; lj++) {
       const v = valueAt(lj);
-      running += percent && total > 0 ? (v / total) * 100 : v;
+      if (v === null) continue;
+
+      if (percent) {
+        const share = this.introShare(ctx, { layerIndex: lj, time: queryT, value: v, total });
+        running = Math.min(100, running + share);
+      } else {
+        running += v;
+      }
     }
 
     return running;
@@ -1339,8 +1436,21 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       for (let li = 0; li < this.stores.length; li++) {
         // ≤ 0 adds nothing on a log scale, the same as a gap.
         const v = weightedAt(li, t);
-        const raw = v !== undefined && yScale.isPlottable(v) ? v : 0;
-        running += percent && total > 0 ? (raw / total) * 100 : raw;
+        let value = v !== undefined && yScale.isPlottable(v) ? v : null;
+
+        // A layer yet to start still unfolds from its anchor; skipping it breaks the anchors' sum of 100.
+        const layer = layers[li];
+        const pending = percent && layer.length > 0 && t < layer[0].time;
+        if (pending) value = 0;
+
+        if (value !== null) {
+          if (percent) {
+            const share = this.introShare(ctx, { layerIndex: li, time: t, value, total });
+            running = Math.min(100, running + share);
+          } else {
+            running += value;
+          }
+        }
         cumulative[li][ti] = running;
       }
     }

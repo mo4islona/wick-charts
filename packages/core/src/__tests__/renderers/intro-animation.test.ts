@@ -17,6 +17,7 @@ import {
   unfoldIntro,
 } from '../../series/line-intro';
 import { PieRenderer } from '../../series/pie';
+import type { SeriesRenderContext } from '../../series/types';
 import { fadeIntro, riseIntro, wipeIntro } from '../../series/wave-intro';
 import type { OHLCData, PieSliceData, TimePoint } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
@@ -694,6 +695,103 @@ describe('intro animations — initial-load reveal', () => {
           expect(actual).toHaveLength(expected.length);
           for (let i = 0; i < expected.length; i++) {
             expect(actual[i]).toBeCloseTo(expected[i], 6);
+          }
+        }
+      });
+
+      /** Six layers compounding at `rate(li)` per docs sample, decades apart by the end; every 5th docs sample. */
+      function growthLayers(rate: (li: number) => number): TimePoint[][] {
+        return Array.from({ length: 6 }, (_, li) =>
+          Array.from({ length: 60 }, (_, k) => ({
+            time: (k * 5) / 3,
+            value: 2 * (li + 1) * (1 + rate(li)) ** (k * 5),
+          })),
+        );
+      }
+
+      it.each([
+        // Early raw values are tiny next to each layer's raw mean, so a raw-value
+        // overshoot would push them below zero and blow up the column shares.
+        ['docs-shaped growth', growthLayers((li) => 0.014 + li * 0.003)],
+        // Bottom shares shrink so far that the share overshoot itself dips below 0.
+        ['extreme growth', growthLayers((li) => 0.01 + li * 0.02)],
+        // A layer that starts late still holds a share of its anchor before its first sample.
+        [
+          'staggered start',
+          [
+            [
+              { time: 0, value: 1 },
+              { time: 100, value: 1 },
+            ],
+            [
+              { time: 50, value: 1 },
+              { time: 100, value: 1 },
+            ],
+          ],
+        ],
+        // Layers sampled at different times must still anchor to shares summing to 100.
+        [
+          'ragged layers',
+          [
+            [
+              { time: 0, value: 1 },
+              { time: 100, value: 9 },
+            ],
+            [
+              { time: 0, value: 1 },
+              { time: 50, value: 1 },
+              { time: 100, value: 1 },
+            ],
+          ],
+        ],
+      ])('keeps a percent stack inside 0–100 through the intro: %s', (_, layers) => {
+        const layerCount = layers.length;
+        const r = new LineRenderer(layerCount, { stacking: 'percent', area: { visible: false } });
+        for (let li = 0; li < layerCount; li++) {
+          r.setData(layers[li], li);
+        }
+
+        const internals = r as unknown as {
+          stackedEdges: { times: readonly number[]; cumulative: readonly number[][] } | null;
+          stackedValueAt(ctx: SeriesRenderContext, layerIndex: number, queryT: number): number;
+        };
+
+        renderFrame(r); // stamps the wave start
+
+        for (const step of [0, 50, 100, 100, 100, 100, 150, 150]) {
+          advance(step);
+          const { ctx } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
+          r.render(ctx);
+          expect(r.needsAnimation).toBe(true);
+
+          const edges = internals.stackedEdges;
+          if (edges === null) throw new Error('stacked pass did not run');
+
+          // Worst violation per frame — one assertion each instead of one per edge.
+          let topError = 0;
+          let orderDrop = 0;
+          let overflow = 0;
+          for (let ti = 0; ti < edges.times.length; ti++) {
+            topError = Math.max(topError, Math.abs(edges.cumulative[layerCount - 1][ti] - 100));
+
+            let below = 0;
+            for (let li = 0; li < layerCount; li++) {
+              const edge = edges.cumulative[li][ti];
+              orderDrop = Math.max(orderDrop, below - edge);
+              overflow = Math.max(overflow, edge - 100);
+              below = edge;
+            }
+          }
+
+          expect(topError).toBeLessThan(1e-6);
+          expect(orderDrop).toBeLessThanOrEqual(1e-9);
+          expect(overflow).toBeLessThanOrEqual(1e-9);
+
+          const last = edges.times.length - 1;
+          for (const ti of [0, Math.floor(last / 2), last]) {
+            for (let li = 0; li < layerCount; li++) {
+              expect(internals.stackedValueAt(ctx, li, edges.times[ti])).toBeCloseTo(edges.cumulative[li][ti], 6);
+            }
           }
         }
       });
