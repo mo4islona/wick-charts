@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  type BandPoint,
   type OHLCData,
   type SeriesSnapshot,
   type SnapshotSort,
@@ -98,8 +99,12 @@ const displayTime = computed(() => {
 const slots = useSlots();
 const hasCustomSlot = computed(() => typeof slots.default === 'function');
 
-function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
+function isOHLC(data: SeriesSnapshot['data']): data is OHLCData {
   return 'open' in data;
+}
+
+function isBand(data: SeriesSnapshot['data']): data is BandPoint {
+  return 'high' in data && !isOHLC(data);
 }
 </script>
 
@@ -173,6 +178,20 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
                 {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
               </span>
             </template>
+          </span>
+          <span v-else-if="isBand(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
+            <span
+              :style="{
+                width: '6px',
+                height: '6px',
+                borderRadius: '1px',
+                background: s.color,
+                flexShrink: 0,
+              }"
+            />
+            <span :style="{ color: s.color, fontWeight: 500 }">
+              {{ effectiveFormat((s.data as BandPoint).low, 'low') }} – {{ effectiveFormat((s.data as BandPoint).high, 'high') }}
+            </span>
           </span>
           <span v-else :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
             <span

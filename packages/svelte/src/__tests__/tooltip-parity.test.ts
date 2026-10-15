@@ -1,4 +1,5 @@
 import { render } from '@testing-library/svelte';
+import type { ChartInstance } from '@wick-charts/core';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -17,6 +18,12 @@ const candlestickData = [
   { time: 1, open: 1, high: 2, low: 1, close: 2 },
   { time: 2, open: 2, high: 3, low: 2, close: 3 },
   { time: 3, open: 3, high: 4, low: 3, close: 4 },
+];
+
+const bandData = [
+  { time: 1, low: 10, high: 20 },
+  { time: 2, low: 12, high: 18 },
+  { time: 3, low: 11, high: 22 },
 ];
 
 const twoLayerBars = [
@@ -142,6 +149,51 @@ describe('Svelte <Tooltip> / <InfoBar> parity', () => {
     const bar = document.body.querySelector('[data-tooltip-legend]') as HTMLElement | null;
     expect(bar).not.toBeNull();
     expect(bar?.textContent ?? '').toMatch(/<value:\d+>/);
+
+    unmount();
+  });
+
+  it('<InfoBar> renders a band as a square swatch + `low – high`', async () => {
+    const { unmount } = render(TooltipParityHarness, {
+      props: { variant: 'band-legend', bandData },
+    });
+    await settle();
+
+    const bar = document.body.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent ?? '').toMatch(/<low:\d+>\s*–\s*<high:\d+>/);
+    expect(bar?.textContent ?? '').not.toContain('<value:');
+
+    const swatch = bar?.querySelector<HTMLElement>('span[style*="width: 6px"]');
+    expect(swatch?.style.borderRadius).toBe('1px');
+
+    unmount();
+  });
+
+  it('<Tooltip> renders a band row (square swatch + label + `low – high`) on hover', async () => {
+    const captured: { chart: ChartInstance | null } = { chart: null };
+    const { container, unmount } = render(TooltipParityHarness, {
+      props: {
+        variant: 'band-tooltip',
+        bandData,
+        onChart: (c: ChartInstance) => {
+          captured.chart = c;
+        },
+      },
+    });
+    await settle();
+    if (!captured.chart) throw new Error('probe did not run');
+
+    captured.chart.setCrosshair({ time: 2, y: 15 });
+    await settle();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Range');
+    expect(text).toMatch(/<low:12>\s*–\s*<high:18>/);
+    expect(text).not.toContain('<value:');
+
+    const swatch = container.querySelector<HTMLElement>('span[style*="width: 8px"][style*="height: 8px"]');
+    expect(swatch?.style.borderRadius).toBe('2px');
 
     unmount();
   });

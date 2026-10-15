@@ -44,6 +44,7 @@ export interface PlaygroundChartProps {
   candleEntryAnimation: CandleEntryAnim;
   barEntryAnimation: BarEntryAnim;
   lineEntryAnimation: LineEntryAnim;
+  bandEntryAnimation: LineEntryAnim;
   // Per-series-type durations (ms) — fed into `animations.series.{kind}.*`
   candleEntryMs: number;
   candleSmoothMs: number;
@@ -52,6 +53,8 @@ export interface PlaygroundChartProps {
   lineEntryMs: number;
   lineSmoothMs: number;
   linePulseMs: number;
+  bandEntryMs: number;
+  bandSmoothMs: number;
   pieEntryMs: number;
   pieUpdateMs: number;
   // Axis transitions — fed into `animations.axis.{x,y}.*`
@@ -144,6 +147,7 @@ function stateToChartProps<TExtra extends object>(
     candleEntryAnimation: state.candleEntryAnimation,
     barEntryAnimation: state.barEntryAnimation,
     lineEntryAnimation: state.lineEntryAnimation,
+    bandEntryAnimation: state.bandEntryAnimation,
     candleEntryMs: state.candleEntryMs,
     candleSmoothMs: state.candleSmoothMs,
     barEntryMs: state.barEntryMs,
@@ -151,6 +155,8 @@ function stateToChartProps<TExtra extends object>(
     lineEntryMs: state.lineEntryMs,
     lineSmoothMs: state.lineSmoothMs,
     linePulseMs: state.linePulseMs,
+    bandEntryMs: state.bandEntryMs,
+    bandSmoothMs: state.bandSmoothMs,
     pieEntryMs: state.pieEntryMs,
     pieUpdateMs: state.pieUpdateMs,
     xCurve: state.xCurve,
@@ -221,10 +227,11 @@ function buildBuiltinSections({
   const showCandle = animationKinds.includes('candle');
   const showBar = animationKinds.includes('bar');
   const showLine = animationKinds.includes('line');
+  const showBand = animationKinds.includes('band');
   const showPie = animationKinds.includes('pie');
   // X/Y axis transitions don't apply to pie (radial) — hide their sub-groups
   // when pie is the only active kind. Cartesian kinds keep the full panel.
-  const showAxisAnim = showCandle || showBar || showLine;
+  const showAxisAnim = showCandle || showBar || showLine || showBand;
   const showCrossCutting = animationKinds.length > 0;
 
   const sections: SectionSpec[] = [];
@@ -563,6 +570,42 @@ function buildBuiltinSections({
           hint: 'Halo cycle period at the line tail. 0 disables.',
           group: 'Series',
           max: 3000,
+          step: 50,
+        }),
+      );
+    }
+    if (showBand) {
+      animRows.push(
+        {
+          key: 'bandEntryAnimation',
+          label: 'Band entry style',
+          group: 'Series',
+          render: (v, onChange) => (
+            <Select<LineEntryAnim>
+              value={v as LineEntryAnim}
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'fade', label: 'Fade' },
+                { value: 'grow', label: 'Grow' },
+              ]}
+              onChange={onChange as (v: LineEntryAnim) => void}
+            />
+          ),
+        } as RowSpec,
+        msSliderRow({
+          key: 'bandEntryMs',
+          label: 'Band entry',
+          hint: 'Per-point entrance duration. 0 disables.',
+          group: 'Series',
+          max: 2000,
+          step: 50,
+        }),
+        msSliderRow({
+          key: 'bandSmoothMs',
+          label: 'Band smooth',
+          hint: 'Edge chase duration on live updates. 0 snaps.',
+          group: 'Series',
+          max: 2000,
           step: 50,
         }),
       );

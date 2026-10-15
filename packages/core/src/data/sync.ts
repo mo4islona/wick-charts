@@ -1,5 +1,9 @@
 import type { ChartInstance } from '../chart';
-import type { MultiLayerData, OHLCInput, SeriesLayer, TimePointInput } from '../types';
+import type { BandData, BandPointInput, MultiLayerData, OHLCInput, SeriesLayer, TimePointInput } from '../types';
+
+/** Any input point a series layer accepts. */
+type InputPoint = OHLCInput | TimePointInput | BandPointInput;
+
 import { normalizeTime } from '../utils/time';
 
 /**
@@ -21,7 +25,7 @@ export interface SeriesSyncState {
    * change before taking the cheap last-point-only path. `null` before any
    * data.
    */
-  data: readonly (OHLCInput | TimePointInput)[] | null;
+  data: readonly InputPoint[] | null;
 }
 
 /** Initial state for a layer that has never been synced. */
@@ -37,7 +41,7 @@ export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, last
 const BULK_THRESHOLD = 20;
 
 /** Field-wise equality for one data point — every key except `time` compares by strict equality; `time` normalizes first so a `Date` and its equivalent ms number still match. */
-function pointEquals<T extends OHLCInput | TimePointInput>(a: T, b: T): boolean {
+function pointEquals<T extends InputPoint>(a: T, b: T): boolean {
   if (normalizeTime(a.time) !== normalizeTime(b.time)) return false;
 
   const aKeys = Object.keys(a) as (keyof T)[];
@@ -54,10 +58,7 @@ function pointEquals<T extends OHLCInput | TimePointInput>(a: T, b: T): boolean 
  * values in between would silently leave the middle stale on screen (only
  * the last point would repaint).
  */
-function middleUnchanged<T extends OHLCInput | TimePointInput>(
-  prevData: readonly (OHLCInput | TimePointInput)[] | null,
-  data: readonly T[],
-): boolean {
+function middleUnchanged<T extends InputPoint>(prevData: readonly InputPoint[] | null, data: readonly T[]): boolean {
   if (!prevData || prevData.length !== data.length) return false;
 
   // Same array reference: a caller that reuses one array and edits a point in
@@ -93,8 +94,8 @@ function middleUnchanged<T extends OHLCInput | TimePointInput>(
  * one that repeats the boundary point) must fall through to the full-replace
  * path, which sorts and dedups like any other bulk load.
  */
-function isFrontPrepend<T extends OHLCInput | TimePointInput>(
-  prevData: readonly (OHLCInput | TimePointInput)[] | null,
+function isFrontPrepend<T extends InputPoint>(
+  prevData: readonly InputPoint[] | null,
   data: readonly T[],
   added: number,
 ): boolean {
@@ -120,7 +121,7 @@ function isSeriesLayer<T>(x: unknown): x is SeriesLayer<T> {
 }
 
 /**
- * Normalize any accepted line/bar/candlestick `data` shape to a uniform
+ * Normalize any accepted line/bar/band/candlestick `data` shape to a uniform
  * `SeriesLayer[]`. Accepts, interchangeably:
  * - a flat `T[]` — one unnamed layer (the common single-series case);
  * - a layered `T[][]` — N unnamed layers;
@@ -131,7 +132,7 @@ function isSeriesLayer<T>(x: unknown): x is SeriesLayer<T> {
  * `data` array, a raw layer is an array, and a named layer is an object whose
  * `data` is an array. An empty top-level array becomes one empty layer.
  */
-export function toLayers<T extends OHLCInput | TimePointInput>(
+export function toLayers<T extends InputPoint>(
   data: T[] | T[][] | SeriesLayer<T> | Array<T[] | SeriesLayer<T>>,
 ): SeriesLayer<T>[] {
   // Single named layer object.
@@ -154,13 +155,14 @@ export function toLayers<T extends OHLCInput | TimePointInput>(
 export interface SyncLayersArgs {
   chart: ChartInstance;
   id: string;
-  data: MultiLayerData;
+  data: MultiLayerData | BandData;
   /** Per-layer state from the previous call; one entry per layer. */
   prev: SeriesSyncState[];
 }
 
 /**
- * Reconcile a full line/bar `data` prop (any {@link MultiLayerData} shape)
+ * Reconcile a full line/bar/band `data` prop (any {@link MultiLayerData} or
+ * {@link BandData} shape)
  * against the previous per-layer {@link SeriesSyncState}s and mirror the
  * carried metadata into the chart:
  *
@@ -173,11 +175,11 @@ export interface SyncLayersArgs {
  *   still eases instead of Y-snapping.
  *
  * Stateless: returns the new per-layer states for the caller to persist. Shared
- * by the React / Vue / Svelte line + bar wrappers so all three behave alike.
+ * by the React / Vue / Svelte line, bar and band wrappers so all three behave alike.
  */
 export function syncLayers(args: SyncLayersArgs): SeriesSyncState[] {
   const { chart, id } = args;
-  const layers = toLayers<TimePointInput>(args.data);
+  const layers = toLayers<TimePointInput | BandPointInput>(args.data);
 
   // Labels: auto-name only when there's more than one layer to disambiguate.
   const labels = layers.length > 1 ? layers.map((l, i) => l.label ?? `Series ${i + 1}`) : [layers[0].label];
@@ -207,7 +209,7 @@ export function syncLayers(args: SyncLayersArgs): SeriesSyncState[] {
   return next;
 }
 
-export interface SyncSeriesLayerArgs<T extends OHLCInput | TimePointInput> {
+export interface SyncSeriesLayerArgs<T extends InputPoint> {
   chart: ChartInstance;
   id: string;
   data: T[];
@@ -238,7 +240,7 @@ export interface SyncSeriesLayerArgs<T extends OHLCInput | TimePointInput> {
  * particular the rolling-window path keeps streaming Y smooth everywhere,
  * instead of the per-tick snap the Vue/Svelte wrappers previously had.
  */
-export function syncSeriesLayer<T extends OHLCInput | TimePointInput>(args: SyncSeriesLayerArgs<T>): SeriesSyncState {
+export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<T>): SeriesSyncState {
   const { chart, id, data, prev, layerIndex } = args;
 
   if (data.length === 0) {

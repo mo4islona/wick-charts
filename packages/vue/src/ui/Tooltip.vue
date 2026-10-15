@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  type BandPoint,
   type OHLCData,
   type SeriesSnapshot,
   type SnapshotSort,
@@ -125,7 +126,9 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
 
   const hasOHLC = snapshots.value.some((s) => 'open' in s.data);
   const lineCount = snapshots.value.filter((s) => !('open' in s.data)).length;
-  const tooltipWidth = 160;
+  // A band row carries two numbers, so it needs a wider box than a line row.
+  const hasBand = snapshots.value.some((s) => 'high' in s.data && !('open' in s.data));
+  const tooltipWidth = hasBand ? 220 : 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   return computeTooltipPosition({
@@ -141,8 +144,12 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
 
 const measured = computed(() => !hasCustomSlot.value || measuredSize.value !== null);
 
-function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
+function isOHLC(data: SeriesSnapshot['data']): data is OHLCData {
   return 'open' in data;
+}
+
+function isBand(data: SeriesSnapshot['data']): data is BandPoint {
+  return 'high' in data && !isOHLC(data);
 }
 </script>
 
@@ -214,6 +221,33 @@ function isOHLC(data: OHLCData | TimePoint): data is OHLCData {
             {{ effectiveFormat((s.data as OHLCData).volume!, 'volume') }}
           </span>
         </template>
+      </div>
+      <div
+        v-else-if="isBand(s.data)"
+        :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }"
+      >
+        <span
+          :style="{
+            width: '8px',
+            height: '8px',
+            borderRadius: '2px',
+            background: s.color,
+            flexShrink: 0,
+          }"
+        />
+        <span
+          :style="{
+            opacity: 0.6,
+            flex: '1',
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }"
+        >{{ s.label ?? 'Range' }}</span>
+        <span :style="{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }">
+          {{ effectiveFormat((s.data as BandPoint).low, 'low') }} – {{ effectiveFormat((s.data as BandPoint).high, 'high') }}
+        </span>
       </div>
       <div v-else :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }">
         <span

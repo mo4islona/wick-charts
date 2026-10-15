@@ -61,6 +61,13 @@ export const DEFAULT_BAR_SMOOTH = DEFAULT_SERIES_SMOOTH;
 /** Bar initial-load reveal — per-bar wave duration; the full intro lasts ~2×. */
 export const DEFAULT_BAR_INTRO = DEFAULT_SERIES_INTRO;
 
+/** Band entrance tween duration. */
+export const DEFAULT_BAND_ENTRY = DEFAULT_SERIES_ENTRY;
+/** Band live-edge chase duration. */
+export const DEFAULT_BAND_SMOOTH = DEFAULT_SERIES_SMOOTH;
+/** Band initial-load reveal — per-element wave duration; the full intro lasts ~2×. */
+export const DEFAULT_BAND_INTRO = DEFAULT_SERIES_INTRO;
+
 /** Pie initial-load slice sweep — total clockwise unfurl duration on first seed. */
 export const DEFAULT_PIE_ENTRY = 600;
 /** Pie segment data-update chase. Parsed at config-time; wiring lands in a later phase. */
@@ -157,7 +164,7 @@ export const DEFAULT_GRID_MS = 400;
  * - `axis.ticks` — axis tick label cross-fade.
  * - `toggle` — series visibility (alpha fade + Y re-fit, locked to one
  *   duration so they finish on the same frame).
- * - `series.{line,candlestick,bar,pie,heatmap}` — per-series-type data tweens.
+ * - `series.{line,candlestick,bar,band,pie,heatmap}` — per-series-type data tweens.
  *
  * Top-level `false` disables every animation category. `axis: false`
  * disables both axes and ticks. `axis.y: false` / `axis.x: false` disables
@@ -381,6 +388,36 @@ export interface AnimationsConfig {
               smooth?: AnimationTime;
             };
         /**
+         * Band-series tweens. `false` disables band entrance, intro and
+         * edge chase.
+         */
+        band?:
+          | false
+          | {
+              /**
+               * Per-point entrance duration. `false` disables the entrance
+               * (equivalent to `entryAnimation: 'none'`).
+               *
+               * @default {@link DEFAULT_BAND_ENTRY}
+               */
+              entry?: AnimationTime;
+              /**
+               * Initial-load reveal on the first data seed. The value is the
+               * per-element wave duration; the full reveal lasts ~2×.
+               * `false` / `0` disables the intro.
+               *
+               * @default {@link DEFAULT_BAND_INTRO}
+               */
+              intro?: AnimationTime;
+              /**
+               * Edge chase duration on `updateLastPoint`. `false` / `0`
+               * snaps to the target instantly.
+               *
+               * @default {@link DEFAULT_BAND_SMOOTH}
+               */
+              smooth?: AnimationTime;
+            };
+        /**
          * Pie segment entry/update tweens. `false` disables the slice
          * entry sweep (`update` is still parse-only; wiring lands in a
          * later phase).
@@ -454,6 +491,7 @@ export interface ResolvedSeriesAnimations {
   line: { entryMs: number; smoothMs: number; pulseMs: number; introMs: number };
   candlestick: { entryMs: number; smoothMs: number; introMs: number };
   bar: { entryMs: number; smoothMs: number; introMs: number };
+  band: { entryMs: number; smoothMs: number; introMs: number };
   pie: { entryMs: number; updateMs: number };
   heatmap: { entryMs: number; updateMs: number };
 }
@@ -462,6 +500,7 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   line: { entryMs: 0, smoothMs: 0, pulseMs: 0, introMs: 0 },
   candlestick: { entryMs: 0, smoothMs: 0, introMs: 0 },
   bar: { entryMs: 0, smoothMs: 0, introMs: 0 },
+  band: { entryMs: 0, smoothMs: 0, introMs: 0 },
   pie: { entryMs: 0, updateMs: 0 },
   heatmap: { entryMs: 0, updateMs: 0 },
 };
@@ -629,8 +668,14 @@ export class AnimationConfig {
       return { entryMs, smoothMs, introMs };
     }
 
+    if (kind === 'band') {
+      const { entryMs, smoothMs, introMs } = this.series.band;
+
+      return { entryMs, smoothMs, introMs };
+    }
+
     // A custom series kind owns its own option defaults — chart-level
-    // `animations.series.*` only names the five built-ins.
+    // `animations.series.*` only names the built-ins.
     return {};
   }
 
@@ -668,17 +713,27 @@ export class AnimationConfig {
       return out;
     }
 
-    if (kind !== 'candlestick' && kind !== 'bar') {
+    const timed = this.#timedSeries(kind);
+    if (timed === null) {
       // A custom series kind isn't named by `animations.series.*` — no forced override.
       return out;
     }
 
-    const { entryMs, smoothMs, introMs } = kind === 'candlestick' ? this.series.candlestick : this.series.bar;
+    const { entryMs, smoothMs, introMs } = timed;
     if (entryMs === 0) out.entryMs = 0;
     if (smoothMs === 0) out.smoothMs = 0;
     if (introMs === 0) out.introMs = 0;
 
     return out;
+  }
+
+  /** Durations of a series type with entry / smooth / intro knobs, or `null` for any other kind. */
+  #timedSeries(kind: SeriesKind): { entryMs: number; smoothMs: number; introMs: number } | null {
+    if (kind === 'candlestick') return this.series.candlestick;
+    if (kind === 'bar') return this.series.bar;
+    if (kind === 'band') return this.series.band;
+
+    return null;
   }
 }
 
@@ -688,6 +743,7 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
   const rawLine = raw?.line;
   const rawCandle = raw?.candlestick;
   const rawBar = raw?.bar;
+  const rawBand = raw?.band;
   const rawPie = raw?.pie;
   const rawHeatmap = raw?.heatmap;
 
@@ -719,6 +775,15 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           introMs: resolveAnimationTime(rawBar?.intro, DEFAULT_BAR_INTRO),
         };
 
+  const band =
+    rawBand === false
+      ? { entryMs: 0, smoothMs: 0, introMs: 0 }
+      : {
+          entryMs: resolveAnimationTime(rawBand?.entry, DEFAULT_BAND_ENTRY),
+          smoothMs: resolveAnimationTime(rawBand?.smooth, DEFAULT_BAND_SMOOTH),
+          introMs: resolveAnimationTime(rawBand?.intro, DEFAULT_BAND_INTRO),
+        };
+
   const pie =
     rawPie === false
       ? { entryMs: 0, updateMs: 0 }
@@ -735,5 +800,5 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           updateMs: resolveAnimationTime(rawHeatmap?.update, DEFAULT_HEATMAP_UPDATE),
         };
 
-  return { line, candlestick, bar, pie, heatmap };
+  return { line, candlestick, bar, band, pie, heatmap };
 }

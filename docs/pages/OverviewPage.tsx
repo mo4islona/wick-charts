@@ -1,6 +1,8 @@
 import { type CSSProperties, useEffect, useMemo, useState } from 'react';
 
 import {
+  type BandPoint,
+  BandSeries,
   type BarIntroFn,
   BarSeries,
   type CandleIntroFn,
@@ -12,6 +14,7 @@ import {
   type LineIntroFn,
   LineSeries,
   TimeAxis,
+  type TimePoint,
   Title,
   Tooltip,
   YAxis,
@@ -39,8 +42,17 @@ import { WickLogo } from '../components/WickLogo';
 import { WickWordmark } from '../components/WickWordmark';
 import '../components/playground/styles.css';
 
+import type { LineStrategy } from '../data';
 import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
-import { type Framework, useFramework, useIsMobile, useLatestVersion, useLineStreams, useOHLCStream } from '../hooks';
+import {
+  type Framework,
+  lineDriftStrategy,
+  useFramework,
+  useIsMobile,
+  useLatestVersion,
+  useLineStreams,
+  useOHLCStream,
+} from '../hooks';
 import { hexToRgba } from '../utils';
 
 // Pre-bundled series arrays with stable identity so the streaming hooks
@@ -52,8 +64,16 @@ const BAR_SERIES = [barSingle];
 // accumulate points indefinitely.
 const MAX_POINTS = 300;
 
-// Shipped intro styles the hero shuffles between. Line-series charts (area +
-// bands, portfolio) draw from one pool; candle and bar each get their own —
+// One point shy of the cap: the two edge streams tick a moment apart, and a head
+// dropped by only one of them must not shrink the band (a shrink is a bulk re-seed).
+const BAND_WINDOW = MAX_POINTS - 1;
+
+/** Mean half-width of the historical band — the live edges keep that spread around the line. */
+const BAND_HALF_WIDTH =
+  upperBand.reduce((sum, point, i) => sum + Math.abs(point.value - lowerBand[i].value), 0) / (2 * upperBand.length);
+
+// Shipped intro styles the hero shuffles between. Line-intro charts (area +
+// band, portfolio) draw from one pool; candle and bar each get their own —
 // `riseIntro`/`fadeIntro`/`wipeIntro` are shared factories that type-check
 // for both.
 const LINE_INTROS = [unfoldIntro, sweepIntro, traceIntro, plotterIntro, centerOutIntro];
@@ -156,31 +176,87 @@ function CandleChart({ theme, speed, introAnimation }: StreamProps & { introAnim
   );
 }
 
+const roundCents = (value: number): number => Math.round(value * 100) / 100;
+
+/**
+ * Live strategies for the area + band streams. The ETH stream publishes each value it
+ * emits and both edge streams wrap the latest one, so the band keeps hugging the line.
+ */
+function createAreaBandStrategy(): (series: TimePoint[], index: number) => LineStrategy {
+  let eth = areaLine[areaLine.length - 1].value;
+  const publish = (point: TimePoint): TimePoint => {
+    eth = point.value;
+
+    return point;
+  };
+
+  return (series, index) => {
+    if (index === 0) {
+      const drift = lineDriftStrategy(series[series.length - 1]?.value ?? eth);
+      const intra = drift.intra;
+
+      return {
+        boundary: (ctx) => publish(drift.boundary(ctx)),
+        intra: intra && ((ctx) => publish(intra(ctx))),
+      };
+    }
+
+    const sign = index === 1 ? 1 : -1;
+    let offset = sign * BAND_HALF_WIDTH;
+
+    return {
+      boundary: ({ time }) => {
+        offset = sign * BAND_HALF_WIDTH * (0.6 + Math.random() * 0.8);
+
+        return { time, value: roundCents(eth + offset) };
+      },
+      intra: ({ time }) => ({ time, value: roundCents(eth + offset) }),
+    };
+  };
+}
+
+/** Pair the upper and lower edge streams by time; a time only one stream has reached waits for the other. */
+function zipBand(upper: readonly TimePoint[], lower: readonly TimePoint[]): BandPoint[] {
+  const band: BandPoint[] = [];
+  let j = 0;
+
+  for (const point of upper) {
+    while (j < lower.length && lower[j].time < point.time) {
+      j++;
+    }
+    if (j >= lower.length) break;
+
+    const match = lower[j];
+    if (match.time !== point.time) continue;
+
+    band.push({ time: point.time, low: match.value, high: point.value });
+  }
+
+  return band.length > BAND_WINDOW ? band.slice(band.length - BAND_WINDOW) : band;
+}
+
 function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
-  // Historical bands come from `generateBandLine(ohlcETH, ±1)` — i.e. they
-  // are derived from the same OHLC source. In live mode we don't stream
-  // that OHLC, so each of the three series drifts independently; accepting
-  // the visual approximation rather than coordinating three streams.
+  // Historical band edges come from `generateBandLine(ohlcETH, ±1)`, the same
+  // OHLC source as the line; live edges wrap the streamed ETH value instead.
+  const strategy = useMemo(() => createAreaBandStrategy(), []);
   const { datasets } = useLineStreams(AREA_BANDS_SERIES, {
     interval: DEMO_INTERVAL,
     speed,
     maxPoints: MAX_POINTS,
+    strategy,
   });
+  const [eth, upper, lower] = datasets;
+  const band = useMemo(() => zipBand(upper, lower), [upper, lower]);
   const mobile = useIsMobile();
+
   return (
     <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       {!mobile && <InfoBar />}
+      {/* Declared first so the ETH line draws over the band. */}
+      <BandSeries data={{ label: 'Bands', data: band }} options={{ introAnimation }} />
       <LineSeries
-        data={{ label: 'ETH', data: datasets[0] }}
-        options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
-      />
-      <LineSeries
-        data={{ label: 'Upper band', color: theme.bands.upper, data: datasets[1] }}
-        options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
-      />
-      <LineSeries
-        data={{ label: 'Lower band', color: theme.bands.lower, data: datasets[2] }}
+        data={{ label: 'ETH', data: eth }}
         options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
       />
       <Tooltip />

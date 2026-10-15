@@ -1,5 +1,6 @@
 <script lang="ts">
 import type {
+  BandPoint,
   CrosshairPosition,
   LineData,
   OHLCData,
@@ -122,6 +123,12 @@ $: displayTime =
               <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
               <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;">{format(ohlc.volume, 'volume')}</span>
             {/if}
+          </span>
+        {:else if 'high' in s.data}
+          {@const band = /** @type {BandPoint} */ (s.data)}
+          <span style="display:inline-flex;align-items:center;gap:3px;">
+            <span style="width:6px;height:6px;border-radius:1px;background:{s.color};flex-shrink:0;" />
+            <span style="color:{s.color};font-weight:500;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </span>
         {:else}
           {@const line = /** @type {LineData} */ (s.data)}

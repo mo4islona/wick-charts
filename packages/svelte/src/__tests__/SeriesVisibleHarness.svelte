@@ -1,6 +1,14 @@
 <script lang="ts">
-import type { ChartInstance, HeatmapCellData, OHLCInput, PieSliceData, TimePoint } from '@wick-charts/core';
+import type {
+  BandPointInput,
+  ChartInstance,
+  HeatmapCellData,
+  OHLCInput,
+  PieSliceData,
+  TimePoint,
+} from '@wick-charts/core';
 import {
+  BandSeries,
   CandlestickSeries,
   ChartContainer,
   HeatmapSeries,
@@ -9,11 +17,12 @@ import {
   catppuccin,
 } from '@wick-charts/svelte';
 
-export let kind: 'line' | 'candlestick' | 'heatmap' | 'pie' = 'line';
+export let kind: 'line' | 'candlestick' | 'heatmap' | 'pie' | 'band' = 'line';
 export let lineData: TimePoint[][] = [[]];
 export let candlestickData: OHLCInput[] = [];
 export let heatmapData: HeatmapCellData[] = [];
 export let pieData: PieSliceData[] = [];
+export let bandData: BandPointInput[] = [];
 export let visible = true;
 export let onReady: ((chart: ChartInstance) => void) | undefined = undefined;
 </script>
@@ -27,5 +36,7 @@ export let onReady: ((chart: ChartInstance) => void) | undefined = undefined;
     <HeatmapSeries id="s" data={heatmapData} {visible} />
   {:else if kind === 'pie'}
     <PieSeries id="s" data={pieData} {visible} />
+  {:else if kind === 'band'}
+    <BandSeries id="s" data={bandData} {visible} />
   {/if}
 </ChartContainer>

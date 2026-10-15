@@ -11,7 +11,7 @@ import type { LoadingIndicatorFn, PlaceholderBar } from '../components/loading-i
 import type { XScale } from '../scales/x-scale';
 import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
-import type { OHLCData, TimePoint } from '../types';
+import { type SeriesPoint, pointValue } from '../utils/point';
 
 export interface EdgeIndicatorContext {
   scope: Parameters<Parameters<CanvasManager['useOverlayLayer']>[0]>[0];
@@ -119,10 +119,11 @@ export function resolveEdgeBoundary(
  * boundary point — the field that reads as "immediately preceding" the
  * overshoot zone. `left` (loading older history) continues from `open` (the
  * value the boundary candle opened at); `right` (loading newer data)
- * continues from `close`. A `TimePoint` (line/bar) has only one field.
+ * continues from `close`. A line / bar point has one field; a band anchors at
+ * its midpoint.
  */
-export function resolveEdgeAnchorValue(side: EdgeSide, point: OHLCData | TimePoint): number {
+export function resolveEdgeAnchorValue(side: EdgeSide, point: SeriesPoint): number {
   if ('close' in point) return side === 'left' ? point.open : point.close;
 
-  return point.value;
+  return pointValue(point);
 }

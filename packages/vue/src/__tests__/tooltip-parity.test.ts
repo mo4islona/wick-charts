@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import {
+  BandSeries,
   BarSeries,
   CandlestickSeries,
   ChartContainer,
@@ -102,7 +103,10 @@ describe('Vue <Tooltip> / <InfoBar> parity', () => {
       components: { ChartContainer, CandlestickSeries, InfoBar },
       setup() {
         return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(InfoBar), h(CandlestickSeries, { data: candlestickData })]);
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(InfoBar),
+            h(CandlestickSeries, { data: candlestickData }),
+          ]);
       },
     });
 
@@ -123,7 +127,8 @@ describe('Vue <Tooltip> / <InfoBar> parity', () => {
     const App = defineComponent({
       components: { ChartContainer, BarSeries, InfoBar },
       setup() {
-        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(InfoBar), h(BarSeries, { data: twoLayerBars })]);
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(InfoBar), h(BarSeries, { data: twoLayerBars })]);
       },
     });
 
@@ -136,6 +141,37 @@ describe('Vue <Tooltip> / <InfoBar> parity', () => {
     // coloured dot + numeric value. Two bubbles → two rows.
     const bubbles = bar!.querySelectorAll('span[style*="inline-flex"]');
     expect(bubbles.length).toBe(twoLayerBars.length);
+
+    wrapper.unmount();
+  });
+
+  it('<InfoBar> renders a band as a square swatch + `low – high`', async () => {
+    const App = defineComponent({
+      components: { ChartContainer, BandSeries, InfoBar },
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(InfoBar, { format: (v: number, field: string) => `<${field}:${v}>` }),
+            h(BandSeries, {
+              data: [
+                { time: 1, low: 10, high: 20 },
+                { time: 2, low: 12, high: 24 },
+              ],
+            }),
+          ]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const bar = host.querySelector('[data-tooltip-legend]') as HTMLElement | null;
+    expect(bar).not.toBeNull();
+    expect(bar?.textContent ?? '').toMatch(/<low:\d+>\s*–\s*<high:\d+>/);
+    expect(bar?.textContent ?? '').not.toContain('<value:');
+
+    const swatch = bar?.querySelector<HTMLElement>('span[style*="width: 6px"]');
+    expect(swatch?.style.borderRadius).toBe('1px');
 
     wrapper.unmount();
   });
@@ -223,7 +259,10 @@ describe('Vue <Tooltip> / <InfoBar> parity', () => {
       components: { ChartContainer, CandlestickSeries, Tooltip },
       setup() {
         return () =>
-          h(ChartContainer, { theme: catppuccin.theme }, () => [h(Tooltip), h(CandlestickSeries, { data: candlestickData })]);
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(Tooltip),
+            h(CandlestickSeries, { data: candlestickData }),
+          ]);
       },
     });
 

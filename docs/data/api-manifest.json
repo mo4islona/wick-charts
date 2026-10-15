@@ -1181,6 +1181,183 @@
         }
       ]
     },
+    "BandSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/BandSeries.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "BandData",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Band data — one band per layer. A single band passes a flat\n`{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color\na band, pass `{ label, color?, data }` (or an array of them). Time accepts\nms or `Date`.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<BandSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — fill, edge stroke, curve, entrance / intro / smoothing.",
+          "see": [],
+          "nested": {
+            "name": "BandSeriesOptions",
+            "props": [
+              {
+                "name": "fill",
+                "type": "string | [string, string]",
+                "optional": true,
+                "defaultValue": "a gradient of the layer color from 40% opacity at the top\nto 4% at the bottom",
+                "deprecated": null,
+                "description": "Fill between the edges: a flat color, or a `[top, bottom]` pair painted\nas a vertical gradient over each band's visible extent. Applies to every\nlayer. Default: a gradient of the layer color from 40% opacity at the top\nto 4% at the bottom.",
+                "see": []
+              },
+              {
+                "name": "stroke",
+                "type": "{ visible?: boolean; width?: number; color?: string; }",
+                "optional": true,
+                "defaultValue": "{ visible: true, width: 1 }",
+                "deprecated": null,
+                "description": "Edge strokes, in the layer color at 60% opacity. Default: `{ visible: true, width: 1 }`.",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "visible",
+                      "type": "boolean",
+                      "optional": true,
+                      "defaultValue": "true",
+                      "deprecated": null,
+                      "description": "Whether the `low` and `high` edges are stroked. Default: `true`.",
+                      "see": []
+                    },
+                    {
+                      "name": "width",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "1",
+                      "deprecated": null,
+                      "description": "Stroke width in CSS pixels. Default: `1`.",
+                      "see": []
+                    },
+                    {
+                      "name": "color",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "the layer color at 60% opacity",
+                      "deprecated": null,
+                      "description": "Stroke color for every layer. Default: the layer color at 60% opacity.",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "curve",
+                "type": "'straight' | 'smooth' | 'stepped'",
+                "optional": true,
+                "defaultValue": "'straight'",
+                "deprecated": null,
+                "description": "Edge smoothing, with the same builders as the line series. Default:\n`'straight'`. `'smooth'` is monotone, so an edge never overshoots its own\nsamples.",
+                "see": []
+              },
+              {
+                "name": "entryAnimation",
+                "type": "BandEntryAnimation",
+                "optional": true,
+                "defaultValue": "'grow'",
+                "deprecated": null,
+                "description": "Entrance style for appended points. Default: `'grow'` — the trailing\nsegment of both edges unfurls from the previous point.",
+                "see": [
+                  "entryMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "250",
+                "deprecated": null,
+                "description": "Per-point entrance duration in milliseconds. Default: `250`. `false` or\n`0` disables the entrance. A chart-level `animations.series.band: false`\nwins over this field.",
+                "see": []
+              },
+              {
+                "name": "introMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "500",
+                "deprecated": null,
+                "description": "Initial-load reveal duration in milliseconds; the full reveal lasts ~2×.\nDefault: `500`. `false` or `0` disables it. Bulk re-seeds of a non-empty\nseries never replay it. Skipped under `prefers-reduced-motion`.",
+                "see": []
+              },
+              {
+                "name": "introAnimation",
+                "type": "LineIntroFn",
+                "optional": true,
+                "defaultValue": "unfoldIntro()",
+                "deprecated": null,
+                "description": "Initial-load reveal choreography — the line series' `LineIntroFn`\ncontract. The frame's `layerData` / `layerMean` / `primaryPath` describe\neach band's center, and a `value` transform applies to both edges.\n`heads` are ignored. Default: `unfoldIntro()` — the band opens out of its\nmean.",
+                "see": [
+                  "introMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "historyReveal",
+                "type": "LineIntroFn | 'none'",
+                "optional": true,
+                "defaultValue": "backfillSweepIntro()",
+                "deprecated": null,
+                "description": "History-prepend reveal for older points loaded at the front. Default:\n`backfillSweepIntro()`. `'none'` makes prepended points appear at once.",
+                "see": [
+                  "historyRevealMs — cross-linked duration for this animation."
+                ]
+              },
+              {
+                "name": "historyRevealMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "400",
+                "deprecated": null,
+                "description": "History-prepend reveal duration in milliseconds. Default: `400`. `false` or `0` disables it.",
+                "see": []
+              },
+              {
+                "name": "smoothMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "250",
+                "deprecated": null,
+                "description": "How long both displayed edges take to catch up on every\n`updateLastPoint`. Default: `250` ms. `0` or `false` snaps.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -3612,7 +3789,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -3748,6 +3925,47 @@
                             "defaultValue": "250ms",
                             "deprecated": null,
                             "description": "Live value chase duration on `updateLastPoint`. `false` /\n`0` snaps to the target instantly.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "band",
+                      "type": "false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Band-series tweens. `false` disables band entrance, intro and\nedge chase.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "250ms",
+                            "deprecated": null,
+                            "description": "Per-point entrance duration. `false` disables the entrance\n(equivalent to `entryAnimation: 'none'`).",
+                            "see": []
+                          },
+                          {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Initial-load reveal on the first data seed. The value is the\nper-element wave duration; the full reveal lasts ~2×.\n`false` / `0` disables the intro.",
+                            "see": []
+                          },
+                          {
+                            "name": "smooth",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "250ms",
+                            "deprecated": null,
+                            "description": "Edge chase duration on `updateLastPoint`. `false` / `0`\nsnaps to the target instantly.",
                             "see": []
                           }
                         ]

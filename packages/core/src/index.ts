@@ -49,13 +49,14 @@ export type {
   ResolvedAnimate,
   YLabelAnimate,
   YLabelAnimateOptions,
+  YLabelSeriesQuery,
 } from './chart/badge-animator';
 // Last-value badge motion — a value spring for the append glide plus the
 // initial-load count-up / fade-in. Framework `YLabel`s drive it per rAF frame
 // so React / Vue / Svelte animate the badge identically. The `resolveAnimate` /
 // `firstVisibleValue` helpers live here too so the three wrappers stay thin
 // and share one set of defaults.
-export { BadgeAnimator, firstVisibleValue, resolveAnimate } from './chart/badge-animator';
+export { BadgeAnimator, firstVisibleValue, resolveAnimate, resolveYLabelSeriesId } from './chart/badge-animator';
 // Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
 // — same shape as the series intro animations. Drives the `loading` visual an
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`
@@ -119,6 +120,7 @@ export { YScale } from './scales/y-scale';
 // chart stays renderer-agnostic and unused series types tree-shake out. The
 // string form (`addSeries('line', ...)`) requires a one-time
 // `registerBuiltinSeries()` call at startup.
+export { BandSeriesDef } from './series/band';
 export { BarSeriesDef } from './series/bar';
 // Bar / candlestick intro contracts + shipped style factories. Shared styles
 // (riseIntro / fadeIntro / wipeIntro, from wave-intro) type-check for both.
@@ -194,6 +196,7 @@ export type {
   CustomSpatialSeriesRenderer,
   HeatmapSeriesRenderer,
   HoverInfo,
+  LayerSnapshot,
   OverlayRenderContext,
   PieSeriesRenderer,
   RenderPadding,
@@ -264,6 +267,11 @@ export { computeTooltipPosition } from './tooltip-position';
 export type {
   AxisBound,
   AxisConfig,
+  BandData,
+  BandEntryAnimation,
+  BandPoint,
+  BandPointInput,
+  BandSeriesOptions,
   BarEntryAnimation,
   BarSeriesOptions,
   CandlestickData,

@@ -10,6 +10,8 @@ export const INTROS: Record<string, string> = {
     'Renders bar/column layers. Supports stacked, percent-stacked, and overlapping modes via `options.stacking`. Bar width is computed from the data interval; tweak `options.barWidthRatio` if your bars look too tight or too sparse.',
   CandlestickSeries:
     'Renders OHLC candles with optional volume bars. The default body colour is direction-driven (up/down) but accepts a `bodyColor` callback for custom rules. Wicks render at sub-pixel widths on hi-DPI displays for a sharp look at any zoom.',
+  BandSeries:
+    'Fills the region between a `low` and a `high` edge over time — percentile bands, min/max envelopes, Bollinger bands, forecast intervals. Pass several layers for a fan chart: each band draws in order with a translucent fill, so nested bands read as one gradient of certainty. The tooltip and info bar show `low – high`, the Y range covers both edges, and a gap splits the band the way it splits a line. There is no stacking. `introAnimation` takes the same `LineIntroFn` styles as `<LineSeries>`.',
   PieSeries:
     'Renders a pie or donut chart. Slices animate on enter/exit, support hover lift, and optionally show inline labels at the slice midpoints. Datasets past 8 slices group the smallest into a single "Other" slice by default — tune or disable via `options.other`. Use `<PieLegend>` and `<PieTooltip>` for accompanying overlays.',
   Sparkline:

@@ -1,6 +1,14 @@
 import { mount } from '@vue/test-utils';
 import type { ChartInstance } from '@wick-charts/core';
-import { CandlestickSeries, ChartContainer, HeatmapSeries, LineSeries, PieSeries, catppuccin } from '@wick-charts/vue';
+import {
+  BandSeries,
+  CandlestickSeries,
+  ChartContainer,
+  HeatmapSeries,
+  LineSeries,
+  PieSeries,
+  catppuccin,
+} from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
 
@@ -65,6 +73,10 @@ const cells = [
 const slices = [
   { label: 'a', value: 5 },
   { label: 'b', value: 9 },
+];
+const bands = [
+  { time: 1, low: 8, high: 15 },
+  { time: 2, low: 11, high: 18 },
 ];
 
 describe('Vue series `visible` prop', () => {
@@ -160,6 +172,35 @@ describe('Vue series `visible` prop', () => {
     const wrapper = mount(App, { attachTo: host });
     await settle();
     expect(chart!.isSeriesVisible('hm')).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('BandSeries: visible=false hides it, a later visible=true restores it', async () => {
+    const captured: { chart: ChartInstance | null } = { chart: null };
+    const visible = ref(false);
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(
+            ChartContainer,
+            {
+              theme: catppuccin.theme,
+              onReady: (c: ChartInstance) => {
+                captured.chart = c;
+              },
+            },
+            () => [h(BandSeries, { id: 'band', data: bands, visible: visible.value })],
+          );
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+    expect(captured.chart?.isSeriesVisible('band')).toBe(false);
+
+    visible.value = true;
+    await settle();
+    expect(captured.chart?.isSeriesVisible('band')).toBe(true);
+
     wrapper.unmount();
   });
 

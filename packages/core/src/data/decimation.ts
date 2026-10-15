@@ -1,4 +1,4 @@
-import type { OHLCData, TimePoint } from '../types';
+import type { BandPoint, OHLCData, TimePoint } from '../types';
 
 export function decimateLineData(data: TimePoint[], targetCount: number): TimePoint[] {
   if (data.length <= targetCount) return data;
@@ -33,6 +33,43 @@ export function decimateOHLCData(data: OHLCData[], targetCount: number): OHLCDat
       volume,
     });
   }
+  return result;
+}
+
+/**
+ * Envelope decimation for a band: each bucket keeps the lowest `low` and the
+ * highest `high`, so the drawn band never narrows when zoomed out. The first
+ * and last points pass through untouched — the live tail must stay addressable
+ * by time. A bucket that holds a gap stays a gap.
+ */
+export function decimateBandData(data: BandPoint[], targetCount: number): BandPoint[] {
+  if (data.length <= targetCount || targetCount < 3) return data;
+
+  const last = data.length - 1;
+  const bucketSize = Math.ceil((data.length - 2) / (targetCount - 2));
+  const result: BandPoint[] = [data[0]];
+
+  for (let i = 1; i < last; i += bucketSize) {
+    const end = Math.min(i + bucketSize, last);
+    let low = Infinity;
+    let high = -Infinity;
+    let gap = false;
+    for (let j = i; j < end; j++) {
+      const point = data[j];
+      if (!Number.isFinite(point.low) || !Number.isFinite(point.high)) {
+        gap = true;
+        break;
+      }
+
+      if (point.low < low) low = point.low;
+      if (point.high > high) high = point.high;
+    }
+
+    result.push(gap ? { time: data[i].time, low: Number.NaN, high: Number.NaN } : { time: data[i].time, low, high });
+  }
+
+  result.push(data[last]);
+
   return result;
 }
 

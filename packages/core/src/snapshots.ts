@@ -1,5 +1,7 @@
 import type { ChartInstance } from './chart';
-import type { OHLCData, TimePoint } from './types';
+import type { LayerSnapshot } from './series/types';
+import type { BandPoint, OHLCData, TimePoint } from './types';
+import { type SeriesPoint, pointValue } from './utils/point';
 
 /**
  * Frozen, per-row snapshot of a series at a single point in time. The shape
@@ -16,14 +18,16 @@ import type { OHLCData, TimePoint } from './types';
  *   grouping (e.g. `snapshots.filter(s => s.seriesId === 'btc')`).
  *
  * `data` is a shallow clone, frozen along with the snapshot itself — a slot
- * consumer cannot accidentally mutate the chart's internal store.
+ * consumer cannot accidentally mutate the chart's internal store. Its shape
+ * follows the series: `OHLCData` for a candlestick, `TimePoint` for a line or
+ * bar, `BandPoint` (`{ time, low, high }`) for a band.
  */
 export interface SeriesSnapshot {
   readonly id: string;
   readonly seriesId: string;
   readonly layerIndex?: number;
   readonly label?: string;
-  readonly data: Readonly<OHLCData> | Readonly<TimePoint>;
+  readonly data: Readonly<OHLCData> | Readonly<TimePoint> | Readonly<BandPoint>;
   readonly color: string;
 }
 
@@ -71,8 +75,13 @@ function setSlot(chart: ChartInstance, cacheKey: string, slot: CacheSlot): void 
   bucket.set(cacheKey, slot);
 }
 
-function extractValue(p: OHLCData | TimePoint): number {
-  return 'close' in p ? p.close : p.value;
+/** A layer row's point — a band layer carries its edges, every other layer one value. */
+function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint {
+  if (layer.low !== undefined && layer.high !== undefined) {
+    return { time: layer.time, low: layer.low, high: layer.high };
+  }
+
+  return { time: layer.time, value: layer.value };
 }
 
 function sortSnapshots(snapshots: SeriesSnapshot[], sort: SnapshotSort): SeriesSnapshot[] {
@@ -80,8 +89,8 @@ function sortSnapshots(snapshots: SeriesSnapshot[], sort: SnapshotSort): SeriesS
 
   const sorted = [...snapshots];
   sorted.sort((a, b) => {
-    const av = extractValue(a.data as OHLCData | TimePoint);
-    const bv = extractValue(b.data as OHLCData | TimePoint);
+    const av = pointValue(a.data);
+    const bv = pointValue(b.data);
 
     return sort === 'asc' ? av - bv : bv - av;
   });
@@ -94,7 +103,7 @@ function freezeSnapshot(s: {
   seriesId: string;
   layerIndex?: number;
   label?: string;
-  data: OHLCData | TimePoint;
+  data: SeriesPoint;
   color: string;
 }): SeriesSnapshot {
   // Deep-freeze: without cloning `data`, callers with `snapshot.data.close = X`
@@ -154,7 +163,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
             seriesId: id,
             layerIndex: l.layerIndex,
             label: chart.getLayerLabel(id, l.layerIndex),
-            data: { time: l.time, value: l.value } as TimePoint,
+            data: layerPoint(l),
             color: l.color,
           }),
         );
@@ -214,7 +223,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
             seriesId: id,
             layerIndex: l.layerIndex,
             label: chart.getLayerLabel(id, l.layerIndex),
-            data: { time: l.time, value: l.value } as TimePoint,
+            data: layerPoint(l),
             color: l.color,
           }),
         );

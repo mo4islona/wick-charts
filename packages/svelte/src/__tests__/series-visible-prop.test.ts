@@ -29,6 +29,10 @@ const pieData = [
   { label: 'a', value: 5 },
   { label: 'b', value: 9 },
 ];
+const bandData = [
+  { time: 1, low: 8, high: 15 },
+  { time: 2, low: 11, high: 18 },
+];
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) {
@@ -118,6 +122,26 @@ describe('Svelte series `visible` prop', () => {
     });
     await settle();
     expect(chart!.isSeriesVisible('s')).toBe(false);
+    unmount();
+  });
+
+  it('BandSeries: visible=false hides it, a later visible=true restores it', async () => {
+    const captured: { chart: ChartInstance | null } = { chart: null };
+    const { unmount, rerender } = render(SeriesVisibleHarness, {
+      kind: 'band',
+      bandData,
+      visible: false,
+      onReady: (c: ChartInstance) => {
+        captured.chart = c;
+      },
+    });
+    await settle();
+    expect(captured.chart?.isSeriesVisible('s')).toBe(false);
+
+    await rerender({ kind: 'band', bandData, visible: true });
+    await settle();
+    expect(captured.chart?.isSeriesVisible('s')).toBe(true);
+
     unmount();
   });
 

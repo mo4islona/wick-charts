@@ -1,0 +1,87 @@
+<script setup lang="ts">
+import type { BandData, BandSeriesOptions, SeriesSyncState } from '@wick-charts/core';
+import { BandSeriesDef, EMPTY_SYNC_STATE, syncLayers, toLayers } from '@wick-charts/core';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { useChartInstance } from './context';
+
+const props = withDefaults(
+  defineProps<{
+    /**
+     * Band data — one band per layer. A single band passes a flat
+     * `{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color
+     * a band, pass `{ label, color?, data }` (or an array of them). Time accepts
+     * ms or `Date`.
+     */
+    data: BandData;
+    /** Visual options override — fill, edge stroke, curve, entrance / intro / smoothing. */
+    options?: Partial<BandSeriesOptions>;
+    /** Stable series ID — same value across remounts. */
+    id?: string;
+    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+    visible?: boolean;
+  }>(),
+  // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+  // `false` (not `undefined`) without an explicit default — see the
+  // `interactive` fix in ChartContainer.vue for the full explanation.
+  { visible: true },
+);
+
+const chart = useChartInstance();
+const seriesId = ref<string | null>(null);
+// Per-layer sync state — drives the shared append/keepLast/update/replace
+// reconciliation (plus per-layer labels/colors) so streaming eases instead of
+// snapping Y every tick.
+let prevSync: SeriesSyncState[] = [];
+
+function applyData(id: string, data: BandData): void {
+  prevSync = syncLayers({ chart, id, data, prev: prevSync });
+}
+
+onMounted(() => {
+  const layerCount = toLayers(props.data).length;
+  const id = chart.addSeries(BandSeriesDef, {
+    ...props.options,
+    layers: layerCount,
+    id: props.id,
+  });
+  seriesId.value = id;
+  prevSync = new Array(layerCount).fill(EMPTY_SYNC_STATE);
+  // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
+  applyData(id, props.data);
+  chart.setSeriesVisible(id, props.visible);
+});
+
+onUnmounted(() => {
+  if (seriesId.value) chart.removeSeries(seriesId.value);
+});
+
+watch(
+  () => props.data,
+  (data) => {
+    const id = seriesId.value;
+    if (!id) return;
+
+    applyData(id, data);
+  },
+);
+
+watch(
+  () => props.options,
+  (options) => {
+    if (seriesId.value && options) {
+      chart.updateSeriesOptions(seriesId.value, options);
+    }
+  },
+  { deep: true },
+);
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (seriesId.value) chart.setSeriesVisible(seriesId.value, visible);
+  },
+);
+</script>
+
+<template><span v-if="false" /></template>

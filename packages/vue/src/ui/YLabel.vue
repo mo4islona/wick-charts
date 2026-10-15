@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import {
   BadgeAnimator,
-  type ChartInstance,
   type ValueFormatter,
   type YLabelAnimate,
   firstVisibleValue,
   prefersReducedMotion,
   resolveAnimate,
+  resolveYLabelSeriesId,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
@@ -145,21 +145,10 @@ onUnmounted(() => {
   rafId = null;
 });
 
-function resolveSeriesId(c: ChartInstance, explicit: string | undefined): string | null {
-  if (explicit !== undefined) return explicit;
-
-  const singleLayer = c.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true });
-  if (singleLayer.length > 0) return singleLayer[0];
-
-  const anyTime = c.getSeriesIdsByType('time', { visibleOnly: true });
-
-  return anyTime.length > 0 ? anyTime[0] : null;
-}
-
 const resolvedId = computed<string | null>(() => {
   void bump.value;
 
-  return resolveSeriesId(chart, props.seriesId);
+  return resolveYLabelSeriesId(chart, props.seriesId);
 });
 
 const last = computed<{ value: number; isLive: boolean } | null>(() => {
