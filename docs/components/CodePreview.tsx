@@ -66,6 +66,7 @@ function formatValue(v: PropValue, indent: number): string {
 // codeConfig introduces a genuine variable binding the caller would have in
 // their host code.
 const VAR_REF_NAMES = new Set([
+  'bands',
   'closePoints',
   'data',
   'data[0]',

@@ -13,7 +13,7 @@ export type LineEntryAnim = 'grow' | 'fade' | 'none';
 /** Playground's Y-scale switch — `'log'` maps to `axis.y.scale: logScale()`. */
 export type YScaleKind = 'linear' | 'log';
 
-export type AnimationKind = 'candle' | 'bar' | 'line' | 'pie';
+export type AnimationKind = 'candle' | 'bar' | 'line' | 'band' | 'pie';
 
 /** X / Y transition factory selector. Spring is critically-damped physics, hermite is a
  *  fixed-duration cubic, snap disables the easing entirely. */
@@ -49,6 +49,7 @@ export interface CommonState {
   candleEntryAnimation: CandleEntryAnim;
   barEntryAnimation: BarEntryAnim;
   lineEntryAnimation: LineEntryAnim;
+  bandEntryAnimation: LineEntryAnim;
   /** `series.candlestick.entry` — per-candle entrance duration. */
   candleEntryMs: number;
   /** `series.candlestick.smooth` — OHLC chase duration on data updates. */
@@ -63,6 +64,10 @@ export interface CommonState {
   lineSmoothMs: number;
   /** `series.line.pulse` — halo cycle period at the line tail. 0 disables. */
   linePulseMs: number;
+  /** `series.band.entry` — per-point entrance duration. */
+  bandEntryMs: number;
+  /** `series.band.smooth` — edge chase duration on data updates. */
+  bandSmoothMs: number;
   /** `series.pie.entry` — slice grow-in duration (currently no-op in core, parsed). */
   pieEntryMs: number;
   /** `series.pie.update` — slice resize duration (currently no-op in core, parsed). */
@@ -119,6 +124,7 @@ export const COMMON_DEFAULTS: CommonState = {
   candleEntryAnimation: 'unfold',
   barEntryAnimation: 'fade-grow',
   lineEntryAnimation: 'grow',
+  bandEntryAnimation: 'grow',
   candleEntryMs: 250,
   candleSmoothMs: 250,
   barEntryMs: 250,
@@ -126,6 +132,8 @@ export const COMMON_DEFAULTS: CommonState = {
   lineEntryMs: 250,
   lineSmoothMs: 250,
   linePulseMs: 600,
+  bandEntryMs: 250,
+  bandSmoothMs: 250,
   pieEntryMs: 250,
   pieUpdateMs: 250,
   xCurve: 'spring',

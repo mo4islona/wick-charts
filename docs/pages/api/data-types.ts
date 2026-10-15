@@ -35,7 +35,7 @@ export interface DataVariant {
 
 /**
  * Fields of a named layer (`SeriesLayer<T>`) for the `data` switcher. `color`
- * is line/bar only — a candlestick stream ignores it.
+ * is line/bar/band only — a candlestick stream ignores it.
  */
 function seriesLayerProps(elementType: string, withColor: boolean): ApiProp[] {
   const props: ApiProp[] = [
@@ -164,6 +164,39 @@ const OHLC_INPUT_PROPS: ApiProp[] = [
   },
 ];
 
+/** Band sample fields (time accepts a `Date`). Shared by the band `props` and its switcher variant. */
+const BAND_POINT_INPUT_PROPS: ApiProp[] = [
+  TIME_FIELD_INPUT,
+  {
+    name: 'low',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description:
+      'Lower edge at this time. A `low` above `high` draws with the edges swapped; a missing or non-finite edge is a gap that splits the band.',
+  },
+  {
+    name: 'high',
+    type: 'number',
+    optional: false,
+    defaultValue: null,
+    deprecated: null,
+    description: 'Upper edge at this time. The fill spans only between the two edges, never down to the plot floor.',
+  },
+];
+
+// A band layer's `color` drives both the fill and the edges, so the line/bar wording doesn't fit.
+const BAND_LAYER_PROPS: ApiProp[] = seriesLayerProps('BandPointInput', true).map((prop) => {
+  if (prop.name !== 'color') return prop;
+
+  return {
+    ...prop,
+    description:
+      'Band color, overriding the theme — the default gradient fill (40% to 4% opacity) and edge strokes (60%) derive from it. A function is evaluated at the midpoint of the latest sample.',
+  };
+});
+
 export const CHART_DATA_TYPES: Record<string, DataShape> = {
   LineSeries: {
     ...TIME_POINT_INPUT,
@@ -197,6 +230,17 @@ export const CHART_DATA_TYPES: Record<string, DataShape> = {
     variants: [
       { label: 'OHLCInput', typeName: 'OHLCInput', props: OHLC_INPUT_PROPS },
       { label: 'SeriesLayer', typeName: 'SeriesLayer', props: seriesLayerProps('OHLCInput', false) },
+    ],
+  },
+
+  BandSeries: {
+    typeName: 'BandPointInput',
+    description:
+      'Same omnivorous shape as `LineSeries`, one band per layer: a flat `BandPointInput[]` (one band), `BandPointInput[][]`, or named `{ label?, color?, data }` layers. Several layers draw in order with translucent fills — a fan chart. One band defaults to `theme.bands.upper`; several take `theme.seriesColors`. Time may be epoch ms or a `Date`.',
+    props: BAND_POINT_INPUT_PROPS,
+    variants: [
+      { label: 'BandPointInput', typeName: 'BandPointInput', props: BAND_POINT_INPUT_PROPS },
+      { label: 'SeriesLayer', typeName: 'SeriesLayer', props: BAND_LAYER_PROPS },
     ],
   },
 

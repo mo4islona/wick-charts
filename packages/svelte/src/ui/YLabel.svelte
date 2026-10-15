@@ -10,12 +10,12 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 <script lang="ts">
   import {
     BadgeAnimator,
-    type ChartInstance,
     type ValueFormatter,
     type YLabelAnimate,
     firstVisibleValue,
     prefersReducedMotion,
     resolveAnimate,
+    resolveYLabelSeriesId,
   } from '@wick-charts/core';
   import { onDestroy, onMount } from 'svelte';
   import { get } from 'svelte/store';
@@ -138,22 +138,11 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     rafId = null;
   });
 
-  function resolveSeriesId(c: ChartInstance, explicit: string | undefined): string | null {
-    if (explicit !== undefined) return explicit;
-
-    const singleLayer = c.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true });
-    if (singleLayer.length > 0) return singleLayer[0];
-
-    const anyTime = c.getSeriesIdsByType('time', { visibleOnly: true });
-
-    return anyTime.length > 0 ? anyTime[0] : null;
-  }
-
   $: chart = $chartStore;
   // Resolve once per `animate` change rather than allocating a fresh object
   // every rAF frame on the hot path.
   $: resolvedAnimate = resolveAnimate(animate);
-  $: resolvedId = chart && bump >= 0 ? resolveSeriesId(chart, seriesId) : null;
+  $: resolvedId = chart && bump >= 0 ? resolveYLabelSeriesId(chart, seriesId) : null;
   $: last =
     chart && resolvedId !== null && bump >= 0 ? chart.getStackedLastValue(resolvedId) : (null as null | { value: number; isLive: boolean });
   $: previousClose = chart && resolvedId !== null && bump >= 0 ? chart.getPreviousClose(resolvedId) : null;

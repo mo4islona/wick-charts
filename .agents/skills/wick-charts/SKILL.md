@@ -1,6 +1,6 @@
 ---
 name: wick-charts
-description: Build charts with Wick Charts library. Use when creating candlestick, line, bar, or pie charts in React, Vue, or Svelte.
+description: Build charts with Wick Charts library. Use when creating candlestick, line, bar, band (range), or pie charts in React, Vue, or Svelte.
 ---
 
 # Wick Charts
@@ -25,6 +25,7 @@ Framework-specific gaps to know about:
 - [Candlestick](candlestick.md) — OHLCV with volume bars
 - [Line / Area](line.md) — multi-layer, stacking, area, pulse
 - [Bar / Histogram](bar.md) — multi-layer, stacking
+- [Band / Range](#band-series) — fill between a `low` and a `high` edge; percentile bands, Bollinger, fan charts (section below)
 - [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation, "Other" grouping (on by default)
 - [Sparkline](sparkline.md) — inline mini-chart + value label (React only)
 
@@ -68,6 +69,7 @@ import { hermite, spring, snap } from '@wick-charts/react';
       line:        { entry: 250, smooth: 250, pulse: 600 },
       candlestick: { entry: 250, smooth: 250 },
       bar:         { entry: 250, smooth: 250 },
+      band:        { entry: 250, smooth: 250 },
       pie:         { entry: 250, update: 250 },
     },
     toggle: 250,
@@ -93,7 +95,7 @@ import { hermite, spring, snap } from '@wick-charts/react';
 
 **Disabling a whole group.** Any group field accepts `false` to skip animations for that subtree — `animations: false` (chart-wide), `animations: { axis: false }`, `animations: { series: { line: false } }`, etc.
 
-**Per-series-type entry style.** Each series option also accepts `entryAnimation` for the visual *style* (separate from duration). Defaults: line `'grow'`, bar `'fade-grow'`, candlestick `'unfold'`. See each chart-type page for the full enum.
+**Per-series-type entry style.** Each series option also accepts `entryAnimation` for the visual *style* (separate from duration). Defaults: line `'grow'`, band `'grow'`, bar `'fade-grow'`, candlestick `'unfold'`. See each chart-type page for the full enum.
 
 **Curve factories.** `hermite()`, `spring()`, `snap()` are factories — call them when assigning. Reuse the same factory instance across renders (memoize in `useMemo` / `computed`) so the engine doesn't see a fresh reference on every re-render.
 
@@ -118,7 +120,7 @@ Placed as children of `ChartContainer`.
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
 | `NumberFlow` | `value`, `format?`, `spinDuration?` | — | Standalone animated number |
 
-`seriesId` is optional on `YLabel` / `PieTooltip` / `PieLegend` — omit it on single-series charts and the first compatible visible series is picked automatically (time-series for `YLabel`, pie for `PieTooltip` / `PieLegend`). `InfoBar` and `Tooltip` are **always multi-series**; there is no `seriesId` prop. Filter inside the slot if you need a subset.
+`seriesId` is optional on `YLabel` / `PieTooltip` / `PieLegend` — omit it on single-series charts and the first compatible visible series is picked automatically (time-series for `YLabel` — bands are skipped, a range has no single value; pie for `PieTooltip` / `PieLegend`). `InfoBar` and `Tooltip` are **always multi-series**; there is no `seriesId` prop. Filter inside the slot if you need a subset.
 
 **Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `InfoBar` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
 
@@ -233,6 +235,35 @@ const candleId = 'btc-ohlc';
 </ChartContainer>
 ```
 
+## Band series
+
+`<BandSeries>` fills the region between a `low` and a `high` edge over time — percentile bands (p5–p95), min/max envelopes, Bollinger bands, forecast intervals. Unlike a `LineSeries` area, the fill never closes to the plot floor.
+
+```tsx
+<ChartContainer theme={theme}>
+  {/* declare the band first so the line draws over it */}
+  <BandSeries data={rows.map((r) => ({ time: r.time, low: r.p5, high: r.p95 }))} />
+  <LineSeries data={median} options={{ area: { visible: false } }} />
+</ChartContainer>
+```
+
+Several bands in one series make a fan chart — layers draw in order with translucent fills:
+
+```tsx
+<BandSeries
+  data={[
+    { label: 'p5–p95', color: '#6f9ef8', data: outer },
+    { label: 'p25–p75', color: '#6f9ef8', data: inner },
+  ]}
+/>
+```
+
+- **Data** (`BandData`) — the same omnivorous shapes as `LineSeries`, with `BandPointInput` = `{ time: number | Date; low: number; high: number }`: a flat array (one band), `BandPointInput[][]`, or named `{ label?, color?, data }` layers. A `low` above `high` draws with the edges swapped; a missing or non-finite edge is a gap that splits the band.
+- **Colors** — one band defaults to `theme.bands.upper`, several to `theme.seriesColors`; a layer `color` overrides. Default fill = a vertical gradient of the layer color, 40% opacity at the top to 4% at the bottom; edges = layer color at 60%, 1px. `fill` takes a flat color or a `[top, bottom]` pair.
+- **Options** — `fill` (a color, or `[top, bottom]` for a vertical gradient), `stroke: { visible, width, color }`, `curve: 'straight' | 'smooth' | 'stepped'` (`'smooth'` is monotone, never overshoots), `entryAnimation` / `entryMs`, `introAnimation` / `introMs`, `historyReveal` / `historyRevealMs`, `smoothMs`. `introAnimation` takes a `LineIntroFn` — the same `unfoldIntro()` (default), `sweepIntro()`, … as `LineSeries`. **No stacking.**
+- **Overlays** — `Tooltip` / `InfoBar` show `low – high` (the snapshot `data` is a `BandPoint`); the crosshair marks both edges; the Y range covers both edges. `YLabel` skips bands.
+- **Streaming** — same as a line: `appendData`, `updateData` (both edges chase smoothly), `prependData`, `keepLast`.
+
 ## Custom render (slots / render-props)
 
 Every overlay accepts a slot that replaces its *contents* with your own DOM. Positioning, crosshair wiring, and data computation stay in the library — you get the already-computed snapshots / items / info.
@@ -288,7 +319,7 @@ interface SeriesSnapshot {
   readonly layerIndex?: number; // only set on multi-layer rows
   readonly label?: string;
   readonly color: string;
-  readonly data: OHLCData | TimePoint; // deep-frozen clone — safe to read, mutation throws
+  readonly data: OHLCData | TimePoint | BandPoint; // deep-frozen clone — safe to read, mutation throws; BandPoint = { time, low, high }
 }
 ```
 
@@ -326,5 +357,6 @@ Pass a new `data` array reference when data changes (e.g. via immutable state up
 - **There is no `label` or `colors` option on `LineSeries` / `BarSeries`** (candlestick keeps neither `colors` nor `label`) — a layer's name *and* color ride in `data` (`{ label?, color?, data }`). Multi-layer lines/bars auto-name unnamed layers `Series N` (the per-layer name the tooltip *and* legend show — they now agree).
 - **Color comes from the theme + per-layer `data.color` override.** `color` is a `ValueColor` = `string | ((value) => string)`. The function colors a **bar per bar** and a **line by its latest value**. Single bars default to `theme.bar.color` (green-up / red-down by sign); multi-layer uses `theme.seriesColors`.
 - `CandlestickSeries` `data` is `OHLCInput[]` or `{ label, data }` (single stream; `color` not applicable).
+- `BandSeries` `data` (`BandData`) takes the same omnivorous shapes as `LineSeries`, with `{ time, low, high }` points — one band per layer, no stacking.
 - `PieSeries` `data` is flat `PieSliceData[]`.
 - `VisibleRange` is a deprecated alias for `XRange` (identical shape `{ from, to }`). Use `XRange` in new code.

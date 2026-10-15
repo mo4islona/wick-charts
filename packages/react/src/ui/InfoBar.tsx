@@ -1,6 +1,7 @@
 import { type ReactNode, useLayoutEffect, useState } from 'react';
 
 import {
+  type BandPoint,
   type OHLCData,
   type SeriesSnapshot,
   type TimePoint,
@@ -197,6 +198,18 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
                   dim={theme.axis.textColor}
                 />
               )}
+            </span>
+          );
+        }
+        if ('high' in s.data) {
+          const band = s.data as BandPoint;
+
+          return (
+            <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <span style={{ width: 6, height: 6, borderRadius: 1, background: s.color, flexShrink: 0 }} />
+              <span style={{ color: s.color, fontWeight: 500 }}>
+                {format(band.low, 'low')} – {format(band.high, 'high')}
+              </span>
             </span>
           );
         }

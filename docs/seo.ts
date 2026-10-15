@@ -48,6 +48,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'High-performance line and area charts with live streaming, gradient fills, multiple series, crosshair and tooltips. Canvas-rendered at 60fps.',
   },
+  'charts/band': {
+    title: 'Band & Range Charts for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas band charts that fill between a low and a high edge: Bollinger bands, confidence intervals and fan charts, with live streaming and tooltips.',
+  },
   'charts/bar': {
     title: 'Bar Charts for React, Vue & Svelte — Wick Charts',
     description:
@@ -84,6 +89,8 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
 // the per-page meta description and llms.txt so neither degrades into
 // repeated boilerplate. Titles stay templated from the sidebar label.
 const API_SUMMARIES: Partial<Record<Route, string>> = {
+  'api/band-series':
+    'Band (range) series that fills between a low and a high edge — percentile bands, min/max envelopes, Bollinger bands and fan charts.',
   'api/bar-series':
     'Bar and histogram series with multi-layer data, stacking, per-layer colors, rounded corners and entry animations.',
   'api/candlestick-series':

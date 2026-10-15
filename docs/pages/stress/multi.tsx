@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import {
+  BandSeries,
   BarSeries,
   CandlestickSeries,
   ChartContainer,
@@ -13,8 +14,8 @@ import {
   resolveCandlestickBodyColor,
 } from '@wick-charts/react';
 
-import { generateBandLine, generateBarData, generateOHLCData, generateWaveData } from '../../data';
-import { ema, sma } from '../../data/stress';
+import { generateBarData, generateOHLCData, generateWaveData } from '../../data';
+import { bollinger, ema, sma } from '../../data/stress';
 import type { PanelCtx, StressPanel } from './panel';
 
 function CandleWithMAs({ theme, perfHud }: PanelCtx) {
@@ -70,20 +71,18 @@ function StackedBarsTrend({ theme, perfHud }: PanelCtx) {
   );
 }
 
+const BOLLINGER_PERIOD = 20;
+
 function BollingerBands({ theme, perfHud }: PanelCtx) {
-  const ohlc = useMemo(() => generateOHLCData(200, 42_000), []);
-  const upper = useMemo(() => generateBandLine(ohlc, 0.03), [ohlc]);
-  const lower = useMemo(() => generateBandLine(ohlc, -0.03), [ohlc]);
+  // The leading candles only warm up the first band window, so the band starts with the candles.
+  const history = useMemo(() => generateOHLCData(200 + BOLLINGER_PERIOD - 1, 42_000), []);
+  const ohlc = useMemo(() => history.slice(BOLLINGER_PERIOD - 1), [history]);
+  const band = useMemo(() => bollinger(history, BOLLINGER_PERIOD), [history]);
+
   return (
     <ChartContainer theme={theme} perf={perfHud?.()} interactive={false}>
-      <Title sub="candle + upper/lower bands">OHLC + Bollinger</Title>
-      <LineSeries
-        data={[
-          { color: theme.bands.upper, data: upper },
-          { color: theme.bands.lower, data: lower },
-        ]}
-        options={{ area: { visible: false }, strokeWidth: 1, pulse: false }}
-      />
+      <Title sub="band series under candles">OHLC + Bollinger</Title>
+      <BandSeries data={{ label: 'Bollinger 20, 2σ', data: band }} />
       <CandlestickSeries data={ohlc} />
       <Crosshair />
       <YAxis />
@@ -114,7 +113,7 @@ export const multiPanels: readonly StressPanel[] = [
   {
     id: 'multi-bollinger',
     title: 'OHLC + Bollinger bands',
-    hint: 'Two line series derived from OHLC via bandStrategy.',
+    hint: 'One BandSeries (SMA 20 ± 2σ) under the candles. The fill spans only between the edges, never to the floor, and the Y range covers both edges.',
     render: (ctx) => <BollingerBands {...ctx} />,
   },
 ];

@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
+  type BandPoint,
   type ChartInstance,
   type ChartTheme,
   type OHLCData,
@@ -241,7 +242,9 @@ function FloatingTooltip({
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
 
-  const tooltipWidth = 160;
+  // A band row carries two numbers, so it needs a wider box than a line row.
+  const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
+  const tooltipWidth = hasBand ? 220 : 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   const { left, top } = computeTooltipPosition({
@@ -315,6 +318,30 @@ function FloatingTooltip({
               {ohlc.volume != null && (
                 <TooltipRow label="Volume" color={theme.tooltip.textColor} display={format(ohlc.volume, 'volume')} />
               )}
+            </div>
+          );
+        }
+        if ('high' in s.data) {
+          const band = s.data as BandPoint;
+
+          return (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+              <span
+                style={{
+                  opacity: 0.6,
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {s.label ?? 'Range'}
+              </span>
+              <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
+                {format(band.low, 'low')} – {format(band.high, 'high')}
+              </span>
             </div>
           );
         }

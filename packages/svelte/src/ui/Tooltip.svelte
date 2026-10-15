@@ -1,5 +1,6 @@
 <script lang="ts">
 import type {
+  BandPoint,
   CrosshairPosition,
   LineData,
   OHLCData,
@@ -130,7 +131,9 @@ $: floatingPos = (() => {
 
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
-  const tooltipWidth = 160;
+  // A band row carries two numbers, so it needs a wider box than a line row.
+  const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
+  const tooltipWidth = hasBand ? 220 : 160;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   return computeTooltipPosition({
@@ -183,6 +186,13 @@ $: floatingPos = (() => {
               <span style="opacity:0.5;">Volume</span>
               <span style="font-weight:600;color:{theme.tooltip.textColor};text-align:right;">{format(ohlc.volume, 'volume')}</span>
             {/if}
+          </div>
+        {:else if 'high' in s.data}
+          {@const band = /** @type {BandPoint} */ (s.data)}
+          <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
+            <span style="width:8px;height:8px;border-radius:2px;background:{s.color};flex-shrink:0;" />
+            <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Range'}</span>
+            <span style="font-weight:600;color:{s.color};white-space:nowrap;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </div>
         {:else}
           {@const line = /** @type {LineData} */ (s.data)}

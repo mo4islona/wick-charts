@@ -4,7 +4,7 @@
  * they produce intentionally-broken data (nulls, NaN, unsorted, duplicates).
  */
 
-import type { HeatmapCellData, OHLCData, TimePoint } from '@wick-charts/react';
+import type { BandPoint, HeatmapCellData, OHLCData, TimePoint } from '@wick-charts/react';
 
 import { DEMO_INTERVAL, generateOHLCData } from '../data';
 
@@ -185,6 +185,29 @@ export function sma(ohlc: OHLCData[], window: number): TimePoint[] {
     sum += ohlc[i].close;
     if (i >= window) sum -= ohlc[i - window].close;
     if (i >= window - 1) out.push({ time: ohlc[i].time, value: sum / window });
+  }
+
+  return out;
+}
+
+/** Bollinger band — SMA of the close ± `k` standard deviations over `window` candles (first `window - 1` omitted). */
+export function bollinger(ohlc: OHLCData[], window: number, k = 2): BandPoint[] {
+  const out: BandPoint[] = [];
+  for (let i = window - 1; i < ohlc.length; i++) {
+    let sum = 0;
+    for (let j = i - window + 1; j <= i; j++) {
+      sum += ohlc[j].close;
+    }
+    const mean = sum / window;
+
+    let variance = 0;
+    for (let j = i - window + 1; j <= i; j++) {
+      const d = ohlc[j].close - mean;
+      variance += d * d;
+    }
+    const sd = Math.sqrt(variance / window);
+
+    out.push({ time: ohlc[i].time, low: mean - k * sd, high: mean + k * sd });
   }
 
   return out;

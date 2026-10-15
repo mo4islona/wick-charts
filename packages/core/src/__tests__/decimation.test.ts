@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { decimateLineData, decimateOHLCData } from '../data/decimation';
-import type { OHLCData, TimePoint } from '../types';
+import { decimateBandData, decimateLineData, decimateOHLCData } from '../data/decimation';
+import type { BandPoint, OHLCData, TimePoint } from '../types';
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -161,5 +161,44 @@ describe('decimateOHLCData', () => {
   it('empty data returns empty', () => {
     const result = decimateOHLCData([], 10);
     expect(result).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// decimateBandData
+// ---------------------------------------------------------------------------
+
+describe('decimateBandData', () => {
+  const band = (count: number): BandPoint[] =>
+    Array.from({ length: count }, (_, i) => ({ time: i, low: -(i % 7), high: i % 5 }));
+
+  it('returns data as-is when length <= target', () => {
+    const data = band(10);
+    expect(decimateBandData(data, 20)).toBe(data);
+  });
+
+  it('keeps the first and last points untouched', () => {
+    const data = band(1000);
+    const result = decimateBandData(data, 100);
+
+    expect(result[0]).toBe(data[0]);
+    expect(result[result.length - 1]).toBe(data[data.length - 1]);
+    expect(result.length).toBeLessThanOrEqual(100);
+  });
+
+  it('keeps the envelope of every bucket', () => {
+    const data = band(1000);
+    const result = decimateBandData(data, 100);
+
+    expect(Math.min(...result.map((p) => p.low))).toBe(-6);
+    expect(Math.max(...result.map((p) => p.high))).toBe(4);
+  });
+
+  it('a bucket that holds a gap stays a gap', () => {
+    const data = band(1000);
+    data[500] = { time: 500, low: Number.NaN, high: Number.NaN };
+    const result = decimateBandData(data, 100);
+
+    expect(result.some((p) => Number.isNaN(p.low))).toBe(true);
   });
 });

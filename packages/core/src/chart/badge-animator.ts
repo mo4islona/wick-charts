@@ -224,3 +224,27 @@ export function firstVisibleValue(chart: BadgeChartQuery, seriesId: string, fall
 
   return value ?? fallback;
 }
+
+/** The slice of the chart API the YLabel series pick reads. {@link ChartInstance} satisfies it. */
+export interface YLabelSeriesQuery {
+  getSeriesIdsByType(type: 'time' | 'band', opts?: { visibleOnly?: boolean; singleLayerOnly?: boolean }): string[];
+}
+
+/**
+ * Resolve the series a YLabel binds to: the explicit id, else the first
+ * visible single-layer time series, else any visible time series. Bands are
+ * skipped — a range has no single last value to badge.
+ */
+export function resolveYLabelSeriesId(chart: YLabelSeriesQuery, explicit: string | undefined): string | null {
+  if (explicit !== undefined) return explicit;
+
+  const bands = new Set(chart.getSeriesIdsByType('band'));
+  const isValued = (id: string): boolean => !bands.has(id);
+
+  const singleLayer = chart.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true }).filter(isValued);
+  if (singleLayer.length > 0) return singleLayer[0];
+
+  const anyTime = chart.getSeriesIdsByType('time', { visibleOnly: true }).filter(isValued);
+
+  return anyTime.length > 0 ? anyTime[0] : null;
+}

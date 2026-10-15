@@ -35,6 +35,20 @@ export interface TimePoint {
 export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
 
 /**
+ * A single band sample: the filled region between `low` and `high` at `time`.
+ * Time is a timestamp in milliseconds. A `low` above `high` is drawn with the
+ * edges swapped; a non-finite edge is a gap.
+ */
+export interface BandPoint {
+  time: number;
+  low: number;
+  high: number;
+}
+
+/** {@link BandPoint} that also accepts `Date` for the time field. */
+export type BandPointInput = Omit<BandPoint, 'time'> & { time: TimeValue };
+
+/**
  * A color, or a function of a datum's value → color. The function form is
  * evaluated per element — per bar in a bar series, per segment in a line — so
  * one layer can paint by sign / threshold (e.g. `v => v >= 0 ? up : down`)
@@ -78,6 +92,16 @@ export type MultiLayerData =
  * `SeriesLayer<OHLCInput>` that names it for the tooltip / info bar / legend.
  */
 export type CandlestickData = OHLCInput[] | SeriesLayer<OHLCInput>;
+
+/**
+ * `data` shape for a band series — the same omnivorous forms as
+ * {@link MultiLayerData}, one band per layer: a flat `BandPointInput[]`, a
+ * layered `BandPointInput[][]`, a named `SeriesLayer`, or an array mixing both.
+ */
+export type BandData =
+  | BandPointInput[]
+  | SeriesLayer<BandPointInput>
+  | Array<BandPointInput[] | SeriesLayer<BandPointInput>>;
 
 /** Time range (timestamps in milliseconds) of the currently visible portion of the chart. */
 export interface XRange {
@@ -162,7 +186,7 @@ export interface ChartLayout {
 }
 
 /** Primary series types. Open-ended — a custom {@link SeriesDefinition} picks any string that isn't a built-in. */
-export type SeriesType = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap' | (string & {});
+export type SeriesType = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | (string & {});
 
 /**
  * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).
@@ -534,6 +558,83 @@ export interface LineSeriesOptions {
     /** Fill color override. Default: the layer's resolved series color. */
     color?: string;
   };
+}
+
+/** Entrance styles for band points added via `appendData` — the same set as {@link LineEntryAnimation}. */
+export type BandEntryAnimation = LineEntryAnimation;
+
+/**
+ * Visual options for a band series — the filled region between a `low` and a
+ * `high` edge. Each layer is one band; layers draw in order with translucent
+ * fills, so nested bands of one color read as a fan chart. There is no
+ * stacking: a stack of ranges has no meaning.
+ */
+export interface BandSeriesOptions {
+  /**
+   * Fill between the edges: a flat color, or a `[top, bottom]` pair painted
+   * as a vertical gradient over each band's visible extent. Applies to every
+   * layer. Default: a gradient of the layer color from 40% opacity at the top
+   * to 4% at the bottom.
+   */
+  fill?: string | [string, string];
+  /** Edge strokes, in the layer color at 60% opacity. Default: `{ visible: true, width: 1 }`. */
+  stroke?: {
+    /** Whether the `low` and `high` edges are stroked. Default: `true`. */
+    visible?: boolean;
+    /** Stroke width in CSS pixels. Default: `1`. */
+    width?: number;
+    /** Stroke color for every layer. Default: the layer color at 60% opacity. */
+    color?: string;
+  };
+  /**
+   * Edge smoothing, with the same builders as the line series. Default:
+   * `'straight'`. `'smooth'` is monotone, so an edge never overshoots its own
+   * samples.
+   */
+  curve?: 'straight' | 'smooth' | 'stepped';
+  /**
+   * Entrance style for appended points. Default: `'grow'` — the trailing
+   * segment of both edges unfurls from the previous point.
+   *
+   * @see entryMs — cross-linked duration for this animation.
+   */
+  entryAnimation?: BandEntryAnimation;
+  /**
+   * Per-point entrance duration in milliseconds. Default: `250`. `false` or
+   * `0` disables the entrance. A chart-level `animations.series.band: false`
+   * wins over this field.
+   */
+  entryMs?: number | false;
+  /**
+   * Initial-load reveal duration in milliseconds; the full reveal lasts ~2×.
+   * Default: `500`. `false` or `0` disables it. Bulk re-seeds of a non-empty
+   * series never replay it. Skipped under `prefers-reduced-motion`.
+   */
+  introMs?: number | false;
+  /**
+   * Initial-load reveal choreography — the line series' `LineIntroFn`
+   * contract. The frame's `layerData` / `layerMean` / `primaryPath` describe
+   * each band's center, and a `value` transform applies to both edges.
+   * `heads` are ignored. Default: `unfoldIntro()` — the band opens out of its
+   * mean.
+   *
+   * @see introMs — cross-linked duration for this animation.
+   */
+  introAnimation?: LineIntroFn;
+  /**
+   * History-prepend reveal for older points loaded at the front. Default:
+   * `backfillSweepIntro()`. `'none'` makes prepended points appear at once.
+   *
+   * @see historyRevealMs — cross-linked duration for this animation.
+   */
+  historyReveal?: LineIntroFn | 'none';
+  /** History-prepend reveal duration in milliseconds. Default: `400`. `false` or `0` disables it. */
+  historyRevealMs?: number | false;
+  /**
+   * How long both displayed edges take to catch up on every
+   * `updateLastPoint`. Default: `250` ms. `0` or `false` snaps.
+   */
+  smoothMs?: number | false;
 }
 
 /** Stacking mode for bar/line series: off (overlap), normal (stacked), percent (100% stacked). */

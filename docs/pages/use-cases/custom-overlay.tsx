@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import {
+  BandSeries,
   CandlestickSeries,
   ChartContainer,
   type ChartTheme,
   Crosshair,
+  LineSeries,
   type OHLCData,
   Title,
   XAxis,
@@ -21,17 +23,17 @@ const COUNT = 250;
 const INTERVAL = 60_000 * 60;
 const SMA_PERIOD = 20;
 
-interface BandPoint {
+interface BollingerPoint {
   time: number;
   mid: number;
   upper: number;
   lower: number;
 }
 
-function computeBollinger(candles: OHLCData[], period: number): BandPoint[] {
+function computeBollinger(candles: OHLCData[], period: number): BollingerPoint[] {
   if (candles.length < period) return [];
 
-  const out: BandPoint[] = [];
+  const out: BollingerPoint[] = [];
   for (let i = period - 1; i < candles.length; i++) {
     let sum = 0;
     for (let j = i - period + 1; j <= i; j++) {
@@ -57,7 +59,51 @@ function computeBollinger(candles: OHLCData[], period: number): BandPoint[] {
   return out;
 }
 
-function BollingerBand({ band, color }: { band: BandPoint[]; color: string }) {
+/** The newest point inside the visible time range, or `null` when none is on screen. */
+function lastVisible(points: readonly BollingerPoint[], range: { from: number; to: number }): BollingerPoint | null {
+  for (let i = points.length - 1; i >= 0; i--) {
+    const point = points[i];
+    if (point.time > range.to) continue;
+    if (point.time < range.from) return null;
+
+    return point;
+  }
+
+  return null;
+}
+
+function EdgeLabel({
+  x,
+  y,
+  color,
+  text,
+  above,
+}: {
+  x: number;
+  y: number;
+  color: string;
+  text: string;
+  above: boolean;
+}) {
+  return (
+    <>
+      <circle cx={x} cy={y} r={2.5} fill={color} />
+      <text
+        x={x - 6}
+        y={above ? y - 6 : y + 6}
+        textAnchor="end"
+        dominantBaseline={above ? 'auto' : 'hanging'}
+        fill={color}
+        fontSize={11}
+        fontWeight={600}
+      >
+        {text}
+      </text>
+    </>
+  );
+}
+
+function BandEdgeLabels({ bollinger, color }: { bollinger: BollingerPoint[]; color: string }) {
   const chart = useChartInstance();
   const [, bump] = useState(0);
 
@@ -74,33 +120,12 @@ function BollingerBand({ band, color }: { band: BandPoint[]; color: string }) {
     };
   }, [chart]);
 
-  if (band.length < 2) return null;
+  const anchor = lastVisible(bollinger, chart.getVisibleRange());
+  if (anchor === null) return null;
 
-  const visible = chart.getVisibleRange();
-  const points = band.filter((p) => p.time >= visible.from && p.time <= visible.to);
-  if (points.length < 2) return null;
-
-  const xs = points.map((p) => chart.timeScale.timeToX(p.time));
-  const upperYs = points.map((p) => chart.yScale.valueToY(p.upper));
-  const lowerYs = points.map((p) => chart.yScale.valueToY(p.lower));
-  const midYs = points.map((p) => chart.yScale.valueToY(p.mid));
-
-  const fillPath = [
-    `M ${xs[0]} ${upperYs[0]}`,
-    ...xs.slice(1).map((x, i) => `L ${x} ${upperYs[i + 1]}`),
-    ...xs
-      .slice()
-      .reverse()
-      .map((x, i) => `L ${x} ${lowerYs[lowerYs.length - 1 - i]}`),
-    'Z',
-  ].join(' ');
-
-  const midPath =
-    `M ${xs[0]} ${midYs[0]} ` +
-    xs
-      .slice(1)
-      .map((x, i) => `L ${x} ${midYs[i + 1]}`)
-      .join(' ');
+  const x = chart.timeScale.timeToX(anchor.time);
+  const upperY = chart.yScale.valueToY(anchor.upper);
+  const lowerY = chart.yScale.valueToY(anchor.lower);
 
   // The plot area, whichever side the Y axis sits on.
   const { chartArea } = chart.getLayout();
@@ -117,9 +142,9 @@ function BollingerBand({ band, color }: { band: BandPoint[]; color: string }) {
         zIndex: 1,
       }}
     >
-      <title>Bollinger Bands ({SMA_PERIOD}, 2)</title>
-      <path d={fillPath} fill={color} fillOpacity={0.12} />
-      <path d={midPath} stroke={color} strokeWidth={1.25} fill="none" strokeDasharray="3 3" />
+      <title>Bollinger band edges</title>
+      <EdgeLabel x={x} y={upperY} color={color} text="Upper" above />
+      <EdgeLabel x={x} y={lowerY} color={color} text="Lower" above={false} />
     </svg>
   );
 }
@@ -129,29 +154,33 @@ const STEPS: Step[] = [
     heading: '01 — RENDER AS A CHILD',
     body: (
       <>
-        Anything you put inside <code>&lt;ChartContainer&gt;</code> that isn't a built-in slot lands in an absolutely
-        positioned overlay above the canvas. Your component has access to the chart via <code>useChartInstance()</code>.
+        The band and its midline are built-in series: <code>&lt;BandSeries&gt;</code> fills between <code>low</code> and{' '}
+        <code>high</code>, and a <code>&lt;LineSeries&gt;</code> draws the SMA. Anything else you put inside{' '}
+        <code>&lt;ChartContainer&gt;</code> lands in an absolutely positioned overlay above the canvas — here, the edge
+        labels. Your component has access to the chart via <code>useChartInstance()</code>.
       </>
     ),
-    code: `<ChartContainer>\n  <CandlestickSeries data={candles} />\n  <BollingerBand band={band} color="#7AA9FF" />\n  <YAxis />\n  <XAxis />\n</ChartContainer>`,
+    code: `<ChartContainer>\n  <BandSeries data={{ label: 'Bollinger', data: band }} />\n  <CandlestickSeries data={candles} />\n  <LineSeries data={{ label: 'SMA 20', data: mid }} />\n  <BandEdgeLabels bollinger={bollinger} color="#7AA9FF" />\n  <YAxis />\n  <XAxis />\n</ChartContainer>`,
   },
   {
     heading: '02 — MAP DATA TO PIXELS',
     body: (
       <>
-        Read the chart's scales: <code>timeScale.timeToX(time)</code> and <code>yScale.valueToY(value)</code>. Both
-        return CSS pixels inside the plot area, so an SVG sized to <code>chart.getLayout().chartArea</code> lines up
-        with it exactly — on either side of a left or right Y axis.
+        Find the newest point inside <code>chart.getVisibleRange()</code>, then read the chart's scales:{' '}
+        <code>timeScale.timeToX(time)</code> and <code>yScale.valueToY(value)</code>. Both return CSS pixels inside the
+        plot area, so an SVG sized to <code>chart.getLayout().chartArea</code> lines up with it exactly — on either side
+        of a left or right Y axis.
       </>
     ),
-    code: `const { chartArea } = chart.getLayout(); // { x, y, width, height }\nconst xs = points.map((p) => chart.timeScale.timeToX(p.time));\nconst ys = points.map((p) => chart.yScale.valueToY(p.value));`,
+    code: `const { chartArea } = chart.getLayout(); // { x, y, width, height }\nconst anchor = lastVisible(bollinger, chart.getVisibleRange());\nconst x = chart.timeScale.timeToX(anchor.time);\nconst upperY = chart.yScale.valueToY(anchor.upper);\nconst lowerY = chart.yScale.valueToY(anchor.lower);`,
   },
   {
     heading: '03 — REDRAW ON CHANGE',
     body: (
       <>
-        Subscribe to <code>viewportChange</code> (pan / zoom / resize moves the scales) and <code>overlayChange</code>{' '}
-        (data updates, axis width changes). A bump-counter <code>useState</code> is enough to force a re-render.
+        Subscribe to <code>viewportChange</code> (pan / zoom / resize moves the scales and the last visible point) and{' '}
+        <code>overlayChange</code> (data updates, axis width changes). A bump-counter <code>useState</code> is enough to
+        force a re-render.
       </>
     ),
     code: `useEffect(() => {\n  const tick = () => bump((n) => n + 1);\n  chart.on('viewportChange', tick);\n  chart.on('overlayChange', tick);\n  return () => {\n    chart.off('viewportChange', tick);\n    chart.off('overlayChange', tick);\n  };\n}, [chart]);`,
@@ -159,9 +188,13 @@ const STEPS: Step[] = [
 ];
 
 export function CustomOverlayPage({ theme }: { theme: ChartTheme }) {
-  const candles = useMemo(() => generateOHLCData(COUNT, 100, INTERVAL), []);
-  const band = useMemo(() => computeBollinger(candles, SMA_PERIOD), [candles]);
-  const bandColor = theme.bands?.upper ?? theme.tooltip.textColor;
+  // The leading candles only warm up the first band window, so the band starts with the candles.
+  const history = useMemo(() => generateOHLCData(COUNT + SMA_PERIOD - 1, 100, INTERVAL), []);
+  const candles = useMemo(() => history.slice(SMA_PERIOD - 1), [history]);
+  const bollinger = useMemo(() => computeBollinger(history, SMA_PERIOD), [history]);
+  const band = useMemo(() => bollinger.map((p) => ({ time: p.time, low: p.lower, high: p.upper })), [bollinger]);
+  const mid = useMemo(() => bollinger.map((p) => ({ time: p.time, value: p.mid })), [bollinger]);
+  const bandColor = theme.bands.upper;
 
   return (
     <AdvancedLayout
@@ -169,16 +202,22 @@ export function CustomOverlayPage({ theme }: { theme: ChartTheme }) {
       source={source}
       lead={
         <>
-          A 20-period Bollinger Band drawn on top of a candlestick chart with a custom React overlay component. The band
-          is a single SVG that uses the chart's <code>timeScale</code> and <code>yScale</code> to project data onto
-          pixels — pan and zoom keep it perfectly aligned.
+          A 20-period Bollinger Band on a candlestick chart. The band is a built-in <code>&lt;BandSeries&gt;</code> and
+          the SMA midline a <code>&lt;LineSeries&gt;</code>; the "Upper" / "Lower" tags are a custom React overlay
+          pinned to the band's last visible point. The overlay uses the chart's <code>timeScale</code> and{' '}
+          <code>yScale</code> to project data onto pixels — pan and zoom keep it aligned.
         </>
       }
       chart={
         <ChartContainer theme={theme}>
           <Title sub={`Bollinger ${SMA_PERIOD}, 2σ`}>BTC/USD</Title>
+          <BandSeries data={{ label: 'Bollinger', color: bandColor, data: band }} />
           <CandlestickSeries id="candle" data={candles} />
-          <BollingerBand band={band} color={bandColor} />
+          <LineSeries
+            data={{ label: `SMA ${SMA_PERIOD}`, color: bandColor, data: mid }}
+            options={{ area: { visible: false }, strokeWidth: 1, pulse: false }}
+          />
+          <BandEdgeLabels bollinger={bollinger} color={bandColor} />
           <YLabel seriesId="candle" />
           <Crosshair />
           <YAxis />

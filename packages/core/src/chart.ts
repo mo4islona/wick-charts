@@ -48,6 +48,7 @@ import { YScale, isPlottableOn } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
 import {
   type HoverInfo,
+  type LayerSnapshot,
   type SeriesKind,
   type SeriesRenderer,
   type SliceInfo,
@@ -58,6 +59,9 @@ import type { ChartTheme } from './theme/types';
 import type {
   AxisBound,
   AxisConfig,
+  BandPoint,
+  BandPointInput,
+  BandSeriesOptions,
   BarSeriesOptions,
   CandlestickSeriesOptions,
   ChartLayout,
@@ -78,6 +82,7 @@ import type {
 } from './types';
 import { clamp } from './utils/math';
 import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
+import { isBandPoint, pointValue } from './utils/point';
 import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig } from './chart/options';
@@ -708,6 +713,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       BarSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
     >,
   ): string;
+  addSeries(
+    type: 'band',
+    options?: Partial<
+      BandSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+    >,
+  ): string;
   addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string; label?: string }>): string;
   addSeries(type: 'heatmap', options?: Partial<HeatmapSeriesOptions & { id?: string; label?: string }>): string;
   addSeries<O>(
@@ -840,7 +851,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const point = this.getDataAtTime(marker.seriesId, marker.time);
     if (!point) return null;
 
-    return 'close' in point ? point.close : point.value;
+    return pointValue(point);
   }
 
   /** Resolve a marker's color: explicit `color`, else the series color, else the theme line color. */
@@ -1179,7 +1190,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
-  appendData(id: string, point: OHLCInput | TimePointInput, layerIndex?: number): void {
+  appendData(id: string, point: OHLCInput | TimePointInput | BandPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.appendPoint === undefined) return;
 
@@ -1203,7 +1214,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * first point; the sync reconciler guarantees this before calling here.
    * No-op if the renderer doesn't support prepend.
    */
-  prependData(id: string, points: (OHLCInput | TimePointInput)[], layerIndex?: number): void {
+  prependData(id: string, points: (OHLCInput | TimePointInput | BandPointInput)[], layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.prependPoints === undefined) return;
 
@@ -1234,7 +1245,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /** Update the last data point of a series in place (e.g. live candle update). */
-  updateData(id: string, point: OHLCInput | TimePointInput, layerIndex?: number): void {
+  updateData(id: string, point: OHLCInput | TimePointInput | BandPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     entry?.renderer.updateLastPoint?.(point, layerIndex);
   }
@@ -1264,6 +1275,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<CandlestickSeriesOptions>
       | Partial<LineSeriesOptions>
       | Partial<BarSeriesOptions>
+      | Partial<BandSeriesOptions>
       | Partial<PieSeriesOptions>
       | Partial<HeatmapSeriesOptions>,
   ): void {
@@ -1322,10 +1334,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           this.#batchVisualDirty = false;
           this.onDataChanged();
         } else if (this.#batchVisualDirty) {
+          // Only visibility toggles set this flag, so the Y re-fit eases with their fade.
           this.#batchVisualDirty = false;
           this.#yInited = true;
           const now = performance.now();
-          this.#engine.onAxisReconfig(now);
+          this.#engine.onSeriesVisibilityChanged(now);
           this.#applyEngineState(now);
           this.#mainScheduler.markDirty();
         }
@@ -1644,7 +1657,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return getPreviousClose(seriesId, this.#series);
   }
 
-  getLastData(seriesId: string): OHLCData | TimePoint | null {
+  getLastData(seriesId: string): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || !isTimeSeriesRenderer(entry.renderer)) return null;
 
@@ -1652,7 +1665,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /** Find the data point closest to the given timestamp within one data interval. */
-  getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | null {
+  getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
     return entry.renderer.getDataAtTime?.(time, this.#dataInterval) ?? null;
@@ -1664,10 +1677,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * snapped sample time — callers must not derive layer identity from the
    * array index, because hidden layers are filtered out.
    */
-  getLayerSnapshots(
-    seriesId: string,
-    time: number,
-  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
+  getLayerSnapshots(seriesId: string, time: number): LayerSnapshot[] | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.visible) return null;
 
@@ -1815,10 +1825,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const stacked = entry.renderer.getStackedValueAtTime?.(time, this.#dataInterval);
     if (stacked !== null && stacked !== undefined) return stacked;
 
+    // A band has no single value to count a badge up from.
     const point = entry.renderer.getDataAtTime?.(time, this.#dataInterval);
-    if (!point) return null;
+    if (!point || isBandPoint(point)) return null;
 
-    return 'close' in point ? point.close : point.value;
+    return pointValue(point);
   }
 
   /**
@@ -1827,7 +1838,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * overlay components that must display every layer in last-mode even
    * when layers advance at different rates (ragged streams).
    */
-  getLayerLastSnapshots(seriesId: string): { layerIndex: number; time: number; value: number; color: string }[] | null {
+  getLayerLastSnapshots(seriesId: string): LayerSnapshot[] | null {
     const entry = this.#series.find((s) => s.id === seriesId);
 
     return entry?.renderer.getLayerLastSnapshots?.() ?? null;
