@@ -10,6 +10,8 @@ export type HeaderLayout = 'overlay' | 'inline';
 export type CandleEntryAnim = 'fade' | 'unfold' | 'slide' | 'fade-unfold' | 'none';
 export type BarEntryAnim = 'fade' | 'grow' | 'fade-grow' | 'slide' | 'none';
 export type LineEntryAnim = 'grow' | 'fade' | 'none';
+/** Playground's Y-scale switch — `'log'` maps to `axis.y.scale: logScale()`. */
+export type YScaleKind = 'linear' | 'log';
 
 export type AnimationKind = 'candle' | 'bar' | 'line' | 'pie';
 
@@ -36,6 +38,7 @@ export interface CommonState {
   // Axes
   yAxisVisible: boolean;
   yAxisPosition: YAxisPosition;
+  yScaleType: YScaleKind;
   xAxisVisible: boolean;
   yAxisWidth: number;
   xAxisHeight: number;
@@ -105,6 +108,7 @@ export const COMMON_DEFAULTS: CommonState = {
   headerLayout: 'overlay',
   yAxisVisible: true,
   yAxisPosition: 'right',
+  yScaleType: 'linear',
   xAxisVisible: true,
   yAxisWidth: 55,
   xAxisHeight: 30,
