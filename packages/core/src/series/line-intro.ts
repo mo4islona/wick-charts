@@ -63,6 +63,7 @@ export interface LineIntroFrame {
   /**
    * Mean of the layer's visible plottable values, taken on the Y axis (the
    * geometric mean on log), or `null` for an empty/poisoned layer (memoized per frame).
+   * On a percent stack, the layer's mean share of its column, in percent.
    */
   layerMean(layerIndex: number): number | null;
   /**
@@ -76,7 +77,10 @@ export interface LineIntroFrame {
 export interface LineIntroValueArgs {
   layerIndex: number;
   time: number;
-  /** The value the renderer would draw without the intro (live smoothing included). */
+  /**
+   * The value the renderer would draw without the intro (live smoothing included).
+   * On a percent stack, the layer's share of its column, in percent.
+   */
   value: number;
   /** Normalized x-position of `time` across the visible range, clamped to `[0, 1]`. */
   position: number;
