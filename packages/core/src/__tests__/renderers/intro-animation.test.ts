@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
+import { logScale } from '../../scales/log-scale';
 import { BarRenderer } from '../../series/bar';
-import { springIntro } from '../../series/bar-intro';
+import { growIntro, springIntro } from '../../series/bar-intro';
 import { CandlestickRenderer } from '../../series/candlestick';
 import { wickBodyIntro } from '../../series/candlestick-intro';
 import { LineRenderer } from '../../series/line';
@@ -228,6 +229,66 @@ describe('intro animations — initial-load reveal', () => {
       };
       expect(leftHeight(mid.spy)).toBeGreaterThan(leftHeight(settled.spy));
     });
+
+    it('growIntro(): each edge of a log stack grows like a lone bar of that height', () => {
+      const stack = new BarRenderer(2, { cornerRadius: 0, stacking: 'normal' });
+      stack.setData([{ time: 50, value: 100 }], 0);
+      stack.setData([{ time: 50, value: 900 }], 1);
+      const lower = makeBar();
+      lower.setData([{ time: 50, value: 100 }]);
+      const upper = makeBar();
+      upper.setData([{ time: 50, value: 1000 }]);
+
+      const tops = (r: BarRenderer) => {
+        const built = buildRenderContext({ yRange: { min: 1, max: 10_000 }, yTransform: logScale() });
+        r.render(built.ctx);
+
+        return built.spy.callsOf('fillRect').map((call) => call.args[1] as number);
+      };
+
+      for (const step of [0, 120, 240, 400, 1001]) {
+        advance(step);
+        const [lowerTop, upperTop] = tops(stack);
+
+        expect(lowerTop).toBeCloseTo(tops(lower)[0], 0);
+        expect(upperTop).toBeCloseTo(tops(upper)[0], 0);
+      }
+    });
+
+    it.each([
+      ['growIntro', growIntro],
+      ['springIntro', springIntro],
+    ])('%s() grows a bar on a log axis by the same pixels as on a linear one', (_, factory) => {
+      // 10^k on a log axis from 1 sits where k sits on a linear axis from 0,
+      // so every intro frame must paint the same rects on both.
+      const exponents = [2, 3];
+      const linear = makeBar({ introAnimation: factory() });
+      const log = makeBar({ introAnimation: factory() });
+      linear.setData(exponents.map((k, i) => ({ time: 10 + i * 80, value: k })));
+      log.setData(exponents.map((k, i) => ({ time: 10 + i * 80, value: 10 ** k })));
+
+      const rects = (r: BarRenderer, axis: 'linear' | 'log') => {
+        const built =
+          axis === 'linear'
+            ? buildRenderContext({ yRange: { min: 0, max: 4 } })
+            : buildRenderContext({ yRange: { min: 1, max: 10_000 }, yTransform: logScale() });
+        r.render(built.ctx);
+
+        return built.spy.callsOf('fillRect').map((call) => [call.args[1] as number, call.args[3] as number]);
+      };
+
+      for (const step of [0, 120, 240, 400, 1001]) {
+        advance(step);
+        const expected = rects(linear, 'linear');
+        const actual = rects(log, 'log');
+
+        expect(actual).toHaveLength(expected.length);
+        for (let i = 0; i < expected.length; i++) {
+          expect(actual[i][0]).toBeCloseTo(expected[i][0], 0);
+          expect(actual[i][1]).toBeCloseTo(expected[i][1], 0);
+        }
+      }
+    });
   });
 
   describe('CandlestickRenderer', () => {
@@ -417,6 +478,35 @@ describe('intro animations — initial-load reveal', () => {
       expect(spy.matchesSequence(['save', 'rect', 'clip', 'stroke', 'restore', 'arc'])).toBe(true);
     });
 
+    it('sweepIntro(): on a log axis the head rides the drawn segment', () => {
+      const r = makeLine({ introAnimation: sweepIntro(), area: { visible: false } });
+      r.setData([
+        { time: 0, value: 1 },
+        { time: 100, value: 1000 },
+      ]);
+      const frame = () => {
+        const built = buildRenderContext({ yRange: { min: 1, max: 1000 }, yTransform: logScale() });
+        r.render(built.ctx);
+
+        return built;
+      };
+      frame();
+
+      advance(400);
+      const { spy, timeScale, yScale } = frame();
+
+      const start = { x: timeScale.timeToBitmapXExact(0), y: yScale.valueToBitmapYExact(1) };
+      const end = { x: timeScale.timeToBitmapXExact(100), y: yScale.valueToBitmapYExact(1000) };
+      const arcs = spy.callsOf('arc');
+      expect(arcs.length).toBeGreaterThan(0);
+      for (const arc of arcs) {
+        const along = ((arc.args[0] as number) - start.x) / (end.x - start.x);
+        expect(along).toBeGreaterThan(0);
+        expect(along).toBeLessThan(1);
+        expect(arc.args[1] as number).toBeCloseTo(start.y + (end.y - start.y) * along, 6);
+      }
+    });
+
     it('stops clipping once the sweep settles', () => {
       const r = makeLine({ introAnimation: sweepIntro() });
       r.setData(POINTS);
@@ -575,6 +665,37 @@ describe('intro animations — initial-load reveal', () => {
         expect(earlySpread).toBeLessThan(settledSpread / 4);
         expect(settledSpread).toBeGreaterThan(100);
         expect(r.needsAnimation).toBe(false);
+      });
+
+      it('moves points on a log axis by the same pixels as on a linear one', () => {
+        // 10^k on a log axis sits where k sits on a linear axis, so every
+        // frame must stroke the same polyline on both — no dive to the floor.
+        const exponents = [0, 1, 3, 2, 0.5];
+        const linear = makeLine({ area: { visible: false } });
+        const log = makeLine({ area: { visible: false } });
+        linear.setData(exponents.map((k, i) => ({ time: i * 25, value: k })));
+        log.setData(exponents.map((k, i) => ({ time: i * 25, value: 10 ** k })));
+
+        const ys = (r: LineRenderer, axis: 'linear' | 'log') => {
+          const built =
+            axis === 'linear'
+              ? buildRenderContext({ yRange: { min: 0, max: 3 } })
+              : buildRenderContext({ yRange: { min: 1, max: 1000 }, yTransform: logScale() });
+          r.render(built.ctx);
+
+          return pathYs(built.spy);
+        };
+
+        for (const step of [0, 100, 200, 300, 500, 2000]) {
+          advance(step);
+          const expected = ys(linear, 'linear');
+          const actual = ys(log, 'log');
+
+          expect(actual).toHaveLength(expected.length);
+          for (let i = 0; i < expected.length; i++) {
+            expect(actual[i]).toBeCloseTo(expected[i], 6);
+          }
+        }
       });
 
       it('keeps the pulse dot alive during the unfold', () => {

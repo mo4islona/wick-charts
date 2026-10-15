@@ -90,6 +90,7 @@ describe('line intro — regression fixes', () => {
         timeToX: (time) => time * 8,
         xToTime: (x) => x / 8,
         valueToY: (value) => 400 - value * 4,
+        lerpValue: (from, to, t) => from + (to - from) * t,
         layerCount: 1,
         layerData: () => [],
         layerMean: () => 0,

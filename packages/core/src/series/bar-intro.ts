@@ -26,6 +26,14 @@ import type { WaveIntroElement, WaveIntroFrame, WaveIntroTransform } from './wav
 export interface BarIntroFrame extends WaveIntroFrame {
   /** Time → bitmap X through the live time scale. */
   timeToX(time: number): number;
+  /** The value bars grow from: `0`, or the plot floor's value on a scale with no place for 0 (log). */
+  baseline: number;
+  /**
+   * The value `t` of the way from `from` to `to` on the Y axis — a plain lerp
+   * on a linear axis, a geometric one on log. Grow bars through this: a bare
+   * `value * t` stays below a log axis's floor for most of the intro.
+   */
+  lerpValue(from: number, to: number, t: number): number;
 }
 
 /** Arguments handed to {@link BarIntroDirectives.value} for every rendered value. */
@@ -65,8 +73,9 @@ export interface BarIntroDirectives {
   /** Horizontal clip window in bitmap px applied to the whole pass.
    *  Omitted sides default to the pane edges. */
   clip?: { fromX?: number; toX?: number };
-  /** Per-value transform applied before geometry and stacking. Scaling the
-   *  value grows the bar from the baseline on every render path. */
+  /** Per-value transform applied before geometry. Moving the value from
+   *  `frame.baseline` grows the bar on every render path. A stack applies it
+   *  to each segment before stacking, or to each drawn edge on a non-linear axis. */
   value?: (args: BarIntroValueArgs) => number;
   /** Per-bar transform applied after the geometry is resolved. */
   element?: (el: BarIntroElement) => BarElementTransform;
@@ -78,8 +87,8 @@ export type BarIntroFn = (frame: BarIntroFrame) => BarIntroDirectives;
 /** Bars fade-grow up from the baseline in a left-to-right wave — the
  *  default intro. */
 export function growIntro(): BarIntroFn {
-  return () => ({
-    value: ({ value, progress }) => value * progress,
+  return (frame) => ({
+    value: ({ value, progress }) => frame.lerpValue(frame.baseline, value, progress),
     element: (el) => ({ alpha: el.progress }),
   });
 }
@@ -91,8 +100,8 @@ const SPRING_FADE_END = 0.3;
 /** Bars grow from the baseline with a soft ease-out-back overshoot past
  *  their final height before settling. */
 export function springIntro(): BarIntroFn {
-  return () => ({
-    value: ({ value, progress }) => value * easeOutBack(progress),
+  return (frame) => ({
+    value: ({ value, progress }) => frame.lerpValue(frame.baseline, value, easeOutBack(progress)),
     element: (el) => ({ alpha: Math.min(1, el.progress / SPRING_FADE_END) }),
   });
 }

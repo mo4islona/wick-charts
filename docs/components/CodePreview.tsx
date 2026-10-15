@@ -81,10 +81,34 @@ const VAR_REF_NAMES = new Set([
   'snap()',
   // Perf instrumentation factory — `perf={perfHud()}`.
   'perfHud()',
+  // Log Y scale factory — `axis: { y: { scale: logScale() } }`.
+  'logScale()',
 ]);
 
 function isVarRef(v: PropValue): boolean {
   return typeof v === 'string' && VAR_REF_NAMES.has(v);
+}
+
+function collectFactoryImports(value: PropValue | Record<string, PropValue>, imports: Set<string>): void {
+  if (typeof value === 'string') {
+    if (isVarRef(value) && value.endsWith('()')) imports.add(value.slice(0, -2));
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectFactoryImports(item, imports);
+    }
+
+    return;
+  }
+
+  if (typeof value !== 'object' || value === null) return;
+
+  for (const nested of Object.values(value)) {
+    collectFactoryImports(nested, imports);
+  }
 }
 
 /** Wrap threshold: if the one-liner component + props exceeds this, break
@@ -178,12 +202,9 @@ export function generateCode(config: ChartCodeConfig, fw: Framework): string {
   // hand the underlying ChartTheme to ChartContainer). Only the import root
   // belongs in the import list.
   if (config.theme) imports.add(config.theme.split('.')[0]);
-  // Factory-call refs on the container (`perf={perfHud()}`) import their callee.
-  for (const value of Object.values(config.containerProps ?? {})) {
-    if (isVarRef(value) && typeof value === 'string' && value.endsWith('()')) {
-      imports.add(value.slice(0, -2));
-    }
-  }
+  // Factory calls anywhere in the container props (`perf={perfHud()}`,
+  // `axis.y.scale: logScale()`) import their callee.
+  collectFactoryImports(config.containerProps ?? {}, imports);
 
   const importList = Array.from(imports).sort();
   const pkg = PACKAGES[fw];

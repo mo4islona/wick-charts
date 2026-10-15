@@ -123,6 +123,25 @@ export function layerStrategy(base: number): LineStrategy {
   };
 }
 
+// ── Growth strategy (compounding, spans orders of magnitude) ──
+
+export interface GrowthOpts {
+  start: number;
+  /** Mean growth per point, e.g. `0.02` for +2%. */
+  rate: number;
+}
+
+export function growthStrategy({ start, rate }: GrowthOpts): LineStrategy {
+  return {
+    boundary: ({ time, prev }) => {
+      const base = prev?.value ?? start;
+      const noise = (Math.random() - 0.5) * 0.04;
+
+      return { time, value: round(base * (1 + rate + noise)) };
+    },
+  };
+}
+
 // ── Wave strategy (deterministic smooth wave) ──────────────
 
 export interface WaveOpts {
@@ -216,6 +235,11 @@ export function generateLayerData(count: number, base: number, interval = DEMO_I
 export function generateWaveData(count: number, opts: WaveOpts & { interval?: number } = {}): TimePoint[] {
   const { interval = DEMO_INTERVAL, ...rest } = opts;
   return walkLine(count, interval, waveStrategy({ ...rest, totalHint: rest.totalHint ?? count }));
+}
+
+export function generateGrowthData(count: number, opts: GrowthOpts & { interval?: number }): TimePoint[] {
+  const { interval = DEMO_INTERVAL, ...rest } = opts;
+  return walkLine(count, interval, growthStrategy(rest));
 }
 
 export function generateMonotonicData(

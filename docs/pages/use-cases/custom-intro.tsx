@@ -47,12 +47,13 @@ const STEPS: Step[] = [
         A clip is one kind of reveal; the <code>value</code> directive is the other. Return a function and every
         rendered value — stroke, area, stacked cumulative, the overlay pulse — flows through it. The default{' '}
         <code>unfoldIntro()</code> is nothing more than this: each point lerps from its layer's visible mean toward its
-        real value with a soft overshoot, staggered left-to-right by the point's <code>position</code>. Frame accessors
-        like <code>layerMean</code> and <code>primaryPath</code> are memoized per frame, so a directive function stays
-        pure and cheap.
+        real value with a soft overshoot, staggered left-to-right by the point's <code>position</code>. The lerp goes
+        through <code>frame.lerpValue</code>, so the motion stays even on a log axis. Frame accessors like{' '}
+        <code>layerMean</code> and <code>primaryPath</code> are memoized per frame, so a directive function stays pure
+        and cheap.
       </>
     ),
-    code: `// The whole default intro, essentially:\nreturn {\n  value: ({ layerIndex, value, position }) => {\n    const mean = frame.layerMean(layerIndex);\n    if (mean === null) return value;\n\n    const local = clamp01((frame.progress - 0.35 * position) / 0.65);\n\n    return mean + (value - mean) * easeOutBack(local);\n  },\n};`,
+    code: `// The whole default intro, essentially:\nreturn {\n  value: ({ layerIndex, value, position }) => {\n    const mean = frame.layerMean(layerIndex);\n    if (mean === null) return value;\n\n    const local = clamp01((frame.progress - 0.35 * position) / 0.65);\n\n    return frame.lerpValue(mean, value, easeOutBack(local));\n  },\n};`,
   },
   {
     heading: '04 — HAND IT TO THE SERIES',
@@ -75,14 +76,15 @@ const STEPS: Step[] = [
       <>
         Bar and candlestick series expose mirror contracts — <code>BarIntroFn</code> and <code>CandleIntroFn</code> —
         with per-element directives instead of a path clip: each element gets an eased, left-to-right staggered{' '}
-        <code>progress</code>, and you return how it enters — a <code>value</code> scale (growth from the baseline,
-        stacking-safe) and an <code>element</code> transform (translation, alpha). The shipped styles are factories over
-        the same shapes (<code>growIntro</code>, <code>springIntro</code>, <code>candleUnfoldIntro</code>,{' '}
-        <code>wickBodyIntro</code>, and the shared <code>riseIntro</code>/<code>fadeIntro</code>/<code>wipeIntro</code>
+        <code>progress</code>, and you return how it enters — a <code>value</code> lerp (growth from{' '}
+        <code>frame.baseline</code>, stacking-safe) and an <code>element</code> transform (translation, alpha). The
+        shipped styles are factories over the same shapes (<code>growIntro</code>, <code>springIntro</code>,{' '}
+        <code>candleUnfoldIntro</code>, <code>wickBodyIntro</code>, and the shared <code>riseIntro</code>/
+        <code>fadeIntro</code>/<code>wipeIntro</code>
         ), so everything in this walkthrough carries over element-wise.
       </>
     ),
-    code: `const shy: BarIntroFn = () => ({\n  value: ({ value, progress }) => value * progress, // grow up\n  element: (el) => ({ alpha: 0.3 + 0.7 * el.progress }), // …fading in\n});\n\n<BarSeries data={data} options={{ introAnimation: shy }} />`,
+    code: `const shy: BarIntroFn = (frame) => ({\n  value: ({ value, progress }) => frame.lerpValue(frame.baseline, value, progress), // grow up\n  element: (el) => ({ alpha: 0.3 + 0.7 * el.progress }), // …fading in\n});\n\n<BarSeries data={data} options={{ introAnimation: shy }} />`,
   },
 ];
 

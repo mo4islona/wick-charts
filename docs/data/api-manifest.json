@@ -3148,6 +3148,19 @@
                       "see": []
                     },
                     {
+                      "name": "scale",
+                      "type": "YScaleTransform",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Value mapping. Omitted: linear. `logScale()` gives each power of ten equal\nheight — for series spanning orders of magnitude; `logScale({ base: 2 })`\nputs the ticks on powers of two. Any YScaleTransform works.\n\nAutoscale and Y animations run in the scale's space. Values the scale\ncan't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle —\na fixed `min` / `max` it can't place falls back to `'auto'`, and area\nfills close to the plot floor. Percent stacking is rejected when the\nscale has no position for 0. Live — a different scale refits the Y range.",
+                      "see": [],
+                      "nested": {
+                        "name": "YScaleTransform",
+                        "props": []
+                      }
+                    },
+                    {
                       "name": "min",
                       "type": "AxisBound",
                       "optional": true,

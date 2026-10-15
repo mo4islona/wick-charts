@@ -20,6 +20,7 @@ import {
 import { Cell } from '../components/Cell';
 import type { PropValue } from '../components/CodePreview';
 import {
+  axisForStacking,
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
   buildNavigatorComponent,
@@ -29,11 +30,20 @@ import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
-import { type LineStrategy, generateLineData, generateWaveData, lineDriftStrategy, waveStrategy } from '../data';
+import {
+  type GrowthOpts,
+  type LineStrategy,
+  generateGrowthData,
+  generateLineData,
+  generateWaveData,
+  growthStrategy,
+  lineDriftStrategy,
+  waveStrategy,
+} from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
 import { useLineStreams } from '../hooks';
 
-type DataMode = 'wave' | 'line';
+type DataMode = 'wave' | 'line' | 'growth';
 type LegendPos = 'off' | 'bottom' | 'right';
 type LegendMode = 'toggle' | 'isolate';
 
@@ -56,7 +66,16 @@ interface LineSettings {
 
 const MULTI_COUNT = 6;
 
+/** Compounding series, a couple of decades apart — reads best on a log axis. */
+function growthOpts(index: number): GrowthOpts {
+  return { start: 2 * (index + 1), rate: 0.014 + index * 0.003 };
+}
+
 function makeData(mode: DataMode, count: number, index: number): TimePoint[] {
+  if (mode === 'growth') {
+    return generateGrowthData(count, { ...growthOpts(index), interval: DEMO_INTERVAL });
+  }
+
   if (mode === 'wave') {
     return generateWaveData(count, {
       base: 5,
@@ -73,8 +92,14 @@ function makeData(mode: DataMode, count: number, index: number): TimePoint[] {
 
 /** Build a streaming strategy that matches `makeData`'s generator for the given mode. */
 function strategyFor(mode: DataMode) {
-  return (series: TimePoint[], index: number): LineStrategy =>
-    mode === 'wave'
+  return (series: TimePoint[], index: number): LineStrategy => {
+    if (mode === 'growth') {
+      const opts = growthOpts(index);
+
+      return growthStrategy({ ...opts, start: series[series.length - 1]?.value ?? opts.start });
+    }
+
+    return mode === 'wave'
       ? waveStrategy({
           base: 5,
           amplitude: 100 + index * 40,
@@ -84,6 +109,7 @@ function strategyFor(mode: DataMode) {
           totalHint: series.length,
         })
       : lineDriftStrategy(series[series.length - 1]?.value ?? 100);
+  };
 }
 
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][] }) {
@@ -162,18 +188,20 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
   });
   const display = props.streaming ? datasets : props.allData;
   const animations = useAnimationsProp(props);
+  const axis = axisForStacking(props.axis, props.stacking);
+  const heldLinear = axis !== props.axis;
 
   return (
     <ChartContainer
       theme={props.theme}
-      axis={props.axis}
+      axis={axis}
       gradient={props.gradient}
       headerLayout={props.headerLayout}
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
       viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
-      <Title sub={`${MULTI_COUNT} series`}>{props.title}</Title>
+      <Title sub={heldLinear ? `${MULTI_COUNT} series · linear` : `${MULTI_COUNT} series`}>{props.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         data={display}
@@ -234,6 +262,7 @@ const DEMO_EXTRA: SectionSpec = {
           options={[
             { value: 'wave', label: 'Wave' },
             { value: 'line', label: 'Random' },
+            { value: 'growth', label: 'Growth' },
           ]}
           onChange={onChange as (v: DataMode) => void}
         />
@@ -266,6 +295,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'stacking',
       label: 'Stack',
+      hint: '100% stays on a linear Y axis',
       render: (v, onChange) => (
         <ToggleGroup<StackingMode>
           value={v as StackingMode}
@@ -460,7 +490,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         );
       }}
       codeConfig={(s) => {
-        const containerProps = buildCartesianContainerProps(s) ?? {};
+        const containerProps = buildCartesianContainerProps({ ...s, axis: axisForStacking(s.axis, s.stacking) }) ?? {};
         if (s.perfHudVisible) containerProps.perf = 'perfHud()';
         // Mirrors the live preview: the demo data is dense, so the snippet
         // carries the same window cap that lets the dots clear the density guard.

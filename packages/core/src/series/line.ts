@@ -7,6 +7,7 @@ import {
 } from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
 import { decimateLineData } from '../data/decimation';
+import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba } from '../utils/color';
@@ -24,6 +25,7 @@ import type { CurveKind, PathSegment } from './painters/canvas-path';
 import { buildCurveSegments } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
 import type { LinePoint, PaintEnv } from './painters/types';
+import { ScaleStack } from './scale-stack';
 import type { OverlayRenderContext, SeriesRenderContext } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` / `pulseMs` are concrete
@@ -97,13 +99,19 @@ const INTRO_HEAD_FADE = 0.15;
 const DEFAULT_HISTORY_REVEAL_FN = backfillSweepIntro();
 
 /**
- * Linearly interpolated series value at `time` between its bracketing
- * samples (binary search — `data` is time-sorted). Values are read through
- * `resolve`, so callers can substitute renderer-smoothed values while the
- * raw sample still gates finiteness. `null` when the bracket contains a
- * non-finite gap; edges clamp to the boundary sample.
+ * Series value at `time`, interpolated between its bracketing samples
+ * (binary search — `data` is time-sorted). Values are read through
+ * `read.resolve`, so callers can substitute renderer-smoothed values while the
+ * raw sample still gates finiteness, and blended by `read.lerp` (a plain lerp
+ * by default). `null` when the bracket contains a non-finite gap; edges clamp
+ * to the boundary sample.
  */
-function valueAtTime(data: readonly TimePoint[], time: number, resolve: (point: TimePoint) => number): number | null {
+function valueAtTime(
+  data: readonly TimePoint[],
+  time: number,
+  read: { resolve: (point: TimePoint) => number; lerp?: (from: number, to: number, t: number) => number },
+): number | null {
+  const { resolve, lerp: blend = lerp } = read;
   if (data.length === 0) return null;
   if (time <= data[0].time) return Number.isFinite(data[0].value) ? resolve(data[0]) : null;
 
@@ -128,7 +136,27 @@ function valueAtTime(data: readonly TimePoint[], time: number, resolve: (point: 
   const span = b.time - a.time;
   if (span <= 0) return resolve(a);
 
-  return lerp(resolve(a), resolve(b), (time - a.time) / span);
+  return blend(resolve(a), resolve(b), (time - a.time) / span);
+}
+
+/** Mean of the plottable values on `yScale`'s axis — the geometric mean on log; `null` when none. */
+function scaleMean(data: readonly TimePoint[], yScale: YScale): number | null {
+  const transform = yScale.getTransform();
+
+  let sum = 0;
+  let count = 0;
+  for (const d of data) {
+    if (!yScale.isPlottable(d.value)) continue;
+
+    sum += transform === null ? d.value : transform.forward(d.value);
+    count++;
+  }
+
+  if (count === 0) return null;
+
+  const mean = sum / count;
+
+  return transform === null ? mean : transform.inverse(mean);
 }
 
 /** Index of `time` in an ascending column array, or `-1`. */
@@ -248,6 +276,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
+    this.lastYScale = ctx.yScale;
 
     const { context } = ctx.scope;
 
@@ -409,6 +438,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
   private historyDirectives: LineIntroDirectives | null = null;
 
+  /** Y scale of the last render — value queries run without a render context. */
+  private lastYScale: YScale | null = null;
+
   /** Default intro, built lazily — one instance per renderer. */
   private defaultIntro: LineIntroFn | null = null;
 
@@ -482,20 +514,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       timeToX: (time) => timeScale.timeToBitmapXExact(time),
       xToTime: (x) => timeScale.xToTime(x / scope.horizontalPixelRatio),
       valueToY: (value) => yScale.valueToBitmapYExact(value),
+      lerpValue: (from, to, t) => yScale.lerpValue(from, to, t),
       layerCount: this.stores.length,
       layerData,
       layerMean: (layerIndex) => {
         let mean = meanCache[layerIndex];
         if (mean === undefined) {
-          let sum = 0;
-          let count = 0;
-          for (const d of layerData(layerIndex)) {
-            if (Number.isFinite(d.value)) {
-              sum += d.value;
-              count++;
-            }
-          }
-          mean = count > 0 ? sum / count : null;
+          mean = scaleMean(layerData(layerIndex), yScale);
           meanCache[layerIndex] = mean;
         }
 
@@ -507,7 +532,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           for (let li = 0; li < this.stores.length; li++) {
             if (this.getLayerAlpha(li) <= 0 || !this.stores[li].isVisible()) continue;
 
-            const finite = layerData(li).filter((d) => Number.isFinite(d.value));
+            const finite = layerData(li).filter((d) => yScale.isPlottable(d.value));
             if (finite.length < 2) continue;
 
             pathCache = finite.map((d) => ({
@@ -561,12 +586,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /**
    * Extends the base last-value query with the 'grow' entrance's value-space
-   * equivalent of {@link chainedTailPositions}'s eased position lerp — the Y
-   * scale is affine, so lerping the *value* by the same eased progress and
-   * mapping it through `yScale` afterward lands on the identical pixel the
-   * renderer paints. Without this, a tooltip/YLabel query would report a
-   * freshly-appended point's raw value the instant it lands, `entryMs`
-   * before the marker visually arrives there.
+   * equivalent of {@link chainedTailPositions}'s eased position lerp — the
+   * value lerps along the Y axis by the same eased progress, so mapping it
+   * through `yScale` lands on the identical pixel the renderer paints. Without
+   * this, a tooltip/YLabel query would report a freshly-appended point's raw
+   * value the instant it lands, `entryMs` before the marker visually arrives there.
    */
   protected snapshotValue(layerIndex: number, time: number, rawValue: number): number {
     const base = super.snapshotValue(layerIndex, time, rawValue);
@@ -602,12 +626,20 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       const eased = easeOutCubic(chain[k].progress);
       const targetValue = resolve(point.time, point.value);
-      const value = lerp(prevValue, targetValue, eased);
+      const value = this.axisLerp(prevValue, targetValue, eased);
       values.set(point.time, value);
       prevValue = value;
     }
 
     return values;
+  }
+
+  /** `lerp` along the last rendered Y axis — plain before the first render. */
+  private axisLerp(from: number, to: number, t: number): number {
+    const yScale = this.lastYScale;
+    if (yScale === null) return lerp(from, to, t);
+
+    return yScale.lerpValue(from, to, t);
   }
 
   /**
@@ -679,7 +711,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const last = this.stores[layerIndex].last();
     if (last !== undefined && head.time >= last.time) {
-      if (!Number.isFinite(last.value)) return null;
+      if (!yScale.isPlottable(last.value)) return null;
 
       const endpoint = this.trailingEndpoint(ctx, layerIndex);
       if (endpoint === null) return null;
@@ -689,7 +721,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const first = data[0];
     if (head.time <= first.time) {
-      if (!Number.isFinite(first.value)) return null;
+      if (!yScale.isPlottable(first.value)) return null;
 
       const startValue = this.effectiveValue(ctx, layerIndex, first.time, first.value);
 
@@ -700,8 +732,16 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       };
     }
 
-    const value = valueAtTime(data, head.time, (p) => this.effectiveValue(ctx, layerIndex, p.time, p.value));
-    if (value === null) return null;
+    const value = valueAtTime(data, head.time, {
+      resolve: (p) => this.effectiveValue(ctx, layerIndex, p.time, p.value),
+      // Along the axis, so the dot stays on the straight segment the stroke draws.
+      lerp: (from, to, t) => {
+        if (!yScale.isPlottable(from) || !yScale.isPlottable(to)) return Number.NaN;
+
+        return yScale.lerpValue(from, to, t);
+      },
+    });
+    if (value === null || !yScale.isPlottable(value)) return null;
 
     return { x: head.x, y: yScale.valueToBitmapYExact(value), value };
   }
@@ -747,21 +787,36 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       return built;
     };
 
-    const valueAt = (lj: number): number => {
-      const alpha = this.getLayerAlpha(lj);
-      if (alpha <= 0) return 0;
-
+    const settledAt = (lj: number): number | null => {
       const data = this.stores[lj].getAll();
-      if (data.length === 0 || queryT < data[0].time) return 0;
+      if (data.length === 0 || queryT < data[0].time) return null;
 
       // Same eased-value substitution `renderStacked` builds its cumulative
       // from, so a dot reports the height the slice is currently drawn at.
       const entering = enteringFor(lj);
-      const v = valueAtTime(
-        data,
-        queryT,
-        (p) => entering?.get(p.time) ?? this.effectiveValue(ctx, lj, p.time, p.value),
-      );
+
+      return valueAtTime(data, queryT, {
+        resolve: (p) => entering?.get(p.time) ?? this.effectiveValue(ctx, lj, p.time, p.value),
+      });
+    };
+
+    const { yScale } = ctx;
+    if (yScale.getTransform() !== null && !percent) {
+      const stack = new ScaleStack(yScale);
+      for (let lj = 0; lj <= layerIndex; lj++) {
+        const alpha = this.getLayerAlpha(lj);
+        const v = alpha > 0 ? settledAt(lj) : null;
+        if (v !== null && yScale.isPlottable(v)) stack.push(v, alpha);
+      }
+
+      return stack.edge;
+    }
+
+    const valueAt = (lj: number): number => {
+      const alpha = this.getLayerAlpha(lj);
+      if (alpha <= 0) return 0;
+
+      const v = settledAt(lj);
 
       return v === null ? 0 : v * alpha;
     };
@@ -869,7 +924,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const { timeScale, yScale } = ctx;
     const anchor = all[anchorIdx];
-    if (!Number.isFinite(anchor.value)) return null;
+    if (!yScale.isPlottable(anchor.value)) return null;
 
     let prevX = timeScale.timeToBitmapXExact(anchor.time);
     let prevY = yScale.valueToBitmapYExact(this.effectiveValue(ctx, layerIndex, anchor.time, anchor.value));
@@ -877,7 +932,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const positions = new Map<number, { x: number; y: number }>();
     for (let k = 0; k < chain.length; k++) {
       const point = all[anchorIdx + 1 + k];
-      if (!Number.isFinite(point.value)) return null;
+      if (!yScale.isPlottable(point.value)) return null;
 
       // Ease the unfurl so each head decelerates into its resting spot
       // instead of hard-stopping at settle. Linear `progress` still drives
@@ -1084,7 +1139,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
 
       // Line — break the path at any non-finite value (null / NaN / Infinity /
-      // undefined). A naive single-path draw would either stroke through NaN
+      // undefined), and at values ≤ 0 on a log scale. A naive single-path draw would either stroke through NaN
       // coordinates or leak the area-fill polygon across gaps, so we collect
       // finite *runs* and render each independently: stroke = one subpath per
       // run, fill = one closed polygon per run anchored to the chart bottom.
@@ -1094,7 +1149,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       let current: { x: number; y: number }[] | null = null;
       for (let i = 0; i < bodyEnd; i++) {
         const v = data[i].value;
-        if (!Number.isFinite(v)) {
+        if (!yScale.isPlottable(v)) {
           current = null;
           continue;
         }
@@ -1118,7 +1173,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // point is finite. A poisoned last value would produce a NaN trailing
       // endpoint; skip it instead of contaminating the polygon.
       const lastValue = data[bodyEnd]?.value;
-      const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && Number.isFinite(lastValue);
+      const trailingFinite = Number.isFinite(trailingX) && Number.isFinite(trailingY) && yScale.isPlottable(lastValue);
       // The trailing endpoint moves every frame only during a 'grow' entrance;
       // a smooth builder keeps that run's last segment straight (grew=true) so
       // the head can't wobble. Other runs / styles are fully settled.
@@ -1265,7 +1320,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
     const style = this.options.entryAnimation ?? 'grow';
 
-    // Value × alpha per layer, evaluated at every shared time column — not
+    // Value per layer, evaluated at every shared time column — not
     // just the columns the layer itself has a sample at. Layers stream
     // independently (a "ragged" feed: each series ticks on its own cadence),
     // so a layer that hasn't reached the newest column yet must hold its
@@ -1286,7 +1341,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const m = new Map<number, number>();
       if (layer.length === 0) return m;
 
-      const alpha = this.getLayerAlpha(li);
       const firstTime = layer[0].time;
       const entering =
         style === 'grow' ? this.chainedTailValues(li, (t, v) => this.effectiveValue(ctx, li, t, v)) : null;
@@ -1295,30 +1349,52 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       for (const t of times) {
         if (t < firstTime) continue;
 
-        const v = valueAtTime(layer, t, resolve);
-        if (v !== null) m.set(t, v * alpha);
+        const v = valueAtTime(layer, t, { resolve });
+        if (v !== null) m.set(t, v);
       }
 
       return m;
     });
 
-    // Stacked Y values per time. valueMaps already account for alpha (=0 for
-    // fully faded layers, =rawValue for fully visible), so the cumulative
-    // collapses to "without this layer" exactly when alpha reaches 0.
+    // Stacked Y values per time. Each layer counts by its alpha (0 for fully
+    // faded, 1 for fully visible), so the cumulative collapses to "without
+    // this layer" exactly when alpha reaches 0. A non-linear axis stacks the
+    // alpha through `ScaleStack`, so a fading slice moves evenly there too.
+    const alphas = this.stores.map((_, li) => this.getLayerAlpha(li));
+    const weightedAt = (li: number, t: number): number | undefined => {
+      const v = valueMaps[li].get(t);
+
+      return v === undefined ? undefined : v * alphas[li];
+    };
+    const scaleStacked = yScale.getTransform() !== null && !percent;
+
     const cumulative: number[][] = Array.from({ length: this.stores.length }, () => new Array(times.length).fill(0));
     for (let ti = 0; ti < times.length; ti++) {
       const t = times[ti];
+
+      if (scaleStacked) {
+        const stack = new ScaleStack(yScale);
+        for (let li = 0; li < this.stores.length; li++) {
+          const v = valueMaps[li].get(t);
+          if (v !== undefined && yScale.isPlottable(v)) stack.push(v, alphas[li]);
+
+          cumulative[li][ti] = stack.edge;
+        }
+        continue;
+      }
+
       let total = 0;
       if (percent) {
         for (let li = 0; li < this.stores.length; li++) {
-          const v = valueMaps[li].get(t);
-          if (Number.isFinite(v)) total += v as number;
+          const v = weightedAt(li, t);
+          if (v !== undefined && yScale.isPlottable(v)) total += v;
         }
       }
       let running = 0;
       for (let li = 0; li < this.stores.length; li++) {
-        const v = valueMaps[li].get(t);
-        const raw = Number.isFinite(v) ? (v as number) : 0;
+        // ≤ 0 adds nothing on a log scale, the same as a gap.
+        const v = weightedAt(li, t);
+        const raw = v !== undefined && yScale.isPlottable(v) ? v : 0;
         running += percent && total > 0 ? (raw / total) * 100 : raw;
         cumulative[li][ti] = running;
       }
@@ -1631,6 +1707,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
         const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
         if (!closest) continue;
+        if (stacking === 'off' && !yScale.isPlottable(closest.value)) continue;
 
         // Resolve the dot at the layer's raw value under the cursor so a
         // value-fn color matches the segment the crosshair is on.
@@ -1704,6 +1781,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const color = this.resolveLayerColor(li, lastValue);
 
         if (stacking === 'off') {
+          if (!yScale.isPlottable(lastValue)) continue;
+
           // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
           // entrance so the dot glides from penultimate toward the new point in
           // lockstep with the line's trailing segment.
