@@ -72,7 +72,8 @@ describe('visibility batch (regression #7)', () => {
   });
 
   it('hidden layers are excluded from Y-range calculation', () => {
-    mounted = mountChart(<LineSeries data={threeLayers as never} />);
+    // A zero toggle snaps the Y re-fit, so the range reads back without driving frames.
+    mounted = mountChart(<LineSeries data={threeLayers as never} />, { animations: { toggle: 0 } });
     const seriesId = mounted.chart.getSeriesIds()[0];
 
     // With all 3 layers visible, max must accommodate the third (2000).

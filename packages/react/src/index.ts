@@ -13,6 +13,11 @@ export type {
   AnimationsConfig,
   AxisBound,
   AxisConfig,
+  BandData,
+  BandEntryAnimation,
+  BandPoint,
+  BandPointInput,
+  BandSeriesOptions,
   BarElementTransform,
   BarEntryAnimation,
   BarIntroDirectives,
@@ -51,6 +56,7 @@ export type {
   HeatmapSeriesOptions,
   HeatmapSeriesRenderer,
   HoverInfo,
+  LayerSnapshot,
   LegendItem,
   LineIntroDirectives,
   LineIntroFn,
@@ -136,6 +142,7 @@ export type {
 } from '@wick-charts/core';
 // Painters — custom per-element drawing for bar / candle / line series.
 export {
+  BandSeriesDef,
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
@@ -219,6 +226,8 @@ export {
   wipeIntro,
 } from '@wick-charts/core';
 
+export type { BandSeriesProps } from './BandSeries';
+export { BandSeries } from './BandSeries';
 export { BarSeries } from './BarSeries';
 export { CandlestickSeries } from './CandlestickSeries';
 // React components

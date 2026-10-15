@@ -26,6 +26,7 @@
  */
 
 import { easeInOutCubic, easeOutBack } from '../animation/easing';
+import type { YScale } from '../scales/y-scale';
 import type { StackingMode, TimePoint, VisibleRange } from '../types';
 
 /** Read view of one intro frame — everything a {@link LineIntroFn} may need. */
@@ -254,4 +255,24 @@ export function centerOutIntro(): LineIntroFn {
       ],
     };
   };
+}
+
+/** Mean of the plottable values on `yScale`'s axis — the geometric mean on log; `null` when none. */
+export function scaleMean(data: readonly TimePoint[], yScale: YScale): number | null {
+  const transform = yScale.getTransform();
+
+  let sum = 0;
+  let count = 0;
+  for (const d of data) {
+    if (!yScale.isPlottable(d.value)) continue;
+
+    sum += transform === null ? d.value : transform.forward(d.value);
+    count++;
+  }
+
+  if (count === 0) return null;
+
+  const mean = sum / count;
+
+  return transform === null ? mean : transform.inverse(mean);
 }

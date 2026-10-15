@@ -1,3 +1,4 @@
+import { BandSeriesDef } from './band';
 import { BarSeriesDef } from './bar';
 import { CandlestickSeriesDef } from './candlestick';
 import { registerSeriesDefinition } from './definition';
@@ -6,7 +7,7 @@ import { LineSeriesDef } from './line';
 import { PieSeriesDef } from './pie';
 
 /**
- * Register the five built-in series so the string form
+ * Register the six built-in series so the string form
  * `chart.addSeries('line', …)` resolves. Call it once at startup.
  *
  * Importing this helper pulls every renderer into the bundle — hosts that
@@ -17,6 +18,7 @@ export function registerBuiltinSeries(): void {
   registerSeriesDefinition(CandlestickSeriesDef);
   registerSeriesDefinition(LineSeriesDef);
   registerSeriesDefinition(BarSeriesDef);
+  registerSeriesDefinition(BandSeriesDef);
   registerSeriesDefinition(PieSeriesDef);
   registerSeriesDefinition(HeatmapSeriesDef);
 }

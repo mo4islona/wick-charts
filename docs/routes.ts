@@ -6,6 +6,7 @@ export type Route =
   | 'migration'
   | 'charts/candlestick'
   | 'charts/line'
+  | 'charts/band'
   | 'charts/bar'
   | 'charts/pie'
   | 'charts/heatmap'
@@ -24,6 +25,7 @@ export type Route =
   | 'use-cases/data-loading'
   | 'use-cases/theme'
   | 'api/line-series'
+  | 'api/band-series'
   | 'api/bar-series'
   | 'api/candlestick-series'
   | 'api/pie-series'
@@ -104,6 +106,7 @@ export const ROUTE_ALIASES: Record<string, Route> = {
 const CHARTS: RouteEntry[] = [
   { route: 'charts/candlestick', label: 'Candlestick', title: 'Candlestick' },
   { route: 'charts/line', label: 'Line & Area', title: 'Line & Area' },
+  { route: 'charts/band', label: 'Band', title: 'Band' },
   { route: 'charts/bar', label: 'Bar', title: 'Bar' },
   { route: 'charts/pie', label: 'Pie & Donut', title: 'Pie & Donut' },
   { route: 'charts/heatmap', label: 'Heatmap', title: 'Heatmap' },
@@ -127,6 +130,7 @@ const USE_CASES: RouteEntry[] = [
 //   - `Components` — container, axes, overlays, formatters
 // Both render under the API parent section in the sidebar.
 const API_CHARTS: RouteEntry[] = [
+  { route: 'api/band-series', label: 'BandSeries', title: '' },
   { route: 'api/bar-series', label: 'BarSeries', title: '' },
   { route: 'api/candlestick-series', label: 'CandlestickSeries', title: '' },
   { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
@@ -277,6 +281,7 @@ export function getSectionPath(route: Route): string[] {
 /** Charts API → Charts demo route mapping (used for the "↗ See demos" cross-link). */
 export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/line-series': 'charts/line',
+  'api/band-series': 'charts/band',
   'api/bar-series': 'charts/bar',
   'api/candlestick-series': 'charts/candlestick',
   'api/pie-series': 'charts/pie',

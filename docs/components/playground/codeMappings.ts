@@ -5,7 +5,7 @@ import { type AnimationsConfig, type AxisConfig, type StackingMode, hermite, sna
 import type { PropValue } from '../CodePreview';
 import type { PlaygroundChartProps } from './Playground';
 
-export type CartesianSeriesKind = 'line' | 'bar' | 'candle';
+export type CartesianSeriesKind = 'line' | 'bar' | 'candle' | 'band';
 
 const AXIS_Y_WIDTH_DEFAULT = 55;
 const AXIS_X_HEIGHT_DEFAULT = 30;
@@ -22,6 +22,8 @@ const DEFAULTS = {
   lineEntryMs: 250,
   lineSmoothMs: 250,
   linePulseMs: 600,
+  bandEntryMs: 250,
+  bandSmoothMs: 250,
   pieEntryMs: 250,
   pieUpdateMs: 250,
   // X axis
@@ -43,6 +45,7 @@ const ENTRY_ANIM_DEFAULT: Record<CartesianSeriesKind, string> = {
   line: 'grow',
   bar: 'fade-grow',
   candle: 'unfold',
+  band: 'grow',
 };
 
 // Module-level memoization so factory references stay stable across renders.
@@ -89,6 +92,14 @@ function pickBarBlock(s: PlaygroundChartProps): Record<string, number> | undefin
   return nonEmpty(out);
 }
 
+function pickBandBlock(s: PlaygroundChartProps): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+  if (s.bandEntryMs !== DEFAULTS.bandEntryMs) out.entry = s.bandEntryMs;
+  if (s.bandSmoothMs !== DEFAULTS.bandSmoothMs) out.smooth = s.bandSmoothMs;
+
+  return nonEmpty(out);
+}
+
 function pickPieBlock(s: PlaygroundChartProps): Record<string, number> | undefined {
   const out: Record<string, number> = {};
   if (s.pieEntryMs !== DEFAULTS.pieEntryMs) out.entry = s.pieEntryMs;
@@ -102,10 +113,12 @@ function pickSeries(s: PlaygroundChartProps): Record<string, unknown> | undefine
   const line = pickLineBlock(s);
   const candle = pickCandleBlock(s);
   const bar = pickBarBlock(s);
+  const band = pickBandBlock(s);
   const pie = pickPieBlock(s);
   if (line) out.line = line;
   if (candle) out.candlestick = candle;
   if (bar) out.bar = bar;
+  if (band) out.band = band;
   if (pie) out.pie = pie;
 
   return nonEmpty(out);
@@ -260,6 +273,14 @@ export function useAnimationsProp(s: PlaygroundChartProps): AnimationsConfig | u
   return useMemo(() => buildAnimationsProp(s), [key]);
 }
 
+function entryAnimationFor(s: PlaygroundChartProps, kind: CartesianSeriesKind): string {
+  if (kind === 'line') return s.lineEntryAnimation;
+  if (kind === 'bar') return s.barEntryAnimation;
+  if (kind === 'band') return s.bandEntryAnimation;
+
+  return s.candleEntryAnimation;
+}
+
 /**
  * Build series `options` fragment for fields shared across cartesian series
  * (entry animation, and `pulse` toggle for line during streaming).
@@ -271,7 +292,7 @@ export function buildCommonSeriesOptions(
 ): Record<string, PropValue> {
   const out: Record<string, PropValue> = {};
 
-  const anim = kind === 'line' ? s.lineEntryAnimation : kind === 'bar' ? s.barEntryAnimation : s.candleEntryAnimation;
+  const anim = entryAnimationFor(s, kind);
   if (anim !== ENTRY_ANIM_DEFAULT[kind]) out.entryAnimation = anim;
 
   // Per-series duration overrides aren't emitted here — they fold into the

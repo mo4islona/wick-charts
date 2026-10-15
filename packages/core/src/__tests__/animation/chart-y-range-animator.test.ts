@@ -366,4 +366,29 @@ describe('chart Y-range animator', () => {
     const hidden = chart.getYRange();
     expect(hidden.max).toBeLessThan(100);
   });
+
+  it('a batched toggle (legend focus) eases the Y range like a single toggle', () => {
+    ({ chart, container } = makeChart({ yAxisMs: 200 }));
+    seedLine(chart, [10, 20, 30, 40, 50]);
+    const id2 = chart.addSeries('line');
+    chart.setSeriesData(
+      id2,
+      [200, 220, 210, 230, 250].map((value, i) => ({ time: 1_000_000 + i * INTERVAL, value })),
+    );
+    raf.flush(20);
+    const both = chart.getYRange();
+
+    chart.batch(() => {
+      chart.setSeriesVisible(id2, false);
+    });
+    raf.flush(1);
+    const oneFrame = chart.getYRange().max;
+    raf.flush(60);
+    const settled = chart.getYRange().max;
+    expect(settled).toBeLessThan(100);
+
+    // One frame into the toggle ease, the max has barely left the combined range.
+    expect(oneFrame).toBeLessThan(both.max);
+    expect(oneFrame).toBeGreaterThan((both.max + settled) / 2);
+  });
 });

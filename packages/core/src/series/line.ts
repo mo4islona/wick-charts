@@ -19,10 +19,11 @@ import {
   type LineIntroFn,
   type LineIntroFrame,
   backfillSweepIntro,
+  scaleMean,
   unfoldIntro,
 } from './line-intro';
-import type { CurveKind, PathSegment } from './painters/canvas-path';
-import { buildCurveSegments } from './painters/canvas-path';
+import type { CurveKind } from './painters/canvas-path';
+import { buildCurveSegments, replaySegmentsForward, replaySegmentsReversed } from './painters/canvas-path';
 import { resolveLinePainter } from './painters/resolve';
 import type { LinePoint, PaintEnv } from './painters/types';
 import { ScaleStack } from './scale-stack';
@@ -139,26 +140,6 @@ function valueAtTime(
   return blend(resolve(a), resolve(b), (time - a.time) / span);
 }
 
-/** Mean of the plottable values on `yScale`'s axis — the geometric mean on log; `null` when none. */
-function scaleMean(data: readonly TimePoint[], yScale: YScale): number | null {
-  const transform = yScale.getTransform();
-
-  let sum = 0;
-  let count = 0;
-  for (const d of data) {
-    if (!yScale.isPlottable(d.value)) continue;
-
-    sum += transform === null ? d.value : transform.forward(d.value);
-    count++;
-  }
-
-  if (count === 0) return null;
-
-  const mean = sum / count;
-
-  return transform === null ? mean : transform.inverse(mean);
-}
-
 /** Index of `time` in an ascending column array, or `-1`. */
 function indexOfTime(times: readonly number[], time: number): number {
   let lo = 0;
@@ -175,42 +156,6 @@ function indexOfTime(times: readonly number[], time: number): number {
   }
 
   return -1;
-}
-
-/** Emit a pre-built segment list onto `ctx` left-to-right. The caller has
- *  already issued `moveTo(points[0])`. */
-function replaySegmentsForward(ctx: CanvasRenderingContext2D, segments: readonly PathSegment[]): void {
-  for (const seg of segments) {
-    if (seg.kind === 'line') {
-      ctx.lineTo(seg.x, seg.y);
-    } else {
-      ctx.bezierCurveTo(seg.cp1x, seg.cp1y, seg.cp2x, seg.cp2y, seg.x, seg.y);
-    }
-  }
-}
-
-/** Emit a segment list right-to-left; the caller is already at the last
- *  segment's endpoint. Each reversed step ends at the *start* of its segment —
- *  the previous segment's endpoint, or `points[0]` for the first segment — so
- *  this is correct for any segment count (`stepped` emits two segments per
- *  point, so it must NOT be indexed by point). A reversed cubic swaps its two
- *  control points, tracing the identical geometric curve the forward replay
- *  would — that is what lets an interior stacked boundary tile pixel-exactly
- *  with the slice below. Ends at `points[0]`. */
-function replaySegmentsReversed(
-  ctx: CanvasRenderingContext2D,
-  points: readonly LinePoint[],
-  segments: readonly PathSegment[],
-): void {
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const seg = segments[i];
-    const start = i > 0 ? segments[i - 1] : points[0];
-    if (seg.kind === 'line') {
-      ctx.lineTo(start.x, start.y);
-    } else {
-      ctx.bezierCurveTo(seg.cp2x, seg.cp2y, seg.cp1x, seg.cp1y, start.x, start.y);
-    }
-  }
 }
 
 export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {

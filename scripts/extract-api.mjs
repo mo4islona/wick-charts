@@ -28,6 +28,7 @@ const COMPONENTS = [
   { name: 'CandlestickSeries', file: 'packages/react/src/CandlestickSeries.tsx', kind: 'chart' },
   { name: 'PieSeries', file: 'packages/react/src/PieSeries.tsx', kind: 'chart' },
   { name: 'HeatmapSeries', file: 'packages/react/src/HeatmapSeries.tsx', kind: 'chart' },
+  { name: 'BandSeries', file: 'packages/react/src/BandSeries.tsx', kind: 'chart' },
 
   // composite chart — own playground but lives under Components
   { name: 'Sparkline', file: 'packages/react/src/ui/Sparkline.tsx', kind: 'chart' },

@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
 import {
+  BandSeries,
   CandlestickSeries,
   ChartContainer,
   LineSeries,
@@ -67,6 +68,12 @@ const candlestickData = [
   { time: 1, open: 10, high: 12, low: 9, close: 11 },
   { time: 2, open: 11, high: 13, low: 10, close: 12 },
   { time: 3, open: 12, high: 14, low: 11, close: 13 },
+];
+
+const bandData = [
+  { time: 1, low: 10, high: 20 },
+  { time: 2, low: 12, high: 18 },
+  { time: 3, low: 11, high: 22 },
 ];
 
 interface Captured {
@@ -182,6 +189,37 @@ describe('Vue <Tooltip>', () => {
 
     // Line layout doesn't print OHLC labels.
     expect(host.textContent ?? '').not.toContain('Open');
+
+    wrapper.unmount();
+  });
+
+  it('renders the band layout (square swatch + low – high) for band snapshots', async () => {
+    const captured: Captured = { chart: null };
+    const Probe = probeFor(captured);
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(BandSeries, { id: 'b', data: bandData }),
+          h(Tooltip, { format: (v: number, field: string) => `<${field}:${v}>` }),
+        ]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+    const chart = captured.chart;
+    if (!chart) throw new Error('chart not captured');
+
+    forceCrosshair(chart, { time: 2, mediaX: 400, mediaY: 200, y: 15 });
+    await settle();
+
+    const text = host.textContent ?? '';
+    expect(text).toContain('Range');
+    expect(text).toMatch(/<low:12>\s*–\s*<high:18>/);
+    expect(text).not.toContain('<value:');
+
+    const swatch = host.querySelector<HTMLElement>('span[style*="width: 8px"][style*="height: 8px"]');
+    expect(swatch?.style.borderRadius).toBe('2px');
 
     wrapper.unmount();
   });

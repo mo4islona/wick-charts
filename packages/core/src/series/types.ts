@@ -6,7 +6,7 @@ import type { PlaceholderBar } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
-import type { OHLCData, StackingMode, TimePoint, ValueColor } from '../types';
+import type { BandPoint, OHLCData, StackingMode, TimePoint, ValueColor } from '../types';
 
 /**
  * Vertical padding reserved at the top/bottom of the chart area.
@@ -79,11 +79,26 @@ export interface HoverInfo {
 export type SliceInfo = HoverInfo;
 
 /**
+ * One layer's sample in a multi-layer query ({@link BaseSeriesRenderer.getLayerSnapshots}).
+ * `time` is the resolved sample time, not the query time. A band layer also
+ * carries its `low` / `high` edges; its `value` is then their midpoint, kept
+ * only for sorting and anchoring — display the edges instead.
+ */
+export interface LayerSnapshot {
+  layerIndex: number;
+  time: number;
+  value: number;
+  color: string;
+  low?: number;
+  high?: number;
+}
+
+/**
  * Discriminant for the {@link SeriesRenderer} union. Open-ended — a custom
  * series (see {@link CustomSpatialSeriesRenderer} / {@link TimeSeriesRenderer})
  * picks any string that isn't one of the built-ins.
  */
-export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'pie' | 'heatmap' | (string & {});
+export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | (string & {});
 
 /**
  * Members shared by every series renderer, regardless of whether it owns a
@@ -189,7 +204,7 @@ export interface BaseSeriesRenderer {
   /** Last data value for the series, or null if empty. Optional. */
   getLastValue?(): number | null;
   /** Nearest data point to a given time, or null. Optional. */
-  getDataAtTime?(time: number, interval: number): TimePoint | OHLCData | null;
+  getDataAtTime?(time: number, interval: number): TimePoint | OHLCData | BandPoint | null;
 
   /**
    * For multi-layer renderers: nearest data point per visible layer at `time`.
@@ -199,10 +214,7 @@ export interface BaseSeriesRenderer {
    * tooltips/legends.
    * Returns null for single-layer renderers or when no visible layer has data.
    */
-  getLayerSnapshots?(
-    time: number,
-    interval: number,
-  ): { layerIndex: number; time: number; value: number; color: string }[] | null;
+  getLayerSnapshots?(time: number, interval: number): LayerSnapshot[] | null;
 
   /**
    * Stacked last value — cumulative top of the rendered stack for multi-layer
@@ -228,7 +240,7 @@ export interface BaseSeriesRenderer {
    * primary layer's time.
    * Returns null for single-layer renderers or when no visible layer has data.
    */
-  getLayerLastSnapshots?(): { layerIndex: number; time: number; value: number; color: string }[] | null;
+  getLayerLastSnapshots?(): LayerSnapshot[] | null;
 
   /** Total data points across all owned stores. Used by Chart for batch-load detection. */
   getTotalLength?(): number;
@@ -312,18 +324,18 @@ export interface BaseSeriesRenderer {
  * pinned to layer 0 (see {@link BaseMultiLayerSeries}).
  */
 export interface TimeSeriesRenderer extends BaseSeriesRenderer {
-  readonly kind: 'candlestick' | 'line' | 'bar' | (string & {});
+  readonly kind: 'candlestick' | 'line' | 'bar' | 'band' | (string & {});
 
   /** Earliest/latest sample time across all owned layers, or null when empty. */
   getTimeBounds(): { first: number; last: number } | null;
   /** Last data point (layer 0 for multi-layer), or null when empty. */
-  getLastDataPoint(): OHLCData | TimePoint | null;
+  getLastDataPoint(): OHLCData | TimePoint | BandPoint | null;
   /** Second-to-last data point (layer 0 for multi-layer), or null. */
-  getSecondLastDataPoint(): OHLCData | TimePoint | null;
+  getSecondLastDataPoint(): OHLCData | TimePoint | BandPoint | null;
   /** First `maxCount` sample times from the first populated layer — feeds interval detection. */
   sampleTimes(maxCount: number): number[];
   /** Visible points in `[from, to]` (layer 0 for multi-layer). */
-  getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint)[];
+  getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint | BandPoint)[];
   /**
    * Effective min/max for auto-range (stacked totals for multi-layer; raw
    * min/max otherwise). With `opts.plottable` (a non-linear Y scale) values

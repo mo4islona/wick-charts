@@ -13,6 +13,7 @@ import { INTROS } from './intros';
 const ROUTE_TO_COMPONENT: Record<string, string> = {
   // chart series — duplicated into the API list as flat references
   'api/line-series': 'LineSeries',
+  'api/band-series': 'BandSeries',
   'api/bar-series': 'BarSeries',
   'api/candlestick-series': 'CandlestickSeries',
   'api/pie-series': 'PieSeries',

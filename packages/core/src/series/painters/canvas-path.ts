@@ -227,3 +227,39 @@ function monotoneSegments(points: readonly LinePoint[], settledOnly: boolean): P
 
   return segments;
 }
+
+/** Emit a pre-built segment list onto `ctx` left-to-right. The caller has
+ *  already issued `moveTo(points[0])`. */
+export function replaySegmentsForward(ctx: CanvasRenderingContext2D, segments: readonly PathSegment[]): void {
+  for (const seg of segments) {
+    if (seg.kind === 'line') {
+      ctx.lineTo(seg.x, seg.y);
+    } else {
+      ctx.bezierCurveTo(seg.cp1x, seg.cp1y, seg.cp2x, seg.cp2y, seg.x, seg.y);
+    }
+  }
+}
+
+/** Emit a segment list right-to-left; the caller is already at the last
+ *  segment's endpoint. Each reversed step ends at the *start* of its segment —
+ *  the previous segment's endpoint, or `points[0]` for the first segment — so
+ *  this is correct for any segment count (`stepped` emits two segments per
+ *  point, so it must NOT be indexed by point). A reversed cubic swaps its two
+ *  control points, tracing the identical geometric curve the forward replay
+ *  would — that is what lets an interior stacked boundary tile pixel-exactly
+ *  with the slice below. Ends at `points[0]`. */
+export function replaySegmentsReversed(
+  ctx: CanvasRenderingContext2D,
+  points: readonly LinePoint[],
+  segments: readonly PathSegment[],
+): void {
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const seg = segments[i];
+    const start = i > 0 ? segments[i - 1] : points[0];
+    if (seg.kind === 'line') {
+      ctx.lineTo(start.x, start.y);
+    } else {
+      ctx.bezierCurveTo(seg.cp2x, seg.cp2y, seg.cp1x, seg.cp1y, start.x, start.y);
+    }
+  }
+}

@@ -2,13 +2,13 @@ import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState }
 
 import {
   BadgeAnimator,
-  type ChartInstance,
   type ResolvedAnimate,
   type ValueFormatter,
   type YLabelAnimate,
   firstVisibleValue,
   prefersReducedMotion,
   resolveAnimate,
+  resolveYLabelSeriesId,
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
@@ -65,17 +65,6 @@ export interface YLabelProps {
   children?: (ctx: YLabelRenderContext) => ReactNode;
 }
 
-function resolveSeriesId(chart: ChartInstance, explicit: string | undefined): string | null {
-  if (explicit !== undefined) return explicit;
-
-  const singleLayer = chart.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true });
-  if (singleLayer.length > 0) return singleLayer[0];
-
-  const anyTime = chart.getSeriesIdsByType('time', { visibleOnly: true });
-
-  return anyTime.length > 0 ? anyTime[0] : null;
-}
-
 interface BadgeFrame {
   positionValue: number;
   textValue: number;
@@ -108,7 +97,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
   const resolvedIdRef = useRef<string | null>(null);
   const animateRef = useRef<ResolvedAnimate>({ glide: true, countUp: true, settleMs: 320 });
 
-  const resolvedId = resolveSeriesId(chart, seriesId);
+  const resolvedId = resolveYLabelSeriesId(chart, seriesId);
   resolvedIdRef.current = resolvedId;
   animateRef.current = resolveAnimate(animate);
 
