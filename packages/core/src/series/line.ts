@@ -1924,6 +1924,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
  *  so hosts that never render lines don't bundle this module. */
 export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
   type: 'line',
+  xTypes: ['time', 'numeric', 'category'],
   create: ({ theme, layerCount }, options) =>
     new LineRenderer(layerCount, {
       colors: layerCount === 1 ? [theme.line.color] : theme.seriesColors.slice(0, layerCount),

@@ -507,6 +507,28 @@ describe('BandRenderer — streaming', () => {
     expect(r.needsAnimation).toBe(false);
   });
 
+  it('morphData eases both edges of a sample that keeps its time, not only the last', () => {
+    const r = new BandRenderer(1);
+    r.setData(STEADY);
+    render(r);
+
+    r.morphData([STEADY[0], { time: 20, low: 45, high: 90 }, STEADY[2], STEADY[3]]);
+    now += 16;
+    render(r);
+
+    const mid = r.getDataAtTime(20, 5);
+    expect(mid?.low).toBeGreaterThan(25);
+    expect(mid?.low).toBeLessThan(45);
+    expect(mid?.high).toBeGreaterThan(65);
+    expect(mid?.high).toBeLessThan(90);
+    expect(r.getDataAtTime(10, 5)).toEqual({ time: 10, low: 20, high: 60 });
+
+    now += 2000;
+    render(r);
+    expect(r.getDataAtTime(20, 5)).toEqual({ time: 20, low: 45, high: 90 });
+    expect(r.needsAnimation).toBe(false);
+  });
+
   it('smoothMs: 0 snaps the last point', () => {
     const r = new BandRenderer(1, { smoothMs: 0 });
     r.setData(STEADY);

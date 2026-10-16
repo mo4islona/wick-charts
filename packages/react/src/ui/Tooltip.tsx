@@ -12,6 +12,7 @@ import {
   computeTooltipPosition,
   formatCompact,
   formatDate,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -257,6 +258,8 @@ function FloatingTooltip({
     tooltipHeight,
   });
 
+  // A date only means something on a time axis.
+  const timeAxis = chart.timeScale.getType() === 'time';
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
   const shadow = '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)';
@@ -299,8 +302,15 @@ function FloatingTooltip({
           letterSpacing: '0.02em',
         }}
       >
-        {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}{' '}
-        {chart.timeScale.formatX(displayTime, dataInterval)}
+        {timeAxis && (
+          <>
+            {formatDate(displayTime, {
+              locale: chart.timeScale.getLocale(),
+              timeZone: chart.timeScale.getTimeZone(),
+            })}{' '}
+          </>
+        )}
+        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </div>
 
       {snapshots.map((s) => {

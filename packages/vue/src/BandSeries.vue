@@ -11,7 +11,8 @@ const props = withDefaults(
      * Band data — one band per layer. A single band passes a flat
      * `{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color
      * a band, pass `{ label, color?, data }` (or an array of them). Time accepts
-     * ms or `Date`.
+     * ms or `Date`. On a numeric or category X axis (`axis.x.type`) samples
+     * carry `x` in place of `time`: `{ x: 'EU', low, high }`.
      */
     data: BandData;
     /** Visual options override — fill, edge stroke, curve, entrance / intro / smoothing. */

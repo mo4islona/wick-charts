@@ -19,6 +19,8 @@ export interface LineSeriesProps {
    * Series data — omnivorous. A single line passes a flat `TimePoint[]`; a
    * multi-layer line passes `TimePoint[][]`. To name/color a layer, pass
    * `{ label, color?, data }` (or an array of them). Time accepts ms or `Date`.
+   * On a numeric or category X axis (`axis.x.type`) points carry `x` in place
+   * of `time`: `{ x: 16, value }` or `{ x: 'EU', value }`.
    */
   data: MultiLayerData;
   /** Visual options override — colours per layer, stroke width, area fill, stacking, entrance animation, smoothing. */

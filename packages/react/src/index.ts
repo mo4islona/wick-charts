@@ -17,6 +17,7 @@ export type {
   BandEntryAnimation,
   BandPoint,
   BandPointInput,
+  BandSampleInput,
   BandSeriesOptions,
   BarElementTransform,
   BarEntryAnimation,
@@ -64,6 +65,7 @@ export type {
   LineIntroValueArgs,
   LinePaintArgs,
   LinePainter,
+  LinePointInput,
   LineSeriesOptions,
   LoadingIndicatorArgs,
   LoadingIndicatorFn,
@@ -135,6 +137,11 @@ export type {
   WaveIntroFrame,
   WaveIntroTransform,
   XAxisConfig,
+  XAxisFormatter,
+  XAxisPadding,
+  XAxisType,
+  XBandPointInput,
+  XPointInput,
   YAxisConfig,
   YAxisPosition,
   YRange,
@@ -270,7 +277,6 @@ export type { ReferenceLineProps } from './ui/ReferenceLine';
 export { ReferenceLine } from './ui/ReferenceLine';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
 export { Sparkline } from './ui/Sparkline';
-export { TimeAxis, TimeAxis as XAxis } from './ui/TimeAxis';
 // Time regions — translucent shaded bands over a time interval
 export type { TimeRegionProps } from './ui/TimeRegion';
 export { TimeRegion } from './ui/TimeRegion';
@@ -279,6 +285,8 @@ export { Title } from './ui/Title';
 export type { TooltipProps, TooltipRenderContext, TooltipSort } from './ui/Tooltip';
 // UI overlays
 export { Tooltip } from './ui/Tooltip';
+export type { XAxisProps } from './ui/XAxis';
+export { TimeAxis, XAxis } from './ui/XAxis';
 export type { YAxisProps } from './ui/YAxis';
 export { YAxis } from './ui/YAxis';
 export { YLabel } from './ui/YLabel';

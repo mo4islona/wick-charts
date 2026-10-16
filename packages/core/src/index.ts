@@ -112,7 +112,7 @@ export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
 export { AxisTickTracker, computeTickFadeDiff } from './scales/tick-tracker';
 // Scales — a custom series' `render(ctx)` reads `ctx.timeScale` / `ctx.yScale`
 // to project data into pixel space; exported so its signature type-checks.
-export type { TimeFormatter, TimeTickGenerator } from './scales/x-scale';
+export type { TimeFormatter, TimeTickGenerator, XAxisFormatter } from './scales/x-scale';
 export { XScale } from './scales/x-scale';
 export type { ValueTickGenerator } from './scales/y-scale';
 export { YScale } from './scales/y-scale';
@@ -222,7 +222,7 @@ export type {
   SeriesSnapshot,
   SnapshotSort,
 } from './snapshots';
-export { buildHoverSnapshots, buildLastSnapshots } from './snapshots';
+export { buildHoverSnapshots, buildLastSnapshots, formatHeaderX } from './snapshots';
 // Testing — a working canvas 2D context + draw-call recorder for a
 // consumer's own jsdom/happy-dom test suite. Not part of the charting API;
 // re-exported here (rather than kept under a private `__tests__/helpers`
@@ -271,6 +271,7 @@ export type {
   BandEntryAnimation,
   BandPoint,
   BandPointInput,
+  BandSampleInput,
   BandSeriesOptions,
   BarEntryAnimation,
   BarSeriesOptions,
@@ -283,6 +284,7 @@ export type {
   HeatmapCellLabelsOptions,
   HeatmapSeriesOptions,
   HorizontalPadding,
+  LinePointInput,
   LineSeriesOptions,
   MultiLayerData,
   OHLCData,
@@ -302,6 +304,10 @@ export type {
   VisibleRange,
   VisibleRangeSpec,
   XAxisConfig,
+  XAxisPadding,
+  XAxisType,
+  XBandPointInput,
+  XPointInput,
   XRange,
   YAxisConfig,
   YAxisPosition,

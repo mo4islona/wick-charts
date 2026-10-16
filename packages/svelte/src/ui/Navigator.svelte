@@ -16,6 +16,7 @@ const themeStore = getThemeContext();
 $: anchor = $anchorStore;
 $: chart = $chartStore;
 $: resolvedHeight = height ?? $themeStore.navigator.height;
+$: timeAxis = chart?.checkTimeOnlyFeature('Navigator') ?? false;
 
 let stripEl: HTMLDivElement;
 let controller: NavigatorController | null = null;
@@ -40,7 +41,7 @@ onDestroy(() => {
 });
 </script>
 
-{#if anchor}
+{#if anchor && timeAxis}
   <div
     bind:this={stripEl}
     use:portal={anchor}

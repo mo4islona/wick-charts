@@ -17,6 +17,7 @@ export type {
   BandEntryAnimation,
   BandPoint,
   BandPointInput,
+  BandSampleInput,
   BandSeriesOptions,
   BarElementTransform,
   BarEntryAnimation,
@@ -64,6 +65,7 @@ export type {
   LineIntroValueArgs,
   LinePaintArgs,
   LinePainter,
+  LinePointInput,
   LineSeriesOptions,
   LoadingIndicatorArgs,
   LoadingIndicatorFn,
@@ -135,6 +137,11 @@ export type {
   WaveIntroFrame,
   WaveIntroTransform,
   XAxisConfig,
+  XAxisFormatter,
+  XAxisPadding,
+  XAxisType,
+  XBandPointInput,
+  XPointInput,
   YAxisConfig,
   YAxisPosition,
   YRange,
@@ -247,10 +254,10 @@ export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
 export { default as ReferenceLine } from './ui/ReferenceLine.vue';
-export { default as TimeAxis, default as XAxis } from './ui/TimeAxis.vue';
 export { default as TimeRegion } from './ui/TimeRegion.vue';
 export { default as Title } from './ui/Title.vue';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.vue';
+export { default as TimeAxis, default as XAxis } from './ui/XAxis.vue';
 export { default as YAxis } from './ui/YAxis.vue';
 export { default as YLabel } from './ui/YLabel.vue';

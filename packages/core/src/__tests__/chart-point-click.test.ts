@@ -64,6 +64,7 @@ describe('ChartInstance pointClick / pointDoubleClick', () => {
       mediaX: 50,
       mediaY: 60,
       time: chart.timeScale.xToTime(50),
+      x: chart.timeScale.xToTime(50),
       y: chart.yScale.yToValue(60),
       spatialHit: null,
     });

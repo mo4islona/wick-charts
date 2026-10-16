@@ -79,6 +79,8 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   function positionSpan(el: HTMLSpanElement, value: number): void {
     if (axis === 'x') {
       el.style.left = `${chart.timeScale.timeToSnappedX(value)}px`;
+      // A category name longer than its step ends in an ellipsis instead of running into the next one.
+      if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${chart.timeScale.barWidthMedia(1)}px`;
 
       return;
     }
@@ -129,6 +131,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     if (axis === 'x') {
       el.style.transform = 'translateX(-50%)';
       el.style.whiteSpace = 'nowrap';
+      if (chart.timeScale.getType() === 'category') {
+        el.style.overflow = 'hidden';
+        el.style.textOverflow = 'ellipsis';
+      }
     } else {
       applyYAnchor(el, ySide());
       el.style.transform = 'translateY(-50%)';

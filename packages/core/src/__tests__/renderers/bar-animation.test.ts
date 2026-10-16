@@ -191,6 +191,75 @@ describe('BarRenderer — animation', () => {
     expect(r.needsAnimation).toBe(false);
   });
 
+  describe('morphData', () => {
+    const SEED: TimePoint[] = [
+      { time: 10, value: 5 },
+      { time: 20, value: 5 },
+      { time: 30, value: 5 },
+    ];
+
+    /** Height of each drawn bar, left to right; value 1 is 20px over the 0..20 range. */
+    function heights(r: BarRenderer): number[] {
+      const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 20 } });
+      r.render(ctx);
+
+      return spy.callsOf('fillRect').map((call) => Math.abs(Number(call.args[3])));
+    }
+
+    it('eases every point that keeps its time, not only the last', () => {
+      const r = makeBar(1);
+      r.setData(SEED);
+      const [low] = heights(r);
+
+      r.morphData([SEED[0], { time: 20, value: 15 }, SEED[2]]);
+      advance(16);
+      const mid = heights(r);
+      expect(mid[0]).toBe(low);
+      expect(mid[2]).toBe(low);
+      expect(mid[1]).toBeGreaterThan(low);
+      expect(mid[1]).toBeLessThan(low * 3);
+      expect(r.needsAnimation).toBe(true);
+
+      advance(2000);
+      expect(heights(r)[1]).toBeCloseTo(low * 3, 0);
+      expect(r.needsAnimation).toBe(false);
+    });
+
+    it('plays the entrance for a point with a new time only', () => {
+      const r = makeBar(1);
+      r.setData(SEED);
+      heights(r);
+
+      r.morphData([...SEED, { time: 40, value: 8 }]);
+
+      expect([...entries(r).keys()]).toEqual([40]);
+    });
+
+    it('seeds an empty renderer like setData, with no per-point entrances', () => {
+      const morphed = makeBar(1);
+      const seeded = makeBar(1);
+      morphed.morphData(SEED);
+      seeded.setData(SEED);
+
+      expect(entries(morphed).size).toBe(0);
+      expect(heights(morphed)).toEqual(heights(seeded));
+      expect(morphed.needsAnimation).toBe(seeded.needsAnimation);
+    });
+
+    it('hands an ease on the last point over to updateLastPoint without a jump', () => {
+      const r = makeBar(1);
+      r.setData(SEED);
+      heights(r);
+
+      r.morphData([SEED[0], SEED[1], { time: 30, value: 15 }]);
+      advance(16);
+      const before = heights(r)[2];
+      r.updateLastPoint({ time: 30, value: 15 });
+
+      expect(heights(r)[2]).toBe(before);
+    });
+  });
+
   describe('stacked mode live-tracking', () => {
     it('normal stacking: the rendered top-layer bar is smaller than a raw-value jump would produce', () => {
       // Regression guard for the review comment that live-tracking (effectiveValue)

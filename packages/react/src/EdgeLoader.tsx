@@ -68,9 +68,17 @@ export interface EdgeLoaderProps {
  * via Promise tracking, and exposing the boundary's pixel coordinate so a
  * loader can be anchored to "the wall of available history".
  *
- * Place as a child of `<ChartContainer>`.
+ * Place as a child of `<ChartContainer>`. Time X axis only — on a numeric or
+ * category axis it renders nothing and never triggers.
  */
-export function EdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas', children }: EdgeLoaderProps) {
+export function EdgeLoader(props: EdgeLoaderProps) {
+  const chart = useChartInstance();
+  if (!chart.checkTimeOnlyFeature('EdgeLoader')) return null;
+
+  return <TimeEdgeLoader {...props} />;
+}
+
+function TimeEdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas', children }: EdgeLoaderProps) {
   const chart = useChartInstance();
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);

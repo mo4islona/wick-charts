@@ -35,7 +35,7 @@ const COMPONENTS = [
 
   // container & subcomponents — under "API"
   { name: 'ChartContainer', file: 'packages/react/src/ChartContainer.tsx', kind: 'subcomponent' },
-  { name: 'TimeAxis', file: 'packages/react/src/ui/TimeAxis.tsx', kind: 'subcomponent', alias: 'XAxis' },
+  { name: 'XAxis', file: 'packages/react/src/ui/XAxis.tsx', kind: 'subcomponent', alias: 'TimeAxis' },
   { name: 'YAxis', file: 'packages/react/src/ui/YAxis.tsx', kind: 'subcomponent' },
   { name: 'Tooltip', file: 'packages/react/src/ui/Tooltip.tsx', kind: 'subcomponent' },
   { name: 'Crosshair', file: 'packages/react/src/ui/Crosshair.tsx', kind: 'subcomponent' },

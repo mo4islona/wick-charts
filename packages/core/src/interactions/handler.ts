@@ -7,10 +7,13 @@ import { PanHandler } from './pan';
 import type { PanZoomTarget } from './pan-zoom-target';
 import { ZoomHandler } from './zoom';
 
+/** A pointer position as the X scale maps it — the chart resolves `x` from `time`. */
+export type PointerPosition = Omit<CrosshairPosition, 'x'>;
+
 interface InteractionEvents {
-  crosshairMove: (pos: CrosshairPosition | null) => void;
-  click: (pos: CrosshairPosition) => void;
-  dblclick: (pos: CrosshairPosition) => void;
+  crosshairMove: (pos: PointerPosition | null) => void;
+  click: (pos: PointerPosition) => void;
+  dblclick: (pos: PointerPosition) => void;
 }
 
 /** Euclidean finger spread. Using only the X projection (the old behavior)
@@ -267,7 +270,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     this.emit('crosshairMove', null);
   };
 
-  private posFromOffset(offsetX: number, offsetY: number): CrosshairPosition {
+  private posFromOffset(offsetX: number, offsetY: number): PointerPosition {
     const plotX = offsetX - (this.target.plotLeft ?? 0);
 
     return {

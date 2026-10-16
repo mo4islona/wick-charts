@@ -6,7 +6,10 @@ import { get } from 'svelte/store';
 
 import { getChartContext } from './context';
 
-/** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
+/**
+ * Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`.
+ * On a numeric or category X axis (`axis.x.type`) points carry `x` in place of `time`.
+ */
 export let data: MultiLayerData;
 export let options: Partial<BarSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */

@@ -92,7 +92,7 @@ For a CodePen, JSFiddle, or a plain HTML page, load the prebuilt UMD bundle from
 </script>
 ```
 
-The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~72 kB gzipped, self-contained.
+The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~86 kB gzipped, self-contained.
 
 ## Bundle size
 
@@ -102,9 +102,9 @@ Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, 
 
 | Scenario | Raw | Gzip | Brotli |
 |---|---:|---:|---:|
-| Candlestick only | 109.8 kB | 34.1 kB | 30.0 kB |
-| Line only        | 125.6 kB | 38.7 kB | 33.8 kB |
-| Full React       | 253.5 kB | 78.1 kB | 65.6 kB |
+| Candlestick only | 137.6 kB | 42.9 kB | 37.6 kB |
+| Line only        | 158.4 kB | 49.0 kB | 42.7 kB |
+| Full React       | 307.9 kB | 94.9 kB | 79.5 kB |
 
 ## Migration
 

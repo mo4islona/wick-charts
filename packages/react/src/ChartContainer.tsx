@@ -47,7 +47,7 @@ import { useStableOptions } from './use-stable-options';
 
 /** Props for the {@link ChartContainer} component. */
 export interface ChartContainerProps {
-  /** Series components and UI overlays (Tooltip, TimeAxis, etc.) rendered inside the chart. */
+  /** Series components and UI overlays (Tooltip, XAxis, etc.) rendered inside the chart. */
   children?: ReactNode;
   /** Visual theme. Live — changing this at runtime updates all themed elements. */
   theme?: ChartTheme;
@@ -493,6 +493,10 @@ export function ChartContainer({
     axis?.y?.visible,
     axis?.x?.height,
     axis?.x?.visible,
+    axis?.x?.type,
+    axis?.x?.panZoom,
+    axis?.x?.padding?.inner,
+    axis?.x?.padding?.outer,
   ]);
 
   // Deep-compare latch: a fresh inline `scales` literal must not refit every render.

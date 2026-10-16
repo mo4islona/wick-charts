@@ -77,11 +77,13 @@ function setSlot(chart: ChartInstance, cacheKey: string, slot: CacheSlot): void 
 
 /** A layer row's point — a band layer carries its edges, every other layer one value. */
 function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint {
-  if (layer.low !== undefined && layer.high !== undefined) {
-    return { time: layer.time, low: layer.low, high: layer.high };
-  }
+  const point: TimePoint | BandPoint =
+    layer.low !== undefined && layer.high !== undefined
+      ? { time: layer.time, low: layer.low, high: layer.high }
+      : { time: layer.time, value: layer.value };
+  if (layer.x !== undefined) point.x = layer.x;
 
-  return { time: layer.time, value: layer.value };
+  return point;
 }
 
 function sortSnapshots(snapshots: SeriesSnapshot[], sort: SnapshotSort): SeriesSnapshot[] {
@@ -190,6 +192,34 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
   setSlot(chart, args.cacheKey, { version, time: args.time, sort, data });
 
   return data;
+}
+
+/**
+ * The X label of a tooltip / info-bar header at `time` (the crosshair time,
+ * or the newest point's). On a numeric axis it names the nearest snapshot's
+ * point with that value's own decimals instead of the pointer position;
+ * elsewhere it formats `time` as the axis does.
+ */
+export function formatHeaderX(
+  chart: ChartInstance,
+  args: { time: number; snapshots: readonly SeriesSnapshot[]; interval: number },
+): string {
+  const { time, snapshots, interval } = args;
+  if (chart.timeScale.getType() !== 'numeric') return chart.timeScale.formatX(time, interval);
+
+  let nearest = time;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const snapshot of snapshots) {
+    const distance = Math.abs(snapshot.data.time - time);
+    // A tie goes to the later point, as `findNearest` does, so the sort order can't flip it.
+    const tieLoses = distance === bestDistance && snapshot.data.time <= nearest;
+    if (distance > bestDistance || tieLoses) continue;
+
+    bestDistance = distance;
+    nearest = snapshot.data.time;
+  }
+
+  return chart.timeScale.formatPointX(nearest, interval);
 }
 
 /**

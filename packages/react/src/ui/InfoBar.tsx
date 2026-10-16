@@ -9,6 +9,7 @@ import {
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -176,7 +177,7 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
       }}
     >
       <span style={{ color: theme.axis.textColor, marginRight: 2 }}>
-        {chart.timeScale.formatX(displayTime, dataInterval)}
+        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </span>
       {snapshots.map((s) => {
         const isOHLC = 'open' in s.data;

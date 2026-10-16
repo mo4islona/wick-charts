@@ -25,6 +25,7 @@ const stripRef = ref<HTMLDivElement | null>(null);
 const controller = shallowRef<NavigatorController | null>(null);
 
 const resolvedHeight = computed(() => props.height ?? themeRef.value.navigator.height);
+const timeAxis = computed(() => chartRef.value?.checkTimeOnlyFeature('Navigator') ?? false);
 
 // Mount the controller once the strip div exists and the chart is available.
 // Watch both — either may arrive after the other across Teleport boundaries.
@@ -63,7 +64,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Teleport v-if="anchor" :to="anchor">
+  <Teleport v-if="anchor && timeAxis" :to="anchor">
     <div
       ref="stripRef"
       data-chart-navigator=""

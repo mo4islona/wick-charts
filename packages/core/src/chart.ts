@@ -32,6 +32,13 @@ import {
 import { StreamingCadence } from './chart/streaming-cadence';
 import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
+import {
+  assertSeriesFitsXAxis,
+  warnTimeOnlyFeature,
+  warnXMisfit,
+  warnXTimeMixed,
+  warnXTypeChange,
+} from './chart/x-guards';
 import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
@@ -45,12 +52,12 @@ import {
 } from './components/reference-line';
 import { type TimeRegionConfig, renderTimeRegion, resolveTimeRegionColors } from './components/time-region';
 import { EventEmitter } from './events';
-import { InteractionHandler } from './interactions/handler';
+import { InteractionHandler, type PointerPosition } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
 import type { PerfMonitor } from './perf';
 import { RenderScheduler } from './render-scheduler';
 import type { TickTrackerSnapshot } from './scales/tick-tracker';
-import { XScale } from './scales/x-scale';
+import { type XAxisFormatter, XScale } from './scales/x-scale';
 import { YScale, isPlottableOn } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
 import {
@@ -83,6 +90,9 @@ import type {
   TimePointInput,
   ValueColor,
   VisibleRangeSpec,
+  XAxisType,
+  XBandPointInput,
+  XPointInput,
   XRange,
   YAxisConfig,
   YAxisPosition,
@@ -133,6 +143,8 @@ const AXIS_FADE_END_GAP_PX = 12;
 const GRID_TAIL_PX = 9;
 
 const BOTH_EDGE_SIDES: readonly EdgeSide[] = ['left', 'right'];
+
+const NO_TICKS: TickTrackerSnapshot = { entries: [], isAnimating: false };
 const NO_EDGE_SIDES: readonly EdgeSide[] = [];
 const LEFT_EDGE_SIDE: readonly EdgeSide[] = ['left'];
 const RIGHT_EDGE_SIDE: readonly EdgeSide[] = ['right'];
@@ -202,7 +214,10 @@ function isPinnedBound(bound: AxisBound | undefined, yScale: YScale): boolean {
 export interface PointClickInfo {
   mediaX: number;
   mediaY: number;
+  /** Internal X coordinate — epoch ms on a time axis, the number on a numeric axis, the band index on a category axis. */
   time: number;
+  /** X in the axis domain: epoch ms on a time axis, the number on a numeric axis, the category name on a category axis. */
+  x: number | string;
   y: number;
   spatialHit: { seriesId: string; index: number } | null;
 }
@@ -265,7 +280,17 @@ interface SeriesEntry {
   visible: boolean;
   /** Requested named Y scale; an id `options.scales` doesn't define falls back to the default scale. */
   scale?: string;
+  /** Point keys seen on a numeric / category axis — both set means the series mixes `x` and `time`. */
+  xKeys: { x: boolean; time: boolean };
+  /** Category axis: each layer's points in input order — the source of truth the store is mapped from. */
+  categoryPoints: XKeyedPoint[][];
 }
+
+/** An ingested point on a numeric / category axis — `x` and `time` as passed in. */
+type XKeyedPoint = { x?: unknown; time?: unknown };
+
+/** Any point `appendData` / `prependData` / `updateData` take. */
+type SeriesPointInput = OHLCInput | TimePointInput | BandPointInput | XPointInput | XBandPointInput;
 
 /** Internal bookkeeping for a registered marker. `time` is normalized to epoch ms; `shape`/`pulse` carry resolved defaults. */
 interface MarkerEntry {
@@ -355,8 +380,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #scalesConfig: Readonly<Record<string, YAxisConfig>> = {};
   /** Set when a named scale's range moved, so the crosshair re-emits for its axis label. */
   #scaleRangeMoved = false;
-  /** Dev warnings about scale ids already printed, so each fires once. */
-  #warnedScales = new Set<string>();
+  /** Keys of dev warnings already printed, so each fires once. */
+  #warned = new Set<string>();
+  /** What the X axis maps — read from `axis.x.type` once, at construction. */
+  readonly #xType: XAxisType;
+  /** Category axis: name → band index, in first-seen order across the series. */
+  #categoryIndex = new Map<string, number>();
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
   /** All registered series (candlestick, line, bar, pie). */
@@ -622,6 +651,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     super();
     // Support both new `axis` API and legacy flat props
     if (options?.axis) this.#axis = options.axis;
+    this.#xType = this.#axis.x?.type ?? 'time';
     this.#theme = options?.theme ?? catppuccin.theme;
     this.#grid = options?.grid?.visible !== false;
     this.#fade = resolveFade(options?.fade);
@@ -656,7 +686,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       onWake: () => this.#mainScheduler?.markDirty(),
     });
 
-    this.#onEdgeReached = options?.onEdgeReached;
+    if (options?.onEdgeReached && this.checkTimeOnlyFeature('onEdgeReached')) {
+      this.#onEdgeReached = options.onEdgeReached;
+    }
     this.#initialVisibleRange = options?.viewport?.initialRange;
 
     const resolvedPerf = resolvePerfOptions(options?.perf);
@@ -665,6 +697,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
     this.timeScale = new XScale();
+    this.timeScale.setType(this.#xType);
+    this.timeScale.setBandPadding(this.#axis.x?.padding);
     this.yScale = new YScale();
     this.#defaultSlot = createScaleSlot(this.yScale, this.#axis.y);
     this.yScale.setTransform(this.#axis.y?.scale ?? null);
@@ -723,7 +757,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // no-ops when the container hasn't been laid out yet (size still 0).
     this.syncScales();
 
-    this.#interactions?.on('crosshairMove', (pos) => {
+    this.#interactions?.on('crosshairMove', (pointer) => {
+      const pos = pointer === null ? null : this.#toCrosshair(pointer);
       this.#crosshairAnchor = 'pointer';
       this.#crosshairPos = pos;
       this.#overlayScheduler.markDirty();
@@ -733,14 +768,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#updateHover(pos);
     });
 
-    this.#interactions?.on('click', (pos) => {
+    this.#interactions?.on('click', (pointer) => {
+      const pos = this.#toCrosshair(pointer);
       this.emit('pointClick', { ...pos, spatialHit: this.#spatialHitAt(pos) });
     });
 
-    this.#interactions?.on('dblclick', (pos) => {
+    this.#interactions?.on('dblclick', (pointer) => {
+      const pos = this.#toCrosshair(pointer);
       this.fitContent();
       this.emit('pointDoubleClick', { ...pos, spatialHit: this.#spatialHitAt(pos) });
     });
+  }
+
+  /** A pointer position on a category axis snaps to the nearest band; `x` is the coordinate in the axis domain. */
+  #toCrosshair(pointer: PointerPosition): CrosshairPosition {
+    const time = this.timeScale.snapToBand(pointer.time);
+
+    return { ...pointer, time, x: this.timeScale.domainValue(time) };
   }
 
   /**
@@ -898,12 +942,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       ...this.#animationsConfig.overrides(def.type),
     };
     const renderer = def.create({ theme: this.#theme, layerCount }, merged);
+    // Spatial series (pie, heatmap) have no X axis to fit.
+    if (isTimeSeriesRenderer(renderer)) {
+      assertSeriesFitsXAxis({ seriesType: def.type, axisType: this.#xType, supported: def.xTypes ?? ['time'] });
+    }
 
     const entryLabels = labels ?? (typeof label === 'string' ? [label] : undefined);
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
     const prevGutters = this.#readGutters();
-    this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true, scale });
+    this.#series.push({
+      id: seriesId,
+      labels: entryLabels,
+      renderer,
+      visible: true,
+      scale,
+      xKeys: { x: false, time: false },
+      categoryPoints: [],
+    });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
     this.#syncGutters(prevGutters);
@@ -921,6 +977,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#series[idx].renderer.dispose();
       this.#series.splice(idx, 1);
       this.#seriesIdCache = null;
+      if (this.#xType === 'category') this.#syncCategories();
       this.#syncInteractionMode();
       this.#syncGutters(prevGutters);
       this.#mainScheduler.markDirty();
@@ -1073,6 +1130,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   addRegion(config: TimeRegionConfig): string {
     const id = `region_${++regionIdCounter}`;
+    if (!this.checkTimeOnlyFeature('TimeRegion')) return id;
+
     this.#regions.push(this.#normalizeRegion(id, config));
     this.#mainScheduler.markDirty();
 
@@ -1337,21 +1396,39 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *
    * For line/bar accepts `TimePointInput[]` (time may be `Date`); for candlestick accepts `OHLCInput[]`;
    * for pie accepts `PieSliceData[]`. Time fields are normalized internally.
+   *
+   * On a category axis a replace is how a bar other than the last changes value,
+   * so it eases like a stream: points that keep their band ease to their new values.
    */
   setSeriesData(id: string, data: unknown, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
+
+    const category = this.#xType === 'category' && this.#takesXKeys(entry);
     // Bulk replace → onDataChanged should snap the Y range so yScale reflects
     // the new domain synchronously (the long-standing public contract pinned
     // by chart-scales-sync.test). Streaming `appendData` ticks don't set
     // this flag, so per-tick Y can ease both directions for a smooth axis.
-    this.#dataReplaceSnapPending = true;
+    this.#dataReplaceSnapPending = !category;
 
-    entry.renderer.setData(data, layerIndex);
+    if (!this.#takesXKeys(entry)) {
+      entry.renderer.setData(data, layerIndex);
+
+      return;
+    }
+
+    const points = this.#acceptXPoints(entry, (data ?? []) as XKeyedPoint[]);
+    if (!category) {
+      entry.renderer.setData(points, layerIndex);
+
+      return;
+    }
+
+    this.#mutateCategoryLayer({ entry, layerIndex, mutate: () => points });
   }
 
   /** Append a new data point to the end of a series (real-time tick). */
-  appendData(id: string, point: OHLCInput | TimePointInput | BandPointInput, layerIndex?: number): void {
+  appendData(id: string, point: SeriesPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.appendPoint === undefined) return;
 
@@ -1359,7 +1436,165 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // `appendPoint` registers an entry animator keyed by `time` and seeds
     // the live-track so the new point fades in and the trailing-Y starts
     // smoothing on the next render frame.
-    entry.renderer.appendPoint(point, layerIndex);
+    const append = entry.renderer.appendPoint.bind(entry.renderer);
+    this.#ingestXPoints({
+      entry,
+      layerIndex,
+      points: [point],
+      apply: ([next]) => append(next, layerIndex),
+      mutateCategory: (layer, added) => [...layer, ...added],
+    });
+  }
+
+  /**
+   * Run a store mutation with its points mapped onto the X axis. A time axis
+   * passes them through and a numeric axis drops the ones that don't fit. A
+   * category axis applies `mutateCategory` to the layer's input-order points
+   * instead, then re-sets the store from them.
+   */
+  #ingestXPoints(args: {
+    entry: SeriesEntry;
+    layerIndex: number | undefined;
+    points: readonly unknown[];
+    apply: (points: unknown[]) => void;
+    mutateCategory: (layer: readonly XKeyedPoint[], points: XKeyedPoint[]) => XKeyedPoint[];
+  }): void {
+    const { entry, apply } = args;
+    if (!this.#takesXKeys(entry)) {
+      apply(args.points.slice());
+
+      return;
+    }
+
+    const points = this.#acceptXPoints(entry, args.points as XKeyedPoint[]);
+    if (points.length === 0) return;
+
+    if (this.#xType === 'numeric') {
+      apply(points);
+
+      return;
+    }
+
+    this.#mutateCategoryLayer({
+      entry,
+      layerIndex: args.layerIndex,
+      mutate: (layer) => args.mutateCategory(layer, points),
+    });
+  }
+
+  /** Replace a category layer's input-order points with `mutate`'s result and sync the categories and stores. */
+  #mutateCategoryLayer(args: {
+    entry: SeriesEntry;
+    layerIndex: number | undefined;
+    mutate: (layer: readonly XKeyedPoint[]) => XKeyedPoint[];
+  }): void {
+    const { entry } = args;
+    const layerIndex = args.layerIndex ?? 0;
+    entry.categoryPoints[layerIndex] = args.mutate(entry.categoryPoints[layerIndex] ?? []);
+
+    this.#syncCategories({ entry, layerIndex });
+  }
+
+  /** Whether `entry`'s points go through the numeric / category ingest. */
+  #takesXKeys(entry: SeriesEntry): boolean {
+    return this.#xType !== 'time' && isTimeSeriesRenderer(entry.renderer);
+  }
+
+  /**
+   * Points that fit the X axis, a numeric one with its `x` copied to `time`.
+   * The rest are skipped with a dev warning, as is a series mixing `x` and `time`.
+   */
+  #acceptXPoints(entry: SeriesEntry, points: readonly XKeyedPoint[]): XKeyedPoint[] {
+    const accepted: XKeyedPoint[] = [];
+    for (const point of points) {
+      const hasX = point.x !== undefined;
+      if (hasX) entry.xKeys.x = true;
+      if (point.time !== undefined) entry.xKeys.time = true;
+
+      const fits = this.#xType === 'category' ? typeof point.x === 'string' : !hasX || typeof point.x === 'number';
+      if (!fits) {
+        this.#warnOnce(`x-misfit:${entry.id}`, () =>
+          warnXMisfit({ seriesId: entry.id, axisType: this.#xType, x: point.x }),
+        );
+        continue;
+      }
+
+      accepted.push(hasX && this.#xType === 'numeric' ? { ...point, time: point.x } : point);
+    }
+
+    if (entry.xKeys.x && entry.xKeys.time) {
+      this.#warnOnce(`x-mixed:${entry.id}`, () => warnXTimeMixed({ seriesId: entry.id }));
+    }
+
+    return accepted;
+  }
+
+  /** Category points with `time` set to their band index. */
+  #toBands(points: readonly XKeyedPoint[]): XKeyedPoint[] {
+    return points.map((point) => ({ ...point, time: this.#categoryIndex.get(point.x as string) }));
+  }
+
+  /**
+   * Re-derive the categories — first-seen order across the series (mount
+   * order, then layers, then points in input order) — and re-set every store
+   * whose band indices moved, plus the `changed` layer.
+   */
+  #syncCategories(changed?: { entry: SeriesEntry; layerIndex: number }): void {
+    const names = new Set<string>();
+    for (const entry of this.#series) {
+      for (const layer of entry.categoryPoints) {
+        for (const point of layer ?? []) {
+          names.add(point.x as string);
+        }
+      }
+    }
+
+    const next = [...names];
+    const current = this.timeScale.getCategories();
+    const categoriesMoved = next.length !== current.length || next.some((name, i) => name !== current[i]);
+    const previous = this.#categoryIndex;
+    this.#categoryIndex = new Map(next.map((name, i) => [name, i]));
+    this.timeScale.setCategories(next);
+
+    this.batch(() => {
+      for (const entry of this.#series) {
+        this.#resetCategoryStores({ entry, previous, changed });
+      }
+
+      // A category dropped off the end moves no point, yet the bands still refit.
+      if (categoriesMoved) this.onDataChanged();
+    });
+  }
+
+  /** Re-set `entry`'s layers whose points moved band, or that `changed` names, from their input-order points. */
+  #resetCategoryStores(args: {
+    entry: SeriesEntry;
+    previous: ReadonlyMap<string, number>;
+    changed: { entry: SeriesEntry; layerIndex: number } | undefined;
+  }): void {
+    const { entry, previous, changed } = args;
+    for (let layer = 0; layer < entry.categoryPoints.length; layer++) {
+      const points = entry.categoryPoints[layer] ?? [];
+      const isChanged = changed?.entry === entry && changed.layerIndex === layer;
+      const moved = points.some(
+        (point) => previous.get(point.x as string) !== this.#categoryIndex.get(point.x as string),
+      );
+      if (!isChanged && !moved) continue;
+
+      const mapped = this.#toBands(points).sort((a, b) => (a.time as number) - (b.time as number));
+      const shifted = points.some((point) => {
+        const before = previous.get(point.x as string);
+
+        return before !== undefined && before !== this.#categoryIndex.get(point.x as string);
+      });
+
+      // Points that keep their band ease to their new values; a band shift re-seeds.
+      if (isChanged && !shifted && entry.renderer.morphData !== undefined) {
+        entry.renderer.morphData(mapped, layer);
+      } else {
+        entry.renderer.setData(mapped, layer);
+      }
+    }
   }
 
   /**
@@ -1375,7 +1610,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * first point; the sync reconciler guarantees this before calling here.
    * No-op if the renderer doesn't support prepend.
    */
-  prependData(id: string, points: (OHLCInput | TimePointInput | BandPointInput)[], layerIndex?: number): void {
+  prependData(id: string, points: SeriesPointInput[], layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.prependPoints === undefined) return;
 
@@ -1402,13 +1637,30 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#overlayScheduler.markDirty();
     }
 
-    entry.renderer.prependPoints(points, layerIndex);
+    const prepend = entry.renderer.prependPoints.bind(entry.renderer);
+    this.#ingestXPoints({
+      entry,
+      layerIndex,
+      points,
+      apply: (next) => prepend(next, layerIndex),
+      mutateCategory: (layer, added) => [...added, ...layer],
+    });
   }
 
   /** Update the last data point of a series in place (e.g. live candle update). */
-  updateData(id: string, point: OHLCInput | TimePointInput | BandPointInput, layerIndex?: number): void {
+  updateData(id: string, point: SeriesPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
-    entry?.renderer.updateLastPoint?.(point, layerIndex);
+    if (entry === undefined || entry.renderer.updateLastPoint === undefined) return;
+
+    const update = entry.renderer.updateLastPoint.bind(entry.renderer);
+    this.#ingestXPoints({
+      entry,
+      layerIndex,
+      points: [point],
+      apply: ([next]) => update(next, layerIndex),
+      // Like the store, an empty layer has no last point to update.
+      mutateCategory: (layer, added) => (layer.length === 0 ? [] : [...layer.slice(0, -1), ...added]),
+    });
   }
 
   /**
@@ -1426,7 +1678,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   keepLast(id: string, count: number, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
-    entry?.renderer.keepLast?.(count, layerIndex);
+    if (entry?.renderer.keepLast === undefined) return;
+
+    if (this.#xType !== 'category') {
+      entry.renderer.keepLast(count, layerIndex);
+
+      return;
+    }
+
+    this.#mutateCategoryLayer({
+      entry,
+      layerIndex,
+      mutate: (layer) => (count < 0 ? [...layer] : layer.slice(Math.max(0, layer.length - count))),
+    });
   }
 
   /**
@@ -1818,7 +2082,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // (time, y) back to the chart that originated the hover returns above
     // and leaves that chart pointer-anchored.
     this.#crosshairAnchor = 'time';
-    this.#crosshairPos = { mediaX, mediaY, time, y };
+    this.#crosshairPos = { mediaX, mediaY, time, x: this.timeScale.domainValue(time), y };
     this.#overlayScheduler.markDirty();
     this.emit('crosshairMove', this.#crosshairPos);
   }
@@ -1844,7 +2108,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
-    return entry.renderer.getDataAtTime?.(time, this.#dataInterval) ?? null;
+    return entry.renderer.getDataAtTime?.(time, this.#snapInterval()) ?? null;
   }
 
   /**
@@ -1857,7 +2121,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.visible) return null;
 
-    return entry.renderer.getLayerSnapshots?.(time, this.#dataInterval) ?? null;
+    return entry.renderer.getLayerSnapshots?.(time, this.#snapInterval()) ?? null;
+  }
+
+  /**
+   * How far from a point the crosshair and hit-tests still find it — one data
+   * interval on a time axis; on a category axis half a step, so a band only
+   * finds its own point; on a numeric axis the whole data span, so a point
+   * past a wide gap is still the nearest.
+   */
+  #snapInterval(): number {
+    if (this.#xType === 'category') return 0.5;
+    if (this.#xType === 'time' || this.#dataStart === null || this.#dataEnd === null) return this.#dataInterval;
+
+    return Math.max(this.#dataInterval, this.#dataEnd - this.#dataStart);
   }
 
   getSeriesIds(): string[] {
@@ -1926,12 +2203,29 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /**
    * Whether pan/zoom gestures currently apply — true when any visible series
-   * has a time axis. Part of the {@link PanZoomTarget} surface: on a
-   * spatial-only chart (pie, heatmap) the interaction layer stops capturing
-   * wheel and touch events, so the page scrolls normally under the cursor.
+   * has a time axis and `axis.x.panZoom` allows it. Part of the
+   * {@link PanZoomTarget} surface: otherwise the interaction layer stops
+   * capturing wheel and touch events, so the page scrolls normally under the cursor.
    */
   canPanZoom(): boolean {
-    return this.#hasTimeSeries();
+    const allowed = this.#axis.x?.panZoom ?? this.#xType !== 'category';
+
+    return allowed && this.#hasTimeSeries();
+  }
+
+  /**
+   * Whether a time-only feature (Navigator, EdgeLoader, TimeRegion) can run
+   * on this chart's X axis. On a numeric or category axis it warns once per
+   * feature in dev and returns `false` — the caller then does nothing.
+   *
+   * @internal
+   */
+  checkTimeOnlyFeature(feature: string): boolean {
+    if (this.#xType === 'time') return true;
+
+    this.#warnOnce(`time-only:${feature}`, () => warnTimeOnlyFeature({ feature, axisType: this.#xType }));
+
+    return false;
   }
 
   /**
@@ -2008,11 +2302,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
 
-    const stacked = entry.renderer.getStackedValueAtTime?.(time, this.#dataInterval);
+    const stacked = entry.renderer.getStackedValueAtTime?.(time, this.#snapInterval());
     if (stacked !== null && stacked !== undefined) return stacked;
 
     // A band has no single value to count a badge up from.
-    const point = entry.renderer.getDataAtTime?.(time, this.#dataInterval);
+    const point = entry.renderer.getDataAtTime?.(time, this.#snapInterval());
     if (!point || isBandPoint(point)) return null;
 
     return pointValue(point);
@@ -2162,6 +2456,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const prevGutters = this.#readGutters();
     const scaleChanged = nextScale !== this.yScale.getTransform();
 
+    const nextXType = config.x?.type ?? 'time';
+    if (nextXType !== this.#xType) {
+      this.#warnOnce('x-type', () => warnXTypeChange({ from: this.#xType, to: nextXType }));
+    }
+
+    const prevPadding = this.timeScale.getBandPadding();
+    this.timeScale.setBandPadding(config.x?.padding);
+    const nextPadding = this.timeScale.getBandPadding();
+    const bandsMoved = prevPadding.inner !== nextPadding.inner || prevPadding.outer !== nextPadding.outer;
+
     this.#axis = config;
     this.#defaultSlot.bounds = { min: config.y?.min, max: config.y?.max };
     warnUnplottableBounds({ y: config.y, isPlottable: plottableOnNext });
@@ -2181,6 +2485,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#applyEngineState(now);
 
     this.#syncGutters(prevGutters);
+    this.#syncInteractionMode();
+    if (bandsMoved && this.#xType === 'category') this.fitContent();
     this.#mainScheduler.markDirty();
   }
 
@@ -2273,7 +2579,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       const side = slot.config.position ?? fallbackSide;
       if (taken.has(side)) {
-        this.#warnScaleOnce(`side:${id}`, () => warnScaleSideTaken({ scaleId: id, side }));
+        this.#warnOnce(`side:${id}`, () => warnScaleSideTaken({ scaleId: id, side }));
         continue;
       }
 
@@ -2288,19 +2594,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (scale === undefined) return;
 
     if (!this.#scales.has(scale)) {
-      this.#warnScaleOnce(`unknown:${scale}`, () => warnUnknownScale({ seriesId: entry.id, scaleId: scale }));
+      this.#warnOnce(`unknown:${scale}`, () => warnUnknownScale({ seriesId: entry.id, scaleId: scale }));
     }
 
     const percent = seriesStacking(entry.renderer) === 'percent';
     if (percent && !this.getYScale(this.#scaleIdOf(entry)).isPlottable(0)) {
-      this.#warnScaleOnce(`percent:${entry.id}`, () => warnStackingOffScale({ seriesId: entry.id }));
+      this.#warnOnce(`percent:${entry.id}`, () => warnStackingOffScale({ seriesId: entry.id }));
     }
   }
 
-  #warnScaleOnce(key: string, warn: () => void): void {
-    if (this.#warnedScales.has(key)) return;
+  #warnOnce(key: string, warn: () => void): void {
+    if (this.#warned.has(key)) return;
 
-    this.#warnedScales.add(key);
+    this.#warned.add(key);
     warn();
   }
 
@@ -2407,7 +2713,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
   }
 
-  /** Label-density knobs for the time axis — mirror of {@link setYAxisLabelDensity}. */
+  /**
+   * Install (or clear, with `null`) the X label formatter `<XAxis format>`
+   * puts on the axis — its tick labels, the crosshair label, the tooltip and
+   * info-bar headers read it.
+   */
+  setXAxisFormat(format: XAxisFormatter | null): void {
+    this.timeScale.setFormat(format);
+    this.#bumpOverlayVersion();
+  }
+
+  /** Label-density knobs for the X axis — mirror of {@link setYAxisLabelDensity}. */
   setTimeAxisLabelDensity(params: { labelCount?: number | null; minLabelSpacing?: number | null }): void {
     let dirty = false;
     if ('labelCount' in params) {
@@ -2534,6 +2850,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   setEdgeState(side: EdgeSide, state: EdgeState): void {
     if (this.#edgeStates[side] === state) return;
+    if (!this.checkTimeOnlyFeature('EdgeLoader')) return;
 
     // Dropping `loading` to a no-op state starts an exit fade — the fetched
     // data lands on the same frame, and a one-frame vanish next to freshly
@@ -2581,6 +2898,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * immediately if that side is currently in the `loading` state.
    */
   setEdgeIndicator(side: EdgeSide, indicator: LoadingIndicatorFn | null): void {
+    if (indicator !== null && !this.checkTimeOnlyFeature('EdgeLoader')) return;
+
     this.#edgeIndicatorFns[side] = indicator;
     if (this.#edgeStates[side] === 'loading') this.#overlayScheduler.markDirty();
   }
@@ -2736,16 +3055,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     let next: CrosshairPosition;
     if (this.#crosshairAnchor === 'pointer') {
-      const time = this.timeScale.xToTime(pos.mediaX - this.plotLeft);
+      const time = this.timeScale.snapToBand(this.timeScale.xToTime(pos.mediaX - this.plotLeft));
       const y = this.yScale.yToValue(pos.mediaY);
 
       // A degenerate scale (zero-width range, zero-size canvas) can derive
       // non-finite values — keep the last good position rather than emit NaN.
       if (!Number.isFinite(time) || !Number.isFinite(y)) return;
       const still = Math.abs(time - pos.time) <= timeTolerance && Math.abs(y - pos.y) <= yTolerance;
-      if (still && !scaleMoved) return;
+      // A reorder renames a category under a still pointer.
+      if (still && !scaleMoved && pos.x === this.timeScale.domainValue(pos.time)) return;
 
-      next = { mediaX: pos.mediaX, mediaY: pos.mediaY, time, y };
+      next = { mediaX: pos.mediaX, mediaY: pos.mediaY, time, x: this.timeScale.domainValue(time), y };
     } else {
       // The anchored point scrolled out of the visible range — clear the
       // crosshair (mirrors pointer-leave) instead of letting the clamped
@@ -2766,9 +3086,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (!Number.isFinite(mediaX) || !Number.isFinite(mediaY)) return;
 
       const still = Math.abs(mediaX - pos.mediaX) <= pixelTolerance && Math.abs(mediaY - pos.mediaY) <= pixelTolerance;
-      if (still && !scaleMoved) return;
+      if (still && !scaleMoved && pos.x === this.timeScale.domainValue(pos.time)) return;
 
-      next = { mediaX, mediaY, time: pos.time, y: pos.y };
+      next = { mediaX, mediaY, time: pos.time, x: this.timeScale.domainValue(pos.time), y: pos.y };
     }
 
     this.#crosshairPos = next;
@@ -2923,6 +3243,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   private updateDataInterval(): void {
+    // One step per category, whichever categories a series happens to hold.
+    if (this.#xType === 'category') {
+      this.#dataInterval = 1;
+
+      return;
+    }
+
     for (const entry of this.#series) {
       if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
@@ -3046,6 +3373,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const uninitialized = from === 0 && to === 0;
     const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
 
+    // Every data change refits a category axis: a new or vanished category moves the bands.
+    if (this.#xType === 'category') {
+      this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
+
+      return this.#logical;
+    }
+
     if (uninitialized) {
       this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
       // One-shot `initialVisibleRange` (e.g. "last 35 bars") — applied
@@ -3117,6 +3451,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * commits the new range via `viewport.setRange` (which emits `change`).
    */
   #fitVisibleToData(firstTime: number, lastTime: number, chartWidth: number): void {
+    const bands = this.timeScale.bandRange();
+    if (this.#xType === 'category' && bands !== null) {
+      this.#holdUntilFilled = false;
+      this.#autoScroll = true;
+      // A single band spans less than the two intervals user ranges need.
+      this.#commitLogical(bands, { emitChange: true, skipValidation: true });
+
+      return;
+    }
+
     const padding = this.#padding;
     const range = computeFitToData({
       firstTime,
@@ -3596,6 +3940,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
       gridFadeAnimating = this.#gridFade.tick(now);
       const gridAlpha = this.#gridFade.current;
+      // Category ticks sit on band centres, where a vertical gridline would cut through the bars.
+      const gridTimeTicks = this.#xType === 'category' ? NO_TICKS : timeTickSnap;
 
       const grid: RenderGridArgs = {
         scope,
@@ -3603,7 +3949,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         yScale: this.yScale,
         theme: this.#theme,
         yTicks: yTickSnap,
-        timeTicks: timeTickSnap,
+        timeTicks: gridTimeTicks,
         alpha: gridAlpha,
       };
       const gridOverhang = this.#gridOverhang(scope, chartBitmapWidth);
@@ -3669,7 +4015,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (gridOverhang === 0) {
         // Before the axis fade, so a tail stub near the right edge melts
         // under the Y-axis column in step with its line above.
-        this.#drawGridTails({ scope, pane, timeTicks: timeTickSnap, alpha: gridAlpha });
+        this.#drawGridTails({ scope, pane, timeTicks: gridTimeTicks, alpha: gridAlpha });
         this.#applyAxisFade(scope, chartBitmapWidth, 'left');
         this.#applyAxisFade(scope, chartBitmapWidth, 'right');
       } else {
@@ -4289,7 +4635,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           timeScale: this.timeScale,
           yScale: this.getYScale(scaleId),
           theme: this.#theme,
-          dataInterval: this.#dataInterval,
+          // Overlays only snap the crosshair dots with it.
+          dataInterval: this.#snapInterval(),
           padding: overlayPadding,
           crosshair: this.#crosshairPos,
           state: scaleId === undefined ? overlayState : this.#scaleAnimationState(overlayState, scaleId),

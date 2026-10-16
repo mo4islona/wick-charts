@@ -10,6 +10,7 @@ import {
   computeTooltipPosition,
   formatCompact,
   formatDate,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -187,8 +188,10 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
         letterSpacing: '0.02em',
       }"
     >
-      {{ formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() }) }}
-      {{ chart.timeScale.formatX(displayTime, dataInterval) }}
+      <template v-if="chart.timeScale.getType() === 'time'">
+        {{ formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() }) }}
+      </template>
+      {{ formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
     </div>
 
     <template v-for="s in snapshots" :key="s.id">

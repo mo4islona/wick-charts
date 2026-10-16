@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { mountAxisLabels } from '@wick-charts/core';
+import { type XAxisFormatter, mountAxisLabels } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useAxisLayout } from '../composables';
@@ -10,6 +10,12 @@ const props = defineProps<{
   labelCount?: number;
   /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
   minLabelSpacing?: number;
+  /**
+   * Custom label formatter. `x` is epoch ms on a time axis, the number on a
+   * numeric axis, the category name on a category axis; `step` is the tick
+   * spacing. Also formats the crosshair label and the tooltip / info-bar headers.
+   */
+  format?: XAxisFormatter;
 }>();
 
 const chart = useChartInstance();
@@ -24,8 +30,16 @@ const applyDensity = () => {
 };
 applyDensity();
 watch(() => [props.labelCount, props.minLabelSpacing], applyDensity);
+
+chart.setXAxisFormat(props.format ?? null);
+watch(
+  () => props.format,
+  (format) => chart.setXAxisFormat(format ?? null),
+);
+
 onUnmounted(() => {
   chart.setTimeAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
+  chart.setXAxisFormat(null);
 });
 
 let cleanup: (() => void) | null = null;

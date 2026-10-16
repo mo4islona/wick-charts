@@ -24,6 +24,7 @@ export type Route =
   | 'use-cases/annotations'
   | 'use-cases/data-loading'
   | 'use-cases/secondary-scale'
+  | 'use-cases/x-axis-types'
   | 'use-cases/theme'
   | 'api/line-series'
   | 'api/band-series'
@@ -122,6 +123,7 @@ const USE_CASES: RouteEntry[] = [
   { route: 'use-cases/annotations', label: 'Annotations', title: 'Annotations' },
   { route: 'use-cases/data-loading', label: 'Data loading', title: 'Data loading' },
   { route: 'use-cases/secondary-scale', label: 'Secondary Y scale', title: 'Secondary Y scale' },
+  { route: 'use-cases/x-axis-types', label: 'Numeric & category X', title: 'Numeric & category X axes' },
 ];
 
 // API entries own their own header (rendered by ApiPage), so the App-level

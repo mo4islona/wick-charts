@@ -1,5 +1,5 @@
 <script lang="ts">
-import { type ChartInstance, mountAxisLabels } from '@wick-charts/core';
+import { type ChartInstance, type XAxisFormatter, mountAxisLabels } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
@@ -10,6 +10,12 @@ import { createAxisLayout } from '../stores';
 export let labelCount: number | undefined = undefined;
 /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
 export let minLabelSpacing: number | undefined = undefined;
+/**
+ * Custom label formatter. `x` is epoch ms on a time axis, the number on a
+ * numeric axis, the category name on a category axis; `step` is the tick
+ * spacing. Also formats the crosshair label and the tooltip / info-bar headers.
+ */
+export let format: XAxisFormatter | undefined = undefined;
 
 const chart = get(getChartContext());
 const layout = chart !== null ? createAxisLayout(chart) : null;
@@ -24,6 +30,8 @@ $: if (chart !== null) {
   });
 }
 
+$: if (chart !== null) chart.setXAxisFormat(format ?? null);
+
 onMount(() => {
   if (chart === null || container === null) return;
   cleanup = mountAxisLabels({ chart: chart as ChartInstance, container, axis: 'x' });
@@ -32,7 +40,10 @@ onMount(() => {
 onDestroy(() => {
   cleanup?.();
   cleanup = null;
-  if (chart !== null) chart.setTimeAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
+  if (chart !== null) {
+    chart.setTimeAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
+    chart.setXAxisFormat(null);
+  }
 });
 </script>
 

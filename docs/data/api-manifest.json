@@ -12,7 +12,7 @@
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Series data — omnivorous. A single line passes a flat `TimePoint[]`; a\nmulti-layer line passes `TimePoint[][]`. To name/color a layer, pass\n`{ label, color?, data }` (or an array of them). Time accepts ms or `Date`.",
+          "description": "Series data — omnivorous. A single line passes a flat `TimePoint[]`; a\nmulti-layer line passes `TimePoint[][]`. To name/color a layer, pass\n`{ label, color?, data }` (or an array of them). Time accepts ms or `Date`.\nOn a numeric or category X axis (`axis.x.type`) points carry `x` in place\nof `time`: `{ x: 16, value }` or `{ x: 'EU', value }`.",
           "see": []
         },
         {
@@ -303,7 +303,7 @@
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Series data — omnivorous. A single-layer bar chart passes a flat\n`TimePoint[]`; a multi-layer one passes `TimePoint[][]`. To name/color a\nlayer, pass `{ label, color?, data }` (or an array of them). Time accepts\nms or `Date`.",
+          "description": "Series data — omnivorous. A single-layer bar chart passes a flat\n`TimePoint[]`; a multi-layer one passes `TimePoint[][]`. To name/color a\nlayer, pass `{ label, color?, data }` (or an array of them). Time accepts\nms or `Date`. On a numeric or category X axis (`axis.x.type`) points carry\n`x` in place of `time`: `{ x: 16, value }` or `{ x: 'EU', value }`.",
           "see": []
         },
         {
@@ -323,7 +323,7 @@
                 "optional": false,
                 "defaultValue": "0.7",
                 "deprecated": null,
-                "description": "Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot. Default: 0.7.",
+                "description": "Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot.\nApplies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.7.",
                 "see": []
               },
               {
@@ -1220,7 +1220,7 @@
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Band data — one band per layer. A single band passes a flat\n`{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color\na band, pass `{ label, color?, data }` (or an array of them). Time accepts\nms or `Date`.",
+          "description": "Band data — one band per layer. A single band passes a flat\n`{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color\na band, pass `{ label, color?, data }` (or an array of them). Time accepts\nms or `Date`. On a numeric or category X axis (`axis.x.type`) samples\ncarry `x` in place of `time`: `{ x: 'EU', low, high }`.",
           "see": []
         },
         {
@@ -2472,7 +2472,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Series components and UI overlays (Tooltip, TimeAxis, etc.) rendered inside the chart.",
+          "description": "Series components and UI overlays (Tooltip, XAxis, etc.) rendered inside the chart.",
           "see": []
         },
         {
@@ -3409,11 +3409,61 @@
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "X-axis configuration — height and visibility of the time axis.",
+                "description": "X-axis configuration — type, height and visibility of the X axis.",
                 "see": [],
                 "nested": {
                   "name": "XAxisConfig",
                   "props": [
+                    {
+                      "name": "type",
+                      "type": "XAxisType",
+                      "optional": true,
+                      "defaultValue": "'time'",
+                      "deprecated": null,
+                      "description": "What the axis maps. Default: `'time'`. Read once at construction — a later\nchange is ignored with a dev warning; remount the chart (a React `key`) to\nswitch. Line, bar and band series work on every type, candlestick on\n`'time'` only. Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are\ntime-only.",
+                      "see": []
+                    },
+                    {
+                      "name": "padding",
+                      "type": "XAxisPadding",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Band spacing on a category axis. Ignored on other types. Live.",
+                      "see": [],
+                      "nested": {
+                        "name": "XAxisPadding",
+                        "props": [
+                          {
+                            "name": "inner",
+                            "type": "number",
+                            "optional": true,
+                            "defaultValue": "0.3",
+                            "deprecated": null,
+                            "description": "Gap between adjacent bands. Default: `0.3`.",
+                            "see": []
+                          },
+                          {
+                            "name": "outer",
+                            "type": "number",
+                            "optional": true,
+                            "defaultValue": "0.2",
+                            "deprecated": null,
+                            "description": "Space before the first band and after the last one. Default: `0.2`.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "panZoom",
+                      "type": "boolean",
+                      "optional": true,
+                      "defaultValue": "true",
+                      "deprecated": null,
+                      "description": "Whether drag and wheel move the X range. The crosshair works either way.\nDefault: `true`, or `false` on a category axis. Live.",
+                      "see": []
+                    },
                     {
                       "name": "height",
                       "type": "number",
@@ -4178,11 +4228,11 @@
         }
       ]
     },
-    "TimeAxis": {
+    "XAxis": {
       "kind": "subcomponent",
-      "file": "packages/react/src/ui/TimeAxis.tsx",
-      "alias": "XAxis",
-      "description": "",
+      "file": "packages/react/src/ui/XAxis.tsx",
+      "alias": "TimeAxis",
+      "description": "The X axis labels of any `axis.x.type` — time, numeric or category.",
       "props": [
         {
           "name": "labelCount",
@@ -4200,6 +4250,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "XAxisFormatter",
+          "optional": true,
+          "defaultValue": "time formatting",
+          "deprecated": null,
+          "description": "Custom label formatter. `x` is epoch ms on a time axis, the number on a\nnumeric axis, the category name on a category axis; `step` is the tick\nspacing. Also formats the crosshair label and the tooltip / info-bar\nheaders. Default: time formatting, a locale number, or the name.",
           "see": []
         }
       ]
@@ -4903,7 +4962,7 @@
       "kind": "subcomponent",
       "file": "packages/react/src/EdgeLoader.tsx",
       "alias": null,
-      "description": "Subscribes to the chart's viewport and triggers a fetch when the visible\nrange nears the chosen data edge. Handles the boilerplate every load-on-scroll\nsite otherwise has to re-implement: arming after first user pan, deduping\nvia Promise tracking, and exposing the boundary's pixel coordinate so a\nloader can be anchored to \"the wall of available history\".\n\nPlace as a child of `<ChartContainer>`.",
+      "description": "Subscribes to the chart's viewport and triggers a fetch when the visible\nrange nears the chosen data edge. Handles the boilerplate every load-on-scroll\nsite otherwise has to re-implement: arming after first user pan, deduping\nvia Promise tracking, and exposing the boundary's pixel coordinate so a\nloader can be anchored to \"the wall of available history\".\n\nPlace as a child of `<ChartContainer>`. Time X axis only — on a numeric or\ncategory axis it renders nothing and never triggers.",
       "props": [
         {
           "name": "side",
