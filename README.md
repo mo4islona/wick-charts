@@ -164,6 +164,20 @@ Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, 
 
 Upgrading across versions? See [MIGRATION.md](./MIGRATION.md) for per-version breaking-change notes and code snippets.
 
+## Contributing
+
+Bug reports, feature requests and pull requests are welcome. Open an [issue](https://github.com/mo4islona/wick-charts/issues) first for anything larger than a small fix, so we can agree on the approach.
+
+```bash
+pnpm install
+pnpm dev         # docs site with every chart type at http://localhost:5173
+pnpm test        # unit and integration tests
+pnpm lint        # Biome
+pnpm typecheck
+```
+
+A pull request should pass `pnpm test`, `pnpm lint` and `pnpm typecheck`, and add a test for each bug fix.
+
 ## License
 
 MIT
