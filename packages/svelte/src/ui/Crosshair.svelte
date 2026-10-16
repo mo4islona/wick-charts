@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
+import type { ChartInstance, CrosshairPosition, YAxisPosition } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context';
@@ -58,6 +58,30 @@ $: theme = chart && bump >= 0 ? chart.getTheme() : null;
 // React, which recomputes this on every render.
 $: tickInterval = resolveTickInterval(chart, position);
 
+// One value label per named scale's axis column, each read through its own scale.
+// `_bump` re-runs these on `overlayChange`, re-labelling a still crosshair after a formatter or scale change.
+function resolveScaleLabels(
+  c: ChartInstance | null,
+  pos: CrosshairPosition | null,
+  _bump: number,
+): { scale: string; position: YAxisPosition; text: string }[] {
+  if (!c || !pos) return [];
+
+  return c.getYScaleIds().flatMap((scale) => {
+    const column = c.getYScaleColumn(scale);
+    if (column === null) return [];
+
+    const yScale = c.getYScale(scale);
+
+    return [{ scale, position: column.position, text: yScale.formatY(yScale.yToValue(pos.mediaY)) }];
+  });
+}
+
+$: scaleLabels = resolveScaleLabels(chart, position, bump);
+$: defaultLabel = chart && position && bump >= 0 ? chart.yScale.formatY(position.y) : '';
+// A named scale can own the default axis's side when the default axis is hidden.
+$: defaultSideTaken = scaleLabels.some((label) => label.position === chart?.yAxisPosition);
+
 // `zIndex:2` sits above axis ticks (z:0) but below the YLabel badge
 // (z:3), so the live last-value stays visible when the crosshair crosses
 // its row. `color-mix(...80%, transparent)` blends the solid theme color
@@ -69,9 +93,16 @@ $: labelStyle = theme
 
 {#if position && chart && theme}
   <!-- Y label on the value axis -->
-  <div style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
-    {chart.yScale.formatY(position.y)}
-  </div>
+  {#if !defaultSideTaken}
+    <div style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
+      {defaultLabel}
+    </div>
+  {/if}
+  {#each scaleLabels as label (label.scale)}
+    <div style="position:absolute;{label.position}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
+      {label.text}
+    </div>
+  {/each}
   <!-- Time label on bottom axis -->
   <div style="position:absolute;bottom:0;left:{position.mediaX}px;transform:translateX(-50%);{labelStyle}">
     {chart.timeScale.formatX(position.time, tickInterval)}

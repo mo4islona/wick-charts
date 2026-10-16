@@ -31,9 +31,8 @@ export interface NavigatorControllerParams {
  * left handle, right handle. The overlay is purely visual; pointer input is
  * captured on the canvas and hit-tested against the current window geometry.
  *
- * Both layers reserve `chart.yAxisWidth` on the Y-axis side so the
- * navigator's active zone aligns with the main chart's plot area (matches
- * the TimeAxis).
+ * Both layers reserve the main chart's Y-axis columns so the navigator's
+ * active zone aligns with its plot area (matches the TimeAxis).
  *
  * Event topology — navigator is a pure listener on the chart side, never emits:
  *   chart.viewportChange → reposition window DOM on next frame (canvas untouched)
@@ -272,10 +271,11 @@ export class NavigatorController {
   // --- internals ---------------------------------------------------------
 
   /** Effective drawing width — the navigator reserves the main chart's
-   *  `yAxisWidth` on the Y-axis side so its active zone lines up with the
-   *  plot area. */
+   *  Y-axis columns so its active zone lines up with the plot area. */
   get #activeWidth(): number {
-    return Math.max(0, this.#mediaWidth - this.#chart.yAxisWidth);
+    const columns = this.#chart.getAxisColumnWidth('left') + this.#chart.getAxisColumnWidth('right');
+
+    return Math.max(0, this.#mediaWidth - columns);
   }
 
   #handleResize(entry: ResizeObserverEntry | undefined): void {

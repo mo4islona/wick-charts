@@ -91,7 +91,7 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
   const dataInterval = chart.getDataInterval();
   const mediaSize = chart.getMediaSize();
   const chartLeft = chart.plotLeft;
-  const chartWidth = mediaSize.width - chart.yAxisWidth;
+  const chartWidth = chart.getLayout().chartArea.width;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if (children) {

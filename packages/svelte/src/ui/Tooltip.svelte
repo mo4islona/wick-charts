@@ -112,7 +112,7 @@ function measureOnResize(node: HTMLDivElement) {
 $: floatingPos = (() => {
   if (!crosshair || !chart || !mediaSize || snapshots.length === 0) return null;
   const chartLeft = chart.plotLeft;
-  const chartWidth = mediaSize.width - chart.yAxisWidth;
+  const chartWidth = chart.getLayout().chartArea.width;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if ($$slots.default) {
@@ -153,7 +153,7 @@ $: floatingPos = (() => {
     <div
       use:measureOnResize
       data-measured={measuredSize ? 'true' : 'false'}
-      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? mediaSize.width - chart.yAxisWidth : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? chart.getLayout().chartArea.width : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
     >
       <slot {snapshots} time={displayTime} />
     </div>

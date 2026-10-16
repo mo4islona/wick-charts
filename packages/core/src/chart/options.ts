@@ -14,7 +14,7 @@ import type { AnimationsConfig } from '../animation/config';
 import type { PerfConfig } from '../perf/perf-hud';
 import type { PerfMonitor } from '../perf/perf-monitor';
 import type { ChartTheme } from '../theme/types';
-import type { AxisConfig, HorizontalPadding, VisibleRangeSpec } from '../types';
+import type { AxisConfig, HorizontalPadding, VisibleRangeSpec, YAxisConfig } from '../types';
 import { DEFAULT_MAX_VISIBLE_BARS, MIN_VISIBLE_BARS } from './pan-zoom-math';
 
 /** Which data side the user pulled past during a gesture. */
@@ -42,6 +42,16 @@ export interface EdgeReachedInfo {
 export interface ChartOptions {
   theme?: ChartTheme;
   axis?: AxisConfig;
+  /**
+   * Named secondary Y scales, keyed by id — a time series opts in with its
+   * `scale` option. Each one autoscales from its own series and animates
+   * like the default scale; X stays shared. Same fields as `axis.y`, except
+   * `position` defaults to the side opposite the default axis. One axis
+   * column fits on each side: a visible scale whose side is taken renders
+   * as an overlay (no column), as does `visible: false`. Grid lines follow
+   * the default scale. Live — `chart.setScales()` updates it after construction.
+   */
+  scales?: Record<string, YAxisConfig>;
   /**
    * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
    * or data intervals (`{ intervals: 3 }`). Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.

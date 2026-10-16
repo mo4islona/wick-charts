@@ -28,9 +28,11 @@ export interface CandlestickSeriesProps {
   id?: string;
   /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
   visible?: boolean;
+  /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
+  scale?: string;
 }
 
-export function CandlestickSeries({ data, options, id: idProp, visible }: CandlestickSeriesProps) {
+export function CandlestickSeries({ data, options, id: idProp, visible, scale }: CandlestickSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState>(EMPTY_SYNC_STATE);
@@ -46,7 +48,13 @@ export function CandlestickSeries({ data, options, id: idProp, visible }: Candle
   const stableOptions = useStableOptions(options ? { ...options, introAnimation: undefined } : options);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(CandlestickSeriesDef, { ...options, introAnimation, id: idProp, label: layer.label });
+    const id = chart.addSeries(CandlestickSeriesDef, {
+      ...options,
+      scale,
+      introAnimation,
+      id: idProp,
+      label: layer.label,
+    });
     seriesRef.current = id;
     return () => {
       chart.removeSeries(id);
@@ -64,13 +72,16 @@ export function CandlestickSeries({ data, options, id: idProp, visible }: Candle
   }, [chart, data]);
 
   useEffect(() => {
-    if (seriesRef.current && stableOptions) {
-      chart.updateSeriesOptions(seriesRef.current, { ...stableOptions, introAnimation });
-    }
+    const id = seriesRef.current;
+    if (!id) return;
+
+    // `scale` rides the same update, so a stacking change is checked against the new scale.
+    const update = stableOptions ? { ...stableOptions, introAnimation, scale } : { scale };
+    chart.updateSeriesOptions(id, update);
     // `stableOptions` diffs structurally, so a fresh `up.body` tuple ref (e.g.
     // from `autoGradient()`) with the same values no longer re-fires this —
     // no more manual `join(',')` collapse, and no field list to keep in sync.
-  }, [chart, stableOptions, introAnimation]);
+  }, [chart, stableOptions, introAnimation, scale]);
 
   useEffect(() => {
     const id = seriesRef.current;

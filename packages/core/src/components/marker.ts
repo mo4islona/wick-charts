@@ -44,6 +44,8 @@ export interface MarkerConfig {
   label?: string;
   /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
   color?: string;
+  /** Named Y scale (`ChartOptions.scales`) the value maps through. Default: the `seriesId` series' scale, else the default scale. */
+  scale?: string;
 }
 
 /** A marker with its Y value and color already resolved — what {@link renderMarker} draws. */

@@ -19,6 +19,8 @@ export let pulse: boolean | undefined = undefined;
 export let label: string | undefined = undefined;
 /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
 export let color: string | undefined = undefined;
+/** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the `seriesId` series' scale, else the default scale. */
+export let scale: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let markerId: string | null = null;
@@ -27,7 +29,7 @@ onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
 
-  markerId = chart.addMarker({ time, value, seriesId, shape, pulse, label, color });
+  markerId = chart.addMarker({ time, value, seriesId, shape, pulse, label, color, scale });
 });
 
 onDestroy(() => {
@@ -41,7 +43,7 @@ onDestroy(() => {
 $: {
   const chart = $chartStore;
   if (markerId !== null && chart) {
-    chart.updateMarker(markerId, { time, value, seriesId, shape, pulse, label, color });
+    chart.updateMarker(markerId, { time, value, seriesId, shape, pulse, label, color, scale });
   }
 }
 </script>

@@ -325,3 +325,48 @@ describe('ViewportEngine — dynamic sticky contract', () => {
     expect(max).toBeLessThan(100);
   });
 });
+
+describe('ViewportEngine — named Y scales', () => {
+  function setupScales(targets: Record<string, YRange | null>) {
+    const computeYTarget = vi.fn(({ scale }: { xTarget: VisibleRange; scale?: string }): YRange | null => {
+      return targets[scale ?? 'default'] ?? null;
+    });
+    const engine = createViewportEngine({
+      initial: { xRange: { from: 0, to: 1000 }, yRange: { min: 0, max: 100 } },
+      y: { curve: hermite(), settleMs: 250, stickyMs: 1000, stickyFloorMs: 200, gestureMs: 100, toggleMs: 250 },
+      x: { curve: spring<VisibleRange>(), settleMs: 200, gestureMs: 150 },
+      computeXTarget: () => null,
+      computeYTarget,
+    });
+
+    return { engine, computeYTarget };
+  }
+
+  it('asks every scale for its target and snaps a new scale onto its first one', () => {
+    const targets: Record<string, YRange | null> = { default: { min: 0, max: 200 }, rsi: { min: 10, max: 90 } };
+    const { engine, computeYTarget } = setupScales(targets);
+    engine.setYScales(['rsi']);
+
+    engine.onPointAppended(0);
+    expect(computeYTarget).toHaveBeenCalledWith(expect.objectContaining({ scale: 'rsi' }));
+    expect(engine.getScaleYRange('rsi')).toEqual({ min: 10, max: 90 });
+    // The default scale eases as before.
+    expect(engine.getAnimationState().yRange).toEqual({ min: 0, max: 100 });
+
+    targets.rsi = { min: 0, max: 100 };
+    engine.onPointAppended(10);
+    engine.tick(20);
+    expect(engine.getScaleYRange('rsi')?.max).toBeLessThan(100);
+    expect(engine.animating).toBe(true);
+  });
+
+  it('drops the slots of scales no longer listed', () => {
+    const { engine } = setupScales({ rsi: { min: 10, max: 90 } });
+    engine.setYScales(['rsi']);
+    engine.onAxisReconfig(0);
+    expect(engine.getScaleYRange('rsi')).toEqual({ min: 10, max: 90 });
+
+    engine.setYScales([]);
+    expect(engine.getScaleYRange('rsi')).toBeNull();
+  });
+});

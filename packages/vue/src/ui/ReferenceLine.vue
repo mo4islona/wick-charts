@@ -17,6 +17,8 @@ const props = defineProps<{
   style?: ReferenceLineStyle;
   /** Stroke width in CSS pixels. Default: `1`. */
   width?: number;
+  /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale. */
+  scale?: string;
 }>();
 
 const chart = useChartInstance();
@@ -30,6 +32,7 @@ onMounted(() => {
     label: props.label,
     style: props.style,
     width: props.width,
+    scale: props.scale,
   });
 });
 
@@ -39,7 +42,7 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.value, props.time, props.color, props.label, props.style, props.width],
+  () => [props.value, props.time, props.color, props.label, props.style, props.width, props.scale],
   () => {
     if (lineId === null) return;
 
@@ -50,6 +53,7 @@ watch(
       label: props.label,
       style: props.style,
       width: props.width,
+      scale: props.scale,
     });
   },
 );

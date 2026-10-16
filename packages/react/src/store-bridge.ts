@@ -2,7 +2,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 
 import type { ChartInstance, CrosshairPosition, VisibleRange, YAxisPosition, YRange } from '@wick-charts/core';
 
-type ChartEvent = 'crosshairMove' | 'viewportChange' | 'dataUpdate' | 'seriesChange';
+type ChartEvent = 'crosshairMove' | 'viewportChange' | 'dataUpdate' | 'seriesChange' | 'overlayChange';
 
 // `chart.on` is typed per-event (e.g. `crosshairMove` passes `CrosshairPosition`)
 // but the React bridge only needs a generic "something changed" ping. Narrow
@@ -44,14 +44,36 @@ export interface AxisLayout {
   yAxisPosition: YAxisPosition;
   yAxisWidth: number;
   xAxisHeight: number;
+  /** Width of the Y-axis column on each side — the default axis's or a named scale's, `0` for none. */
+  leftAxisWidth: number;
+  rightAxisWidth: number;
+  /** Named scale owning each side's column, `null` for the default axis or none — a swap moves the columns. */
+  leftAxisScale: string | null;
+  rightAxisScale: string | null;
 }
 
 function readAxisLayout(chart: ChartInstance): AxisLayout {
-  return { yAxisPosition: chart.yAxisPosition, yAxisWidth: chart.yAxisWidth, xAxisHeight: chart.xAxisHeight };
+  return {
+    yAxisPosition: chart.yAxisPosition,
+    yAxisWidth: chart.yAxisWidth,
+    xAxisHeight: chart.xAxisHeight,
+    leftAxisWidth: chart.getAxisColumnWidth('left'),
+    rightAxisWidth: chart.getAxisColumnWidth('right'),
+    leftAxisScale: chart.getAxisColumnScale('left'),
+    rightAxisScale: chart.getAxisColumnScale('right'),
+  };
 }
 
 function sameAxisLayout(a: AxisLayout, b: AxisLayout): boolean {
-  return a.yAxisPosition === b.yAxisPosition && a.yAxisWidth === b.yAxisWidth && a.xAxisHeight === b.xAxisHeight;
+  return (
+    a.yAxisPosition === b.yAxisPosition &&
+    a.yAxisWidth === b.yAxisWidth &&
+    a.xAxisHeight === b.xAxisHeight &&
+    a.leftAxisWidth === b.leftAxisWidth &&
+    a.rightAxisWidth === b.rightAxisWidth &&
+    a.leftAxisScale === b.leftAxisScale &&
+    a.rightAxisScale === b.rightAxisScale
+  );
 }
 
 /**
@@ -104,16 +126,17 @@ export function useAxisLayout(chart: ChartInstance | null): AxisLayout | null {
 export function useLastYValue(chart: ChartInstance, seriesId: string): { value: number; isLive: boolean } | null {
   const store = useMemo(() => {
     let snapshot = chart.getLastValue(seriesId);
+    const yScale = () => chart.getYScale(chart.getSeriesScale(seriesId));
     // Remember the pixel Y that corresponds to `snapshot` so we can detect
     // viewport shifts (resize, headerLayout toggle, zoom/pan) where the value
     // is unchanged but the badge needs to move. Computing both prev and next
     // against the current yScale would always compare equal.
-    let lastY = snapshot ? chart.yScale.valueToY(snapshot.value) : null;
+    let lastY = snapshot ? yScale().valueToY(snapshot.value) : null;
     const getSnapshot = () => snapshot;
 
     const refresh = (): boolean => {
       const next = chart.getLastValue(seriesId);
-      const nextY = next ? chart.yScale.valueToY(next.value) : null;
+      const nextY = next ? yScale().valueToY(next.value) : null;
       if (snapshot?.value === next?.value && snapshot?.isLive === next?.isLive && lastY === nextY) {
         return false;
       }
@@ -157,5 +180,11 @@ export function usePreviousClose(chart: ChartInstance, seriesId: string): number
 
 export function useCrosshairPosition(chart: ChartInstance): CrosshairPosition | null {
   const store = useMemo(() => createStore(chart, 'crosshairMove', () => chart.getCrosshairPosition()), [chart]);
+  return useSyncExternalStore(store.subscribe, store.getSnapshot);
+}
+
+/** Re-renders on `overlayChange` — formatter, scale and theme changes that leave the crosshair still. */
+export function useOverlayVersion(chart: ChartInstance): number {
+  const store = useMemo(() => createStore(chart, 'overlayChange', () => chart.getOverlayVersion()), [chart]);
   return useSyncExternalStore(store.subscribe, store.getSnapshot);
 }

@@ -30,13 +30,19 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
    */
   export let seriesId: string | undefined = undefined;
   export let color: string | undefined = undefined;
-  /** Custom formatter; routed through NumberFlow so the digit animation plays. */
+  /** Custom formatter; routed through NumberFlow so the digit animation plays. Default: the scale's `<YAxis format>`, else a range-adaptive number. */
   export let format: ValueFormatter | undefined = undefined;
   /**
    * Badge motion. `true` (default) glides + counts up + fades in with the
    * intro; `false` snaps with no easing; an object tunes individual parts.
    */
   export let animate: YLabelAnimate | undefined = undefined;
+  /**
+   * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
+   * the series' own scale. The badge sits on that scale's axis side — the
+   * default axis side for an overlay scale.
+   */
+  export let scale: string | undefined = undefined;
 
   const chartStore = getChartContext();
 
@@ -147,6 +153,10 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     chart && resolvedId !== null && bump >= 0 ? chart.getStackedLastValue(resolvedId) : (null as null | { value: number; isLive: boolean });
   $: previousClose = chart && resolvedId !== null && bump >= 0 ? chart.getPreviousClose(resolvedId) : null;
   $: theme = chart && bump >= 0 ? chart.getTheme() : null;
+  $: scaleId = scale ?? (chart && resolvedId !== null && bump >= 0 ? chart.getSeriesScale(resolvedId) : undefined);
+  $: yScale = chart && bump >= 0 ? chart.getYScale(scaleId) : null;
+  // An overlay scale has no column; its badge sits on the default axis side.
+  $: side = chart && bump >= 0 ? (chart.getYScaleColumn(scaleId)?.position ?? chart.yAxisPosition) : 'right';
 
   // Position eases (the glide); the digit value steps discretely (once per real
   // point, not per frame) so the roll doesn't churn. Before the first rAF frame
@@ -159,7 +169,7 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 
     return chart.getIntroFront(resolvedId) < 1 ? 0 : 1;
   })();
-  $: y = chart && last !== null ? chart.yScale.valueToY(positionValue) : 0;
+  $: y = yScale && last !== null ? yScale.valueToY(positionValue) : 0;
 
   // Direction / color track the settled last value (not the mid-glide display
   // value) so the accent doesn't flicker while the badge eases into place.
@@ -184,8 +194,8 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
   })();
 
   $: fractionDigits = ((): number => {
-    if (!chart) return 2;
-    const yRange = chart.yScale.getRange();
+    if (!yScale) return 2;
+    const yRange = yScale.getRange();
     const range = yRange.max - yRange.min;
     if (range < 0.1) return 6;
     if (range < 10) return 4;
@@ -203,7 +213,9 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 
     return (v: number) => nf.format(v);
   })();
-  $: effectiveFormat = format ?? intlFallback;
+  // `<YAxis format>` puts its formatter on the scale; the badge follows it.
+  $: scaleFormat = yScale && bump >= 0 ? yScale.getFormat() : null;
+  $: effectiveFormat = format ?? scaleFormat ?? intlFallback;
 </script>
 
 {#if last !== null && chart && theme}
@@ -219,10 +231,10 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     />
   {:else}
     <div
-      style="position:absolute;left:{chart.plotLeft}px;right:{chart.yAxisPosition === 'left' ? 0 : chart.yAxisWidth}px;top:{y}px;height:0;border-top:1px dashed {bgColor};opacity:{opacity * 0.5};pointer-events:none;z-index:2;"
+      style="position:absolute;left:{chart.plotLeft}px;right:{chart.getAxisColumnWidth('right')}px;top:{y}px;height:0;border-top:1px dashed {bgColor};opacity:{opacity * 0.5};pointer-events:none;z-index:2;"
     />
     <div
-      style="position:absolute;{chart.yAxisPosition}:4px;top:{y}px;transform:translateY(-50%);opacity:{opacity};pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.yLabel.fontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
+      style="position:absolute;{side}:4px;top:{y}px;transform:translateY(-50%);opacity:{opacity};pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.yLabel.fontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
     >
       <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} />
     </div>
