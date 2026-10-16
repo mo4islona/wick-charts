@@ -1,5 +1,52 @@
 # Migration guide
 
+## 0.6 → 0.7
+
+Version 0.7 is additive for charts on a time axis — numeric and category X
+axes and named secondary Y scales land without changing how an existing
+chart renders. Three public types gained a field and two behaviors changed;
+ordinary chart code needs no edit.
+
+### Types: `x` on crosshair and click payloads
+
+`CrosshairPosition` and `PointClickInfo` carry a new required `x` — the X in
+the axis domain: epoch ms on a time axis, the number on a numeric axis, the
+category name on a category axis. Code that reads them is unaffected; code
+that builds these objects itself, such as a test mock, adds `x`:
+
+```ts
+// 0.6
+const pos: CrosshairPosition = { mediaX: 10, mediaY: 20, time: t, y: 101 };
+
+// 0.7
+const pos: CrosshairPosition = { mediaX: 10, mediaY: 20, time: t, x: t, y: 101 };
+```
+
+`setCrosshair` still takes `{ time, y? }`.
+
+### Types: series data accepts `x`-keyed points
+
+`MultiLayerData` (line and bar `data`) and `BandData` also accept points keyed
+by `x`: `{ x, value }` and `{ x, low, high }`. Passing data is unaffected.
+Code that reads points back out of a value typed as one of these narrows
+first, for example with `'time' in point`.
+
+`TimePoint` and `BandPoint` gain an optional `x?: number | string`. It
+conflicts only with a type that extends them with an `x` of its own.
+
+### Behavior: multi-layer tooltip rows respect the snap tolerance
+
+A multi-layer series now finds each layer's hovered point the way a
+single-layer series does: a layer with no point within one data interval of
+the crosshair shows no tooltip or info-bar row. In 0.6 it could show a
+neighbor beyond that, which was visible only next to a gap in the data.
+
+### Behavior: `YLabel` follows `<YAxis format>`
+
+A `YLabel` without its own `format` now uses the formatter that
+`<YAxis format>` sets, on the default axis too. Pass `format` to the
+`YLabel` to keep a different one.
+
 ## 0.5 → 0.6
 
 Version 0.6 is almost entirely additive — the heatmap series, intro
