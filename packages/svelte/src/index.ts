@@ -17,6 +17,7 @@ export type {
   BandEntryAnimation,
   BandPoint,
   BandPointInput,
+  BandSampleInput,
   BandSeriesOptions,
   BarElementTransform,
   BarEntryAnimation,
@@ -64,6 +65,7 @@ export type {
   LineIntroValueArgs,
   LinePaintArgs,
   LinePainter,
+  LinePointInput,
   LineSeriesOptions,
   LoadingIndicatorArgs,
   LoadingIndicatorFn,
@@ -135,6 +137,11 @@ export type {
   WaveIntroFrame,
   WaveIntroTransform,
   XAxisConfig,
+  XAxisFormatter,
+  XAxisPadding,
+  XAxisType,
+  XBandPointInput,
+  XPointInput,
   YAxisConfig,
   YAxisPosition,
   YRange,
@@ -253,10 +260,10 @@ export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
 export { default as ReferenceLine } from './ui/ReferenceLine.svelte';
-export { default as TimeAxis, default as XAxis } from './ui/TimeAxis.svelte';
 export { default as TimeRegion } from './ui/TimeRegion.svelte';
 export { default as Title } from './ui/Title.svelte';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.svelte';
+export { default as TimeAxis, default as XAxis } from './ui/XAxis.svelte';
 export { default as YAxis } from './ui/YAxis.svelte';
 export { default as YLabel } from './ui/YLabel.svelte';

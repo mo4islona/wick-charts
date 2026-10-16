@@ -55,6 +55,11 @@ export interface AdvancedLayoutProps {
    */
   mobileChartHeight?: number;
   /**
+   * Desktop height of the sticky chart column, as a CSS length. Defaults to
+   * about half the viewport; a demo that stacks several charts needs more.
+   */
+  chartHeight?: string;
+  /**
    * When `false`, skip the bordered demo card around the chart slot. Use for
    * examples that frame each chart themselves (e.g. multi-chart-sync's three
    * pane cards) where the outer border just doubles up. Default `true`.
@@ -76,7 +81,7 @@ const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberat
  * the viewport — a hero-height chart reads as a wall next to the article;
  * ~half the screen keeps the demo present without dominating.
  */
-const STICKY_CHART_HEIGHT = 'clamp(340px, 52vh, 540px)';
+const STICKY_CHART_HEIGHT = 'clamp(320px, 46vh, 460px)';
 
 /** Walkthrough code blocks render a notch larger than the playground panel's
  * dense 11px default — article code is meant to be read, not skimmed. */
@@ -124,6 +129,7 @@ export function AdvancedLayout({
   docsControls,
   chartControls,
   mobileChartHeight = 380,
+  chartHeight = STICKY_CHART_HEIGHT,
   framedChart = true,
 }: AdvancedLayoutProps) {
   const mobile = useIsMobile();
@@ -230,7 +236,7 @@ export function AdvancedLayout({
     : {
         position: 'sticky',
         top: 8,
-        height: STICKY_CHART_HEIGHT,
+        height: chartHeight,
         display: 'flex',
         flexDirection: 'column',
       };
@@ -309,7 +315,7 @@ export function AdvancedLayout({
         {/* Column divider — sticky alongside the chart so the drag handle stays in view. */}
         {!mobile && (
           <div style={{ order: 2, alignSelf: 'stretch' }}>
-            <div style={{ position: 'sticky', top: 8, height: STICKY_CHART_HEIGHT, display: 'flex' }}>
+            <div style={{ position: 'sticky', top: 8, height: chartHeight, display: 'flex' }}>
               <Splitter theme={theme} onPointerDown={onSplitterDown} ariaLabel="Resize walkthrough column" />
             </div>
           </div>

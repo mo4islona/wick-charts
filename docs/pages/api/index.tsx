@@ -21,7 +21,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/sparkline': 'Sparkline',
   // container & overlays
   'api/chart-container': 'ChartContainer',
-  'api/x-axis': 'TimeAxis',
+  'api/x-axis': 'XAxis',
   'api/y-axis': 'YAxis',
   'api/tooltip': 'Tooltip',
   'api/crosshair': 'Crosshair',

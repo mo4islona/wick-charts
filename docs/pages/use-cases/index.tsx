@@ -10,6 +10,7 @@ import { DataLoadingPage } from './data-loading';
 import { MultiChartSyncPage } from './multi-chart-sync';
 import { RealtimeDataPage } from './realtime-data';
 import { SecondaryScalePage } from './secondary-scale';
+import { XAxisTypesPage } from './x-axis-types';
 
 // TODO(use-cases): realtime-data and multi-chart-sync are wired up. Sibling
 // page files (load-on-scroll.tsx, custom-overlay.tsx) live on disk and stay
@@ -25,6 +26,7 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/annotations': AnnotationsPage,
   'use-cases/data-loading': DataLoadingPage,
   'use-cases/secondary-scale': SecondaryScalePage,
+  'use-cases/x-axis-types': XAxisTypesPage,
 };
 
 export function UseCasesRoutePage({ route, theme }: { route: Route; theme: ChartTheme }) {

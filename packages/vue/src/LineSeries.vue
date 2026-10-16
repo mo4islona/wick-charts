@@ -7,7 +7,10 @@ import { useChartInstance } from './context';
 
 const props = withDefaults(
   defineProps<{
-    /** Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`. */
+    /**
+     * Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`.
+     * On a numeric or category X axis (`axis.x.type`) points carry `x` in place of `time`.
+     */
     data: MultiLayerData;
     options?: Partial<LineSeriesOptions>;
     /** Stable series ID — same value across remounts. */

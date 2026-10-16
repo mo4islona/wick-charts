@@ -12,6 +12,7 @@ import {
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -104,7 +105,7 @@ $: displayTime =
       data-tooltip-legend=""
       style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:4px 8px;flex-shrink:0;font-size:{theme.typography.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;opacity:{isHover ? 1 : 0.6};transition:opacity 0.2s ease;pointer-events:none;"
     >
-      <span style="color:{theme.axis.textColor};margin-right:2px;">{chart.timeScale.formatX(displayTime, dataInterval)}</span>
+      <span style="color:{theme.axis.textColor};margin-right:2px;">{formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}</span>
       {#each snapshots as s (s.id)}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}

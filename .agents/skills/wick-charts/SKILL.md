@@ -111,7 +111,7 @@ Placed as children of `ChartContainer`.
 | `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | `{ items: LegendItem[] }` | Series legend, hoisted below / beside canvas |
 | `Crosshair` | — | — | Axis labels at cursor |
 | `YAxis` | `format?`, `labelCount?`, `minLabelSpacing?`, `scale?` | — | Vertical tick axis — of a named scale with `scale` |
-| `TimeAxis` (alias `XAxis`) | — | — | Horizontal time axis |
+| `XAxis` (alias `TimeAxis`) | `format?: (x, step) => string`, `labelCount?`, `minLabelSpacing?` | — | Horizontal axis of any `axis.x.type`; `format` also drives the crosshair label and tooltip / info-bar headers |
 | `YLabel` | `seriesId?`, `color?`, `format?`, `scale?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
 | `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?`, `scale?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
 | `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?`, `scale?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
@@ -260,6 +260,36 @@ const SCALES = { rsi: { position: 'left', min: 0, max: 100 } }; // stable object
 - `<YAxis scale>` renders that scale's column; its `format` also drives that side's `<Crosshair>` label and the `YLabel` badge on that scale. `YLabel`, `ReferenceLine` and `Marker` take `scale`; `YLabel` defaults to its series' scale and sits on that scale's side. Tooltip rows show each series' own values.
 - Core: `chart.setScales(scales)`, `chart.getYScale(id)`, `chart.getYScaleColumn(id)`, `chart.getSeriesScale(seriesId)`, `chart.getAxisColumnWidth(side)`, `chart.getAxisColumnScale(side)`, `chart.setYAxisFormat({ format, scale })`.
 
+## Numeric and category X axes
+
+`axis.x.type` picks what the X axis maps: `'time'` (default), `'numeric'` or `'category'`. Points then carry `x` in place of `time` — line / bar `{ x, value }`, band `{ x, low, high }` (`XPointInput` / `XBandPointInput`).
+
+```tsx
+// numeric: a curve over plain numbers, irregular spacing is fine
+<ChartContainer axis={{ x: { type: 'numeric' } }}>
+  <LineSeries data={[{ x: 1, value: 120 }, { x: 16, value: 840 }, { x: 64, value: 1020 }]} />
+  <XAxis format={(x) => `${x} conn`} />
+  <YAxis />
+  <Crosshair />
+  <Tooltip />
+</ChartContainer>
+
+// category: one band per name, bars fill their band
+<ChartContainer axis={{ x: { type: 'category', padding: { inner: 0.3, outer: 0.2 } } }}>
+  <BarSeries data={[{ x: 'EU', value: 42 }, { x: 'Asia', value: 35 }]} />
+  <XAxis />
+  <YAxis />
+</ChartContainer>
+```
+
+- `type` is read at construction; a later change is ignored with a dev warning — remount (a React `key`) to switch.
+- **Numeric**: linear mapping, 1-2-5 ticks (`labelCount` / `minLabelSpacing` on `<XAxis>`), locale-number labels, pan / zoom like time. The median point spacing sizes bar slots and the hover snap.
+- **Category**: categories come from the data in first-seen order (series in mount order, points in data order) and follow every data change; a category no series holds disappears. Band `i` is centred on coordinate `i`; `axis.x.padding` = `{ inner, outer }` in fractions of a step (default 0.3 / 0.2). Bars fill the band (`barWidthRatio` is ignored), lines and bands run through band centres, long labels end in an ellipsis, the viewport fits every band.
+- `axis.x.panZoom` (default `true`, `false` on category) turns drag / wheel off; the crosshair still works. Live.
+- `CrosshairPosition.x` / `PointClickInfo.x` hold the domain value (epoch ms / number / category name); `time` is the internal coordinate (the band index on a category axis). Stored points keep their `x`.
+- Line, bar and band work on every type; candlestick is time-only — `addSeries` throws for a series whose definition doesn't list the axis type (`SeriesDefinition.xTypes`, default `['time']`). Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are time-only: disabled with a dev warning.
+- A point whose `x` doesn't fit (a string on numeric, a non-string on category) is skipped with a dev warning.
+
 ## Band series
 
 `<BandSeries>` fills the region between a `low` and a `high` edge over time — percentile bands (p5–p95), min/max envelopes, Bollinger bands, forecast intervals. Unlike a `LineSeries` area, the fill never closes to the plot floor.
@@ -376,7 +406,7 @@ Pass a new `data` array reference when data changes (e.g. via immutable state up
 
 ## Critical rules
 
-- `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`.
+- `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`. On a numeric or category X axis (`axis.x.type`) points carry `x` instead.
 - `TimePoint` is the canonical point shape (used by `LineSeries`, `BarSeries`, `Sparkline`).
 - `LineSeries` / `BarSeries` `data` (`MultiLayerData`) is omnivorous: a flat `TimePointInput[]`, layered `TimePointInput[][]`, a named `{ label, color?, data }` layer, or an array mixing raw and named layers.
 - **There is no `label` or `colors` option on `LineSeries` / `BarSeries`** (candlestick keeps neither `colors` nor `label`) — a layer's name *and* color ride in `data` (`{ label?, color?, data }`). Multi-layer lines/bars auto-name unnamed layers `Series N` (the per-layer name the tooltip *and* legend show — they now agree).

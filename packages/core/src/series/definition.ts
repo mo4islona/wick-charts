@@ -1,5 +1,5 @@
 import type { ChartTheme } from '../theme/types';
-import type { SeriesType } from '../types';
+import type { SeriesType, XAxisType } from '../types';
 import type { SeriesRenderer } from './types';
 
 /** Environment the chart hands a {@link SeriesDefinition} when constructing its renderer. */
@@ -21,6 +21,11 @@ export interface SeriesCreateEnv {
 export interface SeriesDefinition<O = Record<string, unknown>> {
   /** Discriminator for animation defaults and string-form lookup. */
   readonly type: SeriesType;
+  /**
+   * X axis types the series can plot on. Default: `['time']`. Not read for a
+   * spatial series (pie, heatmap), which has no X axis.
+   */
+  readonly xTypes?: readonly XAxisType[];
   /** Construct the renderer. `options` arrives with the chart's animation defaults/overrides already merged. */
   create(env: SeriesCreateEnv, options: Partial<O>): SeriesRenderer;
 }

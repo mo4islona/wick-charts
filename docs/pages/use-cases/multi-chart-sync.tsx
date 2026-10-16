@@ -120,6 +120,7 @@ export function MultiChartSyncPage({ theme }: { theme: ChartTheme }) {
       theme={theme}
       source={source}
       framedChart={false}
+      chartHeight="clamp(340px, 52vh, 540px)"
       lead={
         <>
           Three charts — price, volume, and RSI — sharing one visible time range. Hover any pane and all three show

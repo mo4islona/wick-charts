@@ -1,18 +1,26 @@
 import { useLayoutEffect, useRef } from 'react';
 
-import { mountAxisLabels } from '@wick-charts/core';
+import { type XAxisFormatter, mountAxisLabels } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useAxisLayout, useVisibleRange } from '../store-bridge';
 
-export interface TimeAxisProps {
+export interface XAxisProps {
   /** Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`. */
   labelCount?: number;
   /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
   minLabelSpacing?: number;
+  /**
+   * Custom label formatter. `x` is epoch ms on a time axis, the number on a
+   * numeric axis, the category name on a category axis; `step` is the tick
+   * spacing. Also formats the crosshair label and the tooltip / info-bar
+   * headers. Default: time formatting, a locale number, or the name.
+   */
+  format?: XAxisFormatter;
 }
 
-export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
+/** The X axis labels of any `axis.x.type` — time, numeric or category. */
+export function XAxis({ labelCount, minLabelSpacing, format }: XAxisProps = {}) {
   const chart = useChartInstance();
   // Subscribe so the container re-renders when chart geometry shifts
   // (yAxisWidth / xAxisHeight can change on resize, legend mount, etc.).
@@ -31,6 +39,12 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
       chart.setTimeAxisLabelDensity({ labelCount: null, minLabelSpacing: null });
     };
   }, [chart, labelCount, minLabelSpacing]);
+
+  useLayoutEffect(() => {
+    chart.setXAxisFormat(format ?? null);
+
+    return () => chart.setXAxisFormat(null);
+  }, [chart, format]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -55,3 +69,6 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
     />
   );
 }
+
+/** Alias of {@link XAxis}, kept from when the X axis was time-only. */
+export const TimeAxis = XAxis;

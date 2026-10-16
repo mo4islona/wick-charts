@@ -7,7 +7,7 @@ import type { StackingMode, TimePoint, TimePointInput, ValueColor } from '../typ
 import { resolveColor } from '../utils/color';
 import { normalizeTime, normalizeTimePointArray } from '../utils/time';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
+import type { LayerSnapshot, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 
 /**
  * Shape of the options that {@link BaseMultiLayerSeries} reads directly.
@@ -93,6 +93,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * very frame a new point arrives (a visible 1–2-frame kink at the line head).
    */
   readonly #pinnedChases: Array<{ time: number; anim: ScalarSpring } | null>;
+  /** Per-point eases started by {@link morphData}, keyed by time; pruned on settle. */
+  readonly #morphs: Array<Map<number, ScalarSpring>>;
   /**
    * Per-layer alpha for the visibility cross-fade. `setAlpha` (whole series)
    * fans out across the array; `setLayerAlpha` targets a single index. Render
@@ -121,6 +123,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     this.displayedLastValues = new Array(layerCount).fill(null);
     this.#liveAnimators = new Array(layerCount).fill(null);
     this.#pinnedChases = new Array(layerCount).fill(null);
+    this.#morphs = Array.from({ length: layerCount }, () => new Map<number, ScalarSpring>());
     this.#layerAlphaAnimators = Array.from(
       { length: layerCount },
       () => new Animator<number>({ initial: 1, duration: 0, lerp: scalarLerp }),
@@ -206,12 +209,73 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     this.displayedLastValues[layerIndex] = last ? (last as unknown as { value: number }).value : null;
     this.#liveAnimators[layerIndex] = null;
     this.#pinnedChases[layerIndex] = null;
+    this.#morphs[layerIndex].clear();
     this.entries[layerIndex].clear();
 
     // A bulk replace invalidates any in-flight history reveal — its range
     // refers to the previous dataset's boundary.
     this.historyWave.finish();
     this.historyRange = null;
+  }
+
+  /**
+   * Replace a layer like {@link setData}, but ease each point that keeps its
+   * `time` from the value on screen to its new one over `smoothMs`; a point
+   * with a new `time` plays its entrance.
+   */
+  morphData(data: unknown, layerIndex = 0): void {
+    const store = this.stores[layerIndex];
+    if (!store) return;
+
+    // The first seed plays the intro, as it does through `setData`.
+    const hadData = this.stores.some((s) => s.length > 0);
+    if (!hadData) {
+      this.setData(data, layerIndex);
+
+      return;
+    }
+
+    const shown = new Map<number, number>();
+    for (const point of store.getAll()) {
+      shown.set(point.time, this.liveValue(layerIndex, point.time, point.value));
+    }
+
+    const normalized = normalizeTimePointArray((data ?? []) as TimePointInput[]) as unknown as TData[];
+    store.setData(normalized);
+
+    const smoothMs = this.options.smoothMs;
+    const entryOn = this.isEntryEnabled() && this.options.entryMs > 0;
+    const entries = this.entries[layerIndex];
+    const previous = this.#morphs[layerIndex];
+    const morphs = new Map<number, ScalarSpring>();
+    for (const point of normalized) {
+      const from = shown.get(point.time);
+      if (from === undefined) {
+        if (entryOn) entries.set(point.time, { startTime: performance.now() });
+
+        continue;
+      }
+
+      const target = point.value;
+      const settled = from === target || smoothMs <= 0 || !Number.isFinite(from) || !Number.isFinite(target);
+      if (settled) continue;
+
+      // An ease still in flight keeps its velocity; retargeting it to the same value would restart its clock.
+      const spring = previous.get(point.time) ?? new ScalarSpring(from);
+      if (spring.target !== target) spring.retarget(target, { settleMs: smoothMs });
+      morphs.set(point.time, spring);
+    }
+
+    const kept = new Set(normalized.map((point) => point.time));
+    for (const time of entries.keys()) {
+      if (!kept.has(time)) entries.delete(time);
+    }
+
+    this.#morphs[layerIndex] = morphs;
+    const last = store.last();
+    this.displayedLastValues[layerIndex] = last ? (last as unknown as { value: number }).value : null;
+    this.#liveAnimators[layerIndex] = null;
+    this.#pinnedChases[layerIndex] = null;
   }
 
   appendPoint(point: unknown, layerIndex = 0): void {
@@ -293,7 +357,17 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     if (!store) return;
 
     const p = point as TimePointInput;
+    const lastTime = store.last()?.time;
     store.updateLast({ ...p, time: normalizeTime(p.time) } as unknown as TData);
+
+    // A morph ease on the last point hands over to the live chase, velocity and all.
+    const morphs = this.#morphs[layerIndex];
+    const morph = lastTime === undefined ? undefined : morphs.get(lastTime);
+    if (lastTime !== undefined && morph !== undefined) {
+      morphs.delete(lastTime);
+      this.displayedLastValues[layerIndex] = morph.current;
+      this.#liveAnimators[layerIndex] = morph;
+    }
 
     const target = p.value as number;
     const smoothMs = this.options.smoothMs;
@@ -449,9 +523,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
-   * Substitute the renderer-smoothed last value for `rawValue` when the
-   * query `time` matches the layer's current last point, or the still-settling
-   * pinned chase (see {@link appendPoint}) when it matches the penultimate.
+   * Substitute the renderer-smoothed value for `rawValue`: a {@link morphData}
+   * ease on the point, the smoothed last value when the query `time` matches the
+   * layer's current last point, or the still-settling pinned chase (see
+   * {@link appendPoint}) when it matches the penultimate.
    * Falls back to `rawValue` when the store is empty or no smoothing has
    * happened yet.
    */
@@ -467,6 +542,9 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * method already provides, never the intro's positional transform.
    */
   protected liveValue(layerIndex: number, time: number, rawValue: number): number {
+    const morph = this.#morphs[layerIndex]?.get(time);
+    if (morph !== undefined) return morph.current;
+
     const lastT = this.stores[layerIndex]?.last()?.time;
     if (lastT !== undefined && time === lastT) {
       return this.displayedLastValues[layerIndex] ?? rawValue;
@@ -518,6 +596,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         this.#pinnedChases[li] = null;
       }
 
+      const morphs = this.#morphs[li];
+      for (const [time, spring] of morphs) {
+        if (!spring.tick(now)) morphs.delete(time);
+      }
+
       const entryMs = this.options.entryMs;
       if (entryMs <= 0) {
         this.entries[li].clear();
@@ -544,6 +627,9 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
     for (const pinned of this.#pinnedChases) {
       if (pinned !== null) return true;
+    }
+    for (const morphs of this.#morphs) {
+      if (morphs.size > 0) return true;
     }
     for (const map of this.entries) {
       if (map.size > 0) return true;
@@ -629,33 +715,18 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.stores[0]?.findNearest(time, interval) ?? null;
   }
 
-  getLayerSnapshots(
-    time: number,
-    interval: number,
-  ): { layerIndex: number; time: number; value: number; color: string }[] | null {
+  getLayerSnapshots(time: number, interval: number): LayerSnapshot[] | null {
     if (this.stores.length <= 1) return null;
 
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
+    const results: LayerSnapshot[] = [];
     for (let li = 0; li < this.stores.length; li++) {
       if (!this.stores[li].isVisible()) continue;
 
-      const data = this.stores[li].getVisibleData(time - interval, time + interval);
-      if (data.length === 0) continue;
+      // Same lookup as single-layer `getDataAtTime`: within the tolerance, a tie to the later point.
+      const closest = this.stores[li].findNearest(time, interval);
+      if (closest === null) continue;
 
-      let closest = data[0];
-      let minDist = Math.abs(data[0].time - time);
-      // Midpoint tie → later point wins. Matches `TimeSeriesStore.findNearest`
-      // so single-layer (getDataAtTime) and multi-layer snapshots agree on
-      // the same sample at exactly-between cursor times.
-      for (let i = 1; i < data.length; i++) {
-        const dist = Math.abs(data[i].time - time);
-        if (dist <= minDist) {
-          minDist = dist;
-          closest = data[i];
-        }
-      }
-
-      results.push({
+      const row: LayerSnapshot = {
         layerIndex: li,
         time: closest.time,
         // Routes through the same live/pinned-chase smoothing the renderer
@@ -665,7 +736,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         // Resolve the layer's color at the hovered datum's value so a value-fn
         // colors the tooltip dot to match the bar / segment under the cursor.
         color: this.resolveLayerColor(li, closest.value),
-      });
+      };
+      if (closest.x !== undefined) row.x = closest.x;
+
+      results.push(row);
     }
 
     return results.length > 0 ? results : null;
@@ -766,22 +840,25 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
   }
 
-  getLayerLastSnapshots(): { layerIndex: number; time: number; value: number; color: string }[] | null {
+  getLayerLastSnapshots(): LayerSnapshot[] | null {
     if (this.stores.length <= 1) return null;
 
-    const results: { layerIndex: number; time: number; value: number; color: string }[] = [];
+    const results: LayerSnapshot[] = [];
     for (let li = 0; li < this.stores.length; li++) {
       if (!this.stores[li].isVisible()) continue;
 
       const last = this.stores[li].last();
       if (!last) continue;
 
-      results.push({
+      const row: LayerSnapshot = {
         layerIndex: li,
         time: last.time,
         value: this.snapshotValue(li, last.time, last.value),
         color: this.resolveLayerColor(li, last.value),
-      });
+      };
+      if (last.x !== undefined) row.x = last.x;
+
+      results.push(row);
     }
 
     return results.length > 0 ? results : null;

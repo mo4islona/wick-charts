@@ -207,6 +207,8 @@ class BandLayer {
    * new point lands.
    */
   pinned: { time: number; chase: EdgeChase } | null = null;
+  /** Per-point eases started by `morphData`, keyed by point time; pruned on settle. */
+  morphs = new Map<number, EdgeChase>();
 }
 
 /**
@@ -269,11 +271,73 @@ export class BandRenderer implements TimeSeriesRenderer {
     layer.displayedLast = last ? edgesOf(last) : null;
     layer.chase = null;
     layer.pinned = null;
+    layer.morphs.clear();
     layer.entries.clear();
 
     // The reveal's range refers to the previous dataset's boundary.
     this.#historyWave.finish();
     this.#historyRange = null;
+  }
+
+  /**
+   * Replace a layer like {@link setData}, but ease each sample that keeps its
+   * `time` from the edges on screen to its new ones over `smoothMs`; a sample
+   * with a new `time` plays its entrance.
+   */
+  morphData(data: unknown, layerIndex = 0): void {
+    const layer = this.#layers[layerIndex];
+    if (!layer) return;
+
+    // The first seed plays the intro, as it does through `setData`.
+    const hadData = this.#layers.some((l) => l.store.length > 0);
+    if (!hadData) {
+      this.setData(data, layerIndex);
+
+      return;
+    }
+
+    const shown = new Map<number, Edges>();
+    for (const point of layer.store.getAll()) {
+      shown.set(point.time, this.#liveEdges(layer, point));
+    }
+
+    const points = ((data ?? []) as BandPointInput[]).map(toBandPoint);
+    layer.store.setData(points);
+
+    const smoothMs = this.#options.smoothMs;
+    const entryOn = this.#options.entryAnimation !== 'none' && this.#options.entryMs > 0;
+    const morphs = new Map<number, EdgeChase>();
+    for (const point of points) {
+      const from = shown.get(point.time);
+      if (from === undefined) {
+        if (entryOn) layer.entries.set(point.time, performance.now());
+
+        continue;
+      }
+
+      const unchanged = from.low === point.low && from.high === point.high;
+      if (unchanged || smoothMs <= 0 || isGap(point) || !Number.isFinite(from.low)) continue;
+
+      // An ease still in flight keeps its velocity; retargeting it to the same edges would restart its clock.
+      const chase = layer.morphs.get(point.time) ?? {
+        low: new ScalarSpring(from.low),
+        high: new ScalarSpring(from.high),
+      };
+      if (chase.low.target !== point.low) chase.low.retarget(point.low, { settleMs: smoothMs });
+      if (chase.high.target !== point.high) chase.high.retarget(point.high, { settleMs: smoothMs });
+      morphs.set(point.time, chase);
+    }
+
+    const kept = new Set(points.map((point) => point.time));
+    for (const time of layer.entries.keys()) {
+      if (!kept.has(time)) layer.entries.delete(time);
+    }
+
+    layer.morphs = morphs;
+    const last = layer.store.last();
+    layer.displayedLast = last ? edgesOf(last) : null;
+    layer.chase = null;
+    layer.pinned = null;
   }
 
   appendPoint(point: unknown, layerIndex = 0): void {
@@ -334,7 +398,16 @@ export class BandRenderer implements TimeSeriesRenderer {
     if (!layer) return;
 
     const next = toBandPoint(point as BandPointInput);
+    const lastTime = layer.store.last()?.time;
     layer.store.updateLast(next);
+
+    // A morph ease on the last sample hands over to the live chase, velocity and all.
+    const morph = lastTime === undefined ? undefined : layer.morphs.get(lastTime);
+    if (lastTime !== undefined && morph !== undefined) {
+      layer.morphs.delete(lastTime);
+      layer.displayedLast = { low: morph.low.current, high: morph.high.current };
+      layer.chase = morph;
+    }
 
     const smoothMs = this.#options.smoothMs;
     if (smoothMs <= 0 || isGap(next)) {
@@ -427,6 +500,12 @@ export class BandRenderer implements TimeSeriesRenderer {
       const highMoving = pinned.chase.high.tick(now);
       if (!lowMoving && !highMoving) layer.pinned = null;
     }
+
+    for (const [time, morph] of layer.morphs) {
+      const lowMoving = morph.low.tick(now);
+      const highMoving = morph.high.tick(now);
+      if (!lowMoving && !highMoving) layer.morphs.delete(time);
+    }
   }
 
   #pruneEntries(layer: BandLayer, now: number): void {
@@ -468,7 +547,8 @@ export class BandRenderer implements TimeSeriesRenderer {
     if (this.#introWave.active || this.#historyWave.active) return true;
 
     for (const layer of this.#layers) {
-      const busy = layer.alpha.animating || layer.chase !== null || layer.pinned !== null || layer.entries.size > 0;
+      const chasing = layer.chase !== null || layer.pinned !== null || layer.morphs.size > 0;
+      const busy = layer.alpha.animating || chasing || layer.entries.size > 0;
       if (busy) return true;
     }
 
@@ -510,8 +590,11 @@ export class BandRenderer implements TimeSeriesRenderer {
 
   // --- Geometry -------------------------------------------------------------
 
-  /** Stored edges with the live chase applied: the last point, or the pinned chase on the point an append displaced. */
+  /** Stored edges with the live chase applied: a morph ease, the last point, or the pinned chase on the point an append displaced. */
   #liveEdges(layer: BandLayer, point: BandPoint): Edges {
+    const morph = layer.morphs.get(point.time);
+    if (morph !== undefined) return { low: morph.low.current, high: morph.high.current };
+
     const last = layer.store.last();
     if (last !== undefined && point.time === last.time) return layer.displayedLast ?? edgesOf(point);
 
@@ -1108,14 +1191,17 @@ export class BandRenderer implements TimeSeriesRenderer {
       const snapshot = point === null ? null : this.#snapshot(layer, point);
       if (snapshot === null) continue;
 
-      results.push({
+      const row: LayerSnapshot = {
         layerIndex: li,
         time: snapshot.time,
         value: (snapshot.low + snapshot.high) / 2,
         color: this.#layerColor(li),
         low: snapshot.low,
         high: snapshot.high,
-      });
+      };
+      if (snapshot.x !== undefined) row.x = snapshot.x;
+
+      results.push(row);
     }
 
     return results.length > 0 ? results : null;
@@ -1233,6 +1319,7 @@ function fadeSeam(runs: readonly BandVertex[][]): number | null {
 /** Series definition for `chart.addSeries` — keeps the chart renderer-agnostic. */
 export const BandSeriesDef: SeriesDefinition<BandSeriesOptions> = {
   type: 'band',
+  xTypes: ['time', 'numeric', 'category'],
   create: ({ theme, layerCount }, options) =>
     new BandRenderer(layerCount, { colors: themeColors(theme, layerCount), ...options }),
 };

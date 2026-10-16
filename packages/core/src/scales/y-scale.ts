@@ -12,7 +12,7 @@ export type ValueTickGenerator = (range: YRange) => number[];
  * Falls back to `1` for non-positive input so a degenerate call can't
  * produce Infinity/NaN.
  */
-function pickNiceCeiling(minSpacing: number): number {
+export function pickNiceCeiling(minSpacing: number): number {
   if (!Number.isFinite(minSpacing) || minSpacing <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(minSpacing));
   const normalized = minSpacing / magnitude; // in [1, 10)
@@ -22,7 +22,7 @@ function pickNiceCeiling(minSpacing: number): number {
 }
 
 /** Largest {1,2,5}×10^k tick interval that is <= `value`. Counterpart to pickNiceCeiling. */
-function pickNiceFloor(value: number): number {
+export function pickNiceFloor(value: number): number {
   if (!Number.isFinite(value) || value <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(value));
   const normalized = value / magnitude; // in [1, 10)

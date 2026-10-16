@@ -91,6 +91,8 @@ export interface LayerSnapshot {
   color: string;
   low?: number;
   high?: number;
+  /** The sample's own X on a numeric or category axis. */
+  x?: number | string;
 }
 
 /**
@@ -124,6 +126,13 @@ export interface BaseSeriesRenderer {
    * selects which internal store to target; defaults to 0.
    */
   setData(data: unknown, layerIndex?: number): void;
+
+  /**
+   * Replace the data like {@link setData}, but ease each point that keeps its
+   * `time` from the value on screen to its new one; a point with a new `time`
+   * plays its entrance. Optional — the chart falls back to {@link setData}.
+   */
+  morphData?(data: unknown, layerIndex?: number): void;
 
   /** Append a single point (real-time tick). Optional — not all renderers support streaming. */
   appendPoint?(point: unknown, layerIndex?: number): void;

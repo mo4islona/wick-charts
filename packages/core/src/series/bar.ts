@@ -412,15 +412,17 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     if (introClip !== undefined) scope.context.restore();
   }
 
-  /** Stacking off — each layer drawn independently from zero, overlapping */
-  private renderOff(ctx: SeriesRenderContext): void {
-    const { scope, timeScale, yScale, dataInterval } = ctx;
-    const { context, horizontalPixelRatio } = scope;
-    const range = timeScale.getRange();
+  /**
+   * Bar body width in bitmap px. On a category axis a bar fills its band;
+   * elsewhere it takes `barWidthRatio` of the slot, capped only when the
+   * visible range is sparse (≤ 2 points on the most-populated layer) — dense
+   * zooms must keep wide bars. See the matching comment in candlestick.ts.
+   */
+  #bodyWidth(ctx: SeriesRenderContext): number {
+    const { scope, timeScale, dataInterval } = ctx;
+    if (timeScale.getType() === 'category') return timeScale.bandWidthBitmap();
 
-    // Bar slot width — only cap when the visible range is sparse (≤ 2
-    // points on the most-populated layer). Dense zooms must keep wide bars.
-    // See the matching comment in candlestick.ts.
+    const range = timeScale.getRange();
     let maxVisibleCount = 0;
     for (const store of this.stores) {
       if (!store.isVisible()) continue;
@@ -428,10 +430,21 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (count > maxVisibleCount) maxVisibleCount = count;
       if (maxVisibleCount > 2) break;
     }
+
     const naturalBarWidth = timeScale.barWidthBitmap(dataInterval);
-    const sparseCap = Math.round(30 * horizontalPixelRatio);
+    const sparseCap = Math.round(30 * scope.horizontalPixelRatio);
     const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
-    const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
+
+    return Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
+  }
+
+  /** Stacking off — each layer drawn independently from zero, overlapping */
+  private renderOff(ctx: SeriesRenderContext): void {
+    const { scope, timeScale, yScale } = ctx;
+    const { context } = scope;
+    const range = timeScale.getRange();
+
+    const bodyWidth = this.#bodyWidth(ctx);
     const halfBody = Math.floor(bodyWidth / 2);
     // anchor='right' draws the body so its right edge sits on the time tick,
     // letting the rightmost bar fit on canvas with padding.right = 0.
@@ -605,22 +618,11 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /** Stacked (normal or percent) rendering */
   private renderStacked(ctx: SeriesRenderContext, percent: boolean): void {
-    const { scope, timeScale, yScale, dataInterval } = ctx;
-    const { context, horizontalPixelRatio } = scope;
+    const { scope, timeScale, yScale } = ctx;
+    const { context } = scope;
     const range = timeScale.getRange();
 
-    // Bar slot width — sparse-only cap, see renderOff above.
-    let maxVisibleCount = 0;
-    for (const store of this.stores) {
-      if (!store.isVisible()) continue;
-      const count = store.getVisibleData(range.from, range.to).length;
-      if (count > maxVisibleCount) maxVisibleCount = count;
-      if (maxVisibleCount > 2) break;
-    }
-    const naturalBarWidth = timeScale.barWidthBitmap(dataInterval);
-    const sparseCap = Math.round(30 * horizontalPixelRatio);
-    const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
-    const bodyWidth = Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
+    const bodyWidth = this.#bodyWidth(ctx);
     const halfBody = Math.floor(bodyWidth / 2);
     // anchor='right' draws the body so its right edge sits on the time tick,
     // letting the rightmost bar fit on canvas with padding.right = 0.
@@ -956,6 +958,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
  *  so hosts that never render bars don't bundle this module. */
 export const BarSeriesDef: SeriesDefinition<BarSeriesOptions> = {
   type: 'bar',
+  xTypes: ['time', 'numeric', 'category'],
   create: ({ theme, layerCount }, options) => {
     // Single-layer bars default to the theme's sign value-fn (green-up /
     // red-down); multi-layer bars to the palette.

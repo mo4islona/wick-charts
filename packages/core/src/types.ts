@@ -25,14 +25,29 @@ export interface OHLCData {
 /** {@link OHLCData} that also accepts `Date` for the time field. */
 export type OHLCInput = Omit<OHLCData, 'time'> & { time: TimeValue };
 
-/** A single time-value data point for line and bar series. Time is a timestamp in milliseconds. */
+/**
+ * A single time-value data point for line and bar series. Time is a timestamp in milliseconds.
+ * On a numeric or category X axis `time` is the internal X coordinate (the number, or the
+ * category's index) and `x` is the point's own X.
+ */
 export interface TimePoint {
   time: number;
   value: number;
+  /** The point's X on a numeric or category axis, as passed in. */
+  x?: number | string;
 }
 
 /** {@link TimePoint} that also accepts `Date` for the time field. */
-export type TimePointInput = Omit<TimePoint, 'time'> & { time: TimeValue };
+export type TimePointInput = Omit<TimePoint, 'time' | 'x'> & { time: TimeValue };
+
+/**
+ * A line / bar point on a numeric or category X axis (`axis.x.type`): `x` is a
+ * number on a numeric axis and a category name on a category axis.
+ */
+export interface XPointInput {
+  x: number | string;
+  value: number;
+}
 
 /**
  * A single band sample: the filled region between `low` and `high` at `time`.
@@ -43,10 +58,19 @@ export interface BandPoint {
   time: number;
   low: number;
   high: number;
+  /** The sample's X on a numeric or category axis, as passed in; `time` is then the internal X coordinate. */
+  x?: number | string;
 }
 
 /** {@link BandPoint} that also accepts `Date` for the time field. */
-export type BandPointInput = Omit<BandPoint, 'time'> & { time: TimeValue };
+export type BandPointInput = Omit<BandPoint, 'time' | 'x'> & { time: TimeValue };
+
+/** A band sample on a numeric or category X axis — {@link XPointInput} with edges in place of a value. */
+export interface XBandPointInput {
+  x: number | string;
+  low: number;
+  high: number;
+}
 
 /**
  * A color, or a function of a datum's value → color. The function form is
@@ -72,6 +96,9 @@ export interface SeriesLayer<T> {
   data: T[];
 }
 
+/** A line / bar input point: keyed by `time` on a time axis, by `x` on a numeric or category axis. */
+export type LinePointInput = TimePointInput | XPointInput;
+
 /**
  * Omnivorous `data` shape for line and bar series. Accepts, interchangeably:
  * - `TimePointInput[]` — one auto-named layer (the common single-series case);
@@ -80,12 +107,13 @@ export interface SeriesLayer<T> {
  * - an array mixing raw `TimePointInput[]` layers and named `SeriesLayer`s.
  *
  * Everything normalizes to `SeriesLayer[]` internally (see `toLayers`). Time
- * accepts epoch milliseconds or a `Date` on every point.
+ * accepts epoch milliseconds or a `Date` on every point. On a numeric or
+ * category X axis the points are {@link XPointInput}s instead.
  */
 export type MultiLayerData =
-  | TimePointInput[]
-  | SeriesLayer<TimePointInput>
-  | Array<TimePointInput[] | SeriesLayer<TimePointInput>>;
+  | LinePointInput[]
+  | SeriesLayer<LinePointInput>
+  | Array<LinePointInput[] | SeriesLayer<LinePointInput>>;
 
 /**
  * `data` shape for a candlestick series — a flat `OHLCInput[]` stream, or a
@@ -93,15 +121,19 @@ export type MultiLayerData =
  */
 export type CandlestickData = OHLCInput[] | SeriesLayer<OHLCInput>;
 
+/** A band input sample: keyed by `time` on a time axis, by `x` on a numeric or category axis. */
+export type BandSampleInput = BandPointInput | XBandPointInput;
+
 /**
  * `data` shape for a band series — the same omnivorous forms as
  * {@link MultiLayerData}, one band per layer: a flat `BandPointInput[]`, a
  * layered `BandPointInput[][]`, a named `SeriesLayer`, or an array mixing both.
+ * On a numeric or category X axis the samples are {@link XBandPointInput}s.
  */
 export type BandData =
-  | BandPointInput[]
-  | SeriesLayer<BandPointInput>
-  | Array<BandPointInput[] | SeriesLayer<BandPointInput>>;
+  | BandSampleInput[]
+  | SeriesLayer<BandSampleInput>
+  | Array<BandSampleInput[] | SeriesLayer<BandSampleInput>>;
 
 /** Time range (timestamps in milliseconds) of the currently visible portion of the chart. */
 export interface XRange {
@@ -170,8 +202,13 @@ export interface CrosshairPosition {
   mediaX: number;
   /** Y position in CSS pixels relative to the chart container. */
   mediaY: number;
-  /** Snapped time value (timestamp in milliseconds) under the crosshair. */
+  /**
+   * Internal X coordinate under the crosshair — the timestamp in milliseconds
+   * on a time axis, the number on a numeric axis, the band index on a category axis.
+   */
   time: number;
+  /** X in the axis domain: epoch ms on a time axis, the number on a numeric axis, the category name on a category axis. */
+  x: number | string;
   /** Y (value) under the crosshair. */
   y: number;
 }
@@ -652,7 +689,10 @@ export type BarEntryAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'
 
 /** Visual options for a bar series. */
 export interface BarSeriesOptions {
-  /** Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot. Default: 0.7. */
+  /**
+   * Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot.
+   * Applies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.7.
+   */
   barWidthRatio: number;
   /** Stacking mode. Default: 'off'. */
   stacking: StackingMode;
@@ -1148,8 +1188,40 @@ export interface YAxisConfig {
   visible?: boolean;
 }
 
-/** Configuration for the X (time) axis. */
+/**
+ * What the X axis maps:
+ * - `'time'` — epoch-ms timestamps, points keyed by `time` (default);
+ * - `'numeric'` — plain numbers, points keyed by `x: number`, linear spacing;
+ * - `'category'` — names, points keyed by `x: string`, one band per category in
+ *   first-seen order across the series.
+ */
+export type XAxisType = 'time' | 'numeric' | 'category';
+
+/** Band spacing on a category axis, in fractions of one category step. */
+export interface XAxisPadding {
+  /** Gap between adjacent bands. Default: `0.3`. */
+  inner?: number;
+  /** Space before the first band and after the last one. Default: `0.2`. */
+  outer?: number;
+}
+
+/** Configuration for the X axis. */
 export interface XAxisConfig {
+  /**
+   * What the axis maps. Default: `'time'`. Read once at construction — a later
+   * change is ignored with a dev warning; remount the chart (a React `key`) to
+   * switch. Line, bar and band series work on every type, candlestick on
+   * `'time'` only. Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are
+   * time-only.
+   */
+  type?: XAxisType;
+  /** Band spacing on a category axis. Ignored on other types. Live. */
+  padding?: XAxisPadding;
+  /**
+   * Whether drag and wheel move the X range. The crosshair works either way.
+   * Default: `true`, or `false` on a category axis. Live.
+   */
+  panZoom?: boolean;
   /** Height in CSS pixels. Default: 30, or 0 when every series is spatial (pie, heatmap). */
   height?: number;
   /** Whether the axis is visible. Default: true. When false, height is treated as 0. */
@@ -1160,6 +1232,6 @@ export interface XAxisConfig {
 export interface AxisConfig {
   /** Y-axis configuration — width, bounds, and visibility of the value axis. */
   y?: YAxisConfig;
-  /** X-axis configuration — height and visibility of the time axis. */
+  /** X-axis configuration — type, height and visibility of the X axis. */
   x?: XAxisConfig;
 }

@@ -20,8 +20,8 @@ export const INTROS: Record<string, string> = {
   // subcomponents
   ChartContainer:
     'The root component every chart starts with. Provides theme, axis configuration, padding, and the canvas; collects series and overlays from its children. Use `viewport={{ maxVisibleBars, initialRange }}` to size the streaming window and apply an initial zoom *before* the first paint (same shape as the imperative `chart.setVisibleRange`).',
-  TimeAxis:
-    'Renders tick marks and labels along the time axis. Density adapts to viewport width and is bounded by the `labelCount` and `minLabelSpacing` props (which override the chart-level defaults).',
+  XAxis:
+    "Renders tick marks and labels along the X axis — time by default, or numbers / category names with `axis={{ x: { type: 'numeric' | 'category' } }}` on `<ChartContainer>`. Density adapts to viewport width and is bounded by the `labelCount` and `minLabelSpacing` props (which override the chart-level defaults); `format` customises the label, the crosshair label and the tooltip header.",
   YAxis:
     "Renders ticks and labels in the value-axis column — on the right by default, or on the left with `axis={{ y: { position: 'left' } }}` on `<ChartContainer>`. The 1-2-5 “nice number” snap keeps tick values readable at any zoom; pass `format` to customise the label string.",
   Tooltip:

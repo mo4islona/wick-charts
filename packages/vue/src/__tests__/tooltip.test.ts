@@ -154,7 +154,7 @@ describe('Vue <Tooltip>', () => {
     const chart = captured.chart;
     if (!chart) throw new Error('chart not captured');
 
-    forceCrosshair(chart, { time: 2, mediaX: 400, mediaY: 200, y: 12 });
+    forceCrosshair(chart, { time: 2, x: 2, mediaX: 400, mediaY: 200, y: 12 });
     await settle();
 
     // The default-slot template renders Open/High/Low/Close labels for OHLC data.
@@ -184,7 +184,7 @@ describe('Vue <Tooltip>', () => {
     const chart = captured.chart;
     if (!chart) throw new Error('chart not captured');
 
-    forceCrosshair(chart, { time: 5, mediaX: 400, mediaY: 200, y: 50 });
+    forceCrosshair(chart, { time: 5, x: 5, mediaX: 400, mediaY: 200, y: 50 });
     await settle();
 
     // Line layout doesn't print OHLC labels.
@@ -210,7 +210,7 @@ describe('Vue <Tooltip>', () => {
     const chart = captured.chart;
     if (!chart) throw new Error('chart not captured');
 
-    forceCrosshair(chart, { time: 2, mediaX: 400, mediaY: 200, y: 15 });
+    forceCrosshair(chart, { time: 2, x: 2, mediaX: 400, mediaY: 200, y: 15 });
     await settle();
 
     const text = host.textContent ?? '';
@@ -254,7 +254,7 @@ describe('Vue <Tooltip>', () => {
     const chart = captured.chart;
     if (!chart) throw new Error('chart not captured');
 
-    forceCrosshair(chart, { time: 3, mediaX: 200, mediaY: 100, y: 20 });
+    forceCrosshair(chart, { time: 3, x: 3, mediaX: 200, mediaY: 100, y: 20 });
     await settle();
 
     expect(slotCalls).toBeGreaterThan(0);
@@ -281,7 +281,7 @@ describe('Vue <Tooltip>', () => {
     const chart = captured.chart;
     if (!chart) throw new Error('chart not captured');
 
-    forceCrosshair(chart, { time: 5, mediaX: 400, mediaY: 200, y: 50 });
+    forceCrosshair(chart, { time: 5, x: 5, mediaX: 400, mediaY: 200, y: 50 });
     await settle();
     const tooltipDivCount = host.querySelectorAll('div[style*="position: absolute"]').length;
     expect(tooltipDivCount).toBeGreaterThan(0);
@@ -315,7 +315,7 @@ describe('Vue <Tooltip>', () => {
 
     // Far-right cursor → computeTooltipPosition should clamp `left` so the
     // tooltip never extends past the chart's right edge.
-    forceCrosshair(chart, { time: 9, mediaX: 790, mediaY: 200, y: 90 });
+    forceCrosshair(chart, { time: 9, x: 9, mediaX: 790, mediaY: 200, y: 90 });
     await settle();
 
     // Locate one of the tooltip's outer absolute divs by its position styling.

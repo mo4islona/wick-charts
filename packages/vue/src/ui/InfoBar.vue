@@ -9,6 +9,7 @@ import {
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -144,7 +145,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
       <slot v-if="hasCustomSlot" :snapshots="snapshots" :time="displayTime" :is-hover="isHover" />
       <template v-else>
         <span :style="{ color: theme.axis.textColor, marginRight: '2px' }">
-          {{ chart.timeScale.formatX(displayTime, dataInterval) }}
+          {{ formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
         </span>
         <template v-for="s in snapshots" :key="s.id">
           <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">

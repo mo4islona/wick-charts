@@ -41,7 +41,9 @@ export function Navigator({ data, height, style, className }: NavigatorProps) {
   const controllerRef = useRef<NavigatorController | null>(null);
 
   useLayoutEffect(() => {
+    if (!chart.checkTimeOnlyFeature('Navigator')) return;
     if (!containerRef.current) return;
+
     const controller = new NavigatorController({
       container: containerRef.current,
       chart,
@@ -67,6 +69,7 @@ export function Navigator({ data, height, style, className }: NavigatorProps) {
   }, [height]);
 
   const resolvedHeight = height ?? theme.navigator.height;
+  if (chart.timeScale.getType() !== 'time') return null;
 
   return (
     <div

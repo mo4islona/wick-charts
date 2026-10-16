@@ -83,6 +83,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Render chart types the library doesn’t ship by combining a data transform with a custom painter. A worked Renko example built on the candlePainter escape hatch in Wick Charts.',
   },
+  'use-cases/x-axis-types': {
+    title: 'Numeric & Category X Axes — Wick Charts',
+    description:
+      'Plot and stream line, bar and band series over plain numbers or named categories instead of time — a load-test curve, users by region, a live elevation profile and a live poll. React, Vue and Svelte.',
+  },
   'use-cases/secondary-scale': {
     title: 'Secondary Y Scale — Wick Charts',
     description:
@@ -120,7 +125,7 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
   'api/title': 'Chart title bar with optional subtitle, hoisted above the canvas.',
   'api/tooltip':
     'Floating tooltip near the cursor with per-series value snapshots, sorting, formatting and a custom render slot.',
-  'api/x-axis': 'Horizontal time axis with automatic tick density and label formatting.',
+  'api/x-axis': 'Horizontal axis for time, numeric or category X with automatic tick density and label formatting.',
   'api/y-axis': 'Vertical value axis with auto, fixed, percent-padded or computed bounds and tick formatting.',
   'api/y-label': 'Floating last-price badge with a dashed line pinned to the Y axis, tracking live updates per series.',
   'hooks/use-chart-instance':

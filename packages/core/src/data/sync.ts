@@ -1,10 +1,26 @@
 import type { ChartInstance } from '../chart';
-import type { BandData, BandPointInput, MultiLayerData, OHLCInput, SeriesLayer, TimePointInput } from '../types';
+import type {
+  BandData,
+  BandPointInput,
+  MultiLayerData,
+  OHLCInput,
+  SeriesLayer,
+  TimePointInput,
+  XBandPointInput,
+  XPointInput,
+} from '../types';
 
 /** Any input point a series layer accepts. */
-type InputPoint = OHLCInput | TimePointInput | BandPointInput;
+type InputPoint = OHLCInput | TimePointInput | BandPointInput | XPointInput | XBandPointInput;
 
 import { normalizeTime } from '../utils/time';
+
+/** A point's X key — `x` on a numeric / category axis, the normalized `time` otherwise. */
+function keyOf(point: InputPoint): number | string {
+  if ('x' in point) return point.x;
+
+  return normalizeTime(point.time);
+}
 
 /**
  * Per-layer bookkeeping for {@link syncSeriesLayer}. The caller persists one
@@ -15,10 +31,10 @@ import { normalizeTime } from '../utils/time';
 export interface SeriesSyncState {
   /** Point count at the previous sync. */
   len: number;
-  /** Normalized timestamp of the first point, or `null` before any data. */
-  firstTime: number | null;
-  /** Normalized timestamp of the last point, or `null` before any data. */
-  lastTime: number | null;
+  /** X key (normalized timestamp, or `x`) of the first point, or `null` before any data. */
+  firstTime: number | string | null;
+  /** X key (normalized timestamp, or `x`) of the last point, or `null` before any data. */
+  lastTime: number | string | null;
   /**
    * The previous sync's point array, retained (not copied) only so a
    * same-length, same-boundary-timestamp update can prove the middle didn't
@@ -40,9 +56,9 @@ export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, last
  */
 const BULK_THRESHOLD = 20;
 
-/** Field-wise equality for one data point — every key except `time` compares by strict equality; `time` normalizes first so a `Date` and its equivalent ms number still match. */
+/** Field-wise equality for one data point — every key except `time` compares by strict equality; the X key normalizes first so a `Date` and its equivalent ms number still match. */
 function pointEquals<T extends InputPoint>(a: T, b: T): boolean {
-  if (normalizeTime(a.time) !== normalizeTime(b.time)) return false;
+  if (keyOf(a) !== keyOf(b)) return false;
 
   const aKeys = Object.keys(a) as (keyof T)[];
   const bKeys = Object.keys(b) as (keyof T)[];
@@ -104,9 +120,9 @@ function isFrontPrepend<T extends InputPoint>(
   if (!prevData || prevData.length === 0 || added <= 0 || prevData.length !== data.length - added) return false;
 
   for (let i = 1; i < added; i++) {
-    if (normalizeTime(data[i - 1].time) >= normalizeTime(data[i].time)) return false;
+    if (keyOf(data[i - 1]) >= keyOf(data[i])) return false;
   }
-  if (normalizeTime(data[added - 1].time) >= normalizeTime(prevData[0].time)) return false;
+  if (keyOf(data[added - 1]) >= keyOf(prevData[0])) return false;
 
   for (let i = 0; i < prevData.length; i++) {
     if (!pointEquals(prevData[i] as T, data[added + i])) return false;
@@ -179,7 +195,7 @@ export interface SyncLayersArgs {
  */
 export function syncLayers(args: SyncLayersArgs): SeriesSyncState[] {
   const { chart, id } = args;
-  const layers = toLayers<TimePointInput | BandPointInput>(args.data);
+  const layers = toLayers<TimePointInput | BandPointInput | XPointInput | XBandPointInput>(args.data);
 
   // Labels: auto-name only when there's more than one layer to disambiguate.
   const labels = layers.length > 1 ? layers.map((l, i) => l.label ?? `Series ${i + 1}`) : [layers[0].label];
@@ -258,8 +274,22 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
   // jump per host re-render during streaming.
   if (prev.data === data && prev.len === data.length) return prev;
 
-  const firstTime = normalizeTime(data[0].time);
-  const lastTime = normalizeTime(data[data.length - 1].time);
+  const firstTime = keyOf(data[0]);
+  const lastTime = keyOf(data[data.length - 1]);
+
+  // Category points (string `x`) have no order to slide or prepend along, so
+  // only a value edit of the last point takes a cheap path.
+  if (typeof firstTime === 'string') {
+    const lastOnly = data.length === prev.len && middleUnchanged(prev.data, data);
+    if (lastOnly) {
+      chart.updateData(id, data[data.length - 1], layerIndex);
+    } else {
+      chart.setSeriesData(id, data, layerIndex);
+    }
+
+    return { len: data.length, firstTime, lastTime, data };
+  }
+
   const shifted = prev.firstTime !== null && prev.firstTime !== firstTime;
   const added = data.length - prev.len;
   const hasNewLast = prev.lastTime !== null && prev.lastTime !== lastTime;

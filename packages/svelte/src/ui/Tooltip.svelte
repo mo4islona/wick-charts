@@ -13,6 +13,7 @@ import {
   computeTooltipPosition,
   formatCompact,
   formatDate,
+  formatHeaderX,
   formatPriceAdaptive,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -164,8 +165,10 @@ $: floatingPos = (() => {
       <div
         style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
-        {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}
-        {chart.timeScale.formatX(displayTime, dataInterval)}
+        {#if chart.timeScale.getType() === 'time'}
+          {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}
+        {/if}
+        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </div>
 
       {#each snapshots as s (s.id)}

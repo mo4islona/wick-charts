@@ -78,7 +78,7 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
   },
 
   // ── overlays / axes ──────────────────────────────────────────
-  TimeAxis: { selfClosingWhenEmpty: true },
+  XAxis: { selfClosingWhenEmpty: true },
   YAxis: { selfClosingWhenEmpty: true },
   Crosshair: { selfClosingWhenEmpty: true },
   Navigator: {
@@ -185,10 +185,8 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
 };
 
 const TAG_NAME: Record<string, string> = {
-  // The TimeAxis component is exported as both `TimeAxis` and `XAxis`. Docs
-  // pages route to it by the React component name; the snippet uses the
-  // friendlier name when relevant.
-  TimeAxis: 'TimeAxis',
+  // The XAxis component is also exported as `TimeAxis`; snippets use `XAxis`.
+  XAxis: 'XAxis',
 };
 
 function tagOf(component: string): string {

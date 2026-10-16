@@ -1274,6 +1274,7 @@ function applyCandleTransform(
  *  so hosts that never render candles don't bundle this module. */
 export const CandlestickSeriesDef: SeriesDefinition<CandlestickSeriesOptions> = {
   type: 'candlestick',
+  xTypes: ['time'],
   create: ({ theme }, options) =>
     new CandlestickRenderer(new TimeSeriesStore<OHLCData>(), {
       up: { ...theme.candlestick.up },
