@@ -22,6 +22,8 @@ export interface MarkerProps {
   label?: string;
   /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
   color?: string;
+  /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the `seriesId` series' scale, else the default scale. */
+  scale?: string;
 }
 
 /**
@@ -34,7 +36,7 @@ export interface MarkerProps {
  * <Marker time={openedMs} seriesId="metric" shape="arrow-down" pulse={true} label="broke" color="#f0556a" />
  * ```
  */
-export function Marker({ time, value, seriesId, shape, pulse, label, color }: MarkerProps) {
+export function Marker({ time, value, seriesId, shape, pulse, label, color, scale }: MarkerProps) {
   const chart = useChartInstance();
   const idRef = useRef<string | null>(null);
 
@@ -44,7 +46,7 @@ export function Marker({ time, value, seriesId, shape, pulse, label, color }: Ma
 
   // Register once on mount; tear down on unmount.
   useLayoutEffect(() => {
-    const id = chart.addMarker({ time, value, seriesId, shape, pulse, label, color });
+    const id = chart.addMarker({ time, value, seriesId, shape, pulse, label, color, scale });
     idRef.current = id;
 
     return () => {
@@ -58,8 +60,8 @@ export function Marker({ time, value, seriesId, shape, pulse, label, color }: Ma
     const id = idRef.current;
     if (id === null) return;
 
-    chart.updateMarker(id, { time, value, seriesId, shape, pulse, label, color });
-  }, [chart, timeMs, value, seriesId, shape, pulse, label, color]);
+    chart.updateMarker(id, { time, value, seriesId, shape, pulse, label, color, scale });
+  }, [chart, timeMs, value, seriesId, shape, pulse, label, color, scale]);
 
   return null;
 }

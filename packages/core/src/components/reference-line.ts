@@ -29,6 +29,8 @@ export interface ReferenceLineConfig {
   style?: ReferenceLineStyle;
   /** Stroke width in CSS pixels. Default: `1`. */
   width?: number;
+  /** Named Y scale (`ChartOptions.scales`) a horizontal line's `value` maps through. Default: the default scale. */
+  scale?: string;
 }
 
 /** Orientation of a resolved reference line. */

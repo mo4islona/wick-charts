@@ -17,6 +17,8 @@ export let label: string | undefined = undefined;
 export let style: ReferenceLineStyle | undefined = undefined;
 /** Stroke width in CSS pixels. Default: `1`. */
 export let width: number | undefined = undefined;
+/** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale. */
+export let scale: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let lineId: string | null = null;
@@ -25,7 +27,7 @@ onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
 
-  lineId = chart.addLine({ value, time, color, label, style, width });
+  lineId = chart.addLine({ value, time, color, label, style, width, scale });
 });
 
 onDestroy(() => {
@@ -39,7 +41,7 @@ onDestroy(() => {
 $: {
   const chart = $chartStore;
   if (lineId !== null && chart) {
-    chart.updateLine(lineId, { value, time, color, label, style, width });
+    chart.updateLine(lineId, { value, time, color, label, style, width, scale });
   }
 }
 </script>

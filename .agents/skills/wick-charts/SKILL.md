@@ -47,7 +47,7 @@ Root component. Requires a defined width + height.
 </ChartContainer>
 ```
 
-Props: `theme`, `axis`, `padding`, `viewport`, `gradient`, `grid`, `interactive`, `headerLayout`, `animations`, `onEdgeReached`, `perf`, `style`, `className` — all optional with safe defaults, in parity across React/Vue/Svelte (style is React/Svelte only). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible: boolean }` — pass `grid={{ visible: false }}` to hide. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing; `axis.y.position` is `'right'` (default) or `'left'` — the plot area shifts past a left axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right. `axis.y.scale` takes a value mapping — omit it for linear, `logScale()` (import it; `logScale({ base: 2 })` for powers-of-two ticks) for a log axis, or any `{ forward, inverse, isPlottable?, ticks?, format? }` object (define it outside the component so it stays the same object). Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead. `viewport.maxVisibleBars` (default 200) caps the visible window before tail-scroll kicks in. `viewport.initialRange` matches `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and is applied **before** the first paint — use instead of an after-mount `useEffect(() => chart.setVisibleRange(...))` to avoid a visible re-zoom on the next frame. `animations` is configured at construction time and is **init-only** — there is no `chart.setAnimations` runtime setter; remount the chart (or change the React `key`) to swap curves or durations.
+Props: `theme`, `axis`, `scales`, `padding`, `viewport`, `gradient`, `grid`, `interactive`, `headerLayout`, `animations`, `onEdgeReached`, `perf`, `style`, `className` — all optional with safe defaults, in parity across React/Vue/Svelte (style is React/Svelte only). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible: boolean }` — pass `grid={{ visible: false }}` to hide. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing; `axis.y.position` is `'right'` (default) or `'left'` — the plot area shifts past a left axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right. `axis.y.scale` takes a value mapping — omit it for linear, `logScale()` (import it; `logScale({ base: 2 })` for powers-of-two ticks) for a log axis, or any `{ forward, inverse, isPlottable?, ticks?, format? }` object (define it outside the component so it stays the same object). Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead. `viewport.maxVisibleBars` (default 200) caps the visible window before tail-scroll kicks in. `viewport.initialRange` matches `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and is applied **before** the first paint — use instead of an after-mount `useEffect(() => chart.setVisibleRange(...))` to avoid a visible re-zoom on the next frame. `animations` is configured at construction time and is **init-only** — there is no `chart.setAnimations` runtime setter; remount the chart (or change the React `key`) to swap curves or durations.
 
 `AxisBound` = `'auto' | number | "+10%" | ((values: number[]) => number)`.
 
@@ -110,11 +110,11 @@ Placed as children of `ChartContainer`.
 | `Tooltip` | `sort?`, `format?` | `{ snapshots, time }` | Floating glass tooltip near cursor (hover only) |
 | `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | `{ items: LegendItem[] }` | Series legend, hoisted below / beside canvas |
 | `Crosshair` | — | — | Axis labels at cursor |
-| `YAxis` | `format?` | — | Vertical tick axis |
+| `YAxis` | `format?`, `labelCount?`, `minLabelSpacing?`, `scale?` | — | Vertical tick axis — of a named scale with `scale` |
 | `TimeAxis` (alias `XAxis`) | — | — | Horizontal time axis |
-| `YLabel` | `seriesId?`, `color?`, `format?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
-| `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
-| `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
+| `YLabel` | `seriesId?`, `color?`, `format?`, `scale?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
+| `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?`, `scale?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
+| `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?`, `scale?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
 | `TimeRegion` | `from`, `to?`, `fill?`, `label?`, `color?` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
 | `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
@@ -234,6 +234,31 @@ const candleId = 'btc-ohlc';
   <YLabel seriesId={candleId} />
 </ChartContainer>
 ```
+
+## Secondary Y scales
+
+Two unrelated measures on one pane (price + RSI, rate + error rate): name a scale in `scales` on `ChartContainer` and put a series on it with `scale`. Each scale autoscales from its own visible series and animates like the default one; the time axis is shared.
+
+```tsx
+const SCALES = { rsi: { position: 'left', min: 0, max: 100 } }; // stable object — a new one refits
+
+<ChartContainer scales={SCALES}>
+  <LineSeries id="price" data={price} />
+  <LineSeries id="rsi" scale="rsi" data={rsi} />
+  <ReferenceLine value={70} scale="rsi" label="overbought" />
+  <YAxis />
+  <YAxis scale="rsi" format={(v) => v.toFixed(0)} />
+  <YLabel seriesId="rsi" />
+  <Crosshair />
+  <TimeAxis />
+</ChartContainer>
+```
+
+- A scale takes the `axis.y` fields: `position` (default: the side opposite the default axis), `visible` (`false` = overlay scale, autoscaled with no column), `width` (55), `min` / `max`, `scale` (e.g. `logScale()`). Live.
+- `scale` works on `LineSeries`, `BarSeries`, `CandlestickSeries`, `BandSeries` (live). Without it — or with an id `scales` doesn't define (dev warning) — the series uses the default scale.
+- One visible column per side: a second scale claiming a taken side renders as an overlay (dev warning). Grid lines follow the default scale.
+- `<YAxis scale>` renders that scale's column; its `format` also drives that side's `<Crosshair>` label and the `YLabel` badge on that scale. `YLabel`, `ReferenceLine` and `Marker` take `scale`; `YLabel` defaults to its series' scale and sits on that scale's side. Tooltip rows show each series' own values.
+- Core: `chart.setScales(scales)`, `chart.getYScale(id)`, `chart.getYScaleColumn(id)`, `chart.getSeriesScale(seriesId)`, `chart.getAxisColumnWidth(side)`, `chart.getAxisColumnScale(side)`, `chart.setYAxisFormat({ format, scale })`.
 
 ## Band series
 

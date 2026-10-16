@@ -24,6 +24,7 @@ import {
   type SeriesHoverInfo,
   type VisibleRange,
   type VisibleRangeSpec,
+  type YAxisConfig,
   deepEqual,
 } from '@wick-charts/core';
 
@@ -42,6 +43,7 @@ import { ThemeProvider, useThemeOptional } from './ThemeContext';
 import type { LegendProps } from './ui/Legend';
 import type { PieLegendProps } from './ui/PieLegend';
 import { slotOf } from './ui/slot';
+import { useStableOptions } from './use-stable-options';
 
 /** Props for the {@link ChartContainer} component. */
 export interface ChartContainerProps {
@@ -51,6 +53,14 @@ export interface ChartContainerProps {
   theme?: ChartTheme;
   /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
   axis?: AxisConfig;
+  /**
+   * Named secondary Y scales, keyed by id — a series opts in with its `scale`
+   * prop and autoscales on its own, sharing the time axis. Same fields as
+   * `axis.y`; `position` defaults to the side opposite the default axis. One
+   * axis column fits on each side — render it with `<YAxis scale="id" />`.
+   * Live.
+   */
+  scales?: Record<string, YAxisConfig>;
   /**
    * Viewport padding around the plot area. Live — a later change re-applies
    * via `chart.setPadding`. Set every side to `0` for an edge-to-edge
@@ -335,6 +345,7 @@ export function ChartContainer({
   children,
   theme,
   axis,
+  scales,
   padding,
   viewport,
   gradient = false,
@@ -412,6 +423,7 @@ export function ChartContainer({
 
     const options: ChartOptions = {};
     if (axis) options.axis = axis;
+    if (scales) options.scales = scales;
     if (resolvedTheme) options.theme = resolvedTheme;
     if (padding) options.padding = padding;
     if (viewport) options.viewport = viewport;
@@ -482,6 +494,12 @@ export function ChartContainer({
     axis?.x?.height,
     axis?.x?.visible,
   ]);
+
+  // Deep-compare latch: a fresh inline `scales` literal must not refit every render.
+  const stableScales = useStableOptions(scales);
+  useEffect(() => {
+    chartRef.current?.setScales(stableScales);
+  }, [stableScales]);
 
   // Top-overlay height (title + info bar) — measured below. Declared here so
   // the padding effect can fold it into `padding.top`.

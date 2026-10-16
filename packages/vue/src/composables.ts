@@ -25,10 +25,24 @@ export interface AxisLayout {
   yAxisPosition: YAxisPosition;
   yAxisWidth: number;
   xAxisHeight: number;
+  /** Width of the Y-axis column on each side — the default axis's or a named scale's, `0` for none. */
+  leftAxisWidth: number;
+  rightAxisWidth: number;
+  /** Named scale owning each side's column, `null` for the default axis or none — a swap moves the columns. */
+  leftAxisScale: string | null;
+  rightAxisScale: string | null;
 }
 
 function readAxisLayout(chart: ChartInstance): AxisLayout {
-  return { yAxisPosition: chart.yAxisPosition, yAxisWidth: chart.yAxisWidth, xAxisHeight: chart.xAxisHeight };
+  return {
+    yAxisPosition: chart.yAxisPosition,
+    yAxisWidth: chart.yAxisWidth,
+    xAxisHeight: chart.xAxisHeight,
+    leftAxisWidth: chart.getAxisColumnWidth('left'),
+    rightAxisWidth: chart.getAxisColumnWidth('right'),
+    leftAxisScale: chart.getAxisColumnScale('left'),
+    rightAxisScale: chart.getAxisColumnScale('right'),
+  };
 }
 
 /** The axis gutters overlays anchor to — refreshed on a Y-axis side or gutter size change. */
@@ -40,7 +54,11 @@ export function useAxisLayout(chart: ChartInstance): Ref<AxisLayout> {
     const unchanged =
       prev.yAxisPosition === next.yAxisPosition &&
       prev.yAxisWidth === next.yAxisWidth &&
-      prev.xAxisHeight === next.xAxisHeight;
+      prev.xAxisHeight === next.xAxisHeight &&
+      prev.leftAxisWidth === next.leftAxisWidth &&
+      prev.rightAxisWidth === next.rightAxisWidth &&
+      prev.leftAxisScale === next.leftAxisScale &&
+      prev.rightAxisScale === next.rightAxisScale;
     if (unchanged) return;
 
     layout.value = next;
@@ -57,15 +75,16 @@ export function useAxisLayout(chart: ChartInstance): Ref<AxisLayout> {
 
 export function useLastYValue(chart: ChartInstance, seriesId: string): Ref<{ value: number; isLive: boolean } | null> {
   let snapshot = chart.getLastValue(seriesId);
+  const yScale = () => chart.getYScale(chart.getSeriesScale(seriesId));
   // Track the pixel Y the snapshot maps to so a pan/zoom/resize that leaves the
   // value unchanged but shifts the badge still re-emits — a consumer-positioned
   // badge reads `yScale.valueToY` off this ref. Comparing prev/next against the
   // live yScale alone would always be equal.
-  let lastY = snapshot ? chart.yScale.valueToY(snapshot.value) : null;
+  let lastY = snapshot ? yScale().valueToY(snapshot.value) : null;
   const val = ref<{ value: number; isLive: boolean } | null>(snapshot);
   const handler = () => {
     const next = chart.getLastValue(seriesId);
-    const nextY = next ? chart.yScale.valueToY(next.value) : null;
+    const nextY = next ? yScale().valueToY(next.value) : null;
     if (snapshot?.value === next?.value && snapshot?.isLive === next?.isLive && lastY === nextY) return;
 
     snapshot = next;

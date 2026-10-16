@@ -17,6 +17,8 @@ export interface ReferenceLineProps {
   style?: ReferenceLineStyle;
   /** Stroke width in CSS pixels. Default: `1`. */
   width?: number;
+  /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale. */
+  scale?: string;
 }
 
 /**
@@ -31,7 +33,7 @@ export interface ReferenceLineProps {
  * <ReferenceLine time={deployMs} label="deploy" />
  * ```
  */
-export function ReferenceLine({ value, time, color, label, style, width }: ReferenceLineProps) {
+export function ReferenceLine({ value, time, color, label, style, width, scale }: ReferenceLineProps) {
   const chart = useChartInstance();
   const idRef = useRef<string | null>(null);
 
@@ -40,7 +42,7 @@ export function ReferenceLine({ value, time, color, label, style, width }: Refer
 
   // Register once on mount; tear down on unmount.
   useLayoutEffect(() => {
-    const id = chart.addLine({ value, time, color, label, style, width });
+    const id = chart.addLine({ value, time, color, label, style, width, scale });
     idRef.current = id;
 
     return () => {
@@ -54,8 +56,8 @@ export function ReferenceLine({ value, time, color, label, style, width }: Refer
     const id = idRef.current;
     if (id === null) return;
 
-    chart.updateLine(id, { value, time, color, label, style, width });
-  }, [chart, value, timeMs, color, label, style, width]);
+    chart.updateLine(id, { value, time, color, label, style, width, scale });
+  }, [chart, value, timeMs, color, label, style, width, scale]);
 
   return null;
 }

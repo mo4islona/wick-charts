@@ -12,6 +12,7 @@ import {
   type SeriesHoverInfo,
   type VisibleRange,
   type VisibleRangeSpec,
+  type YAxisConfig,
   catppuccin,
   deepEqual,
 } from '@wick-charts/core';
@@ -33,6 +34,14 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 export let theme: ChartTheme = catppuccin.theme;
 /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
 export let axis: AxisConfig | undefined = undefined;
+/**
+ * Named secondary Y scales, keyed by id — a series opts in with its `scale`
+ * prop and autoscales on its own, sharing the time axis. Same fields as
+ * `axis.y`; `position` defaults to the side opposite the default axis. One
+ * axis column fits on each side — render it with `<YAxis scale="id" />`.
+ * Live.
+ */
+export let scales: Record<string, YAxisConfig> | undefined = undefined;
 /**
  * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
  * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Updates are
@@ -304,6 +313,7 @@ function subscribeDeclarativeEvents(target: ChartInstance): void {
 onMount(() => {
   const options: ChartOptions = {};
   if (axis) options.axis = axis;
+  if (scales) options.scales = scales;
   if (theme) options.theme = theme;
   if (padding) options.padding = padding;
   if (viewport) options.viewport = viewport;
@@ -358,6 +368,11 @@ $: if (instance && axis) {
   instance.setAxis(axis);
 }
 
+// The core skips a deep-equal replay, so a fresh inline literal doesn't refit.
+$: if (instance) {
+  instance.setScales(scales);
+}
+
 $: if (instance && grid !== undefined) {
   instance.setGrid(grid);
 }
@@ -384,6 +399,7 @@ async function rebuildChartFromAnimations() {
   await tick();
   const opts: ChartOptions = {};
   if (axis) opts.axis = axis;
+  if (scales) opts.scales = scales;
   if (theme) opts.theme = theme;
   if (padding) opts.padding = padding;
   if (viewport) opts.viewport = viewport;

@@ -279,6 +279,15 @@
           "deprecated": null,
           "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
           "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live.",
+          "see": []
         }
       ]
     },
@@ -454,6 +463,15 @@
           "defaultValue": "true",
           "deprecated": null,
           "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live.",
           "see": []
         }
       ]
@@ -667,6 +685,15 @@
           "defaultValue": "true",
           "deprecated": null,
           "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live.",
           "see": []
         }
       ]
@@ -1354,6 +1381,15 @@
           "defaultValue": "true",
           "deprecated": null,
           "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live.",
           "see": []
         }
       ]
@@ -3403,6 +3439,15 @@
           }
         },
         {
+          "name": "scales",
+          "type": "Record<string, YAxisConfig>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Named secondary Y scales, keyed by id — a series opts in with its `scale`\nprop and autoscales on its own, sharing the time axis. Same fields as\n`axis.y`; `position` defaults to the side opposite the default axis. One\naxis column fits on each side — render it with `<YAxis scale=\"id\" />`.\nLive.",
+          "see": []
+        },
+        {
           "name": "padding",
           "type": "{ top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number }; }",
           "optional": true,
@@ -4191,6 +4236,15 @@
           "deprecated": null,
           "description": "Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level.",
           "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the\ndefault scale",
+          "deprecated": null,
+          "description": "Named Y scale (`ChartContainer` `scales`) this axis labels. Default: the\ndefault scale. An overlay scale has no column, so only `format` and the\nlabel density apply.",
+          "see": []
         }
       ]
     },
@@ -4357,6 +4411,15 @@
           "deprecated": null,
           "description": "Color override. Falls back to the series color (when `seriesId` is set), then the theme line color.",
           "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the `seriesId` series' scale",
+          "deprecated": null,
+          "description": "Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the `seriesId` series' scale, else the default scale.",
+          "see": []
         }
       ]
     },
@@ -4418,6 +4481,15 @@
           "defaultValue": "1",
           "deprecated": null,
           "description": "Stroke width in CSS pixels. Default: `1`.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale.",
           "see": []
         }
       ]
@@ -4793,9 +4865,9 @@
           "name": "format",
           "type": "ValueFormatter",
           "optional": true,
-          "defaultValue": null,
+          "defaultValue": "the\nscale's `<YAxis format>`",
           "deprecated": null,
-          "description": "Custom formatter. Routed through NumberFlow as its `format` prop so the\ndigit-by-digit animation still plays on the output string — NumberFlow\nanimates whichever characters the formatter returns.",
+          "description": "Custom formatter. Routed through NumberFlow as its `format` prop so the\ndigit-by-digit animation still plays on the output string — NumberFlow\nanimates whichever characters the formatter returns. Default: the\nscale's `<YAxis format>`, else a range-adaptive number.",
           "see": []
         },
         {
@@ -4814,6 +4886,15 @@
           "defaultValue": null,
           "deprecated": null,
           "description": "Render-prop escape hatch. Receives the resolved value, pixel position, and\ndirection metadata. Replaces the built-in badge + dashed line entirely.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the series' own scale",
+          "deprecated": null,
+          "description": "Named Y scale (`ChartContainer` `scales`) the value maps through. Default:\nthe series' own scale. The badge sits on that scale's axis side — the\ndefault axis side for an overlay scale.",
           "see": []
         }
       ]

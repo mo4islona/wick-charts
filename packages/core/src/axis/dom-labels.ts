@@ -14,6 +14,7 @@
  */
 
 import type { ChartInstance } from '../chart';
+import type { YScale } from '../scales/y-scale';
 import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { YAxisPosition } from '../types';
@@ -29,6 +30,8 @@ export interface MountAxisLabelsOptions {
    */
   readonly container: HTMLElement;
   readonly axis: 'x' | 'y';
+  /** Named Y scale (`ChartOptions.scales`) whose labels to render. Default: the default scale. */
+  readonly scale?: string;
 }
 
 /** Below this opacity the span is removed from the DOM (matches React's prior `opacity <= 0.01` cutoff). */
@@ -40,27 +43,35 @@ const VISIBLE_OPACITY_EPS = 0.01;
  * that unsubscribes and removes all created spans.
  */
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
-  const { chart, container, axis } = opts;
+  const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
   // A reference change in `sync` triggers a one-shot restyle of reused spans.
   let appliedTheme: ChartTheme | null = null;
   // Y-axis side the spans are anchored for; a flip re-anchors reused spans.
   let appliedSide: YAxisPosition | null = null;
-  const tracker = axis === 'x' ? chart.timeScale.tickTracker : chart.yScale.tickTracker;
+
+  // Resolved on every read: `setScales` can drop and re-add a named scale.
+  function yScale(): YScale {
+    return chart.getYScale(scale);
+  }
+
+  function ySide(): YAxisPosition {
+    return chart.getYScaleColumn(scale)?.position ?? chart.yAxisPosition;
+  }
 
   function currentTicks(): { ticks: readonly number[]; tickInterval: number } {
     if (axis === 'x') {
       return chart.timeScale.niceTickValues(chart.getDataInterval());
     }
 
-    return { ticks: chart.yScale.niceTickValues(), tickInterval: 0 };
+    return { ticks: yScale().niceTickValues(), tickInterval: 0 };
   }
 
   function formatLabel(value: number, tickInterval: number): string {
     if (axis === 'x') return chart.timeScale.formatX(value, tickInterval);
 
-    return chart.yScale.formatY(value);
+    return yScale().formatY(value);
   }
 
   // Snapped, not raw: the canvas strokes on a whole device pixel, so an
@@ -72,7 +83,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       return;
     }
 
-    el.style.top = `${chart.yScale.valueToSnappedY(value)}px`;
+    el.style.top = `${yScale().valueToSnappedY(value)}px`;
   }
 
   // Theme-derived styles are written to inline `style`, so they're effectively
@@ -99,10 +110,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // its own height as it rises underneath.
   function headerClearance(value: number, theme: ChartTheme): number {
     const header = chart.headerHeight;
-    if (axis !== 'y' || header <= 0 || chart.yAxisPosition !== 'left') return 1;
+    if (axis !== 'y' || header <= 0 || ySide() !== 'left') return 1;
 
     const labelHeight = resolveAxisFontSize(theme, axis);
-    const labelTop = chart.yScale.valueToSnappedY(value) - labelHeight / 2;
+    const labelTop = yScale().valueToSnappedY(value) - labelHeight / 2;
 
     return clamp((labelTop - header + labelHeight) / labelHeight, 0, 1);
   }
@@ -119,7 +130,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       el.style.transform = 'translateX(-50%)';
       el.style.whiteSpace = 'nowrap';
     } else {
-      applyYAnchor(el, chart.yAxisPosition);
+      applyYAnchor(el, ySide());
       el.style.transform = 'translateY(-50%)';
       el.style.fontVariantNumeric = 'tabular-nums';
     }
@@ -138,10 +149,11 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     const themeChanged = theme !== appliedTheme;
     appliedTheme = theme;
 
-    const side = chart.yAxisPosition;
+    const side = ySide();
     const sideChanged = axis === 'y' && side !== appliedSide;
     appliedSide = side;
 
+    const tracker = axis === 'x' ? chart.timeScale.tickTracker : yScale().tickTracker;
     const { ticks, tickInterval } = currentTicks();
     tracker.setCurrentTicks(ticks);
     const { entries } = tracker.snapshot();

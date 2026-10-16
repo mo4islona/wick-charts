@@ -14,6 +14,8 @@ const props = withDefaults(
     id?: string;
     /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
     visible?: boolean;
+    /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
+    scale?: string;
   }>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
@@ -36,6 +38,7 @@ onMounted(() => {
   const layerCount = toLayers(props.data).length;
   const id = chart.addSeries(BarSeriesDef, {
     ...props.options,
+    scale: props.scale,
     layers: layerCount,
     id: props.id,
   });
@@ -60,12 +63,13 @@ watch(
   },
 );
 
+// `scale` rides the same update, so a stacking change is checked against the new scale.
 watch(
-  () => props.options,
-  (options) => {
-    if (seriesId.value && options) {
-      chart.updateSeriesOptions(seriesId.value, options);
-    }
+  () => [props.options, props.scale] as const,
+  ([options, scale]) => {
+    if (!seriesId.value) return;
+
+    chart.updateSeriesOptions(seriesId.value, options ? { ...options, scale } : { scale });
   },
   { deep: true },
 );

@@ -15,9 +15,11 @@
  * state.
  *
  * Internals: one pluggable {@link Transition} per axis (Hermite / Spring /
- * Snap on Y, Spring / Snap on X). No event queue, no slot priority — every
- * `on*` retargets immediately. Per-call durations come from the engine's
- * grouped `y` / `x` opts; the curves themselves carry no baseline.
+ * Snap on Y, Spring / Snap on X), plus one more Y transition per named scale
+ * (see {@link ViewportEngine.setYScales}) — every Y signal reaches all of them.
+ * No event queue, no slot priority — every `on*` retargets immediately.
+ * Per-call durations come from the engine's grouped `y` / `x` opts; the
+ * curves themselves carry no baseline.
  */
 
 import type { XRange, YRange } from '../types';
@@ -62,6 +64,8 @@ export interface ProgrammaticZoomOptions {
 export interface SnapTarget {
   x?: XRange;
   y?: YRange;
+  /** Y ranges for named scales, by scale id. */
+  scales?: Readonly<Record<string, YRange>>;
 }
 
 export interface ViewportEngineYOptions {
@@ -107,11 +111,11 @@ export interface ViewportEngineOptions {
    */
   computeXTarget(): XRange | null;
   /**
-   * Compute the Y target that matches `xTarget`. Returning `null` skips
-   * the Y retarget — used when no series carries data or every bound is
-   * pinned by axis config.
+   * Compute the Y target that matches `xTarget` — for the named `scale`, or
+   * the default one when it's absent. Returning `null` skips that scale's
+   * retarget — used when none of its series carries data in the window.
    */
-  computeYTarget(args: { xTarget: XRange }): YRange | null;
+  computeYTarget(args: { xTarget: XRange; scale?: string }): YRange | null;
   /** Fires once when an idle engine receives a new signal; host restarts RAF. */
   onWake?: () => void;
 }
@@ -141,6 +145,15 @@ interface YState {
    * the Y retarget inside `onPointAppended` is gated.
    */
   toggleUntil: number;
+  /** `false` until the first target lands — that one snaps, so a scale added
+   *  mid-session doesn't ease in from the initial empty range. */
+  primed: boolean;
+}
+
+/** A Y slot paired with its freshly computed target (`null` = no retarget). */
+interface YRetarget {
+  readonly y: YState;
+  readonly target: YRange | null;
 }
 
 interface XState {
@@ -162,9 +175,12 @@ interface XState {
 
 export class ViewportEngine {
   readonly #y: YState;
+  /** Y slots of the named scales, keyed by scale id. */
+  readonly #scaleY = new Map<string, YState>();
+  readonly #yOpts: ViewportEngineYOptions;
   readonly #x: XState;
   readonly #computeX: () => XRange | null;
-  readonly #computeY: (args: { xTarget: XRange }) => YRange | null;
+  readonly #computeY: (args: { xTarget: XRange; scale?: string }) => YRange | null;
   readonly #onWake: (() => void) | undefined;
   /** Per-frame `animating` snapshot — updated by `tick` so `get animating()`
    *  is O(1). Spans both axes; lives at the engine root rather than in
@@ -172,15 +188,8 @@ export class ViewportEngine {
   #lastAnimating = false;
 
   constructor(opts: ViewportEngineOptions) {
-    this.#y = {
-      transition: opts.y.curve({ initial: opts.initial.yRange }),
-      settleMs: opts.y.settleMs,
-      stickyMs: opts.y.stickyMs,
-      stickyFloorMs: opts.y.stickyFloorMs,
-      gestureMs: opts.y.gestureMs,
-      toggleMs: opts.y.toggleMs,
-      toggleUntil: 0,
-    };
+    this.#yOpts = opts.y;
+    this.#y = this.#createY({ initial: opts.initial.yRange, primed: true });
     this.#x = {
       transition: opts.x.curve({ initial: opts.initial.xRange }),
       settleMs: opts.x.settleMs,
@@ -194,6 +203,57 @@ export class ViewportEngine {
   }
 
   // --- Helpers -------------------------------------------------------------
+
+  #createY(args: { initial: YRange; primed: boolean }): YState {
+    const opts = this.#yOpts;
+
+    return {
+      transition: opts.curve({ initial: args.initial }),
+      settleMs: opts.settleMs,
+      stickyMs: opts.stickyMs,
+      stickyFloorMs: opts.stickyFloorMs,
+      gestureMs: opts.gestureMs,
+      toggleMs: opts.toggleMs,
+      toggleUntil: 0,
+      primed: args.primed,
+    };
+  }
+
+  /** Every Y slot with the target the chart computes for it against `xTarget`. */
+  #yRetargets(xTarget: XRange): YRetarget[] {
+    const result: YRetarget[] = [{ y: this.#y, target: this.#computeY({ xTarget }) }];
+    for (const [scale, y] of this.#scaleY) {
+      result.push({ y, target: this.#computeY({ xTarget, scale }) });
+    }
+
+    return result;
+  }
+
+  /** Ease a Y slot to `target` — or snap, when it's the slot's first target. */
+  #retargetY(y: YState, target: YRange, opts: { now: number; expandMs: Milliseconds; contractMs: Milliseconds }): void {
+    if (!y.primed) {
+      this.#snapY(y, target, opts.now);
+
+      return;
+    }
+
+    y.transition.retarget(target, opts);
+  }
+
+  #snapY(y: YState, target: YRange, now: number): void {
+    y.transition.snap(target, { now });
+    y.primed = true;
+  }
+
+  #yAnimating(): boolean {
+    if (this.#y.transition.animating) return true;
+
+    for (const y of this.#scaleY.values()) {
+      if (y.transition.animating) return true;
+    }
+
+    return false;
+  }
 
   /**
    * Retarget X and record `#x.lastTarget` — autoscroll consults that field for
@@ -234,8 +294,9 @@ export class ViewportEngine {
    * contracts. `stickyFloorMs === stickyMs` collapses this back to a fixed
    * duration.
    */
-  #contractMs(cur: YRange, next: YRange): Milliseconds {
-    const sticky = this.#y.stickyMs;
+  #contractMs(y: YState, next: YRange): Milliseconds {
+    const cur = y.transition.current;
+    const sticky = y.stickyMs;
     if (sticky <= 0) return sticky;
 
     const range = Math.max(cur.max - cur.min, Number.EPSILON);
@@ -243,7 +304,7 @@ export class ViewportEngine {
     const inwardMax = Math.max(0, cur.max - next.max);
     const fraction = Math.min(1, Math.max(inwardMin, inwardMax) / range);
 
-    const floor = Math.min(this.#y.stickyFloorMs, sticky);
+    const floor = Math.min(y.stickyFloorMs, sticky);
 
     return Math.max(floor, sticky * fraction);
   }
@@ -256,52 +317,59 @@ export class ViewportEngine {
 
     const newX = this.#computeX();
     const yWindow = newX ?? this.#x.transition.target;
-    const newY = this.#computeY({ xTarget: yWindow });
-    if (newX === null && newY === null) return;
+    const retargets = this.#yRetargets(yWindow);
+    const anyY = retargets.some((r) => r.target !== null);
+    if (newX === null && !anyY) return;
 
     const wasIdle = !this.#lastAnimating;
-    // Y is locked out during a toggle window (`onSeriesVisibilityChanged`
-    // set the deadline) — X still tracks the stream so the scroll keeps
-    // pace, but Y stays on its toggleMs ease until the lockout expires.
-    const yLocked = startWall < this.#y.toggleUntil;
-
     if (newX !== null) this.#retargetX(newX, startWall, this.#x.settleMs);
-    if (newY !== null && !yLocked) {
-      this.#y.transition.retarget(newY, {
+
+    for (const { y, target } of retargets) {
+      // Y is locked out during a toggle window (`onSeriesVisibilityChanged`
+      // set the deadline) — X still tracks the stream so the scroll keeps
+      // pace, but Y stays on its toggleMs ease until the lockout expires.
+      const yLocked = startWall < y.toggleUntil;
+      if (target === null || yLocked) continue;
+
+      this.#retargetY(y, target, {
         now: startWall,
-        expandMs: this.#y.settleMs,
-        contractMs: this.#contractMs(this.#y.transition.current, newY),
+        expandMs: y.settleMs,
+        contractMs: this.#contractMs(y, target),
       });
     }
     this.#wake(wasIdle);
   }
 
   onSeriesVisibilityChanged(now?: number): void {
-    const newY = this.#computeY({ xTarget: this.#x.transition.target });
-    if (newY === null) return;
+    const retargets = this.#yRetargets(this.#x.transition.target);
+    if (retargets.every((r) => r.target === null)) return;
 
     const startWall = now ?? performance.now();
     const wasIdle = !this.#lastAnimating;
-    if (this.#y.toggleMs > 0) {
-      // Discrete event — zero velocity before the new ease so the curve
-      // doesn't carry momentum from an in-flight streaming retarget into
-      // the toggle (visible as a Y "bounce" mid-stream).
-      this.#y.transition.snap(this.#y.transition.current, { now: startWall });
-      this.#y.transition.retarget(newY, {
-        now: startWall,
-        expandMs: this.#y.toggleMs,
-        contractMs: this.#y.toggleMs,
-      });
-      // Lock out streaming Y retargets for the toggle window — without
-      // this, `onPointAppended` ticks fire mid-toggle with `contractMs:
-      // stickyMs` and overwrite the toggleMs-paced ease.
-      this.#y.toggleUntil = startWall + this.#y.toggleMs;
-    } else {
-      // Zero-duration toggle (animations.toggle = 0 / false). Snap the Y
-      // straight to the new target; `retarget` with duration 0 would feed
-      // Infinity into the Spring's ω and NaN out the next sample.
-      this.#y.transition.snap(newY, { now: startWall });
-      this.#y.toggleUntil = 0;
+    for (const { y, target } of retargets) {
+      if (target === null) continue;
+
+      if (y.toggleMs > 0 && y.primed) {
+        // Discrete event — zero velocity before the new ease so the curve
+        // doesn't carry momentum from an in-flight streaming retarget into
+        // the toggle (visible as a Y "bounce" mid-stream).
+        y.transition.snap(y.transition.current, { now: startWall });
+        y.transition.retarget(target, {
+          now: startWall,
+          expandMs: y.toggleMs,
+          contractMs: y.toggleMs,
+        });
+        // Lock out streaming Y retargets for the toggle window — without
+        // this, `onPointAppended` ticks fire mid-toggle with `contractMs:
+        // stickyMs` and overwrite the toggleMs-paced ease.
+        y.toggleUntil = startWall + y.toggleMs;
+      } else {
+        // Zero-duration toggle (animations.toggle = 0 / false). Snap the Y
+        // straight to the new target; `retarget` with duration 0 would feed
+        // Infinity into the Spring's ω and NaN out the next sample.
+        this.#snapY(y, target, startWall);
+        y.toggleUntil = 0;
+      }
     }
     this.#wake(wasIdle);
   }
@@ -314,12 +382,13 @@ export class ViewportEngine {
     this.#x.gestureUntil = startWall + X_GESTURE_LOCKOUT_MS;
 
     if (opts.yAuto) {
-      const yTarget = this.#computeY({ xTarget: opts.xTarget });
-      if (yTarget !== null) {
-        this.#y.transition.retarget(yTarget, {
+      for (const { y, target } of this.#yRetargets(opts.xTarget)) {
+        if (target === null) continue;
+
+        this.#retargetY(y, target, {
           now: startWall,
-          expandMs: this.#y.gestureMs,
-          contractMs: this.#y.gestureMs,
+          expandMs: y.gestureMs,
+          contractMs: y.gestureMs,
         });
       }
     }
@@ -327,41 +396,36 @@ export class ViewportEngine {
   }
 
   onAxisReconfig(now?: number): void {
-    const newY = this.#computeY({ xTarget: this.#x.transition.target });
-    if (newY === null) return;
+    const retargets = this.#yRetargets(this.#x.transition.target);
+    if (retargets.every((r) => r.target === null)) return;
 
     const startWall = now ?? performance.now();
     const wasIdle = !this.#lastAnimating;
-    this.#y.transition.snap(newY, { now: startWall });
+    for (const { y, target } of retargets) {
+      if (target !== null) this.#snapY(y, target, startWall);
+    }
     this.#wake(wasIdle);
   }
 
   onProgrammaticZoom(opts: ProgrammaticZoomOptions, now?: number): void {
     this.#x.gestureUntil = 0;
-    const newY = this.#computeY({ xTarget: opts.xTarget });
+    const retargets = this.#yRetargets(opts.xTarget);
     const startWall = now ?? performance.now();
     const wasIdle = !this.#lastAnimating;
 
     if (opts.xEase === true) {
       this.#retargetX(opts.xTarget, startWall, this.#x.gestureMs);
-      if (newY !== null) {
-        this.#y.transition.retarget(newY, {
-          now: startWall,
-          expandMs: this.#y.settleMs,
-          contractMs: this.#contractMs(this.#y.transition.current, newY),
-        });
-      }
-      this.#wake(wasIdle);
-
-      return;
+    } else {
+      this.#snapX(opts.xTarget, startWall);
     }
 
-    this.#snapX(opts.xTarget, startWall);
-    if (newY !== null) {
-      this.#y.transition.retarget(newY, {
+    for (const { y, target } of retargets) {
+      if (target === null) continue;
+
+      this.#retargetY(y, target, {
         now: startWall,
-        expandMs: this.#y.settleMs,
-        contractMs: this.#contractMs(this.#y.transition.current, newY),
+        expandMs: y.settleMs,
+        contractMs: this.#contractMs(y, target),
       });
     }
     this.#wake(wasIdle);
@@ -369,13 +433,17 @@ export class ViewportEngine {
 
   onDataReplaced(now?: number): void {
     const newX = this.#computeX();
-    const newY = this.#computeY({ xTarget: newX ?? this.#x.transition.target });
-    if (newX === null && newY === null) return;
+    const retargets = this.#yRetargets(newX ?? this.#x.transition.target);
+    const anyY = retargets.some((r) => r.target !== null);
+    if (newX === null && !anyY) return;
 
     const startWall = now ?? performance.now();
     const wasIdle = !this.#lastAnimating;
     if (newX !== null) this.#snapX(newX, startWall);
-    if (newY !== null) this.#y.transition.snap(newY, { now: startWall });
+
+    for (const { y, target } of retargets) {
+      if (target !== null) this.#snapY(y, target, startWall);
+    }
     this.#wake(wasIdle);
   }
 
@@ -384,8 +452,29 @@ export class ViewportEngine {
     const startWall = now ?? performance.now();
     const wasIdle = !this.#lastAnimating;
     if (target.x !== undefined) this.#snapX(target.x, startWall);
-    if (target.y !== undefined) this.#y.transition.snap(target.y, { now: startWall });
+    if (target.y !== undefined) this.#snapY(this.#y, target.y, startWall);
+
+    for (const [scale, range] of Object.entries(target.scales ?? {})) {
+      const y = this.#scaleY.get(scale);
+      if (y !== undefined) this.#snapY(y, range, startWall);
+    }
     this.#wake(wasIdle);
+  }
+
+  /**
+   * Keep one Y slot per named scale: add slots for new ids (empty until their
+   * first target, which snaps) and drop slots for ids no longer listed.
+   */
+  setYScales(ids: readonly string[]): void {
+    for (const id of this.#scaleY.keys()) {
+      if (!ids.includes(id)) this.#scaleY.delete(id);
+    }
+
+    for (const id of ids) {
+      if (this.#scaleY.has(id)) continue;
+
+      this.#scaleY.set(id, this.#createY({ initial: { min: 0, max: 0 }, primed: false }));
+    }
   }
 
   // --- Outputs -------------------------------------------------------------
@@ -393,7 +482,11 @@ export class ViewportEngine {
   tick(now: number): AnimationState {
     this.#x.transition.tick(now);
     this.#y.transition.tick(now);
-    const animating = this.#x.transition.animating || this.#y.transition.animating;
+    for (const y of this.#scaleY.values()) {
+      y.transition.tick(now);
+    }
+
+    const animating = this.#x.transition.animating || this.#yAnimating();
     this.#lastAnimating = animating;
 
     return {
@@ -407,8 +500,13 @@ export class ViewportEngine {
     return {
       xRange: this.#x.transition.current,
       yRange: this.#y.transition.current,
-      animating: this.#x.transition.animating || this.#y.transition.animating,
+      animating: this.animating,
     };
+  }
+
+  /** Current (eased) Y of a named scale, `null` for an unknown id. */
+  getScaleYRange(scale: string): YRange | null {
+    return this.#scaleY.get(scale)?.transition.current ?? null;
   }
 
   getTarget(): { x: XRange; y: YRange } {
@@ -416,7 +514,7 @@ export class ViewportEngine {
   }
 
   get animating(): boolean {
-    return this.#x.transition.animating || this.#y.transition.animating;
+    return this.#x.transition.animating || this.#yAnimating();
   }
 
   get lastXTarget(): XRange | null {

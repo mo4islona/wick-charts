@@ -106,7 +106,7 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
   if (!crosshair.value || snapshots.value.length === 0) return null;
   const mediaSize = chart.getMediaSize();
   const chartLeft = chart.plotLeft;
-  const chartWidth = mediaSize.width - chart.yAxisWidth;
+  const chartWidth = chart.getLayout().chartArea.width;
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if (hasCustomSlot.value) {
@@ -288,7 +288,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
       fontVariantNumeric: 'tabular-nums',
       color: theme.tooltip.textColor,
       width: 'max-content',
-      maxWidth: (chart.getMediaSize().width - chart.yAxisWidth) + 'px',
+      maxWidth: chart.getLayout().chartArea.width + 'px',
       boxSizing: 'border-box',
       zIndex: 10,
       visibility: measuredSize !== null ? 'visible' : 'hidden',
