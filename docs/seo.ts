@@ -83,6 +83,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Render chart types the library doesn’t ship by combining a data transform with a custom painter. A worked Renko example built on the candlePainter escape hatch in Wick Charts.',
   },
+  'use-cases/secondary-scale': {
+    title: 'Secondary Y Scale — Wick Charts',
+    description:
+      'Overlay two unrelated measures on one pane — price and RSI, rate and error rate — each on its own named Y scale with its own autoscale and axis, sharing the time axis. React, Vue and Svelte.',
+  },
 };
 
 // One-line summaries of what each component / hook actually does — shared by

@@ -28,9 +28,11 @@ export interface BarSeriesProps {
   id?: string;
   /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
   visible?: boolean;
+  /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
+  scale?: string;
 }
 
-export function BarSeries({ data, options, id: idProp, visible }: BarSeriesProps) {
+export function BarSeries({ data, options, id: idProp, visible, scale }: BarSeriesProps) {
   const chart = useChartInstance();
   const seriesRef = useRef<string | null>(null);
   const prevSyncRef = useRef<SeriesSyncState[]>([]);
@@ -46,7 +48,7 @@ export function BarSeries({ data, options, id: idProp, visible }: BarSeriesProps
   const stableOptions = useStableOptions(options ? { ...options, introAnimation: undefined } : options);
 
   useLayoutEffect(() => {
-    const id = chart.addSeries(BarSeriesDef, { ...options, introAnimation, layers: layerCount, id: idProp });
+    const id = chart.addSeries(BarSeriesDef, { ...options, scale, introAnimation, layers: layerCount, id: idProp });
     seriesRef.current = id;
     prevSyncRef.current = new Array(layerCount).fill(EMPTY_SYNC_STATE);
     return () => {
@@ -64,12 +66,15 @@ export function BarSeries({ data, options, id: idProp, visible }: BarSeriesProps
   }, [chart, data]);
 
   useEffect(() => {
-    if (seriesRef.current && stableOptions) {
-      chart.updateSeriesOptions(seriesRef.current, { ...stableOptions, introAnimation });
-    }
+    const id = seriesRef.current;
+    if (!id) return;
+
+    // `scale` rides the same update, so a stacking change is checked against the new scale.
+    const update = stableOptions ? { ...stableOptions, introAnimation, scale } : { scale };
+    chart.updateSeriesOptions(id, update);
     // `stableOptions` only changes identity when its structural content
     // actually differs — a generic diff instead of a hand-maintained field list.
-  }, [chart, stableOptions, introAnimation]);
+  }, [chart, stableOptions, introAnimation, scale]);
 
   useEffect(() => {
     const id = seriesRef.current;

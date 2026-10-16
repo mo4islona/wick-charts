@@ -49,7 +49,8 @@ export interface YLabelProps {
   /**
    * Custom formatter. Routed through NumberFlow as its `format` prop so the
    * digit-by-digit animation still plays on the output string — NumberFlow
-   * animates whichever characters the formatter returns.
+   * animates whichever characters the formatter returns. Default: the
+   * scale's `<YAxis format>`, else a range-adaptive number.
    */
   format?: ValueFormatter;
   /**
@@ -63,6 +64,12 @@ export interface YLabelProps {
    * direction metadata. Replaces the built-in badge + dashed line entirely.
    */
   children?: (ctx: YLabelRenderContext) => ReactNode;
+  /**
+   * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
+   * the series' own scale. The badge sits on that scale's axis side — the
+   * default axis side for an overlay scale.
+   */
+  scale?: string;
 }
 
 interface BadgeFrame {
@@ -71,7 +78,7 @@ interface BadgeFrame {
   opacity: number;
 }
 
-export function YLabel({ seriesId, color, format, animate, children }: YLabelProps) {
+export function YLabel({ seriesId, color, format, animate, children, scale }: YLabelProps) {
   const chart = useChartInstance();
 
   // Notify chart that YLabel is present (affects right padding).
@@ -174,14 +181,23 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
   const last = resolvedId !== null ? chart.getStackedLastValue(resolvedId) : null;
   const previousClose = resolvedId !== null ? chart.getPreviousClose(resolvedId) : null;
 
-  const yRange = chart.yScale.getRange();
+  const scaleId = scale ?? (resolvedId !== null ? chart.getSeriesScale(resolvedId) : undefined);
+  const yScale = chart.getYScale(scaleId);
+  // An overlay scale has no column; its badge sits on the default axis side.
+  const side = chart.getYScaleColumn(scaleId)?.position ?? chart.yAxisPosition;
+
+  const yRange = yScale.getRange();
   const range = yRange.max - yRange.min;
   const fractionDigits = range < 0.1 ? 6 : range < 10 ? 4 : range < 1000 ? 2 : 0;
 
   // Build the fallback range-adaptive Intl formatter before the early return
   // so this hook call can't be skipped on subsequent renders (Rules of Hooks).
+  // `<YAxis format>` puts its formatter on the scale; the badge follows it.
+  const scaleFormat = yScale.getFormat();
   const effectiveFormat = useMemo<ValueFormatter>(() => {
     if (format) return format;
+    if (scaleFormat) return scaleFormat;
+
     const nf = new Intl.NumberFormat('en-US', {
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
@@ -189,7 +205,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
     });
 
     return (v: number) => nf.format(v);
-  }, [format, fractionDigits]);
+  }, [format, scaleFormat, fractionDigits]);
 
   if (!last || resolvedId === null) return null;
 
@@ -201,7 +217,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
   // frame lands, fall back to the settled value (hidden if an intro is sweeping).
   const positionValue = frame ? frame.positionValue : value;
   const textValue = frame ? frame.textValue : value;
-  const y = chart.yScale.valueToY(positionValue);
+  const y = yScale.valueToY(positionValue);
 
   let opacity: number;
   if (frame) {
@@ -239,7 +255,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
         style={{
           position: 'absolute',
           left: chart.plotLeft,
-          right: chart.yAxisPosition === 'left' ? 0 : chart.yAxisWidth,
+          right: chart.getAxisColumnWidth('right'),
           top: y,
           height: 0,
           borderTop: `1px dashed ${bgColor}`,
@@ -251,7 +267,7 @@ export function YLabel({ seriesId, color, format, animate, children }: YLabelPro
       <div
         style={{
           position: 'absolute',
-          [chart.yAxisPosition]: 4,
+          [side]: 4,
           top: y,
           transform: 'translateY(-50%)',
           opacity,

@@ -1,9 +1,11 @@
 import { useChartInstance } from '../context';
-import { useCrosshairPosition } from '../store-bridge';
+import { useCrosshairPosition, useOverlayVersion } from '../store-bridge';
 
 export function Crosshair() {
   const chart = useChartInstance();
   const position = useCrosshairPosition(chart);
+  // A formatter or scale change re-labels a still crosshair.
+  useOverlayVersion(chart);
 
   if (!position) return null;
 
@@ -13,6 +15,18 @@ export function Crosshair() {
   // data interval — otherwise a time-of-day badge floats among date labels when
   // zoomed out. Falls back to dataInterval on a degenerate range.
   const tickInterval = chart.timeScale.niceTickValues(dataInterval).tickInterval || dataInterval;
+
+  // One value label per named scale's axis column, each read through its own scale.
+  const scaleLabels = chart.getYScaleIds().flatMap((scale) => {
+    const column = chart.getYScaleColumn(scale);
+    if (column === null) return [];
+
+    const yScale = chart.getYScale(scale);
+
+    return [{ scale, position: column.position, text: yScale.formatY(yScale.yToValue(position.mediaY)) }];
+  });
+  // A named scale can own the default axis's side when the default axis is hidden.
+  const defaultSideTaken = scaleLabels.some((label) => label.position === chart.yAxisPosition);
 
   const labelStyle = {
     // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -35,17 +49,33 @@ export function Crosshair() {
   return (
     <>
       {/* Y label on the value axis */}
-      <div
-        style={{
-          position: 'absolute',
-          [chart.yAxisPosition]: 0,
-          top: position.mediaY,
-          transform: 'translateY(-50%)',
-          ...labelStyle,
-        }}
-      >
-        {chart.yScale.formatY(position.y)}
-      </div>
+      {!defaultSideTaken && (
+        <div
+          style={{
+            position: 'absolute',
+            [chart.yAxisPosition]: 0,
+            top: position.mediaY,
+            transform: 'translateY(-50%)',
+            ...labelStyle,
+          }}
+        >
+          {chart.yScale.formatY(position.y)}
+        </div>
+      )}
+      {scaleLabels.map((label) => (
+        <div
+          key={label.scale}
+          style={{
+            position: 'absolute',
+            [label.position]: 0,
+            top: position.mediaY,
+            transform: 'translateY(-50%)',
+            ...labelStyle,
+          }}
+        >
+          {label.text}
+        </div>
+      ))}
       {/* Time label on bottom axis */}
       <div
         style={{

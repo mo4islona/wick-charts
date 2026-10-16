@@ -13,6 +13,8 @@ export let options: Partial<CandlestickSeriesOptions> | undefined = undefined;
 export let id: string | undefined = undefined;
 /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
 export let visible: boolean = true;
+/** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
+export let scale: string | undefined = undefined;
 
 const chartStore = getChartContext();
 let seriesId: string | null = null;
@@ -25,7 +27,12 @@ const sync: { state: SeriesSyncState } = { state: EMPTY_SYNC_STATE };
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries(CandlestickSeriesDef, { ...options, id, label: toLayers<OHLCInput>(data)[0].label });
+  seriesId = chart.addSeries(CandlestickSeriesDef, {
+    ...options,
+    scale,
+    id,
+    label: toLayers<OHLCInput>(data)[0].label,
+  });
   chart.setSeriesVisible(seriesId, visible);
 });
 
@@ -46,10 +53,11 @@ $: {
   }
 }
 
+// `scale` rides the same update, so a stacking change is checked against the new scale.
 $: {
   const chart = $chartStore;
-  if (seriesId && chart && options) {
-    chart.updateSeriesOptions(seriesId, options);
+  if (seriesId && chart) {
+    chart.updateSeriesOptions(seriesId, options ? { ...options, scale } : { scale });
   }
 }
 

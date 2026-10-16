@@ -14,8 +14,6 @@ export let minLabelSpacing: number | undefined = undefined;
 const chart = get(getChartContext());
 const layout = chart !== null ? createAxisLayout(chart) : null;
 
-$: onLeft = $layout?.yAxisPosition === 'left';
-
 let container: HTMLDivElement | null = null;
 let cleanup: (() => void) | null = null;
 
@@ -41,6 +39,6 @@ onDestroy(() => {
 {#if chart !== null && $layout}
   <div
     bind:this={container}
-    style="position:absolute;left:{onLeft ? $layout.yAxisWidth : 0}px;bottom:0;right:{onLeft ? 0 : $layout.yAxisWidth}px;height:{$layout.xAxisHeight}px;pointer-events:none;display:flex;align-items:center;"
+    style="position:absolute;left:{$layout.leftAxisWidth}px;bottom:0;right:{$layout.rightAxisWidth}px;height:{$layout.xAxisHeight}px;pointer-events:none;display:flex;align-items:center;"
   />
 {/if}

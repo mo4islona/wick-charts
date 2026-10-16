@@ -12,6 +12,7 @@ import {
   type SeriesHoverInfo,
   type VisibleRange,
   type VisibleRangeSpec,
+  type YAxisConfig,
   catppuccin,
   deepEqual,
 } from '@wick-charts/core';
@@ -35,6 +36,14 @@ const props = withDefaults(
     theme?: ChartTheme;
     /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
     axis?: AxisConfig;
+    /**
+     * Named secondary Y scales, keyed by id — a series opts in with its `scale`
+     * prop and autoscales on its own, sharing the time axis. Same fields as
+     * `axis.y`; `position` defaults to the side opposite the default axis. One
+     * axis column fits on each side — render it with `<YAxis scale="id" />`.
+     * Live.
+     */
+    scales?: Record<string, YAxisConfig>;
     /**
      * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
      * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Updates are
@@ -379,6 +388,7 @@ onMounted(async () => {
 
   const options: ChartOptions = {};
   if (props.axis) options.axis = props.axis;
+  if (props.scales) options.scales = props.scales;
   if (props.theme) options.theme = props.theme;
   if (props.padding) options.padding = props.padding;
   if (props.viewport) options.viewport = props.viewport;
@@ -432,6 +442,15 @@ watch(
   { deep: true },
 );
 
+// The core skips a deep-equal replay, so a fresh inline literal doesn't refit.
+watch(
+  () => props.scales,
+  (newScales) => {
+    chart.value?.setScales(newScales);
+  },
+  { deep: true },
+);
+
 watch(
   () => props.grid?.visible,
   () => {
@@ -464,6 +483,7 @@ watch(
     await nextTick();
     const opts: ChartOptions = {};
     if (props.axis) opts.axis = props.axis;
+    if (props.scales) opts.scales = props.scales;
     if (props.theme) opts.theme = props.theme;
     if (props.padding) opts.padding = props.padding;
     if (props.viewport) opts.viewport = props.viewport;

@@ -29,13 +29,19 @@ const props = defineProps<{
    */
   seriesId?: string;
   color?: string;
-  /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. */
+  /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. Default: the scale's `<YAxis format>`, else a range-adaptive number. */
   format?: ValueFormatter;
   /**
    * Badge motion. `true` (default) glides + counts up + fades in with the
    * intro; `false` snaps with no easing; an object tunes individual parts.
    */
   animate?: YLabelAnimate;
+  /**
+   * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
+   * the series' own scale. The badge sits on that scale's axis side — the
+   * default axis side for an overlay scale.
+   */
+  scale?: string;
 }>();
 
 defineSlots<{
@@ -169,6 +175,24 @@ const theme = computed(() => {
   return chart.getTheme();
 });
 
+const scaleId = computed<string | undefined>(() => {
+  void bump.value;
+  if (props.scale !== undefined) return props.scale;
+
+  return resolvedId.value !== null ? chart.getSeriesScale(resolvedId.value) : undefined;
+});
+const yScale = computed(() => {
+  void bump.value;
+
+  return chart.getYScale(scaleId.value);
+});
+// An overlay scale has no column; its badge sits on the default axis side.
+const side = computed(() => {
+  void bump.value;
+
+  return chart.getYScaleColumn(scaleId.value)?.position ?? chart.yAxisPosition;
+});
+
 // Position eases (the glide); the digit value steps discretely (once per real
 // point, not per frame) so the roll doesn't churn. Before the first rAF frame
 // lands, fall back to the settled value (hidden if an intro is still sweeping).
@@ -195,7 +219,7 @@ const y = computed(() => {
   void bump.value;
   if (last.value === null) return 0;
 
-  return chart.yScale.valueToY(positionValue.value);
+  return yScale.value.valueToY(positionValue.value);
 });
 
 // Direction / color track the settled last value (not the mid-glide display
@@ -225,7 +249,7 @@ const bgColor = computed<string>(() => {
 
 const fractionDigits = computed(() => {
   void bump.value;
-  const yRange = chart.yScale.getRange();
+  const yRange = yScale.value.getRange();
   const range = yRange.max - yRange.min;
   if (range < 0.1) return 6;
   if (range < 10) return 4;
@@ -236,6 +260,12 @@ const fractionDigits = computed(() => {
 
 const effectiveFormat = computed<ValueFormatter>(() => {
   if (props.format) return props.format;
+
+  // `<YAxis format>` puts its formatter on the scale; the badge follows it.
+  void bump.value;
+  const scaleFormat = yScale.value.getFormat();
+  if (scaleFormat) return scaleFormat;
+
   const nf = new Intl.NumberFormat('en-US', {
     minimumFractionDigits: fractionDigits.value,
     maximumFractionDigits: fractionDigits.value,
@@ -263,7 +293,7 @@ const effectiveFormat = computed<ValueFormatter>(() => {
         :style="{
           position: 'absolute',
           left: chart.plotLeft + 'px',
-          right: (chart.yAxisPosition === 'left' ? 0 : chart.yAxisWidth) + 'px',
+          right: chart.getAxisColumnWidth('right') + 'px',
           top: y + 'px',
           height: '0',
           borderTop: '1px dashed ' + bgColor,
@@ -275,7 +305,7 @@ const effectiveFormat = computed<ValueFormatter>(() => {
       <div
         :style="{
           position: 'absolute',
-          [chart.yAxisPosition]: '4px',
+          [side]: '4px',
           top: y + 'px',
           transform: 'translateY(-50%)',
           opacity: opacity,

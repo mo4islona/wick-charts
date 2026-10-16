@@ -21,11 +21,18 @@ import {
   resolvePerfOptions,
 } from './chart/options';
 import { computePan, computeZoom } from './chart/pan-zoom-math';
-import { assertStackingFitsScale, warnUnplottableBounds, warnUnplottableValues } from './chart/scale-guards';
+import {
+  assertStackingFitsScale,
+  warnScaleSideTaken,
+  warnStackingOffScale,
+  warnUnknownScale,
+  warnUnplottableBounds,
+  warnUnplottableValues,
+} from './chart/scale-guards';
 import { StreamingCadence } from './chart/streaming-cadence';
 import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
-import { computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
+import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
@@ -77,9 +84,12 @@ import type {
   ValueColor,
   VisibleRangeSpec,
   XRange,
+  YAxisConfig,
   YAxisPosition,
   YRange,
 } from './types';
+import { deepEqual } from './utils/deep-equal';
+import type { ValueFormatter } from './utils/format';
 import { clamp } from './utils/math';
 import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { isBandPoint, pointValue } from './utils/point';
@@ -123,14 +133,62 @@ const AXIS_FADE_END_GAP_PX = 12;
 const GRID_TAIL_PX = 9;
 
 const BOTH_EDGE_SIDES: readonly EdgeSide[] = ['left', 'right'];
+const NO_EDGE_SIDES: readonly EdgeSide[] = [];
 const LEFT_EDGE_SIDE: readonly EdgeSide[] = ['left'];
 const RIGHT_EDGE_SIDE: readonly EdgeSide[] = ['right'];
+
+/** Default Y-axis column width in CSS px — the default axis and named scales alike. */
+const DEFAULT_Y_AXIS_WIDTH = 55;
 
 /** The layout the DOM axis / label components anchor to. */
 interface AxisGutters {
   yAxisWidth: number;
   xAxisHeight: number;
   yAxisPosition: YAxisPosition;
+  leftWidth: number;
+  rightWidth: number;
+}
+
+/** Per-scale Y state — the default scale's and each named scale's. */
+interface YScaleSlot {
+  readonly yScale: YScale;
+  /** User-pinned bounds from the scale's config. */
+  bounds: YBounds;
+  /** Padded Y range in values — what `yScale` maps. */
+  range: YRange;
+  /** Last engine Y (scale space) landed in {@link range}; NaN before the first. */
+  prevMin: number;
+  prevMax: number;
+}
+
+/** A named scale from `options.scales`. */
+interface NamedScaleSlot extends YScaleSlot {
+  config: YAxisConfig;
+  /** Side of the axis column the scale owns, `null` for an overlay scale (no column). */
+  column: YAxisPosition | null;
+}
+
+function createScaleSlot(yScale: YScale, config: YAxisConfig | undefined): YScaleSlot {
+  return {
+    yScale,
+    bounds: { min: config?.min, max: config?.max },
+    range: { min: 0, max: 0 },
+    prevMin: Number.NaN,
+    prevMax: Number.NaN,
+  };
+}
+
+function oppositeSide(side: YAxisPosition): YAxisPosition {
+  return side === 'left' ? 'right' : 'left';
+}
+
+function isPinnedBound(bound: AxisBound | undefined, yScale: YScale): boolean {
+  if (bound === undefined || bound === 'auto') return false;
+
+  // A fixed bound the scale can't place falls back to auto (see `resolveYTarget`).
+  const dropped = typeof bound === 'number' && !yScale.isPlottable(bound);
+
+  return !dropped;
 }
 
 /**
@@ -205,6 +263,8 @@ interface SeriesEntry {
   colorOverrides?: (ValueColor | undefined)[];
   renderer: SeriesRenderer;
   visible: boolean;
+  /** Requested named Y scale; an id `options.scales` doesn't define falls back to the default scale. */
+  scale?: string;
 }
 
 /** Internal bookkeeping for a registered marker. `time` is normalized to epoch ms; `shape`/`pulse` carry resolved defaults. */
@@ -217,6 +277,7 @@ interface MarkerEntry {
   pulse: boolean;
   label?: string;
   color?: string;
+  scale?: string;
 }
 
 /** Internal bookkeeping for a registered time region. `from`/`to` are normalized to epoch ms; `to: null` is open-ended. */
@@ -238,6 +299,7 @@ interface LineEntry {
   label?: string;
   style: ReferenceLineStyle;
   width: number;
+  scale?: string;
 }
 
 let seriesIdCounter = 0;
@@ -251,6 +313,11 @@ function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefin
   if (!a || !b || a.length !== b.length) return false;
 
   return a.every((label, i) => label === b[i]);
+}
+
+/** A time series' stacking mode; `undefined` for spatial kinds. */
+function seriesStacking(renderer: SeriesRenderer): unknown {
+  return isTimeSeriesRenderer(renderer) ? renderer.stacking : undefined;
 }
 
 /** Shallow equality for per-layer color-override arrays (string compare; functions by reference). */
@@ -277,8 +344,19 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #overlayScheduler: RenderScheduler;
   /** Maps time values to horizontal pixel coordinates. */
   readonly timeScale: XScale;
-  /** Maps price/value to vertical pixel coordinates. */
+  /** Maps price/value to vertical pixel coordinates — the default Y scale. */
   readonly yScale: YScale;
+  /** Default-scale Y state; `yScale` is its scale. */
+  readonly #defaultSlot: YScaleSlot;
+  /** Named Y scales from `options.scales`, in declaration order. */
+  #scales = new Map<string, NamedScaleSlot>();
+  /** Copy of the `scales` option as last applied — `setScales` skips a deep-equal replay,
+   *  and the copy keeps an in-place edit of the caller's object from comparing equal. */
+  #scalesConfig: Readonly<Record<string, YAxisConfig>> = {};
+  /** Set when a named scale's range moved, so the crosshair re-emits for its axis label. */
+  #scaleRangeMoved = false;
+  /** Dev warnings about scale ids already printed, so each fires once. */
+  #warnedScales = new Set<string>();
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
   /** All registered series (candlestick, line, bar, pie). */
@@ -319,15 +397,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *  them and steady frames reuse them. */
   #fadeGradientCache: {
     top: { height: number; gradient: CanvasGradient } | null;
-    /** Ramp under the Y-axis column, on whichever side it sits. */
-    axis: { inner: number; outer: number; gradient: CanvasGradient } | null;
+    /** Ramp under each Y-axis column. */
+    axis: Record<EdgeSide, { inner: number; outer: number; gradient: CanvasGradient } | null>;
     /** Plain zones at the canvas edges without an axis ramp. */
     edge: Record<EdgeSide, { edge: number; inner: number; gradient: CanvasGradient } | null>;
     /** Erase ramp for the below-pane gridline tail stubs. */
     tail: { start: number; height: number; gradient: CanvasGradient } | null;
     /** Erase ramp for the gridlines running under a left Y-axis column. */
     overhang: { start: number; end: number; gradient: CanvasGradient } | null;
-  } = { top: null, axis: null, edge: { left: null, right: null }, tail: null, overhang: null };
+  } = { top: null, axis: { left: null, right: null }, edge: { left: null, right: null }, tail: null, overhang: null };
   /** Detected time interval between data points (milliseconds). */
   #dataInterval = 60_000;
   /** Current crosshair position, null when cursor is outside the chart. */
@@ -343,8 +421,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Whether the last overlay pass painted anything — gates the full-bitmap
    *  clear so an empty overlay isn't cleared again every main frame. */
   #overlayHasContent = false;
-  /** User-specified Y-axis bounds (auto, fixed, percentage). */
-  #yBounds: { min?: AxisBound; max?: AxisBound } = {};
   /** Cached series ID list — invalidated on add/remove. */
   #seriesIdCache: string[] | null = null;
   /** Axis visibility and sizing configuration. */
@@ -391,27 +467,59 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   #overlayVersion = 0;
 
-  /** CSS px of the Y-axis column. The default collapses to `0` on a spatial-only chart. */
+  /** CSS px of the default Y-axis column. The default collapses to `0` on a spatial-only chart. */
   get yAxisWidth(): number {
-    const y = this.#axis.y;
-    if (y?.visible === false) return 0;
-    if (y?.width !== undefined) return y.width;
-
-    return this.#isSpatialOnly() ? 0 : 55;
+    return this.#columnWidthOf(this.#axis.y);
   }
 
-  /** Side of the plot area the Y-axis column sits on. */
+  /** Side of the plot area the default Y-axis column sits on. */
   get yAxisPosition(): YAxisPosition {
     return this.#axis.y?.position ?? 'right';
   }
 
   /**
-   * Left edge of the plot area in container CSS px — the Y-axis width when
-   * the axis sits on the left, `0` otherwise. Scales map into the plot area,
-   * so add this to `timeScale.timeToX()` to get a container coordinate.
+   * Left edge of the plot area in container CSS px — the width of the Y-axis
+   * column on the left, `0` without one. Scales map into the plot area, so
+   * add this to `timeScale.timeToX()` to get a container coordinate.
    */
   get plotLeft(): number {
-    return this.yAxisPosition === 'left' ? this.yAxisWidth : 0;
+    return this.getAxisColumnWidth('left');
+  }
+
+  /**
+   * CSS px of the Y-axis column on `side` — the default axis's or the named
+   * scale's that owns that side — `0` when no column sits there.
+   */
+  getAxisColumnWidth(side: YAxisPosition): number {
+    if (side === this.yAxisPosition && this.yAxisWidth > 0) return this.yAxisWidth;
+
+    for (const slot of this.#scales.values()) {
+      if (slot.column === side) return this.#columnWidthOf(slot.config);
+    }
+
+    return 0;
+  }
+
+  /** The named scale whose axis column sits on `side`, `null` when the default axis's does or none. */
+  getAxisColumnScale(side: YAxisPosition): string | null {
+    for (const [id, slot] of this.#scales) {
+      if (slot.column === side) return id;
+    }
+
+    return null;
+  }
+
+  /** Both Y-axis columns together — the plot area is the canvas width minus this. */
+  #columnsWidth(): number {
+    return this.getAxisColumnWidth('left') + this.getAxisColumnWidth('right');
+  }
+
+  /** Column width a Y-axis config asks for; `0` when hidden, and by default on a spatial-only chart. */
+  #columnWidthOf(config: YAxisConfig | undefined): number {
+    if (config?.visible === false) return 0;
+    if (config?.width !== undefined) return config.width;
+
+    return this.#isSpatialOnly() ? 0 : DEFAULT_Y_AXIS_WIDTH;
   }
 
   /** CSS px height of the floating Title / InfoBar header, `0` without one. A left
@@ -490,8 +598,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * as "uninitialized" by `#computeXTarget` until first paint.
    */
   #logical: XRange = { from: 0, to: 0 };
-  /** Padded Y range — engine's raw Y target plus pixel padding from `#padding`. */
-  #yRange: YRange = { min: 0, max: 0 };
   /**
    * Auto-scroll flag — when `true`, streaming ticks slide X to track the
    * data tail. Pan flips this off when the gesture pushes the tail off
@@ -515,10 +621,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
     // Support both new `axis` API and legacy flat props
-    if (options?.axis) {
-      this.#axis = options.axis;
-      this.#yBounds = { min: options.axis.y?.min, max: options.axis.y?.max };
-    }
+    if (options?.axis) this.#axis = options.axis;
     this.#theme = options?.theme ?? catppuccin.theme;
     this.#grid = options?.grid?.visible !== false;
     this.#fade = resolveFade(options?.fade);
@@ -549,7 +652,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         gestureMs: animX.gestureMs,
       },
       computeXTarget: () => this.#computeXTarget(),
-      computeYTarget: ({ xTarget }) => this.#computeYTarget(xTarget),
+      computeYTarget: ({ xTarget, scale }) => this.#computeYTarget(xTarget, scale),
       onWake: () => this.#mainScheduler?.markDirty(),
     });
 
@@ -563,14 +666,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
     this.timeScale = new XScale();
     this.yScale = new YScale();
+    this.#defaultSlot = createScaleSlot(this.yScale, this.#axis.y);
     this.yScale.setTransform(this.#axis.y?.scale ?? null);
-    warnUnplottableBounds({ y: this.#axis.y, isPlottable: this.#isPlottable });
+    warnUnplottableBounds({ y: this.#axis.y, isPlottable: this.#plottableOn(undefined) });
     this.timeScale.setLocale(options?.locale);
     this.timeScale.setTimeZone(options?.timeZone);
 
     const ticksMs = this.#animationsConfig.axis.ticksMs;
     this.timeScale.tickTracker.setFadeMs(ticksMs);
     this.yScale.tickTracker.setFadeMs(ticksMs);
+    this.#installScales(options?.scales ?? {});
+    this.#assignColumns();
 
     // Starts at 0 whatever `grid.visible` says — the first render frame
     // retargets to 1, which snaps at duration 0. The duration is passed per
@@ -700,30 +806,57 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * resolves through the registry and requires a one-time
    * `registerBuiltinSeries()` call at startup.
    */
-  addSeries(type: 'candlestick', options?: Partial<CandlestickSeriesOptions & { id?: string; label?: string }>): string;
+  addSeries(
+    type: 'candlestick',
+    options?: Partial<CandlestickSeriesOptions & { id?: string; label?: string; scale?: string }>,
+  ): string;
   addSeries(
     type: 'line',
     options?: Partial<
-      LineSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+      LineSeriesOptions & {
+        layers?: number;
+        id?: string;
+        label?: string;
+        labels?: (string | undefined)[];
+        scale?: string;
+      }
     >,
   ): string;
   addSeries(
     type: 'bar',
     options?: Partial<
-      BarSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+      BarSeriesOptions & {
+        layers?: number;
+        id?: string;
+        label?: string;
+        labels?: (string | undefined)[];
+        scale?: string;
+      }
     >,
   ): string;
   addSeries(
     type: 'band',
     options?: Partial<
-      BandSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+      BandSeriesOptions & {
+        layers?: number;
+        id?: string;
+        label?: string;
+        labels?: (string | undefined)[];
+        scale?: string;
+      }
     >,
   ): string;
   addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string; label?: string }>): string;
   addSeries(type: 'heatmap', options?: Partial<HeatmapSeriesOptions & { id?: string; label?: string }>): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
-    options?: Partial<O> & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] },
+    options?: Partial<O> & {
+      layers?: number;
+      id?: string;
+      label?: string;
+      labels?: (string | undefined)[];
+      scale?: string;
+    },
   ): string;
   addSeries(type: SeriesType | SeriesDefinition, options: Record<string, unknown> = {}): string {
     const def = typeof type === 'string' ? resolveSeriesDefinition(type) : type;
@@ -738,16 +871,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // `label` / `labels` are series-entry metadata, not renderer options — pull
     // them out so they never reach `def.create`. `labels` (per-layer) wins;
     // `label` is the single-name back-compat form (pie, candlestick).
-    const { layers, id, label, labels, ...rest } = options as {
+    const { layers, id, label, labels, scale, ...rest } = options as {
       layers?: number;
       id?: string;
       label?: string;
       labels?: (string | undefined)[];
+      scale?: string;
       [key: string]: unknown;
     };
     const layerCount = layers ?? 1;
 
-    assertStackingFitsScale({ seriesId: id ?? def.type, stacking: rest.stacking, isPlottable: this.#isPlottable });
+    // A named scale's config can land after its series (wrapper effect order), so it warns at render instead.
+    if (scale === undefined) {
+      assertStackingFitsScale({
+        seriesId: id ?? def.type,
+        stacking: rest.stacking,
+        isPlottable: this.#plottableOn(scale),
+      });
+    }
 
     // Merge order matches the old per-type adders: theme defaults (injected by
     // the definition) -> animation defaults -> user options -> forced-off overrides.
@@ -762,7 +903,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
     const prevGutters = this.#readGutters();
-    this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true });
+    this.#series.push({ id: seriesId, labels: entryLabels, renderer, visible: true, scale });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
     this.#syncGutters(prevGutters);
@@ -840,7 +981,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       pulse: config.pulse ?? false,
       label: config.label,
       color: config.color,
+      scale: config.scale,
     };
+  }
+
+  /** The scale a marker's value maps through: its own `scale`, else its series' scale. */
+  #markerScale(marker: MarkerEntry): YScale {
+    if (marker.scale !== undefined || marker.seriesId === undefined) return this.getYScale(marker.scale);
+
+    return this.getYScale(this.getSeriesScale(marker.seriesId));
   }
 
   /** Resolve a marker's Y value: explicit `value`, else snapped to its series at `time`. Null when neither resolves. */
@@ -890,7 +1039,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       renderMarker({
         scope,
         timeScale: this.timeScale,
-        yScale: this.yScale,
+        yScale: this.#markerScale(marker),
         theme: this.#theme,
         marker: {
           time: marker.time,
@@ -1034,6 +1183,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       label: config.label,
       style: config.style ?? 'dashed',
       width: config.width ?? 1,
+      scale: config.scale,
     };
 
     // A `time` wins over `value` when both are set (vertical); neither resolves
@@ -1064,7 +1214,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       renderReferenceLine({
         scope,
         timeScale: this.timeScale,
-        yScale: this.yScale,
+        yScale: this.getYScale(line.scale),
         theme: this.#theme,
         line: {
           orientation: line.orientation,
@@ -1092,16 +1242,27 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return this.#toValueSpace(this.#engine.getAnimationState());
   }
 
-  /** The engine animates Y in scale space (`axis.y.scale`'s forward); readers outside it get values. */
-  #toValueSpace(state: AnimationState): AnimationState {
-    const transform = this.yScale.getTransform();
+  /** The engine animates Y in scale space (the scale's forward); readers outside it get values. */
+  #toValueSpace(state: AnimationState, yScale: YScale = this.yScale): AnimationState {
+    const transform = yScale.getTransform();
     if (transform === null) return state;
 
     return { ...state, yRange: fromScaleSpace(state.yRange, transform) };
   }
 
-  /** `yScale.isPlottable`, bound once for the helpers that take a predicate. */
-  readonly #isPlottable = (value: number): boolean => this.yScale.isPlottable(value);
+  /** The animation state as a named scale's series see it: its own Y, in values. */
+  #scaleAnimationState(state: AnimationState, scaleId: string): AnimationState {
+    const yRange = this.#engine.getScaleYRange(scaleId) ?? state.yRange;
+
+    return this.#toValueSpace({ ...state, yRange }, this.getYScale(scaleId));
+  }
+
+  /** `isPlottable` of a scale (`undefined` = default), as a predicate for the guard helpers. */
+  #plottableOn(scaleId: string | undefined): (value: number) => boolean {
+    const yScale = this.getYScale(scaleId);
+
+    return (value) => yScale.isPlottable(value);
+  }
 
   /**
    * Reveal-front position in `[0, 1]` of any in-flight initial-load intro.
@@ -1268,22 +1429,32 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     entry?.renderer.keepLast?.(count, layerIndex);
   }
 
-  /** Update visual options (color, width, etc.) for an existing series. */
+  /**
+   * Update visual options (color, width, etc.) for an existing series. `scale`
+   * (time series) moves it onto a named Y scale, `undefined` back to the default.
+   */
   updateSeriesOptions(
     id: string,
-    options:
+    options: (
       | Partial<CandlestickSeriesOptions>
       | Partial<LineSeriesOptions>
       | Partial<BarSeriesOptions>
       | Partial<BandSeriesOptions>
       | Partial<PieSeriesOptions>
-      | Partial<HeatmapSeriesOptions>,
+      | Partial<HeatmapSeriesOptions>
+    ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
 
-    if ('stacking' in options) {
-      assertStackingFitsScale({ seriesId: id, stacking: options.stacking, isPlottable: this.#isPlottable });
+    // `scale` is chart bookkeeping, not a renderer option.
+    const { scale, ...rendererOptions } = options as { scale?: string };
+    const scaleUpdate = 'scale' in options;
+    const nextScale = scaleUpdate ? scale : entry.scale;
+
+    if (('stacking' in options || scaleUpdate) && nextScale === undefined) {
+      const stacking = 'stacking' in options ? options.stacking : seriesStacking(entry.renderer);
+      assertStackingFitsScale({ seriesId: id, stacking, isPlottable: this.#plottableOn(nextScale) });
     }
 
     // Framework wrappers (notably Vue's deep watch) replay this method on
@@ -1302,7 +1473,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // here — otherwise a simple parent re-render silently re-enables
     // animations the chart asked to hold off.
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
-    entry.renderer.updateOptions({ ...options, ...forceOff });
+    entry.renderer.updateOptions({ ...rendererOptions, ...forceOff });
     // Keep the stored single-name label in sync with options (pie / candlestick
     // back-compat — line/bar set per-layer names through `setSeriesLabels`).
     if ('label' in options && typeof options.label === 'string') {
@@ -1310,10 +1481,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
     this.#mainScheduler.markDirty();
 
+    const prevScaleId = this.#scaleIdOf(entry);
+    entry.scale = nextScale;
+    const scaleMoved = this.#scaleIdOf(entry) !== prevScaleId;
+    if (scaleMoved) this.#refitScales();
+
     const nextColors = entry.renderer.getLayerColors();
     const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
     const labelChanged = !labelsEqual(prevLabels, entry.labels);
-    if (colorsChanged || labelChanged) {
+    if (colorsChanged || labelChanged || scaleMoved) {
       this.#bumpOverlayVersion();
     }
   }
@@ -1451,7 +1627,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   fitContent(): void {
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
-    const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+    const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
     this.#fitVisibleToData(first, last, chartWidth);
     // Y and X both ease through the engine — Y rides the sticky-Y baseline,
     // X rides the spring's settle time, so the axis and viewport converge on
@@ -1518,7 +1694,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (first === undefined || last === undefined) return;
 
       const trimmedFirst = Math.max(first, last - (spec - 1) * this.#dataInterval);
-      const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+      const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
       this.#fitVisibleToData(trimmedFirst, last, chartWidth);
       // Programmatic zoom — X snaps to the new window (matches the legacy
       // `setRange` semantics every consumer reads `chart.getVisibleRange()`
@@ -1567,7 +1743,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   getYRange() {
-    return this.#yRange;
+    return this.#defaultSlot.range;
   }
 
   getCrosshairPosition(): CrosshairPosition | null {
@@ -1720,17 +1896,27 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   #readGutters(): AxisGutters {
-    return { yAxisWidth: this.yAxisWidth, xAxisHeight: this.xAxisHeight, yAxisPosition: this.yAxisPosition };
+    return {
+      yAxisWidth: this.yAxisWidth,
+      xAxisHeight: this.xAxisHeight,
+      yAxisPosition: this.yAxisPosition,
+      leftWidth: this.getAxisColumnWidth('left'),
+      rightWidth: this.getAxisColumnWidth('right'),
+    };
   }
 
-  /** Resync the scales after the axis gutters moved, and let DOM axis / label
-   *  components re-read the layout, as they do after a resize. */
+  /** Reassign the Y-axis columns, then resync the scales if the gutters moved
+   *  and let DOM axis / label components re-read the layout, as they do after a resize. */
   #syncGutters(prev: AxisGutters): void {
+    this.#assignColumns();
+
     const next = this.#readGutters();
     const moved =
       next.yAxisWidth !== prev.yAxisWidth ||
       next.xAxisHeight !== prev.xAxisHeight ||
-      next.yAxisPosition !== prev.yAxisPosition;
+      next.yAxisPosition !== prev.yAxisPosition ||
+      next.leftWidth !== prev.leftWidth ||
+      next.rightWidth !== prev.rightWidth;
     if (!moved) return;
 
     this.syncScales();
@@ -1968,7 +2154,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const nextScale = config.y?.scale ?? null;
     const plottableOnNext = (value: number) => isPlottableOn(nextScale, value);
     for (const entry of this.#series) {
-      if (!isTimeSeriesRenderer(entry.renderer)) continue;
+      if (!isTimeSeriesRenderer(entry.renderer) || entry.scale !== undefined) continue;
 
       assertStackingFitsScale({ seriesId: entry.id, stacking: entry.renderer.stacking, isPlottable: plottableOnNext });
     }
@@ -1977,8 +2163,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const scaleChanged = nextScale !== this.yScale.getTransform();
 
     this.#axis = config;
-    // Sync Y bounds from axis config
-    this.#yBounds = { min: config.y?.min, max: config.y?.max };
+    this.#defaultSlot.bounds = { min: config.y?.min, max: config.y?.max };
     warnUnplottableBounds({ y: config.y, isPlottable: plottableOnNext });
     const now = performance.now();
 
@@ -2000,19 +2185,219 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * Replace the named Y scales (see {@link ChartOptions.scales}). Added,
+   * removed and edited scales apply in place: a changed transform resets that
+   * scale's ticks, and every scale refits. A deep-equal replay is a no-op.
+   */
+  setScales(scales: Readonly<Record<string, YAxisConfig>> | undefined): void {
+    const next = scales ?? {};
+    if (deepEqual(next, this.#scalesConfig)) return;
+
+    const prevGutters = this.#readGutters();
+    const transformChanged = this.#installScales(next);
+    // Before any scale sync: a column handed from a dropped scale to another keeps the widths equal.
+    this.#assignColumns();
+    const now = performance.now();
+
+    // The engine holds a re-mapped scale's Y in its old space. With no data
+    // to refit to, park it on a range neutral in both spaces.
+    const parked: Record<string, YRange> = {};
+    for (const id of transformChanged) {
+      if (this.#computeYTarget(undefined, id) === null) parked[id] = { min: 0, max: 0 };
+    }
+    this.#engine.snap({ scales: parked }, now);
+
+    this.#yInited = true;
+    this.#engine.onAxisReconfig(now);
+    this.#applyEngineState(now);
+
+    this.#syncGutters(prevGutters);
+    this.emit('viewportChange');
+    this.#bumpOverlayVersion();
+    this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * Create, update and drop named-scale slots to match `next`, in its key
+   * order. Returns the ids of existing scales whose transform changed.
+   */
+  #installScales(next: Readonly<Record<string, YAxisConfig>>): string[] {
+    const slots = new Map<string, NamedScaleSlot>();
+    const transformChanged: string[] = [];
+
+    for (const [id, config] of Object.entries(next)) {
+      const transform = config.scale ?? null;
+      let slot = this.#scales.get(id);
+      if (slot === undefined) {
+        const yScale = new YScale();
+        yScale.setTransform(transform);
+        yScale.tickTracker.setFadeMs(this.#animationsConfig.axis.ticksMs);
+        slot = { ...createScaleSlot(yScale, config), config, column: null };
+      } else if (transform !== slot.yScale.getTransform()) {
+        slot.yScale.setTransform(transform);
+        // Old tick values would fade out at their positions on the new mapping.
+        slot.yScale.tickTracker.reset();
+        transformChanged.push(id);
+      }
+
+      slot.config = { ...config };
+      slot.bounds = { min: config.min, max: config.max };
+      warnUnplottableBounds({
+        y: config,
+        isPlottable: (value) => isPlottableOn(transform, value),
+        path: `scales.${id}`,
+      });
+      slots.set(id, slot);
+    }
+
+    this.#scales = slots;
+    this.#scalesConfig = Object.fromEntries([...slots].map(([id, slot]) => [id, slot.config]));
+    this.#engine.setYScales([...slots.keys()]);
+
+    return transformChanged;
+  }
+
+  /**
+   * Hand out the Y-axis columns: the default axis keeps its side, and each
+   * visible named scale takes its side unless an earlier one holds it —
+   * that one becomes an overlay scale (dev warning).
+   */
+  #assignColumns(): void {
+    const taken = new Set<YAxisPosition>();
+    if (this.yAxisWidth > 0) taken.add(this.yAxisPosition);
+
+    const fallbackSide = oppositeSide(this.yAxisPosition);
+    for (const [id, slot] of this.#scales) {
+      slot.column = null;
+      if (this.#columnWidthOf(slot.config) <= 0) continue;
+
+      const side = slot.config.position ?? fallbackSide;
+      if (taken.has(side)) {
+        this.#warnScaleOnce(`side:${id}`, () => warnScaleSideTaken({ scaleId: id, side }));
+        continue;
+      }
+
+      taken.add(side);
+      slot.column = side;
+    }
+  }
+
+  /** Dev warnings for a series' `scale`: an id `scales` doesn't define, a percent stack on a scale without 0. */
+  #warnScaleMisuse(entry: SeriesEntry): void {
+    const scale = entry.scale;
+    if (scale === undefined) return;
+
+    if (!this.#scales.has(scale)) {
+      this.#warnScaleOnce(`unknown:${scale}`, () => warnUnknownScale({ seriesId: entry.id, scaleId: scale }));
+    }
+
+    const percent = seriesStacking(entry.renderer) === 'percent';
+    if (percent && !this.getYScale(this.#scaleIdOf(entry)).isPlottable(0)) {
+      this.#warnScaleOnce(`percent:${entry.id}`, () => warnStackingOffScale({ seriesId: entry.id }));
+    }
+  }
+
+  #warnScaleOnce(key: string, warn: () => void): void {
+    if (this.#warnedScales.has(key)) return;
+
+    this.#warnedScales.add(key);
+    warn();
+  }
+
+  /** Ids of the named Y scales, in declaration order. */
+  getYScaleIds(): string[] {
+    return [...this.#scales.keys()];
+  }
+
+  /** The Y scale named `scaleId`; the default scale for `undefined` or an id `scales` doesn't define. */
+  getYScale(scaleId?: string): YScale {
+    if (scaleId === undefined) return this.yScale;
+
+    return this.#scales.get(scaleId)?.yScale ?? this.yScale;
+  }
+
+  /**
+   * The column a scale's axis sits in — always the default axis's for
+   * `undefined`; `null` for an overlay scale or an unknown id.
+   */
+  getYScaleColumn(scaleId?: string): { position: YAxisPosition; width: number } | null {
+    if (scaleId === undefined) return { position: this.yAxisPosition, width: this.yAxisWidth };
+
+    const slot = this.#scales.get(scaleId);
+    if (slot === undefined || slot.column === null) return null;
+
+    return { position: slot.column, width: this.#columnWidthOf(slot.config) };
+  }
+
+  /** The named scale a series maps through, `undefined` for the default scale. */
+  getSeriesScale(seriesId: string): string | undefined {
+    const entry = this.#series.find((s) => s.id === seriesId);
+
+    return entry === undefined ? undefined : this.#scaleIdOf(entry);
+  }
+
+  /** `scale` if `options.scales` defines it, else `undefined` (the default scale). */
+  #knownScale(scale: string | undefined): string | undefined {
+    return scale !== undefined && this.#scales.has(scale) ? scale : undefined;
+  }
+
+  #scaleIdOf(entry: SeriesEntry): string | undefined {
+    return this.#knownScale(entry.scale);
+  }
+
+  #slotOf(scaleId: string | undefined): YScaleSlot {
+    if (scaleId === undefined) return this.#defaultSlot;
+
+    return this.#scales.get(scaleId) ?? this.#defaultSlot;
+  }
+
+  /** The series a scale autoscales from. */
+  #seriesOn(scaleId: string | undefined): readonly SeriesEntry[] {
+    if (this.#scales.size === 0) return this.#series;
+
+    return this.#series.filter((entry) => this.#scaleIdOf(entry) === scaleId);
+  }
+
+  /** Snap every scale to a fresh fit — what each one holds just changed. */
+  #refitScales(): void {
+    this.#yInited = true;
+    const now = performance.now();
+    this.#engine.onAxisReconfig(now);
+    this.#applyEngineState(now);
+    this.emit('viewportChange');
+    this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * Install (or clear, with `null`) the value formatter `<YAxis format>` puts
+   * on a scale — its axis labels, crosshair label and `YLabel` read it. `scale`
+   * picks a named scale; an id `scales` doesn't define is a no-op.
+   */
+  setYAxisFormat(params: { format: ValueFormatter | null; scale?: string }): void {
+    if (params.scale !== undefined && !this.#scales.has(params.scale)) return;
+
+    this.getYScale(params.scale).setFormat(params.format);
+    this.#bumpOverlayVersion();
+  }
+
+  /**
    * Apply label-density knobs driven by `<YAxis labelCount=… minLabelSpacing=…>`
    * — kept separate from {@link setAxis} so component props don't force a
-   * Y-animation reset. Triggers a viewportChange + repaint so static charts
-   * react without waiting for pan/zoom.
+   * Y-animation reset. `scale` picks a named scale's axis — an id `scales`
+   * doesn't define is a no-op. Triggers a viewportChange + repaint so static
+   * charts react without waiting for pan/zoom.
    */
-  setYAxisLabelDensity(params: { labelCount?: number | null; minLabelSpacing?: number | null }): void {
+  setYAxisLabelDensity(params: { labelCount?: number | null; minLabelSpacing?: number | null; scale?: string }): void {
+    if (params.scale !== undefined && !this.#scales.has(params.scale)) return;
+
+    const yScale = this.getYScale(params.scale);
     let dirty = false;
     if ('labelCount' in params) {
-      this.yScale.setLabelCount(params.labelCount ?? null);
+      yScale.setLabelCount(params.labelCount ?? null);
       dirty = true;
     }
     if ('minLabelSpacing' in params) {
-      this.yScale.setMinSpacing(params.minLabelSpacing ?? null);
+      yScale.setMinSpacing(params.minLabelSpacing ?? null);
       dirty = true;
     }
     if (dirty) {
@@ -2049,8 +2434,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const media = this.#canvasManager.size.media;
     const yAxisWidth = this.yAxisWidth;
     const xAxisHeight = this.xAxisHeight;
+    const width = media.width - this.#columnsWidth();
+
     return {
-      chartArea: { x: this.plotLeft, y: 0, width: media.width - yAxisWidth, height: media.height - xAxisHeight },
+      chartArea: { x: this.plotLeft, y: 0, width, height: media.height - xAxisHeight },
       yAxisWidth,
       yAxisPosition: this.yAxisPosition,
       xAxisHeight,
@@ -2079,7 +2466,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (horizontalChanged) {
       const { first, last } = this.getDataBounds();
       if (first !== undefined && last !== undefined) {
-        const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+        const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
         this.#fitVisibleToData(first, last, chartWidth);
       }
     }
@@ -2218,7 +2605,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (!entry) return null;
 
     return {
-      valueY: this.yScale.valueToY(resolveEdgeAnchorValue(side, point)),
+      valueY: this.getYScale(this.#scaleIdOf(entry)).valueToY(resolveEdgeAnchorValue(side, point)),
       seriesKind: entry.renderer.kind,
     };
   }
@@ -2329,6 +2716,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * method exits without emitting.
    */
   #syncCrosshairToViewport(): void {
+    // A named scale's axis label reads its value off `mediaY`, which may not have moved.
+    const scaleMoved = this.#scaleRangeMoved;
+    this.#scaleRangeMoved = false;
+
     const pos = this.#crosshairPos;
     if (pos === null) return;
 
@@ -2351,7 +2742,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // A degenerate scale (zero-width range, zero-size canvas) can derive
       // non-finite values — keep the last good position rather than emit NaN.
       if (!Number.isFinite(time) || !Number.isFinite(y)) return;
-      if (Math.abs(time - pos.time) <= timeTolerance && Math.abs(y - pos.y) <= yTolerance) return;
+      const still = Math.abs(time - pos.time) <= timeTolerance && Math.abs(y - pos.y) <= yTolerance;
+      if (still && !scaleMoved) return;
 
       next = { mediaX: pos.mediaX, mediaY: pos.mediaY, time, y };
     } else {
@@ -2372,7 +2764,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const mediaY = this.yScale.valueToY(pos.y);
 
       if (!Number.isFinite(mediaX) || !Number.isFinite(mediaY)) return;
-      if (Math.abs(mediaX - pos.mediaX) <= pixelTolerance && Math.abs(mediaY - pos.mediaY) <= pixelTolerance) return;
+
+      const still = Math.abs(mediaX - pos.mediaX) <= pixelTolerance && Math.abs(mediaY - pos.mediaY) <= pixelTolerance;
+      if (still && !scaleMoved) return;
 
       next = { mediaX, mediaY, time: pos.time, y: pos.y };
     }
@@ -2475,6 +2869,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (replaceSnap) {
       this.yScale.tickTracker.reset();
       this.timeScale.tickTracker.reset();
+      for (const slot of this.#scales.values()) {
+        slot.yScale.tickTracker.reset();
+      }
     }
 
     // Engine pulls the X target by calling `#computeXTarget`
@@ -2559,54 +2956,52 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   #initialVisibleRange: VisibleRangeSpec | undefined;
 
-  /** Last Y bounds the engine resolved into {@link AnimationState.yRange}.
-   *  Used by {@link renderMain} to detect Y movement frame-to-frame so
-   *  `viewportChange` only emits when the Y range actually shifted — DOM
-   *  axis labels subscribe to that event and re-renders on every tick are
-   *  expensive. Initialised to NaN so the first real Y emit always passes
-   *  the change check. */
-  #prevYMin = Number.NaN;
-  #prevYMax = Number.NaN;
-
   /** Dev warning for values the Y scale can't place — fires once per chart. */
   #warnedUnplottable = false;
 
   /**
-   * Sample the visible data window and return the resolved Y bounds in scale
-   * space (see {@link resolveYTarget}), or `null` when no series has data
-   * inside the X destination range.
+   * Sample the visible data window and return the resolved Y bounds of one
+   * scale (`undefined` = default) in its scale space (see {@link resolveYTarget}),
+   * or `null` when none of that scale's series has data inside the X destination range.
    * Sampling runs against `logicalRange` (the X target, not the animating
    * current), so Y stays on a stable target while X eases — both dimensions
    * converge together. Clears {@link #yInited} on empty so the next emit
    * with valid data lands as an instant snap.
    */
-  #computeYTarget(xTarget?: XRange): { min: number; max: number } | null {
+  #computeYTarget(xTarget?: XRange, scaleId?: string): { min: number; max: number } | null {
     const targetVisible = xTarget ?? this.#logical;
+    const { yScale, bounds } = this.#slotOf(scaleId);
 
     // Only collect individual values when bounds use a function/percentage (rare).
     const needsAllValues =
-      (this.#yBounds.min !== undefined && this.#yBounds.min !== 'auto' && typeof this.#yBounds.min !== 'number') ||
-      (this.#yBounds.max !== undefined && this.#yBounds.max !== 'auto' && typeof this.#yBounds.max !== 'number');
+      (bounds.min !== undefined && bounds.min !== 'auto' && typeof bounds.min !== 'number') ||
+      (bounds.max !== undefined && bounds.max !== 'auto' && typeof bounds.max !== 'number');
     const allValues: number[] | null = needsAllValues ? [] : null;
 
-    const transform = this.yScale.getTransform();
-    const plottable = transform === null ? undefined : this.#isPlottable;
-    if (plottable) this.#checkUnplottableInView(targetVisible);
+    const series = this.#seriesOn(scaleId);
+    const transform = yScale.getTransform();
+    const plottable = transform === null ? undefined : (value: number) => yScale.isPlottable(value);
+    if (plottable) this.#checkUnplottableInView({ window: targetVisible, series, yScale });
 
-    const raw = computeTargetYRange({ targetVisible, series: this.#series, allValues, plottable });
+    const raw = computeTargetYRange({ targetVisible, series, allValues, plottable });
     if (raw === null) {
-      this.#yInited = false;
+      if (scaleId === undefined) this.#yInited = false;
       return null;
     }
 
-    return resolveYTarget({ raw, bounds: this.#yBounds, allValues: allValues ?? [], transform });
+    // The engine asks the default scale first, so data on a named scale keeps
+    // Y initialized on a chart whose default scale holds no series.
+    if (scaleId !== undefined) this.#yInited = true;
+
+    return resolveYTarget({ raw, bounds, allValues: allValues ?? [], transform });
   }
 
   /** Dev-only sweep behind {@link warnUnplottableValues}; stops once it has warned. */
-  #checkUnplottableInView(window: XRange): void {
+  #checkUnplottableInView(args: { window: XRange; series: readonly SeriesEntry[]; yScale: YScale }): void {
     if (this.#warnedUnplottable || process.env.NODE_ENV === 'production') return;
 
-    for (const entry of this.#series) {
+    const { window, series, yScale } = args;
+    for (const entry of series) {
       if (!entry.visible || !isTimeSeriesRenderer(entry.renderer)) continue;
 
       const range = entry.renderer.getValueRange(window.from, window.to);
@@ -2614,11 +3009,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       // A stack's range always reaches its zero baseline, and a zero layer
       // adds nothing either way — only a total below zero drops values.
-      const stacked = entry.renderer.stacking === 'normal';
-      const lowDrops = stacked
-        ? range.min < 0 && !this.yScale.isPlottable(range.min)
-        : !this.yScale.isPlottable(range.min);
-      const unplottable = lowDrops ? range.min : this.yScale.isPlottable(range.max) ? null : range.max;
+      const stacked = entry.renderer.stacking === 'normal' || entry.renderer.stacking === 'percent';
+      const lowDrops = stacked ? range.min < 0 && !yScale.isPlottable(range.min) : !yScale.isPlottable(range.min);
+      const unplottable = lowDrops ? range.min : yScale.isPlottable(range.max) ? null : range.max;
       if (unplottable === null) continue;
 
       this.#warnedUnplottable = true;
@@ -2651,7 +3044,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const { from, to } = this.#logical;
     const uninitialized = from === 0 && to === 0;
-    const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+    const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
 
     if (uninitialized) {
       this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
@@ -2804,9 +3197,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #snapToLogical(now: number): void {
     const target = this.#logical;
     const yTarget = this.#computeYTarget(target);
+    const scales: Record<string, YRange> = {};
+    for (const id of this.#scales.keys()) {
+      const scaleTarget = this.#computeYTarget(target, id);
+      if (scaleTarget !== null) scales[id] = scaleTarget;
+    }
+
     this.#xInited = true;
     if (yTarget !== null) this.#yInited = true;
-    this.#engine.snap({ x: target, y: yTarget ?? undefined }, now);
+    this.#engine.snap({ x: target, y: yTarget ?? undefined, scales }, now);
     this.#applyEngineState(now);
   }
 
@@ -2856,9 +3255,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * that has an explicit (fixed) axis bound. Padding in scale space keeps
    * the pixel gutters even on a log axis.
    */
-  #padYRange(args: { min: number; max: number; chartHeight: number }): YRange {
-    const { min, max, chartHeight } = args;
-    const { min: fixedMin, max: fixedMax } = this.#fixedYBounds();
+  #padYRange(args: { slot: YScaleSlot; min: number; max: number; chartHeight: number }): YRange {
+    const { slot, min, max, chartHeight } = args;
+    const { yScale } = slot;
+    const { min: fixedMin, max: fixedMax } = this.#fixedYBounds(slot);
     const dataRange = max - min;
     const padTop = chartHeight > 0 ? (this.#padding.top / chartHeight) * dataRange : 0;
     const padBottom = chartHeight > 0 ? (this.#padding.bottom / chartHeight) * dataRange : 0;
@@ -2868,15 +3268,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       max: fixedMax ? max : max + padTop,
     };
 
-    const transform = this.yScale.getTransform();
+    const transform = yScale.getTransform();
     if (transform === null) return padded;
 
     // Padding can run past what the scale covers (below 0 on a sqrt axis),
     // where `inverse` has no meaning — that edge stays unpadded instead.
     const bottom = transform.inverse(padded.min);
     const top = transform.inverse(padded.max);
-    const bottomHolds = this.yScale.isPlottable(bottom) && bottom <= transform.inverse(min);
-    const topHolds = this.yScale.isPlottable(top) && top >= transform.inverse(max);
+    const bottomHolds = yScale.isPlottable(bottom) && bottom <= transform.inverse(min);
+    const topHolds = yScale.isPlottable(top) && top >= transform.inverse(max);
 
     return {
       min: bottomHolds ? bottom : transform.inverse(min),
@@ -2884,21 +3284,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     };
   }
 
-  /** Which Y edges the user pinned — a pinned edge takes no padding. */
-  #fixedYBounds(): { min: boolean; max: boolean } {
+  /** Which Y edges of a scale the user pinned — a pinned edge takes no padding. */
+  #fixedYBounds(slot: YScaleSlot): { min: boolean; max: boolean } {
     return {
-      min: this.#isPinnedBound(this.#yBounds.min),
-      max: this.#isPinnedBound(this.#yBounds.max),
+      min: isPinnedBound(slot.bounds.min, slot.yScale),
+      max: isPinnedBound(slot.bounds.max, slot.yScale),
     };
-  }
-
-  #isPinnedBound(bound: AxisBound | undefined): boolean {
-    if (bound === undefined || bound === 'auto') return false;
-
-    // A fixed bound the scale can't place falls back to auto (see `resolveYTarget`).
-    const dropped = typeof bound === 'number' && !this.yScale.isPlottable(bound);
-
-    return !dropped;
   }
 
   /**
@@ -3019,10 +3410,33 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (size.media.width === 0 || size.media.height === 0) return;
 
     const chartHeight = size.media.height - this.xAxisHeight;
-    this.#yRange = this.#padYRange({ min: state.yRange.min, max: state.yRange.max, chartHeight });
-    this.#prevYMin = state.yRange.min;
-    this.#prevYMax = state.yRange.max;
+    for (const { slot, range } of this.#engineYRanges(state)) {
+      this.#landYRange({ slot, range, chartHeight });
+    }
     this.syncScales();
+  }
+
+  /** Each scale's slot with the engine's current Y (scale space) for it. */
+  #engineYRanges(state: AnimationState): { slot: YScaleSlot; range: YRange }[] {
+    const result = [{ slot: this.#defaultSlot, range: state.yRange }];
+    for (const [id, slot] of this.#scales) {
+      const range = this.#engine.getScaleYRange(id);
+      if (range !== null) result.push({ slot, range });
+    }
+
+    return result;
+  }
+
+  /** Pad an engine Y (scale space) into the slot's value range and remember it. */
+  #landYRange(args: { slot: YScaleSlot; range: YRange; chartHeight: number }): void {
+    const { slot, range, chartHeight } = args;
+    const prev = slot.range;
+    slot.range = this.#padYRange({ slot, min: range.min, max: range.max, chartHeight });
+    slot.prevMin = range.min;
+    slot.prevMax = range.max;
+
+    const moved = prev.min !== slot.range.min || prev.max !== slot.range.max;
+    if (moved && slot !== this.#defaultSlot) this.#scaleRangeMoved = true;
   }
 
   /**
@@ -3034,7 +3448,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const size = this.#canvasManager.size;
     if (size.media.width === 0 || size.media.height === 0) return;
 
-    const chartWidth = size.media.width - this.yAxisWidth;
+    const chartWidth = size.media.width - this.#columnsWidth();
     const chartHeight = size.media.height - this.xAxisHeight;
 
     this.timeScale.update(
@@ -3043,7 +3457,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       size.horizontalPixelRatio,
       this.#dataInterval,
     );
-    this.yScale.update(this.#yRange, chartHeight, size.verticalPixelRatio);
+    this.yScale.update(this.#defaultSlot.range, chartHeight, size.verticalPixelRatio);
+    for (const slot of this.#scales.values()) {
+      slot.yScale.update(slot.range, chartHeight, size.verticalPixelRatio);
+    }
   }
 
   /** Expensive: background, grid, all series. Only on data/viewport/resize change. */
@@ -3067,14 +3484,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // detect movement frame-to-frame so `viewportChange` only emits when
     // the axis shifted — DOM axis labels subscribe to that event and
     // re-renders aren't free.
-    const yMin = animationState.yRange.min;
-    const yMax = animationState.yRange.max;
-    const yChanged = yMin !== this.#prevYMin || yMax !== this.#prevYMax;
-    if (yChanged) {
-      const chartHeight = size.media.height - this.xAxisHeight;
-      this.#yRange = this.#padYRange({ min: yMin, max: yMax, chartHeight });
-      this.#prevYMin = yMin;
-      this.#prevYMax = yMax;
+    const chartHeight = size.media.height - this.xAxisHeight;
+    let yChanged = false;
+    for (const { slot, range } of this.#engineYRanges(animationState)) {
+      if (range.min === slot.prevMin && range.max === slot.prevMax) continue;
+
+      this.#landYRange({ slot, range, chartHeight });
+      yChanged = true;
     }
 
     this.syncScales();
@@ -3092,7 +3508,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const logical = this.#engine.lastXTarget ?? this.#logical;
       const range = logical.to - logical.from;
       if (range > 0) {
-        const chartWidth = this.#canvasManager.size.media.width - this.yAxisWidth;
+        const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
         const rightPadTime = resolvePaddingTime(this.#padding.right, range, this.#dataInterval, chartWidth);
         const tolerance = this.#dataInterval * 0.5;
         if (Math.abs(logical.to - (this.#dataEnd + rightPadTime)) < tolerance) {
@@ -3110,11 +3526,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // the same lexical scope.
     let yTickAnimating = false;
     let timeTickAnimating = false;
+    let scaleTickAnimating = false;
     let gridFadeAnimating = false;
 
     this.#canvasManager.useMainLayer((scope) => {
       const { context, bitmapSize } = scope;
-      const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
+      const chartBitmapWidth = (size.media.width - this.#columnsWidth()) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
       const paneLeft = this.#paneBitmapLeft(scope);
 
@@ -3146,6 +3563,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.timeScale.tickTracker.setCurrentTicks(this.timeScale.niceTickValues(this.#dataInterval).ticks);
       this.yScale.tickTracker.tick(now);
       this.timeScale.tickTracker.tick(now);
+      // Named scales draw no grid, but their DOM axis labels fade off these trackers.
+      for (const slot of this.#scales.values()) {
+        const tracker = slot.yScale.tickTracker;
+        tracker.setCurrentTicks(slot.yScale.niceTickValues());
+        if (tracker.tick(now)) scaleTickAnimating = true;
+      }
       const yTickSnap = this.yScale.tickTracker.snapshot();
       const timeTickSnap = this.timeScale.tickTracker.snapshot();
       yTickAnimating = yTickSnap.isAnimating;
@@ -3156,7 +3579,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // streaming slide between tick boundaries would emit nothing and
       // labels would hold the slide-start `timeToX(time)` value while the
       // canvas glides past them, then snap forward on the next event.
-      if (yTickSnap.isAnimating || timeTickSnap.isAnimating || animationState.animating) {
+      if (yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating || animationState.animating) {
         this.emit('tickFrame');
       }
 
@@ -3195,6 +3618,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const seriesState = this.#toValueSpace(animationState);
       const perfMon = this.#perfMonitor;
       for (const entry of this.#series) {
+        this.#warnScaleMisuse(entry);
+
         // Renderer-owned per-series alpha drives the show/hide fade. A
         // hidden series with alpha at 0 is fully gone — skip. A hidden
         // series mid-fade still renders at its fading alpha; the
@@ -3204,14 +3629,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         const alpha = entry.renderer.getAlpha?.() ?? (entry.visible ? 1 : 0);
         if (alpha <= 0) continue;
 
+        const scaleId = this.#scaleIdOf(entry);
+        const yScale = this.getYScale(scaleId);
         const renderArgs = {
           scope,
           timeScale: this.timeScale,
-          yScale: this.yScale,
+          yScale,
           theme: this.#theme,
           dataInterval: this.#dataInterval,
           padding,
-          state: seriesState,
+          state: scaleId === undefined ? seriesState : this.#scaleAnimationState(animationState, scaleId),
           seriesId: entry.id,
         };
 
@@ -3243,10 +3670,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         // Before the axis fade, so a tail stub near the right edge melts
         // under the Y-axis column in step with its line above.
         this.#drawGridTails({ scope, pane, timeTicks: timeTickSnap, alpha: gridAlpha });
-        this.#applyAxisFade(scope, chartBitmapWidth);
+        this.#applyAxisFade(scope, chartBitmapWidth, 'left');
+        this.#applyAxisFade(scope, chartBitmapWidth, 'right');
       } else {
-        this.#applyAxisFade(scope, chartBitmapWidth);
+        // The right ramp runs last so the grid drawn behind melts under a right column too.
+        this.#applyAxisFade(scope, chartBitmapWidth, 'left');
         this.#drawGridBehind({ grid, pane, overhang: gridOverhang });
+        this.#applyAxisFade(scope, chartBitmapWidth, 'right');
       }
       this.#applyEdgeFade(scope, chartBitmapWidth);
       this.#applyTopFade(scope, chartBitmapHeight);
@@ -3281,7 +3711,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // We never disarm: `niceTickValues` typically returns the same set
     // across consecutive frames once the tick interval is resolved, so
     // streaming + zoom don't churn the tracker — only real set changes do.
-    const trackersStillFading = yTickAnimating || timeTickAnimating;
+    const trackersStillFading = yTickAnimating || timeTickAnimating || scaleTickAnimating;
 
     // The engine stops calling markDirty on the frame it settles, so a fade
     // outliving it would freeze mid-way.
@@ -3294,6 +3724,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (!animationState.animating && !seriesNeedsAnim && !trackersStillFading) {
       this.yScale.tickTracker.markArmed();
       this.timeScale.tickTracker.markArmed();
+      for (const slot of this.#scales.values()) {
+        slot.yScale.tickTracker.markArmed();
+      }
     }
   }
 
@@ -3443,10 +3876,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Under a left column the hairline tapers like a gridline, not like data.
     this.#applyTailFade(scope, chartBitmapHeight);
     if (overhang === 0) {
-      this.#applyAxisFade(scope, chartBitmapWidth);
+      this.#applyAxisFade(scope, chartBitmapWidth, 'left');
     } else {
       this.#applyOverhangFade(scope, overhang);
     }
+    this.#applyAxisFade(scope, chartBitmapWidth, 'right');
     this.#applyEdgeFade(scope, chartBitmapWidth);
     this.#applyTopFade(scope, chartBitmapHeight);
   }
@@ -3458,8 +3892,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * Runs the full bitmap height so the below-pane gridline tail stubs melt
    * at the edges in step with their lines above.
    */
-  #applyAxisFade(scope: BitmapCoordinateSpace, paneBitmapWidth: number): void {
-    const zone = this.#axisFadeZone(scope, paneBitmapWidth);
+  #applyAxisFade(scope: BitmapCoordinateSpace, paneBitmapWidth: number, side: EdgeSide): void {
+    const zone = this.#axisFadeZone(scope, paneBitmapWidth, side);
     if (zone === null) return;
 
     const { context } = scope;
@@ -3468,7 +3902,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     context.save();
     context.globalCompositeOperation = 'destination-out';
-    context.fillStyle = this.#axisFadeGradient({ context, zone });
+    context.fillStyle = this.#axisFadeGradient({ context, side, zone });
     context.fillRect(x, 0, width, scope.bitmapSize.height);
     context.restore();
   }
@@ -3493,17 +3927,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
   }
 
-  /** Sides whose fade is a plain edge zone rather than the axis-column ramp. */
+  /** Sides whose fade is a plain edge zone rather than the axis-column ramp —
+   *  neither the default axis's side nor one a named scale's column holds. */
   #plainEdgeSides(): readonly EdgeSide[] {
     if (this.#isSpatialOnly()) return BOTH_EDGE_SIDES;
 
-    return this.yAxisPosition === 'left' ? RIGHT_EDGE_SIDE : LEFT_EDGE_SIDE;
+    const otherSide = oppositeSide(this.yAxisPosition);
+    if (this.getAxisColumnWidth(otherSide) > 0) return NO_EDGE_SIDES;
+
+    return otherSide === 'left' ? LEFT_EDGE_SIDE : RIGHT_EDGE_SIDE;
   }
 
   /** Bitmap px the gridlines and crosshair run under a left Y-axis column, where
-   *  data can't follow (see {@link #axisFadeZone}). `0` on the right or with the fade off. */
+   *  data can't follow (see {@link #axisFadeZone}). `0` without one or with its fade off. */
   #gridOverhang(scope: BitmapCoordinateSpace, paneBitmapWidth: number): number {
-    if (this.yAxisPosition !== 'left' || this.#axisFadeZone(scope, paneBitmapWidth) === null) return 0;
+    if (this.#axisFadeZone(scope, paneBitmapWidth, 'left') === null) return 0;
 
     return Math.min(Math.round(AXIS_FADE_END_GAP_PX * scope.horizontalPixelRatio), this.#paneBitmapLeft(scope));
   }
@@ -3523,10 +3961,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     context.save();
     context.globalCompositeOperation = 'destination-over';
 
+    const rightIntrusion = this.#axisFadeZone(scope, pane.width, 'right')?.intrusion ?? 0;
     context.save();
     context.translate(pane.left, 0);
     context.beginPath();
-    context.rect(-overhang, 0, pane.width + overhang, pane.height);
+    context.rect(-overhang, 0, pane.width + overhang + rightIntrusion, pane.height);
     context.clip();
     renderGrid({ ...grid, leftOverhang: overhang });
     context.restore();
@@ -3556,36 +3995,38 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return Math.round(this.plotLeft * scope.horizontalPixelRatio);
   }
 
-  /** Pane-local width of the pane clip: the pane plus the axis-side fade
+  /** Pane-local width of the pane clip: the pane plus the right fade
    *  intrusion, so content can slide under a right Y-axis column before the
    *  mask dissolves it. */
   #paneClipWidth(scope: BitmapCoordinateSpace, paneBitmapWidth: number): number {
-    const intrusion = this.#axisFadeZone(scope, paneBitmapWidth)?.intrusion ?? 0;
+    const intrusion = this.#axisFadeZone(scope, paneBitmapWidth, 'right')?.intrusion ?? 0;
 
     return paneBitmapWidth + intrusion;
   }
 
   /**
-   * Bitmap geometry of the fade zone on the Y-axis side. On the right the
+   * Bitmap geometry of the fade zone under the Y-axis column on `side`. On the right the
    * ramp finishes just inside the column — {@link AXIS_FADE_END_GAP_PX} past
    * the pane edge, still short of where the label glyphs start — so content
    * is fully erased before it can cross any axis text; everything wider
    * spills back into the pane as the soft lead-in. On the left it finishes
    * at the pane edge. Erasing starts at `inner` and is total at `outer`;
    * `intrusion` is what the pane clip extends by (content past the ramp is
-   * total-erased anyway). `null` when the axis is hidden, its side's fade
+   * total-erased anyway). `null` when no column sits on `side`, its fade
    * is `0`, or the chart is spatial-only.
    */
   #axisFadeZone(
     scope: BitmapCoordinateSpace,
     paneBitmapWidth: number,
+    side: EdgeSide,
   ): { inner: number; outer: number; intrusion: number } | null {
     // Even under an explicitly sized column: both sides are plain edge zones there.
     if (this.#isSpatialOnly()) return null;
 
-    const onLeft = this.yAxisPosition === 'left';
+    const onLeft = side === 'left';
     const bitmapWidth = scope.bitmapSize.width;
-    const column = onLeft ? this.#paneBitmapLeft(scope) : Math.max(0, Math.round(bitmapWidth - paneBitmapWidth));
+    const paneLeft = this.#paneBitmapLeft(scope);
+    const column = onLeft ? paneLeft : Math.max(0, Math.round(bitmapWidth - paneLeft - paneBitmapWidth));
     if (column === 0) return null;
 
     const hpr = scope.horizontalPixelRatio;
@@ -3606,7 +4047,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return { inner: outer + width, outer, intrusion };
     }
 
-    const outer = paneBitmapWidth + intrusion;
+    const outer = paneLeft + paneBitmapWidth + intrusion;
     const width = Math.min(total, outer);
 
     return { inner: outer - width, outer, intrusion };
@@ -3661,10 +4102,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *  the zone. */
   #axisFadeGradient(args: {
     context: CanvasRenderingContext2D;
+    side: EdgeSide;
     zone: { inner: number; outer: number };
   }): CanvasGradient {
-    const { context, zone } = args;
-    const cached = this.#fadeGradientCache.axis;
+    const { context, side, zone } = args;
+    const cached = this.#fadeGradientCache.axis[side];
     if (cached !== null && cached.inner === zone.inner && cached.outer === zone.outer) return cached.gradient;
 
     const gradient = context.createLinearGradient(zone.inner, 0, zone.outer, 0);
@@ -3672,7 +4114,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const s = i / 8;
       gradient.addColorStop(s, `rgba(0, 0, 0, ${s * s * s})`);
     }
-    this.#fadeGradientCache.axis = { inner: zone.inner, outer: zone.outer, gradient };
+    this.#fadeGradientCache.axis[side] = { inner: zone.inner, outer: zone.outer, gradient };
 
     return gradient;
   }
@@ -3816,7 +4258,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // here with the stale content erased.
       if (!hasContent) return;
 
-      const chartBitmapWidth = (size.media.width - this.yAxisWidth) * size.horizontalPixelRatio;
+      const chartBitmapWidth = (size.media.width - this.#columnsWidth()) * size.horizontalPixelRatio;
       const chartBitmapHeight = (size.media.height - this.xAxisHeight) * size.verticalPixelRatio;
 
       // Base crosshair lines under every other overlay element. Skip when the
@@ -3840,15 +4282,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const overlayState = this.getAnimationState();
       for (const entry of this.#series) {
         if (!entry.visible) continue;
+
+        const scaleId = this.#scaleIdOf(entry);
         entry.renderer.drawOverlay?.({
           scope,
           timeScale: this.timeScale,
-          yScale: this.yScale,
+          yScale: this.getYScale(scaleId),
           theme: this.#theme,
           dataInterval: this.#dataInterval,
           padding: overlayPadding,
           crosshair: this.#crosshairPos,
-          state: overlayState,
+          state: scaleId === undefined ? overlayState : this.#scaleAnimationState(overlayState, scaleId),
           seriesId: entry.id,
         });
       }
@@ -3865,7 +4309,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (edgeVisible) {
         drawEdgeIndicators({
           scope,
-          chartMediaWidth: size.media.width - this.yAxisWidth,
+          chartMediaWidth: size.media.width - this.#columnsWidth(),
           chartMediaHeight: size.media.height - this.xAxisHeight,
           timeScale: this.timeScale,
           theme: this.#theme,

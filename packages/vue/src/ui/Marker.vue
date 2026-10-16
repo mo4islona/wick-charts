@@ -19,6 +19,8 @@ const props = defineProps<{
   label?: string;
   /** Color override. Falls back to the series color (when `seriesId` is set), then the theme line color. */
   color?: string;
+  /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the `seriesId` series' scale, else the default scale. */
+  scale?: string;
 }>();
 
 const chart = useChartInstance();
@@ -33,6 +35,7 @@ onMounted(() => {
     pulse: props.pulse,
     label: props.label,
     color: props.color,
+    scale: props.scale,
   });
 });
 
@@ -42,7 +45,7 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.time, props.value, props.seriesId, props.shape, props.pulse, props.label, props.color],
+  () => [props.time, props.value, props.seriesId, props.shape, props.pulse, props.label, props.color, props.scale],
   () => {
     if (markerId === null) return;
 
@@ -54,6 +57,7 @@ watch(
       pulse: props.pulse,
       label: props.label,
       color: props.color,
+      scale: props.scale,
     });
   },
 );

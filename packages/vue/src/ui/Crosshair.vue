@@ -35,6 +35,32 @@ const tickInterval = computed(() => {
   return chart.timeScale.niceTickValues(dataInterval.value).tickInterval || dataInterval.value;
 });
 
+// One value label per named scale's axis column, each read through its own scale.
+// `bump` re-labels a still crosshair after a formatter or scale change.
+const defaultLabel = computed(() => {
+  void bump.value;
+  const pos = position.value;
+
+  return pos === null ? '' : chart.yScale.formatY(pos.y);
+});
+
+const scaleLabels = computed(() => {
+  void bump.value;
+  const pos = position.value;
+  if (pos === null) return [];
+
+  return chart.getYScaleIds().flatMap((scale) => {
+    const column = chart.getYScaleColumn(scale);
+    if (column === null) return [];
+
+    const yScale = chart.getYScale(scale);
+
+    return [{ scale, position: column.position, text: yScale.formatY(yScale.yToValue(pos.mediaY)) }];
+  });
+});
+// A named scale can own the default axis's side when the default axis is hidden.
+const defaultSideTaken = computed(() => scaleLabels.value.some((label) => label.position === chart.yAxisPosition));
+
 const labelStyle = computed(() => ({
   // Blend the theme's labelBackground at 80% opacity so the axis grid
   // shows through — keeps the badge from looking like an opaque block
@@ -58,6 +84,7 @@ const labelStyle = computed(() => ({
   <template v-if="position">
     <!-- Y label on the value axis -->
     <div
+      v-if="!defaultSideTaken"
       :style="{
         position: 'absolute',
         [chart.yAxisPosition]: '0',
@@ -66,7 +93,20 @@ const labelStyle = computed(() => ({
         ...labelStyle,
       }"
     >
-      {{ chart.yScale.formatY(position.y) }}
+      {{ defaultLabel }}
+    </div>
+    <div
+      v-for="label in scaleLabels"
+      :key="label.scale"
+      :style="{
+        position: 'absolute',
+        [label.position]: '0',
+        top: position.mediaY + 'px',
+        transform: 'translateY(-50%)',
+        ...labelStyle,
+      }"
+    >
+      {{ label.text }}
     </div>
     <!-- Time label on bottom axis -->
     <div

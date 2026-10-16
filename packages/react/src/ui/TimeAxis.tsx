@@ -18,7 +18,6 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
   // (yAxisWidth / xAxisHeight can change on resize, legend mount, etc.).
   useVisibleRange(chart);
   const layout = useAxisLayout(chart);
-  const onLeft = layout.yAxisPosition === 'left';
 
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -45,9 +44,9 @@ export function TimeAxis({ labelCount, minLabelSpacing }: TimeAxisProps = {}) {
       ref={containerRef}
       style={{
         position: 'absolute',
-        left: onLeft ? layout.yAxisWidth : 0,
+        left: layout.leftAxisWidth,
         bottom: 0,
-        right: onLeft ? 0 : layout.yAxisWidth,
+        right: layout.rightAxisWidth,
         height: layout.xAxisHeight,
         pointerEvents: 'none',
         display: 'flex',
