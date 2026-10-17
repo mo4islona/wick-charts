@@ -759,11 +759,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       results.push(row);
     }
 
-    // A column whose total is 0 is a gap in a percent stack: no rows, as for a null.
-    const percent = this.options.stacking === 'percent';
-    if (percent && !addShares(results)) return null;
+    // Hover over a gap in a percent stack lists no rows, as for a null.
+    const rows = this.withShares({ rows: results, keepGaps: false });
 
-    return results.length > 0 ? results : null;
+    return rows.length > 0 ? rows : null;
   }
 
   getStackedLastValue(): { value: number; isLive: boolean } | null {
@@ -910,9 +909,70 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
       results.push(row);
     }
-    if (this.options.stacking === 'percent') addShares(results);
 
-    return results.length > 0 ? results : null;
+    // A last reading in a gap column stays listed, without a share: it is still the newest value.
+    const rows = this.withShares({ rows: results, keepGaps: true });
+
+    return rows.length > 0 ? rows : null;
+  }
+
+  /**
+   * On a percent stack, give each row its share of the column at the row's own
+   * time — ragged layers end at different columns. A row whose column is a gap
+   * is dropped, or kept without a share when `keepGaps`.
+   */
+  private withShares(args: { rows: LayerSnapshot[]; keepGaps: boolean }): LayerSnapshot[] {
+    if (this.options.stacking !== 'percent') return args.rows;
+
+    const columns = new Map<number, Map<number, number> | null>();
+    const kept: LayerSnapshot[] = [];
+    for (const row of args.rows) {
+      let shares = columns.get(row.time);
+      if (shares === undefined) {
+        shares = this.percentShares(row.time);
+        columns.set(row.time, shares);
+      }
+
+      const share = shares?.get(row.layerIndex);
+      if (share !== undefined) row.share = share;
+      if (share !== undefined || args.keepGaps) kept.push(row);
+    }
+
+    return kept;
+  }
+
+  /**
+   * Each visible layer's share of the percent-stack column at `time`, as the
+   * renderer draws it, or `null` when the column is a gap. This reading is the
+   * bar stack's: exact-time samples, positives scaled to 0–100% and negatives
+   * to 0–-100% on their own.
+   */
+  protected percentShares(time: number): Map<number, number> | null {
+    const values = new Map<number, number>();
+    let positive = 0;
+    let negative = 0;
+    for (let li = 0; li < this.stores.length; li++) {
+      const store = this.stores[li];
+      if (!store.isVisible()) continue;
+
+      const point = store.findNearest(time, 0);
+      if (point === null || !Number.isFinite(point.value)) continue;
+
+      values.set(li, point.value);
+      if (point.value > 0) positive += point.value;
+      if (point.value < 0) negative += point.value;
+    }
+    if (positive === 0 && negative === 0) return null;
+
+    const shares = new Map<number, number>();
+    for (const [li, value] of values) {
+      let share = 0;
+      if (value > 0) share = (value / positive) * 100;
+      if (value < 0) share = (value / negative) * -100;
+      shares.set(li, share);
+    }
+
+    return shares;
   }
 
   getTotalLength(): number {
@@ -1083,19 +1143,4 @@ function plottableStackedRange(
   }
 
   return min < Infinity ? { min, max } : null;
-}
-
-/** Set each row's percent of the rows' total — the share a percent stack draws it at. `false` when the total is 0. */
-function addShares(rows: LayerSnapshot[]): boolean {
-  let total = 0;
-  for (const row of rows) {
-    if (Number.isFinite(row.value)) total += row.value;
-  }
-  if (total <= 0) return false;
-
-  for (const row of rows) {
-    if (Number.isFinite(row.value)) row.share = (row.value / total) * 100;
-  }
-
-  return true;
 }
