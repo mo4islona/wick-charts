@@ -363,9 +363,12 @@ onDestroy(() => {
   navigatorAnchorStore.set(null);
 });
 
-$: if (instance && theme) {
-  instance.setTheme(theme);
-  themeStore.set(theme);
+// The prop default applies at init only — a later `undefined` means the default theme too.
+$: resolvedTheme = theme ?? catppuccin.theme;
+
+$: if (instance) {
+  instance.setTheme(resolvedTheme);
+  themeStore.set(resolvedTheme);
 }
 
 $: if (instance && axis) {
@@ -483,7 +486,7 @@ $: if (instance) {
 }
 
 $: gradientBg = (() => {
-  const t = theme;
+  const t = resolvedTheme;
   const [gtop, gbot] = t?.chartGradient ?? ['transparent', 'transparent'];
   const bg = t?.background ?? 'transparent';
 

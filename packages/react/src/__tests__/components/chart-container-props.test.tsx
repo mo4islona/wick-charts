@@ -1,4 +1,4 @@
-import { CandlestickSeries, LineSeries, YAxis } from '@wick-charts/react';
+import { CandlestickSeries, LineSeries, YAxis, catppuccin, githubLight } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -21,6 +21,15 @@ describe('ChartContainer props', () => {
     { time: 2, open: 2, high: 3, low: 2, close: 3 },
     { time: 3, open: 3, high: 4, low: 3, close: 4 },
   ];
+
+  it('restores the default theme when the theme prop goes back to undefined', () => {
+    mounted = mountChart(<CandlestickSeries data={ohlc} />, { theme: githubLight.theme });
+    expect(mounted.chart.getTheme()).toBe(githubLight.theme);
+
+    mounted.rerender(<CandlestickSeries data={ohlc} />, { theme: undefined });
+
+    expect(mounted.chart.getTheme()).toBe(catppuccin.theme);
+  });
 
   it('interactive=false does not install InteractionHandler (no crosshair cursor)', () => {
     mounted = mountChart(<CandlestickSeries data={ohlc} />, { interactive: false });
