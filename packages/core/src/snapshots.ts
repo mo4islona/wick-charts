@@ -30,6 +30,8 @@ export interface SeriesSnapshot {
   readonly label?: string;
   readonly data: Readonly<OHLCData> | Readonly<TimePoint> | Readonly<BandPoint>;
   readonly color: string;
+  /** On a percent stack, the layer's share of the column in percent — what the chart draws it at. */
+  readonly share?: number;
 }
 
 /** Sort order applied to a snapshot list by the helper. */
@@ -108,6 +110,7 @@ function freezeSnapshot(s: {
   label?: string;
   data: SeriesPoint;
   color: string;
+  share?: number;
 }): SeriesSnapshot {
   // Deep-freeze: without cloning `data`, callers with `snapshot.data.close = X`
   // would mutate the chart's internal store directly.
@@ -119,6 +122,7 @@ function freezeSnapshot(s: {
     label: s.label,
     data: frozenData,
     color: s.color,
+    ...(s.share === undefined ? {} : { share: s.share }),
   };
 
   return Object.freeze(frozen);
@@ -171,6 +175,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
             label: chart.getLayerLabel(id, l.layerIndex),
             data: point,
             color: l.color,
+            share: l.share,
           }),
         );
       }
@@ -255,6 +260,19 @@ export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): str
 }
 
 /**
+ * The value a line or bar row prints: on a percent stack its share leads, then
+ * the value itself ("42.1% · 25.77M").
+ */
+export function formatRowValue(snapshot: SeriesSnapshot, format: (value: number) => string): string {
+  const value = format(pointValue(snapshot.data));
+  if (snapshot.share === undefined) return value;
+
+  const share = Number(snapshot.share.toFixed(1));
+
+  return `${share}% · ${value}`;
+}
+
+/**
  * Snapshot every visible series / layer at its own last point. For
  * multi-layer renderers each layer contributes its own `time`, so ragged
  * streams (layer 1 newer than layer 0) show correctly instead of stalling
@@ -290,6 +308,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
             label: chart.getLayerLabel(id, l.layerIndex),
             data: point,
             color: l.color,
+            share: l.share,
           }),
         );
       }

@@ -758,6 +758,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
       results.push(row);
     }
+    if (this.options.stacking === 'percent') addShares(results);
 
     return results.length > 0 ? results : null;
   }
@@ -906,6 +907,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
       results.push(row);
     }
+    if (this.options.stacking === 'percent') addShares(results);
 
     return results.length > 0 ? results : null;
   }
@@ -1078,4 +1080,17 @@ function plottableStackedRange(
   }
 
   return min < Infinity ? { min, max } : null;
+}
+
+/** Set each row's percent of the rows' total — the share a percent stack draws it at. */
+function addShares(rows: LayerSnapshot[]): void {
+  let total = 0;
+  for (const row of rows) {
+    if (Number.isFinite(row.value)) total += row.value;
+  }
+  if (total <= 0) return;
+
+  for (const row of rows) {
+    if (Number.isFinite(row.value)) row.share = (row.value / total) * 100;
+  }
 }

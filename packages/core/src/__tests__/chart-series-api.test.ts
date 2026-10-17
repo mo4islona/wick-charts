@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
+import { buildHoverSnapshots, buildLastSnapshots, formatRowValue } from '../snapshots';
 import { githubLight } from '../theme/themes/github-light';
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
@@ -511,5 +512,69 @@ describe('ChartInstance Y axis on a flat series', () => {
     chart.addSeries('line');
 
     expect(chart.yScale.niceTickValues()).toEqual([]);
+  });
+});
+
+describe('ChartInstance percent stack snapshots', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  function percentStack(): string {
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 1 },
+        { time: 60_000, value: 3 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 3 },
+        { time: 60_000, value: 1 },
+      ],
+      1,
+    );
+
+    return id;
+  }
+
+  it('gives each hovered layer its share and prints it before the value', () => {
+    percentStack();
+
+    const snapshots = buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'percent' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([75, 25]);
+    expect(formatRowValue(snapshots[0], (v) => String(v))).toBe('75% · 3');
+  });
+
+  it('gives the last-value rows their share too', () => {
+    percentStack();
+
+    const snapshots = buildLastSnapshots(chart, { cacheKey: 'percent-last' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([75, 25]);
+  });
+
+  it('prints a plain value off a percent stack', () => {
+    const id = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(id, [{ time: 0, value: 1 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: 3 }], 1);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'plain' });
+
+    expect(snapshots[0].share).toBeUndefined();
+    expect(formatRowValue(snapshots[0], (v) => String(v))).toBe('1');
   });
 });
