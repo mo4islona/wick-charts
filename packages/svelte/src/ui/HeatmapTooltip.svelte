@@ -9,8 +9,8 @@ import {
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext } from '../context';
-import { createCrosshairPosition } from '../stores';
+import { getChartContext } from '../context.js';
+import { createCrosshairPosition } from '../stores.js';
 
 /**
  * Owning series id. **Optional** — when omitted, the first visible heatmap
@@ -98,12 +98,12 @@ $: tooltipPos =
       .textColor};z-index:10;display:flex;flex-direction:column;gap:6px;min-width:120px;"
   >
     <div style="display:flex;align-items:center;gap:8px;">
-      <span style="width:10px;height:10px;border-radius:3px;background:{info.color};flex-shrink:0;" />
+      <span style="width:10px;height:10px;border-radius:3px;background:{info.color};flex-shrink:0;"></span>
       <span style="font-weight:600;">{info.label}</span>
       <span style="margin-left:auto;font-weight:600;">{format(info.value)}</span>
     </div>
     <div style="position:relative;height:4px;border-radius:2px;background:{theme.tooltip.borderColor};overflow:hidden;">
-      <div style="position:absolute;inset:0;width:{meterWidth}%;border-radius:2px;background:{info.color};" />
+      <div style="position:absolute;inset:0;width:{meterWidth}%;border-radius:2px;background:{info.color};"></div>
     </div>
   </div>
 {/if}

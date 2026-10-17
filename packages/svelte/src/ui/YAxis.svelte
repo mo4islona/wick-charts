@@ -3,8 +3,8 @@ import { type ChartInstance, type ValueFormatter, mountAxisLabels } from '@wick-
 import { onDestroy } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from '../context';
-import { type AxisLayout, createAxisLayout, createYRange } from '../stores';
+import { getChartContext } from '../context.js';
+import { type AxisLayout, createAxisLayout, createYRange } from '../stores.js';
 
 /** Custom tick-label formatter. Overrides the built-in range-adaptive default. */
 export let format: ValueFormatter | undefined = undefined;
@@ -110,5 +110,5 @@ onDestroy(() => {
   <div
     bind:this={container}
     style="position:absolute;{column.position}:0;top:0;bottom:{$layout.xAxisHeight}px;width:{column.width}px;pointer-events:none;"
-  />
+  ></div>
 {/if}

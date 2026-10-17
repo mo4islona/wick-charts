@@ -3,8 +3,8 @@ import { type ChartInstance, type XAxisFormatter, mountAxisLabels } from '@wick-
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from '../context';
-import { createAxisLayout } from '../stores';
+import { getChartContext } from '../context.js';
+import { createAxisLayout } from '../stores.js';
 
 /** Desired number of labels (≥ 2). Overrides chart-level `axis.x.labelCount`. */
 export let labelCount: number | undefined = undefined;
@@ -51,5 +51,5 @@ onDestroy(() => {
   <div
     bind:this={container}
     style="position:absolute;left:{$layout.leftAxisWidth}px;bottom:0;right:{$layout.rightAxisWidth}px;height:{$layout.xAxisHeight}px;pointer-events:none;display:flex;align-items:center;"
-  />
+  ></div>
 {/if}

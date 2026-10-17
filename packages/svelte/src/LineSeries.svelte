@@ -4,7 +4,7 @@ import { LineSeriesDef, syncLayers, toLayers } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from './context';
+import { getChartContext } from './context.js';
 
 /**
  * Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`.

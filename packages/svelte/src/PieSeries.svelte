@@ -4,7 +4,7 @@ import { PieSeriesDef } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from './context';
+import { getChartContext } from './context.js';
 
 export let data: PieSliceData[];
 export let options: Partial<PieSeriesOptions> | undefined = undefined;

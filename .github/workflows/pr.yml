@@ -38,6 +38,7 @@ jobs:
           fail_ci_if_error: false
           use_oidc: true
       - run: pnpm build
+      - run: pnpm svelte:compat
       # Smoke-check the docs SPA bundle (the full prerender + deploy runs in
       # deploy-cloudflare.yml on push to main; this just catches build breakage).
       - run: pnpm build:docs

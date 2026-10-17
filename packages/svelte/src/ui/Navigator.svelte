@@ -2,8 +2,8 @@
 import { NavigatorController, type NavigatorData } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext, getNavigatorAnchor, getThemeContext } from '../context';
-import { portal } from './portal';
+import { getChartContext, getNavigatorAnchor, getThemeContext } from '../context.js';
+import { portal } from './portal.js';
 
 export let data: NavigatorData;
 /** Strip height in CSS pixels. Defaults to `theme.navigator.height` (60). */

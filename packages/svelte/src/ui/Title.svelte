@@ -1,6 +1,6 @@
 <script lang="ts">
-import { getThemeContext, getTitleAnchor } from '../context';
-import { portal } from './portal';
+import { getThemeContext, getTitleAnchor } from '../context.js';
+import { portal } from './portal.js';
 
 /**
  * @deprecated Use the named `sub` slot instead — it accepts arbitrary

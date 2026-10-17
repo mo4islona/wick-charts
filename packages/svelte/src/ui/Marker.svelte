@@ -3,7 +3,7 @@ import type { MarkerShape, TimeValue } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from '../context';
+import { getChartContext } from '../context.js';
 
 /** X anchor — epoch ms or a `Date`. */
 export let time: TimeValue;

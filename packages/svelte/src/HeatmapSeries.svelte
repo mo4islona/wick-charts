@@ -4,7 +4,7 @@ import { HeatmapSeriesDef } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from './context';
+import { getChartContext } from './context.js';
 
 export let data: HeatmapCellData[];
 export let options: Partial<HeatmapSeriesOptions> | undefined = undefined;

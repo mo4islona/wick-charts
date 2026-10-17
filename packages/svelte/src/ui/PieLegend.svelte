@@ -2,8 +2,8 @@
 import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context';
-import { portal } from './portal';
+import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context.js';
+import { portal } from './portal.js';
 
 type PieLegendMode = 'value' | 'percent' | 'both';
 type PieLegendPosition = 'bottom' | 'right' | 'overlay';
@@ -85,7 +85,7 @@ $: slices = ((chart && resolvedId !== null && bump >= 0 ? chart.getSliceInfo(res
     >
       {#each slices as slice, i (i)}
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="width:10px;height:10px;border-radius:50%;background:{slice.color};flex-shrink:0;" />
+          <span style="width:10px;height:10px;border-radius:50%;background:{slice.color};flex-shrink:0;"></span>
           <span style="flex:1;opacity:0.8;">{slice.label}</span>
           {#if resolvedMode === 'value' || resolvedMode === 'both'}
             <span

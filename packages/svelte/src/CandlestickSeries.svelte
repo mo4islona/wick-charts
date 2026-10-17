@@ -4,7 +4,7 @@ import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer, toLayers } fro
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from './context';
+import { getChartContext } from './context.js';
 
 /** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
 export let data: CandlestickData;
