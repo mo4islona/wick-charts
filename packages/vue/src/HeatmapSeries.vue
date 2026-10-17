@@ -3,6 +3,7 @@ import type { HeatmapCellData, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
 
 const props = withDefaults(
@@ -28,7 +29,7 @@ onMounted(() => {
   seriesId.value = id;
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   if (props.data.length > 0) {
-    chart.setSeriesData(id, props.data);
+    chart.setSeriesData(id, rawSeriesData(props.data));
   }
   chart.setSeriesVisible(id, props.visible);
 });
@@ -38,12 +39,12 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.data,
-  (data) => {
+  seriesDataSource(() => props.data),
+  () => {
     // No length guard: an empty array is a legitimate update (filter yields
     // no rows) and must clear the previous cells, matching the React wrapper.
     if (seriesId.value) {
-      chart.setSeriesData(seriesId.value, data);
+      chart.setSeriesData(seriesId.value, rawSeriesData(props.data));
     }
   },
 );

@@ -404,6 +404,8 @@ Per-version breaking-change notes and code snippets live in the root [MIGRATION.
 
 Pass a new `data` array reference when data changes (e.g. via immutable state updates in React — the series components compare references in hook deps, so mutating in place won't re-render). The library diffs internally: same-length → updates last, +1..5 → incremental append, otherwise → full replace.
 
+Vue and Svelte also pick up an in-place `push` and an in-place edit of the last point (Vue: on a `ref` / `reactive` array); an in-place edit of an older point is not seen — pass a new array for that. In Vue, hold large datasets in `shallowRef` and assign a new array (or call `triggerRef`): the chart reads the raw array either way, but a deep `ref` makes Vue proxy every point your own code touches.
+
 ## Critical rules
 
 - `time` is milliseconds (`Date.now()`-style). `TimePointInput` / `OHLCInput` also accept `Date`. On a numeric or category X axis (`axis.x.type`) points carry `x` instead.

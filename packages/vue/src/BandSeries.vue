@@ -3,6 +3,7 @@ import type { BandData, BandSeriesOptions, SeriesSyncState } from '@wick-charts/
 import { BandSeriesDef, EMPTY_SYNC_STATE, syncLayers, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
 
 const props = withDefaults(
@@ -58,7 +59,7 @@ function createSeries(data: BandData): void {
 }
 
 onMounted(() => {
-  createSeries(props.data);
+  createSeries(rawSeriesData(props.data));
 });
 
 onUnmounted(() => {
@@ -66,8 +67,9 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.data,
-  (data) => {
+  seriesDataSource(() => props.data),
+  () => {
+    const data = rawSeriesData(props.data);
     const id = seriesId.value;
     if (!id) return;
 

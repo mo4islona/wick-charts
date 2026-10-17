@@ -1,5 +1,68 @@
 import type { ChartInstance, CrosshairPosition, VisibleRange, YAxisPosition, YRange } from '@wick-charts/core';
-import { type Ref, onMounted, onUnmounted, ref } from 'vue';
+import { type Ref, onMounted, onUnmounted, ref, toRaw } from 'vue';
+
+/** A `{ label?, color?, data }` layer — an object carrying a `data` array. */
+function isLayerObject(value: unknown): value is { data: unknown[] } {
+  return (
+    typeof value === 'object' && value !== null && !Array.isArray(value) && Array.isArray(Reflect.get(value, 'data'))
+  );
+}
+
+/** Each layer's point array, read through whatever Proxy the prop arrived in. */
+function layerArrays(data: unknown): unknown[][] {
+  if (isLayerObject(data)) return [data.data];
+  if (!Array.isArray(data)) return [];
+
+  const layered = Array.isArray(data[0]) || isLayerObject(data[0]);
+  if (!layered) return [data];
+
+  return data.map((layer) => (isLayerObject(layer) ? layer.data : (layer as unknown[])));
+}
+
+/**
+ * A series `data` prop with Vue's reactive Proxies taken off the top level and
+ * each layer, so the chart reads plain arrays: a `ref` / `reactive` array of
+ * 100k points read through its Proxy costs the engine several times more.
+ */
+export function rawSeriesData<D>(data: D): D {
+  const raw = toRaw(data);
+  const rawLayer = (layer: unknown) => {
+    if (!isLayerObject(layer)) return toRaw(layer);
+
+    const plain = toRaw(layer);
+
+    return { ...plain, data: toRaw(plain.data) };
+  };
+
+  if (!Array.isArray(raw)) return rawLayer(raw) as D;
+
+  const layered = Array.isArray(raw[0]) || isLayerObject(raw[0]);
+  if (!layered) return raw;
+
+  return raw.map(rawLayer) as D;
+}
+
+/**
+ * Watch source for a series `data` prop. Besides a new array, it re-fires on
+ * an in-place `push` / `splice` or an edit of a layer's last point on a
+ * reactive array — it reads each layer's length and last point through the
+ * Proxy instead of deep-watching every point. A `shallowRef` still needs a
+ * new array (or `triggerRef`).
+ */
+export function seriesDataSource(getData: () => unknown): () => unknown[] {
+  return () => {
+    const data = getData();
+    const deps: unknown[] = [data];
+    for (const points of layerArrays(data)) {
+      deps.push(points, points.length);
+
+      const last = points[points.length - 1];
+      if (typeof last === 'object' && last !== null) deps.push(...Object.values(last));
+    }
+
+    return deps;
+  };
+}
 
 export function useVisibleRange(chart: ChartInstance): Ref<VisibleRange> {
   const range = ref<VisibleRange>(chart.getVisibleRange()) as Ref<VisibleRange>;
