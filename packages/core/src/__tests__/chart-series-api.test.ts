@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
+import { buildHoverSnapshots, buildLastSnapshots, formatRowValue } from '../snapshots';
+import { githubLight } from '../theme/themes/github-light';
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   const container = document.createElement('div');
@@ -425,5 +427,265 @@ describe('ChartInstance.getDataBounds (multi-layer aggregation)', () => {
       1,
     );
     expect(dataBounds(chart)).toEqual({ first: 3, last: 7 });
+  });
+});
+
+describe('ChartInstance default line colours', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  it('gives each separate line the next palette colour', () => {
+    const palette = chart.getTheme().seriesColors;
+    const first = chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(first)).toBe(chart.getTheme().line.color);
+    expect(chart.getSeriesColor(second)).toBe(palette[1]);
+  });
+
+  it('starts a line after the slots a multi-layer line takes', () => {
+    const palette = chart.getTheme().seriesColors;
+    chart.addSeries('line', { layers: 3 });
+    const single = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(single)).toBe(palette[3]);
+  });
+
+  it('gives a re-created line its free slot back instead of the next one', () => {
+    const palette = chart.getTheme().seriesColors;
+    const first = chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    chart.removeSeries(first);
+    const recreated = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(recreated)).toBe(chart.getTheme().line.color);
+    expect(chart.getSeriesColor(second)).toBe(palette[1]);
+  });
+
+  it('keeps the palette slot across a theme swap', () => {
+    chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    chart.setTheme(githubLight.theme);
+
+    expect(chart.getSeriesColor(second)).toBe(githubLight.theme.seriesColors[1]);
+  });
+});
+
+describe('ChartInstance Y axis on a flat series', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  it('labels the axis around a constant value', () => {
+    const id = chart.addSeries('line');
+    chart.setSeriesData(
+      id,
+      [7, 7, 7, 7].map((value, i) => ({ time: i * 60_000, value })),
+    );
+
+    const { min, max } = chart.getYRange();
+    expect(min).toBeLessThan(7);
+    expect(max).toBeGreaterThan(7);
+    expect(chart.yScale.niceTickValues().length).toBeGreaterThan(1);
+  });
+
+  it('shows no labels before any data', () => {
+    chart.addSeries('line');
+
+    expect(chart.yScale.niceTickValues()).toEqual([]);
+  });
+});
+
+describe('ChartInstance percent stack snapshots', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  function percentStack(): string {
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 1 },
+        { time: 60_000, value: 3 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 3 },
+        { time: 60_000, value: 1 },
+      ],
+      1,
+    );
+
+    return id;
+  }
+
+  it('gives each hovered layer its share and prints it before the value', () => {
+    percentStack();
+
+    const snapshots = buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'percent' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([75, 25]);
+    expect(formatRowValue(snapshots[0], (v) => String(v))).toBe('75% · 3');
+  });
+
+  it('gives the last-value rows their share too', () => {
+    percentStack();
+
+    const snapshots = buildLastSnapshots(chart, { cacheKey: 'percent-last' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([75, 25]);
+  });
+
+  it('lists no rows for a column whose layers sum to 0, as for a gap', () => {
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 1 },
+        { time: 60_000, value: 0 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 3 },
+        { time: 60_000, value: 0 },
+      ],
+      1,
+    );
+
+    expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'zero' })).toEqual([]);
+  });
+
+  it('scales percent bars like the stack draws them: positives to 100%, negatives to -100%', () => {
+    const id = chart.addSeries('bar', { layers: 3, stacking: 'percent' });
+    chart.setSeriesData(id, [{ time: 0, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: -5 }], 1);
+    chart.setSeriesData(id, [{ time: 0, value: -15 }], 2);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'bars' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([100, -25, -75]);
+  });
+
+  it('lists the rows of a percent bar column whose positives and negatives cancel out', () => {
+    const id = chart.addSeries('bar', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(id, [{ time: 0, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: -10 }], 1);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'cancel' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([100, -100]);
+  });
+
+  it("takes each last-value share against the row's own column", () => {
+    // A is alone at the newest column, where B is a gap; B's last reading is one column earlier.
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 30 },
+        { time: 60_000, value: 30 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 70 },
+        { time: 60_000, value: null },
+      ],
+      1,
+    );
+
+    const snapshots = buildLastSnapshots(chart, { cacheKey: 'ragged-last' });
+
+    expect(snapshots.map((s) => [s.data.time, s.share])).toEqual([
+      [60_000, 100],
+      [0, 70],
+    ]);
+  });
+
+  function easingStack(type: 'line' | 'bar'): string {
+    const options = { layers: 2, stacking: 'percent' } as const;
+    const id = type === 'line' ? chart.addSeries('line', options) : chart.addSeries('bar', options);
+    for (const layer of [0, 1]) {
+      chart.setSeriesData(
+        id,
+        [
+          { time: 0, value: 1 },
+          { time: 60_000, value: 1 },
+        ],
+        layer,
+      );
+    }
+
+    return id;
+  }
+
+  for (const type of ['line', 'bar'] as const) {
+    it(`${type}: takes shares from the values on screen while an update eases in`, () => {
+      const id = easingStack(type);
+
+      chart.updateData(id, { time: 60_000, value: 9 }, 0);
+      const [first, second] = buildHoverSnapshots(chart, { time: 60_000, cacheKey: `${type}-easing` });
+      const shown = [first, second].map((s) => ('value' in s.data ? s.data.value : Number.NaN));
+
+      // The chart still draws the old 50/50 split; the rows must agree with it.
+      expect(shown[0]).toBeLessThan(9);
+      expect(first.share).toBeCloseTo((shown[0] / (shown[0] + shown[1])) * 100, 9);
+    });
+
+    it(`${type}: keeps the rows while a column eases down to a zero total`, () => {
+      const id = easingStack(type);
+
+      chart.updateData(id, { time: 60_000, value: 0 }, 0);
+      chart.updateData(id, { time: 60_000, value: 0 }, 1);
+
+      expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: `${type}-to-zero` })).toHaveLength(2);
+    });
+  }
+
+  it('prints a plain value off a percent stack', () => {
+    const id = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(id, [{ time: 0, value: 1 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: 3 }], 1);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'plain' });
+
+    expect(snapshots[0].share).toBeUndefined();
+    expect(formatRowValue(snapshots[0], (v) => String(v))).toBe('1');
   });
 });

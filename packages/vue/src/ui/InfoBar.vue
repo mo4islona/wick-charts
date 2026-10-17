@@ -4,13 +4,13 @@ import {
   type OHLCData,
   type SeriesSnapshot,
   type SnapshotSort,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
   formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
@@ -89,7 +89,12 @@ const snapshots = computed<readonly SeriesSnapshot[]>(() =>
   isHover.value ? (hoverSnapshots.value as readonly SeriesSnapshot[]) : lastSnapshots.value,
 );
 
-const dataInterval = computed(() => chart.getDataInterval());
+// `chart` is not reactive: `bump` re-reads the interval once data lands after mount.
+const dataInterval = computed(() => {
+  void bump.value;
+
+  return chart.getDataInterval();
+});
 const displayTime = computed(() => {
   if (snapshots.value.length === 0) return 0;
   if (isHover.value && crosshair.value) return crosshair.value.time;
@@ -205,7 +210,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               }"
             />
             <span :style="{ color: s.color, fontWeight: 500 }">
-              {{ effectiveFormat((s.data as TimePoint).value, 'value') }}
+              {{ formatRowValue(s, (v) => effectiveFormat(v, 'value')) }}
             </span>
           </span>
         </template>

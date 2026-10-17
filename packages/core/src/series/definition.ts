@@ -8,6 +8,12 @@ export interface SeriesCreateEnv {
   theme: ChartTheme;
   /** Number of stacked layers requested via `layers` (`1` when omitted). */
   layerCount: number;
+  /**
+   * First `theme.seriesColors` slot for this series' default layer colours:
+   * the lowest run of `layerCount` slots no other series of the same type
+   * holds, so two series don't both default to the first colour. `0` when omitted.
+   */
+  paletteIndex?: number;
 }
 
 /**

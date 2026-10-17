@@ -176,3 +176,36 @@ describe('LineRenderer — stacked curve', () => {
     expect(drawnAt(60)).toBe(true);
   });
 });
+
+describe('LineRenderer — percent stack with a zero-total column', () => {
+  // Column 3 (time 35) is zero in every layer: no shares to split.
+  const layer = (values: number[]) => values.map((value, i) => ({ time: i * 10 + 5, value }));
+
+  function render() {
+    const r = new LineRenderer(2, { stacking: 'percent', colors: ['#111', '#222'], entryAnimation: 'none' });
+    r.setData(layer([10, 20, 30, 0, 40, 50]), 0);
+    r.setData(layer([30, 20, 10, 0, 20, 10]), 1);
+    const built = buildRenderContext(VIEW);
+    r.render(built.ctx);
+
+    return built.spy;
+  }
+
+  it('breaks every layer at the column instead of dropping it to 0%', () => {
+    const spy = render();
+
+    // Two layers × two runs, each a fill and a stroke.
+    expect(spy.countOf('fill')).toBe(4);
+    expect(spy.countOf('stroke')).toBe(4);
+  });
+
+  it('sends no NaN coordinate to the canvas', () => {
+    const spy = render();
+
+    for (const call of spy.calls) {
+      for (const arg of call.args) {
+        if (typeof arg === 'number') expect(Number.isFinite(arg)).toBe(true);
+      }
+    }
+  });
+});

@@ -2,6 +2,7 @@ import type { ChartInstance } from './chart';
 import type { LayerSnapshot } from './series/types';
 import type { BandPoint, OHLCData, TimePoint } from './types';
 import { type SeriesPoint, isGapPoint, pointValue } from './utils/point';
+import { formatDate } from './utils/time';
 
 /**
  * Frozen, per-row snapshot of a series at a single point in time. The shape
@@ -29,6 +30,8 @@ export interface SeriesSnapshot {
   readonly label?: string;
   readonly data: Readonly<OHLCData> | Readonly<TimePoint> | Readonly<BandPoint>;
   readonly color: string;
+  /** On a percent stack, the layer's share of the column in percent — what the chart draws it at. */
+  readonly share?: number;
 }
 
 /** Sort order applied to a snapshot list by the helper. */
@@ -107,6 +110,7 @@ function freezeSnapshot(s: {
   label?: string;
   data: SeriesPoint;
   color: string;
+  share?: number;
 }): SeriesSnapshot {
   // Deep-freeze: without cloning `data`, callers with `snapshot.data.close = X`
   // would mutate the chart's internal store directly.
@@ -118,6 +122,7 @@ function freezeSnapshot(s: {
     label: s.label,
     data: frozenData,
     color: s.color,
+    ...(s.share === undefined ? {} : { share: s.share }),
   };
 
   return Object.freeze(frozen);
@@ -170,6 +175,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
             label: chart.getLayerLabel(id, l.layerIndex),
             data: point,
             color: l.color,
+            share: l.share,
           }),
         );
       }
@@ -198,19 +204,16 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
   return data;
 }
 
-/**
- * The X label of a tooltip / info-bar header at `time` (the crosshair time,
- * or the newest point's). On a numeric axis it names the nearest snapshot's
- * point with that value's own decimals instead of the pointer position;
- * elsewhere it formats `time` as the axis does.
- */
-export function formatHeaderX(
-  chart: ChartInstance,
-  args: { time: number; snapshots: readonly SeriesSnapshot[]; interval: number },
-): string {
-  const { time, snapshots, interval } = args;
-  if (chart.timeScale.getType() !== 'numeric') return chart.timeScale.formatX(time, interval);
+interface HeaderArgs {
+  time: number;
+  snapshots: readonly SeriesSnapshot[];
+  interval: number;
+}
 
+const DAY = 86_400_000;
+
+/** The time of the snapshot point nearest to `time`; `time` itself when there is none. */
+function nearestPointTime(time: number, snapshots: readonly SeriesSnapshot[]): number {
   let nearest = time;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const snapshot of snapshots) {
@@ -223,7 +226,50 @@ export function formatHeaderX(
     nearest = snapshot.data.time;
   }
 
-  return chart.timeScale.formatPointX(nearest, interval);
+  return nearest;
+}
+
+/**
+ * The X label of a tooltip / info-bar header at `time` (the crosshair time,
+ * or the newest point's). It names the nearest snapshot's point, not the
+ * pointer position, so the label matches the values listed under it; a
+ * numeric X prints with that value's own decimals.
+ */
+export function formatHeaderX(chart: ChartInstance, args: HeaderArgs): string {
+  const nearest = nearestPointTime(args.time, args.snapshots);
+
+  return chart.timeScale.formatPointX(nearest, args.interval);
+}
+
+/**
+ * The full tooltip header: on a time axis the point's date, plus its time of
+ * day when the data is intraday; elsewhere {@link formatHeaderX}.
+ */
+export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): string {
+  const x = formatHeaderX(chart, args);
+  if (chart.timeScale.getType() !== 'time') return x;
+
+  const nearest = nearestPointTime(args.time, args.snapshots);
+  const date = formatDate(nearest, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() });
+
+  // The built-in label of daily or coarser data is the date again.
+  const repeatsDate = args.interval >= DAY && chart.timeScale.getFormat() === null;
+  if (repeatsDate) return date;
+
+  return `${date} ${x}`;
+}
+
+/**
+ * The value a line or bar row prints: on a percent stack its share leads, then
+ * the value itself ("42.1% · 25.77M").
+ */
+export function formatRowValue(snapshot: SeriesSnapshot, format: (value: number) => string): string {
+  const value = format(pointValue(snapshot.data));
+  if (snapshot.share === undefined) return value;
+
+  const share = Number(snapshot.share.toFixed(1));
+
+  return `${share}% · ${value}`;
 }
 
 /**
@@ -262,6 +308,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
             label: chart.getLayerLabel(id, l.layerIndex),
             data: point,
             color: l.color,
+            share: l.share,
           }),
         );
       }

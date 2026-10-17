@@ -98,7 +98,7 @@ Fraction of the available interval width (0–1). At `0.6` (default), each bar t
 |------|----------|
 | `'off'` | Tallest bar drawn first (behind), layers overlap. Supports negative values |
 | `'normal'` | Layers stack cumulatively on top of each other |
-| `'percent'` | Like `'normal'` but normalized to 0–100% of total |
+| `'percent'` | Like `'normal'` but normalized to 0–100% of total. Tooltip rows show the share before the value |
 
 ### Zero line
 

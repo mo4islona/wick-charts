@@ -48,7 +48,7 @@ const props = withDefaults(
      * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
      * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Updates are
      * applied reactively when this prop or the measured header height changes.
-     * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
+     * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }`.
      */
     padding?: {
       top?: number;

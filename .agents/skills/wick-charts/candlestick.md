@@ -196,7 +196,8 @@ id?: string
 
 ```vue
 <script setup>
-const data = ref<OHLCData[]>([]);
+// shallowRef: no per-point reactivity to pay for; each update assigns a new array.
+const data = shallowRef<OHLCData[]>([]);
 
 function onPriceUpdate(candle: OHLCData) {
   data.value = [...data.value.slice(0, -1), candle];

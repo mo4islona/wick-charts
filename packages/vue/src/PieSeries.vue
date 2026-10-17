@@ -3,6 +3,7 @@ import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
 import { PieSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
 
 const props = withDefaults(
@@ -28,7 +29,7 @@ onMounted(() => {
   seriesId.value = id;
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
   if (props.data.length > 0) {
-    chart.setSeriesData(id, props.data);
+    chart.setSeriesData(id, rawSeriesData(props.data));
   }
   chart.setSeriesVisible(id, props.visible);
 });
@@ -38,10 +39,10 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.data,
-  (data) => {
-    if (seriesId.value && data.length > 0) {
-      chart.setSeriesData(seriesId.value, data);
+  seriesDataSource(() => props.data),
+  () => {
+    if (seriesId.value && props.data.length > 0) {
+      chart.setSeriesData(seriesId.value, rawSeriesData(props.data));
     }
   },
 );

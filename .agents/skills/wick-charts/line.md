@@ -31,7 +31,7 @@ data={[layer1, layer2, layer3]}
 
 ### Naming / coloring layers
 
-There is **no `label` or `colors` option** — a layer's name and color are carried in the data via `{ label?, color?, data }`. By default colors come from the theme (`theme.line.color` for one line, `theme.seriesColors` for layers); a per-layer `color` overrides it.
+There is **no `label` or `colors` option** — a layer's name and color are carried in the data via `{ label?, color?, data }`. By default colors come from the theme (`theme.line.color` for the first single line, then the next free `theme.seriesColors` slots for further lines and for layers); a per-layer `color` overrides it.
 
 `color` is a `ValueColor` = `string | ((value) => string)`. The function form colors the line at its latest value (e.g. red when currently down).
 
@@ -118,7 +118,7 @@ Animated pulsing dot at the last data point. Useful for live data. Set `false` f
 |------|----------|
 | `'off'` | Each layer rendered independently, overlapping |
 | `'normal'` | Layers stack cumulatively — each layer's Y = sum of all layers below |
-| `'percent'` | Like `'normal'` but normalized to 0–100% of total |
+| `'percent'` | Like `'normal'` but normalized to 0–100% of total; a column whose total is 0 is a gap. Tooltip rows show the share before the value |
 
 ### `threshold`
 

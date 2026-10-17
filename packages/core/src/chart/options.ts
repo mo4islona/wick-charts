@@ -54,7 +54,7 @@ export interface ChartOptions {
   scales?: Record<string, YAxisConfig>;
   /**
    * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
-   * or data intervals (`{ intervals: 3 }`). Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
+   * or data intervals (`{ intervals: 3 }`). Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }`.
    */
   padding?: {
     top?: number;
@@ -273,7 +273,7 @@ const DEFAULT_PADDING: ResolvedPadding = {
   top: 20,
   bottom: 20,
   right: { intervals: 3 },
-  left: { intervals: 0 },
+  left: { intervals: 0.5 },
 };
 
 export function resolvePadding(input: ChartOptions['padding']): ResolvedPadding {

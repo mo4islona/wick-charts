@@ -4,14 +4,13 @@ import {
   type OHLCData,
   type SeriesSnapshot,
   type SnapshotSort,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
-  formatDate,
-  formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
+  formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
@@ -53,8 +52,17 @@ onUnmounted(() => {
   chart.off('overlayChange', onOverlayChange);
 });
 
-const theme = computed(() => chart.getTheme());
-const dataInterval = computed(() => chart.getDataInterval());
+const theme = computed(() => {
+  void bump.value;
+
+  return chart.getTheme();
+});
+// `chart` is not reactive: `bump` re-reads the interval once data lands after mount.
+const dataInterval = computed(() => {
+  void bump.value;
+
+  return chart.getDataInterval();
+});
 
 const snapshots = computed<readonly SeriesSnapshot[]>(() => {
   void bump.value;
@@ -127,9 +135,12 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
 
   const hasOHLC = snapshots.value.some((s) => 'open' in s.data);
   const lineCount = snapshots.value.filter((s) => !('open' in s.data)).length;
-  // A band row carries two numbers, so it needs a wider box than a line row.
+  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
   const hasBand = snapshots.value.some((s) => 'high' in s.data && !('open' in s.data));
-  const tooltipWidth = hasBand ? 220 : 160;
+  const hasShare = snapshots.value.some((s) => s.share !== undefined);
+  let tooltipWidth = 160;
+  if (hasBand) tooltipWidth = 220;
+  if (hasShare) tooltipWidth = 240;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   return computeTooltipPosition({
@@ -188,10 +199,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
         letterSpacing: '0.02em',
       }"
     >
-      <template v-if="chart.timeScale.getType() === 'time'">
-        {{ formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() }) }}
-      </template>
-      {{ formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
+      {{ formatTooltipHeader(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
     </div>
 
     <template v-for="s in snapshots" :key="s.id">
@@ -264,7 +272,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
         <span :style="{ fontWeight: 600, color: s.color }">
-          {{ effectiveFormat((s.data as TimePoint).value, 'value') }}
+          {{ formatRowValue(s, (v) => effectiveFormat(v, 'value')) }}
         </span>
       </div>
     </template>

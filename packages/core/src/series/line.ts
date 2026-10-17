@@ -165,9 +165,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   protected declare options: ResolvedLineOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
-  constructor(layerCount: number, options?: LineOptionsInput) {
+  /** First palette slot of the theme default colours — see `SeriesCreateEnv.paletteIndex`. */
+  readonly #paletteIndex: number;
+
+  constructor(layerCount: number, options?: LineOptionsInput, paletteIndex = 0) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
+    this.#paletteIndex = paletteIndex;
   }
 
   updateOptions(options: LineOptionsInput): void {
@@ -182,7 +186,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // Reset the theme base only; per-layer `data` color overrides are held
     // separately (setColorOverrides) and ride through a theme swap untouched, so
     // there is no user color to preserve here.
-    const colors = this.stores.length === 1 ? [theme.line.color] : theme.seriesColors.slice(0, this.stores.length);
+    const colors = defaultLineColors({ theme, layerCount: this.stores.length, paletteIndex: this.#paletteIndex });
     this.updateOptions({ colors });
 
     // Stroke width follows theme unless the user pinned it with an explicit option.
@@ -524,6 +528,37 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return this.introValue(ctx, { layerIndex, time, value });
   }
 
+  /**
+   * The line stack's reading of a percent column (see `renderStacked`): each
+   * layer's current value at `time` times its alpha, 0 for a layer yet to
+   * start, over one signed total; a total at or below 0 is a gap.
+   */
+  protected percentShares(time: number): Map<number, number> | null {
+    const values = new Map<number, number>();
+    let total = 0;
+    for (let li = 0; li < this.stores.length; li++) {
+      const alpha = this.getLayerAlpha(li);
+      if (alpha <= 0) continue;
+
+      const data = this.stores[li].getAll();
+      const pending = data.length > 0 && time < data[0].time;
+      const resolve = (point: TimePoint) => this.snapshotValue(li, point.time, point.value);
+      const value = pending ? 0 : valueAtTime(data, time, { resolve });
+      if (value === null) continue;
+
+      values.set(li, value * alpha);
+      total += value * alpha;
+    }
+    if (total <= 0) return null;
+
+    const shares = new Map<number, number>();
+    for (const [li, value] of values) {
+      shares.set(li, Math.max(0, (value / total) * 100));
+    }
+
+    return shares;
+  }
+
   /** Layer's share of its column in percent, passed through the intro value transform. */
   private introShare(
     ctx: SeriesRenderContext | OverlayRenderContext,
@@ -861,6 +896,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       for (let lj = 0; lj < this.stores.length; lj++) {
         total += valueAt(lj) ?? 0;
       }
+
+      // The column is a gap in the stack (see `renderStacked`).
+      if (total <= 0) return Number.NaN;
     }
 
     let running = 0;
@@ -1292,20 +1330,37 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           }
         }
         context.fillStyle = grad;
+        // One fill for every run: abutting subpaths of one fill share their edge
+        // coverage, where separate translucent fills would leave a seam.
+        context.beginPath();
+        // A gap the stroke's round caps already close reads as no gap, so the fill bridges it too.
+        const maxBridgedGap = lineWidth + scope.horizontalPixelRatio;
+        let previous: { x: number; y: number } | null = null;
         for (const run of runs) {
           if (run.length < 2) continue;
-          context.beginPath();
+
+          const first = run[0];
+          const last = run[run.length - 1];
+          if (previous !== null && first.x - previous.x <= maxBridgedGap) {
+            context.moveTo(previous.x, previous.y);
+            context.lineTo(first.x, first.y);
+            context.lineTo(first.x, bottomY);
+            context.lineTo(previous.x, bottomY);
+            context.closePath();
+          }
+
           // Same builder as the stroke → the area's curved top edge is identical
           // to the stroked line above it.
           builder(paintEnv, { points: run, color, lineWidth, closing: true, grew: growing && run === growingRun });
           // Close the polygon: drop from the last point to the baseline, run
           // back to the first point's x on the baseline, and closePath snaps
           // the final edge back up to (first.x, first.y).
-          context.lineTo(run[run.length - 1].x, bottomY);
-          context.lineTo(run[0].x, bottomY);
+          context.lineTo(last.x, bottomY);
+          context.lineTo(first.x, bottomY);
           context.closePath();
-          context.fill();
+          previous = last;
         }
+        context.fill();
       }
 
       // Per-point dot markers on top of the stroke and fill. `runs` already
@@ -1413,6 +1468,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const scaleStacked = yScale.getTransform() !== null && !percent;
 
     const cumulative: number[][] = Array.from({ length: this.stores.length }, () => new Array(times.length).fill(0));
+    const gapColumns: boolean[] = new Array(times.length).fill(false);
     for (let ti = 0; ti < times.length; ti++) {
       const t = times[ti];
 
@@ -1434,6 +1490,17 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           if (v !== undefined && yScale.isPlottable(v)) total += v;
         }
       }
+
+      // A zero total has no shares to split: the stack breaks at this column.
+      if (percent && total <= 0) {
+        gapColumns[ti] = true;
+        for (let li = 0; li < this.stores.length; li++) {
+          cumulative[li][ti] = Number.NaN;
+        }
+
+        continue;
+      }
+
       let running = 0;
       for (let li = 0; li < this.stores.length; li++) {
         // ≤ 0 adds nothing on a log scale, the same as a gap.
@@ -1576,6 +1643,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // fades; `paintedStackVertex` replays this so the pulse dot follows it down.
     const collapse = layers.map((_, li) => (li === bottomVisibleLi ? Math.min(1, this.getLayerAlpha(li)) : 1));
 
+    // Runs of columns between gap columns — a single run of every column when there is none.
+    const spans = stackSpans(gapColumns);
+
     // Draw from top layer to bottom so lower layers fill correctly. Use
     // alpha as the "is this layer contributing geometry" gate — store flag
     // alone would skip a fading-out layer mid-transition.
@@ -1629,11 +1699,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       }
       if (style === 'grow') applyGrowChain(upperXY, growChain);
 
-      // Upper-edge curve segments, shared by the area fill and the stroke so the
-      // stroked line sits exactly on the filled slice's top edge.
-      const upperPoints = toPoints(upperXY);
-      const upperSegs = buildCurveSegments(upperPoints, curveKind, style === 'grow' && growChain.length > 0);
-
       const useFade = style === 'fade' && layerHeadProgress[li] < 1;
       if (useFade) {
         context.save();
@@ -1643,98 +1708,130 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         context.globalAlpha *= layerHeadProgress[li];
       }
 
-      // Fill area between upper and lower with a per-slice vertical gradient
-      // — solid at the slice's top edge, fades toward its lower edge. Mirrors
-      // the visual language of renderOff (canvas-wide gradient from line to
-      // baseline) but scoped to each slice so colors stay distinguishable and
-      // every layer reads as its own "filled curve". Bounds are recomputed
-      // per frame; CanvasGradient creation is cheap and slice bounds drift
-      // every streaming tick so a cache wouldn't hit. The intro ghost pass
-      // draws stroke-only, same as renderOff.
-      if (this.options.area.visible && !this.introGhostPass) {
-        let upperMinY = upperXY[0][1];
-        let lowerMaxY = lowerXY[0][1];
-        for (let i = 1; i < upperXY.length; i++) {
-          if (upperXY[i][1] < upperMinY) upperMinY = upperXY[i][1];
-        }
-        for (let i = 1; i < lowerXY.length; i++) {
-          if (lowerXY[i][1] > lowerMaxY) lowerMaxY = lowerXY[i][1];
-        }
-        // Degenerate slice (single pixel tall after alpha shrink) — skip the
-        // gradient stop math and paint solid; createLinearGradient with
-        // collapsed endpoints renders unpredictably across browsers.
-        let fillStyle: string | CanvasGradient = hexToRgba(color, 0.25);
-        if (lowerMaxY > upperMinY + 0.5) {
-          const grad = context.createLinearGradient(0, upperMinY, 0, lowerMaxY);
-          grad.addColorStop(0, hexToRgba(color, 0.25));
-          grad.addColorStop(1, hexToRgba(color, 0.05));
-          fillStyle = grad;
-        }
-        context.beginPath();
-        context.moveTo(upperPoints[0].x, upperPoints[0].y);
-        replaySegmentsForward(context, upperSegs);
-        if (isBottomVisible) {
-          // True canvas baseline — a straight drop and run-back, not a shared
-          // data boundary, so nothing to curve or tile.
-          for (let i = lowerXY.length - 1; i >= 0; i--) {
-            context.lineTo(lowerXY[i][0], lowerXY[i][1]);
-          }
-        } else {
-          // Interior boundary: trace the lower edge as the reversed curve so it
-          // shares the exact path with the slice below's upper edge (no sliver
-          // gap between adjacent fills).
-          const lowerPoints = toPoints(lowerXY);
-          const lowerSegs = buildCurveSegments(lowerPoints, curveKind, style === 'grow' && growChain.length > 0);
-          const lowerLast = lowerPoints[lowerPoints.length - 1];
-          context.lineTo(lowerLast.x, lowerLast.y);
-          replaySegmentsReversed(context, lowerPoints, lowerSegs);
-        }
-        context.closePath();
-        context.fillStyle = fillStyle;
-        context.fill();
-      }
-
-      // Stroke the upper edge. As the layer fades, the slice's height
-      // collapses (alpha-weighted cumulative) and the gradient fill thins,
-      // but a 2 px stroke at full color still reads as a hard line that
-      // pops out the moment we cut the layer at alpha=0. Composing
-      // layerAlpha into globalAlpha just on the stroke fades it in lockstep
-      // with the geometry collapse — fill stays at its gradient intensity
-      // so the slice shape remains visible while shrinking.
-      const strokeFaded = hasStroke && layerAlpha < 1;
-      if (strokeFaded) {
-        context.save();
-        context.globalAlpha *= layerAlpha;
-      }
-      if (hasStroke) {
-        context.beginPath();
-        context.moveTo(upperPoints[0].x, upperPoints[0].y);
-        replaySegmentsForward(context, upperSegs);
-        context.strokeStyle = color;
-        context.lineWidth = lineWidth;
-        context.lineJoin = 'round';
-        context.lineCap = 'round';
-        context.stroke();
-      }
-      if (strokeFaded) context.restore();
-
-      // Per-point dot markers on the slice's upper edge — the layer's own
-      // visual boundary in a stack. Fades with layerAlpha in lockstep with
-      // the stroke so the dots don't pop out while the slice collapses.
-      if (this.options.points?.visible) {
-        const dotsFaded = layerAlpha < 1;
-        if (dotsFaded) {
-          context.save();
-          context.globalAlpha *= layerAlpha;
-        }
-        this.drawPointMarkers({ context, points: upperPoints, pixelRatio: scope.horizontalPixelRatio, color });
-        if (dotsFaded) context.restore();
+      for (const span of spans) {
+        // Only the run that reaches the live edge holds the growing columns.
+        const growing = style === 'grow' && growChain.length > 0 && span.to === times.length;
+        this.drawStackSlice({
+          ctx,
+          lowerXY: lowerXY.slice(span.from, span.to),
+          upperXY: upperXY.slice(span.from, span.to),
+          layer: { color, alpha: layerAlpha, isBottomVisible },
+          curve: { kind: curveKind, growing, hasStroke, lineWidth },
+        });
       }
 
       if (useFade) context.restore();
     }
 
     this.stackedEdges = { times, cumulative, growChain, collapse };
+  }
+
+  /** Fill, stroke and point markers of one layer's slice over one run of stacked columns. */
+  private drawStackSlice(args: {
+    ctx: SeriesRenderContext;
+    lowerXY: [number, number][];
+    upperXY: [number, number][];
+    layer: { color: string; alpha: number; isBottomVisible: boolean };
+    curve: { kind: CurveKind; growing: boolean; hasStroke: boolean; lineWidth: number };
+  }): void {
+    const { lowerXY, upperXY } = args;
+    const { scope } = args.ctx;
+    const { context } = scope;
+    const { color, alpha: layerAlpha, isBottomVisible } = args.layer;
+    const { kind: curveKind, growing, hasStroke, lineWidth } = args.curve;
+
+    // Upper-edge curve segments, shared by the area fill and the stroke so the
+    // stroked line sits exactly on the filled slice's top edge.
+    const upperPoints = toPoints(upperXY);
+    const upperSegs = buildCurveSegments(upperPoints, curveKind, growing);
+
+    // Fill area between upper and lower with a per-slice vertical gradient
+    // — solid at the slice's top edge, fades toward its lower edge. Mirrors
+    // the visual language of renderOff (canvas-wide gradient from line to
+    // baseline) but scoped to each slice so colors stay distinguishable and
+    // every layer reads as its own "filled curve". Bounds are recomputed
+    // per frame; CanvasGradient creation is cheap and slice bounds drift
+    // every streaming tick so a cache wouldn't hit. The intro ghost pass
+    // draws stroke-only, same as renderOff.
+    if (this.options.area.visible && !this.introGhostPass) {
+      let upperMinY = upperXY[0][1];
+      let lowerMaxY = lowerXY[0][1];
+      for (let i = 1; i < upperXY.length; i++) {
+        if (upperXY[i][1] < upperMinY) upperMinY = upperXY[i][1];
+      }
+      for (let i = 1; i < lowerXY.length; i++) {
+        if (lowerXY[i][1] > lowerMaxY) lowerMaxY = lowerXY[i][1];
+      }
+      // Degenerate slice (single pixel tall after alpha shrink) — skip the
+      // gradient stop math and paint solid; createLinearGradient with
+      // collapsed endpoints renders unpredictably across browsers.
+      let fillStyle: string | CanvasGradient = hexToRgba(color, 0.25);
+      if (lowerMaxY > upperMinY + 0.5) {
+        const grad = context.createLinearGradient(0, upperMinY, 0, lowerMaxY);
+        grad.addColorStop(0, hexToRgba(color, 0.25));
+        grad.addColorStop(1, hexToRgba(color, 0.05));
+        fillStyle = grad;
+      }
+      context.beginPath();
+      context.moveTo(upperPoints[0].x, upperPoints[0].y);
+      replaySegmentsForward(context, upperSegs);
+      if (isBottomVisible) {
+        // True canvas baseline — a straight drop and run-back, not a shared
+        // data boundary, so nothing to curve or tile.
+        for (let i = lowerXY.length - 1; i >= 0; i--) {
+          context.lineTo(lowerXY[i][0], lowerXY[i][1]);
+        }
+      } else {
+        // Interior boundary: trace the lower edge as the reversed curve so it
+        // shares the exact path with the slice below's upper edge (no sliver
+        // gap between adjacent fills).
+        const lowerPoints = toPoints(lowerXY);
+        const lowerSegs = buildCurveSegments(lowerPoints, curveKind, growing);
+        const lowerLast = lowerPoints[lowerPoints.length - 1];
+        context.lineTo(lowerLast.x, lowerLast.y);
+        replaySegmentsReversed(context, lowerPoints, lowerSegs);
+      }
+      context.closePath();
+      context.fillStyle = fillStyle;
+      context.fill();
+    }
+
+    // Stroke the upper edge. As the layer fades, the slice's height
+    // collapses (alpha-weighted cumulative) and the gradient fill thins,
+    // but a 2 px stroke at full color still reads as a hard line that
+    // pops out the moment we cut the layer at alpha=0. Composing
+    // layerAlpha into globalAlpha just on the stroke fades it in lockstep
+    // with the geometry collapse — fill stays at its gradient intensity
+    // so the slice shape remains visible while shrinking.
+    const strokeFaded = hasStroke && layerAlpha < 1;
+    if (strokeFaded) {
+      context.save();
+      context.globalAlpha *= layerAlpha;
+    }
+    if (hasStroke) {
+      context.beginPath();
+      context.moveTo(upperPoints[0].x, upperPoints[0].y);
+      replaySegmentsForward(context, upperSegs);
+      context.strokeStyle = color;
+      context.lineWidth = lineWidth;
+      context.lineJoin = 'round';
+      context.lineCap = 'round';
+      context.stroke();
+    }
+    if (strokeFaded) context.restore();
+
+    // Per-point dot markers on the slice's upper edge — the layer's own
+    // visual boundary in a stack. Fades with layerAlpha in lockstep with
+    // the stroke so the dots don't pop out while the slice collapses.
+    if (this.options.points?.visible) {
+      const dotsFaded = layerAlpha < 1;
+      if (dotsFaded) {
+        context.save();
+        context.globalAlpha *= layerAlpha;
+      }
+      this.drawPointMarkers({ context, points: upperPoints, pixelRatio: scope.horizontalPixelRatio, color });
+      if (dotsFaded) context.restore();
+    }
   }
 
   /**
@@ -1781,6 +1878,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
                 y: yScale.valueToBitmapYExact(this.effectiveValue(ctx, li, closest.time, closest.value)),
               }
             : this.stackedPositionAt(ctx, li, closest.time);
+        if (!Number.isFinite(py)) continue;
 
         const dotFaded = layerAlpha < 1;
         if (dotFaded) {
@@ -1871,6 +1969,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         // this layer's last time, chain-lerped in lockstep with the
         // rendered trailing segment during a 'grow' entrance.
         const { x: pulseX, y: pulseY } = this.stackedPositionAt(ctx, li, last.time);
+        if (!Number.isFinite(pulseY)) continue;
 
         this.drawPulse({
           ctx: scope.context,
@@ -1933,10 +2032,39 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
   type: 'line',
   xTypes: ['time', 'numeric', 'category'],
-  create: ({ theme, layerCount }, options) =>
-    new LineRenderer(layerCount, {
-      colors: layerCount === 1 ? [theme.line.color] : theme.seriesColors.slice(0, layerCount),
-      strokeWidth: theme.line.width,
-      ...options,
-    }),
+  create: ({ theme, layerCount, paletteIndex = 0 }, options) =>
+    new LineRenderer(
+      layerCount,
+      {
+        colors: defaultLineColors({ theme, layerCount, paletteIndex }),
+        strokeWidth: theme.line.width,
+        ...options,
+      },
+      paletteIndex,
+    ),
 };
+
+/** Index runs `[from, to)` of at least two columns between gap columns; a lone column has no slice to draw. */
+function stackSpans(gapColumns: readonly boolean[]): Array<{ from: number; to: number }> {
+  const spans: Array<{ from: number; to: number }> = [];
+  let from = 0;
+  for (let i = 0; i <= gapColumns.length; i++) {
+    const breaks = i === gapColumns.length || gapColumns[i];
+    if (!breaks) continue;
+
+    if (i - from >= 2) spans.push({ from, to: i });
+    from = i + 1;
+  }
+
+  return spans;
+}
+
+/** A lone first line takes the theme's line colour; any other line takes palette slots from `paletteIndex`, wrapping. */
+function defaultLineColors(args: { theme: ChartTheme; layerCount: number; paletteIndex: number }): string[] {
+  const { theme, layerCount, paletteIndex } = args;
+  const palette = theme.seriesColors;
+  const loneFirstLine = layerCount === 1 && paletteIndex === 0;
+  if (loneFirstLine || palette.length === 0) return [theme.line.color];
+
+  return Array.from({ length: layerCount }, (_, i) => palette[(paletteIndex + i) % palette.length]);
+}

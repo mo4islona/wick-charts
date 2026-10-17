@@ -25,6 +25,7 @@ import {
   type VisibleRange,
   type VisibleRangeSpec,
   type YAxisConfig,
+  catppuccin,
   deepEqual,
 } from '@wick-charts/core';
 
@@ -66,7 +67,7 @@ export interface ChartContainerProps {
    * via `chart.setPadding`. Set every side to `0` for an edge-to-edge
    * sparkline.
    *
-   * @default `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`
+   * @default `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }`
    */
   padding?: {
     /** Pixels of empty space above the plot area. Default `20`. */
@@ -82,7 +83,7 @@ export interface ChartContainerProps {
     right?: number | { intervals: number };
     /**
      * Empty space on the left edge. A `number` is pixels; an object pads by
-     * data intervals on the time axis. Default `{ intervals: 0 }`.
+     * data intervals on the time axis. Default `{ intervals: 0.5 }` — half a slot, so the first bar or candle is not cut in half.
      */
     left?: number | { intervals: number };
   };
@@ -397,6 +398,8 @@ export function ChartContainer({
   onCrosshairMoveRef.current = onCrosshairMove;
   const contextTheme = useThemeOptional();
   const resolvedTheme = theme ?? contextTheme ?? undefined;
+  // What the chart and its overlays show: the prop, else the default the chart starts with.
+  const activeTheme = resolvedTheme ?? catppuccin.theme;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartInstance | null>(null);
@@ -483,10 +486,12 @@ export function ChartContainer({
   }, [stableAnimations]);
 
   useEffect(() => {
-    if (chartRef.current && resolvedTheme) {
-      chartRef.current.setTheme(resolvedTheme);
-    }
-  }, [resolvedTheme]);
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    // Dropping the prop restores the default theme the chart was built with.
+    if (chart.getTheme() !== activeTheme) chart.setTheme(activeTheme);
+  }, [activeTheme]);
 
   useEffect(() => {
     if (chartRef.current && axis) {
@@ -660,9 +665,8 @@ export function ChartContainer({
   // just OR the two position checks.
   const isLegendRight = legendPosition === 'right' || pieLegendPosition === 'right';
 
-  const effectiveTheme = resolvedTheme ?? chart?.getTheme();
-  const [gtop, gbot] = effectiveTheme?.chartGradient ?? ['transparent', 'transparent'];
-  const bg = effectiveTheme?.background ?? 'transparent';
+  const [gtop, gbot] = activeTheme.chartGradient;
+  const bg = activeTheme.background;
   const backgroundStyle = gradient ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)` : bg;
 
   // Measure the stacked overlay (Title + InfoBar) height and feed it
@@ -740,7 +744,7 @@ export function ChartContainer({
     >
       {chart && (
         <ChartContext.Provider value={chart}>
-          <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>
+          <ThemeProvider value={activeTheme}>
             {headerLayout === 'overlay' && headerStack}
             <div
               data-chart-series-overlay=""
@@ -767,7 +771,7 @@ export function ChartContainer({
       >
         {chart && headerStack && (
           <ChartContext.Provider value={chart}>
-            <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{headerStack}</ThemeProvider>
+            <ThemeProvider value={activeTheme}>{headerStack}</ThemeProvider>
           </ChartContext.Provider>
         )}
         {chartInner}
@@ -778,19 +782,19 @@ export function ChartContainer({
 
   const hoistedLegend = chart && legendEl && (
     <ChartContext.Provider value={chart}>
-      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{legendEl}</ThemeProvider>
+      <ThemeProvider value={activeTheme}>{legendEl}</ThemeProvider>
     </ChartContext.Provider>
   );
 
   const hoistedPieLegend = chart && pieLegendEl && (
     <ChartContext.Provider value={chart}>
-      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{pieLegendEl}</ThemeProvider>
+      <ThemeProvider value={activeTheme}>{pieLegendEl}</ThemeProvider>
     </ChartContext.Provider>
   );
 
   const hoistedNavigator = chart && navigatorEl && (
     <ChartContext.Provider value={chart}>
-      <ThemeProvider value={resolvedTheme ?? chart.getTheme()}>{navigatorEl}</ThemeProvider>
+      <ThemeProvider value={activeTheme}>{navigatorEl}</ThemeProvider>
     </ChartContext.Provider>
   );
 

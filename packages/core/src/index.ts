@@ -228,7 +228,13 @@ export type {
   SeriesSnapshot,
   SnapshotSort,
 } from './snapshots';
-export { buildHoverSnapshots, buildLastSnapshots, formatHeaderX } from './snapshots';
+export {
+  buildHoverSnapshots,
+  buildLastSnapshots,
+  formatHeaderX,
+  formatRowValue,
+  formatTooltipHeader,
+} from './snapshots';
 // Testing — a working canvas 2D context + draw-call recorder for a
 // consumer's own jsdom/happy-dom test suite. Not part of the charting API;
 // re-exported here (rather than kept under a private `__tests__/helpers`

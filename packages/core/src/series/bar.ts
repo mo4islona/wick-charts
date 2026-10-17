@@ -8,7 +8,7 @@ import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import { ScaleStack } from './scale-stack';
-import type { SeriesRenderContext } from './types';
+import type { SeriesRenderContext, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -174,6 +174,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     this.options = normalize({ ...this.options, ...options });
   }
 
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
+    const range = super.getValueRange(from, to, opts);
+    const zeroPlottable = opts?.plottable?.(0) ?? true;
+    if (range === null || !zeroPlottable) return range;
+
+    // A bar is read by its length from zero, so zero stays on the axis; stacked ranges already hold it.
+    return { min: Math.min(0, range.min), max: Math.max(0, range.max) };
+  }
+
   protected isEntryEnabled(): boolean {
     return (this.options.entryAnimation ?? 'fade-grow') !== 'none';
   }
@@ -251,6 +260,45 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
+  /**
+   * The bar stack's reading of a percent column (see `renderStacked`): each
+   * layer's sample at `time` as drawn — smoothed, faded, growing in — with
+   * positives scaled to 100% and negatives to -100% on their own; `null` when
+   * the column draws nothing.
+   */
+  protected percentShares(time: number): Map<number, number> | null {
+    const style = this.options.entryAnimation ?? 'fade-grow';
+    const growsIn = (style === 'grow' || style === 'fade-grow') && !this.isProjectedTime(time);
+
+    const values = new Map<number, number>();
+    let positive = 0;
+    let negative = 0;
+    for (let li = 0; li < this.stores.length; li++) {
+      const alpha = this.getLayerAlpha(li);
+      if (alpha <= 0) continue;
+
+      const point = this.stores[li].findNearest(time, 0);
+      if (point === null || !Number.isFinite(point.value)) continue;
+
+      const entrance = growsIn ? this.entranceProgress(li, time) : 1;
+      const value = this.liveValue(li, time, point.value) * alpha * entrance;
+      values.set(li, value);
+      if (value > 0) positive += value;
+      if (value < 0) negative += value;
+    }
+    if (positive === 0 && negative === 0) return null;
+
+    const shares = new Map<number, number>();
+    for (const [li, value] of values) {
+      let share = 0;
+      if (value > 0) share = (value / positive) * 100;
+      if (value < 0) share = (value / negative) * -100;
+      shares.set(li, share);
+    }
+
+    return shares;
+  }
+
   private isProjectedTime(time: number): boolean {
     const from = this.options.projectedFrom;
 
@@ -435,7 +483,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const sparseCap = Math.round(30 * scope.horizontalPixelRatio);
     const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
 
-    return Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
+    return Math.max(1, Math.round(barWidth * this.options.barWidthRatio));
   }
 
   /** Stacking off — each layer drawn independently from zero, overlapping */

@@ -37,7 +37,7 @@ Root component. Requires a defined width + height.
 <ChartContainer
   theme={catppuccin.theme}
   axis={{ y: { min: 0, max: 'auto' }, x: { visible: true } }}
-  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
+  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }}
   viewport={{ maxVisibleBars: 200, initialRange: 35 }}
   gradient grid={{ visible: true }} interactive
   headerLayout="overlay"
@@ -403,6 +403,8 @@ Per-version breaking-change notes and code snippets live in the root [MIGRATION.
 ## Realtime updates
 
 Pass a new `data` array reference when data changes (e.g. via immutable state updates in React — the series components compare references in hook deps, so mutating in place won't re-render). The library diffs internally: same-length → updates last, +1..5 → incremental append, otherwise → full replace.
+
+Vue and Svelte also pick up an in-place `push` and an in-place edit of the last point (Vue: on a `ref` / `reactive` array); an in-place edit of an older point is not seen — pass a new array for that. In Vue, hold large datasets in `shallowRef` and assign a new array (or call `triggerRef`): the chart reads the raw array either way, but a deep `ref` makes Vue proxy every point your own code touches.
 
 ## Critical rules
 

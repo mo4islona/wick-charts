@@ -6,14 +6,13 @@ import {
   type ChartTheme,
   type OHLCData,
   type SeriesSnapshot,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
-  formatDate,
-  formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
+  formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -243,9 +242,12 @@ function FloatingTooltip({
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
 
-  // A band row carries two numbers, so it needs a wider box than a line row.
+  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
   const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
-  const tooltipWidth = hasBand ? 220 : 160;
+  const hasShare = snapshots.some((s) => s.share !== undefined);
+  let tooltipWidth = 160;
+  if (hasBand) tooltipWidth = 220;
+  if (hasShare) tooltipWidth = 240;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   const { left, top } = computeTooltipPosition({
@@ -259,7 +261,6 @@ function FloatingTooltip({
   });
 
   // A date only means something on a time axis.
-  const timeAxis = chart.timeScale.getType() === 'time';
   const bg = theme.tooltip.background;
   const border = theme.tooltip.borderColor;
   const shadow = '0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06)';
@@ -302,15 +303,7 @@ function FloatingTooltip({
           letterSpacing: '0.02em',
         }}
       >
-        {timeAxis && (
-          <>
-            {formatDate(displayTime, {
-              locale: chart.timeScale.getLocale(),
-              timeZone: chart.timeScale.getTimeZone(),
-            })}{' '}
-          </>
-        )}
-        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
+        {formatTooltipHeader(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </div>
 
       {snapshots.map((s) => {
@@ -355,8 +348,6 @@ function FloatingTooltip({
             </div>
           );
         }
-        const line = s.data as TimePoint;
-
         return (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
             <span
@@ -368,8 +359,21 @@ function FloatingTooltip({
                 flexShrink: 0,
               }}
             />
-            <span style={{ opacity: 0.6, flex: 1 }}>{s.label ?? 'Value'}</span>
-            <span style={{ fontWeight: 600, color: s.color }}>{format(line.value, 'value')}</span>
+            <span
+              style={{
+                opacity: 0.6,
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {s.label ?? 'Value'}
+            </span>
+            <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
+              {formatRowValue(s, (v) => format(v, 'value'))}
+            </span>
           </div>
         );
       })}

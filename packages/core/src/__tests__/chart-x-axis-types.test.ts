@@ -7,7 +7,7 @@ import type { ChartOptions } from '../chart/options';
 import { EMPTY_SYNC_STATE, syncSeriesLayer } from '../data/sync';
 import type { SeriesDefinition } from '../series/definition';
 import { LineSeriesDef } from '../series/line';
-import { buildHoverSnapshots, formatHeaderX } from '../snapshots';
+import { buildHoverSnapshots, formatHeaderX, formatTooltipHeader } from '../snapshots';
 import type { CanvasRecorder } from '../testing/recording-context';
 import { catppuccin } from '../theme/themes/catppuccin';
 import type { CrosshairPosition, XPointInput } from '../types';
@@ -92,9 +92,39 @@ describe('ChartInstance X axis types', () => {
     vi.restoreAllMocks();
   });
 
+  describe('time', () => {
+    const HOUR = 3_600_000;
+    const DAY = 24 * HOUR;
+
+    function headerAt(args: { start: number; step: number; hover: number }): string {
+      makeChart({ timeZone: 'UTC' });
+      const id = chart.addSeries('line');
+      chart.setSeriesData(
+        id,
+        [0, 1, 2, 3].map((i) => ({ time: args.start + i * args.step, value: i })),
+      );
+      const interval = chart.getDataInterval();
+      const snapshots = buildHoverSnapshots(chart, { time: args.hover, cacheKey: 'header' });
+
+      return formatTooltipHeader(chart, { time: args.hover, snapshots, interval });
+    }
+
+    it("heads the tooltip with the hovered point's time, not the pointer's", () => {
+      const start = Date.UTC(2023, 2, 24, 16);
+
+      expect(headerAt({ start, step: HOUR, hover: start + HOUR + 6 * 60_000 })).toBe('Mar 24, 2023 17:00');
+    });
+
+    it('prints the date once on daily data', () => {
+      const start = Date.UTC(2022, 8, 7);
+
+      expect(headerAt({ start, step: DAY, hover: start + DAY + 3 * HOUR })).toBe('Sep 8, 2022');
+    });
+  });
+
   describe('numeric', () => {
     function lineChart(options: ChartOptions = {}): string {
-      makeChart({ axis: { x: { type: 'numeric' } }, padding: { right: 0 }, ...options });
+      makeChart({ axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 }, ...options });
       const id = chart.addSeries('line', { area: { visible: false } });
       chart.setLayerColors(id, [LINE_COLOR]);
       chart.setSeriesData(id, curve());
@@ -182,6 +212,63 @@ describe('ChartInstance X axis types', () => {
       pointerAt({ container, type: 'mousemove', offsetX: chart.plotLeft + chart.timeScale.timeToX(50) });
       const time = chart.getCrosshairPosition()?.time ?? Number.NaN;
       expect(buildHoverSnapshots(chart, { time, cacheKey: 'gap' })[0]?.data).toMatchObject({ x: 4 });
+    });
+
+    it('leaves half a slot before the first bar at the default padding', () => {
+      makeChart({ axis: { x: { type: 'numeric' } } });
+      chart.setSeriesData(
+        chart.addSeries('bar'),
+        [2.5, 2.6, 2.7, 2.8].map((x) => ({ x, value: 1 })),
+      );
+      raf.flush(5);
+
+      const slot = chart.getDataInterval();
+      expect(chart.getVisibleRange().from).toBeCloseTo(2.5 - slot / 2, 9);
+    });
+
+    it('shifts an edge label inward so the chart does not cut it', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      // Ticks land on both ends of the window: 0 at the left edge, 100 at the right.
+      makeChart({ axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 11 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      const lefts = [...strip.querySelectorAll('span')].map((span) => Number.parseFloat(span.style.left));
+      const plotWidth = chart.timeScale.getMediaWidth();
+      const rightColumn = chart.getAxisColumnWidth('right');
+
+      expect(Math.min(...lefts)).toBe(15);
+      expect(Math.max(...lefts)).toBeLessThanOrEqual(plotWidth + rightColumn - 15);
+      unmount();
+    });
+
+    it('leaves the labels that fade out after a pan at their own spots', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      makeChart({ animations: true, axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 21 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      chart.setVisibleRange({ from: 0, to: 100 });
+      raf.flush(200);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      // Mid-fade: the ticks that left on the left are still drawn.
+      chart.setVisibleRange({ from: 80, to: 180 });
+      raf.flush(2);
+      const lefts = [...strip.querySelectorAll('span')].map((span) => span.style.left);
+
+      expect(lefts.length).toBeGreaterThan(5);
+      expect(new Set(lefts).size).toBe(lefts.length);
+      unmount();
     });
 
     it("heads the tooltip with the point's own x, ticks with the step's decimals", () => {

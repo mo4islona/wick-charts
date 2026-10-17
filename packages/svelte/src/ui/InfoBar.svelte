@@ -2,7 +2,6 @@
 import type {
   BandPoint,
   CrosshairPosition,
-  LineData,
   OHLCData,
   SeriesSnapshot,
   SnapshotSort,
@@ -14,6 +13,7 @@ import {
   formatCompact,
   formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
@@ -65,7 +65,8 @@ onDestroy(() => {
 $: chart = $chartStore;
 $: theme = $themeStore;
 $: anchor = $anchorStore;
-$: dataInterval = chart?.getDataInterval() ?? 86400;
+// Re-read on every overlay change: data that lands after mount sets the interval.
+$: dataInterval = chart && bump >= 0 ? chart.getDataInterval() : 86400;
 
 // Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
 // so a crosshair event fires for offsets past the plotted data. The
@@ -132,10 +133,9 @@ $: displayTime =
             <span style="color:{s.color};font-weight:500;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </span>
         {:else}
-          {@const line = /** @type {LineData} */ (s.data)}
           <span style="display:inline-flex;align-items:center;gap:3px;">
             <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
-            <span style="color:{s.color};font-weight:500;">{format(line.value, 'value')}</span>
+            <span style="color:{s.color};font-weight:500;">{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </span>
         {/if}
       {/each}

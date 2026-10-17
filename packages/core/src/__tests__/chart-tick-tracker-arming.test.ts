@@ -168,6 +168,21 @@ describe('chart-level tick-tracker arming', () => {
     expect(snap.isAnimating).toBe(true);
   });
 
+  it('a fade-in that has not left 0 yet still reports animating', () => {
+    ({ chart, container } = makeChart());
+    seedLine(chart, [50, 55, 60, 65, 70]);
+    raf.flush(50);
+
+    // Only an addition: the ticks already shown stay put, so nothing fades out.
+    const tracker = chart.yScale.tickTracker;
+    tracker.setCurrentTicks([...tracker.getCurrentTicks(), 42_000]);
+    tracker.tick(performance.now());
+    const snap = tracker.snapshot();
+
+    expect(snap.entries.some((e) => e.value === 42_000)).toBe(false);
+    expect(snap.isAnimating).toBe(true);
+  });
+
   it('bulk replace (setSeriesData with new range) resets trackers so old tick values do not ghost-fade', () => {
     ({ chart, container } = makeChart());
     const id = seedLine(chart, [10, 15, 20, 25, 30]);

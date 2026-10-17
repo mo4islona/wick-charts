@@ -81,32 +81,46 @@ function lttb<T>(data: T[], targetCount: number, getX: (d: T) => number, getY: (
 
   let prevSelected = 0;
 
+  // A gap (null / NaN) has no Y to weigh: left in, it counts as 0 and wins its
+  // bucket as an extreme, so sparse nulls would break a zoomed-out line at
+  // every bucket. Only a bucket with no value at all stays a gap.
   for (let i = 0; i < targetCount - 2; i++) {
     const bucketStart = Math.floor((i + 1) * bucketSize) + 1;
     const bucketEnd = Math.min(Math.floor((i + 2) * bucketSize) + 1, data.length - 1);
 
+    const prevX = getX(data[prevSelected]);
+    const prevY = getY(data[prevSelected]);
+    const prevFinite = Number.isFinite(prevY);
+
     let avgX = 0;
     let avgY = 0;
+    let avgCount = 0;
     const nextBucketStart = bucketEnd;
     const nextBucketEnd = Math.min(Math.floor((i + 3) * bucketSize) + 1, data.length);
-    const nextBucketLen = nextBucketEnd - nextBucketStart;
+    for (let j = nextBucketStart; j < nextBucketEnd; j++) {
+      const y = getY(data[j]);
+      if (!Number.isFinite(y)) continue;
 
-    if (nextBucketLen > 0) {
-      for (let j = nextBucketStart; j < nextBucketEnd; j++) {
-        avgX += getX(data[j]);
-        avgY += getY(data[j]);
-      }
-      avgX /= nextBucketLen;
-      avgY /= nextBucketLen;
+      avgX += getX(data[j]);
+      avgY += y;
+      avgCount++;
+    }
+    if (avgCount > 0) {
+      avgX /= avgCount;
+      avgY /= avgCount;
+    } else {
+      avgX = prevX;
+      avgY = prevFinite ? prevY : 0;
     }
 
     let maxArea = -1;
     let maxIdx = bucketStart;
-    const prevX = getX(data[prevSelected]);
-    const prevY = getY(data[prevSelected]);
-
     for (let j = bucketStart; j < bucketEnd; j++) {
-      const area = Math.abs((prevX - avgX) * (getY(data[j]) - prevY) - (prevX - getX(data[j])) * (avgY - prevY));
+      const y = getY(data[j]);
+      if (!Number.isFinite(y)) continue;
+
+      // After a gap there is no previous vertex to form a triangle with: take the first value.
+      const area = prevFinite ? Math.abs((prevX - avgX) * (y - prevY) - (prevX - getX(data[j])) * (avgY - prevY)) : 0;
       if (area > maxArea) {
         maxArea = area;
         maxIdx = j;

@@ -759,7 +759,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       results.push(row);
     }
 
-    return results.length > 0 ? results : null;
+    // Hover over a gap in a percent stack lists no rows, as for a null.
+    const rows = this.withShares({ rows: results, keepGaps: false });
+
+    return rows.length > 0 ? rows : null;
   }
 
   getStackedLastValue(): { value: number; isLive: boolean } | null {
@@ -907,8 +910,43 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       results.push(row);
     }
 
-    return results.length > 0 ? results : null;
+    // A last reading in a gap column stays listed, without a share: it is still the newest value.
+    const rows = this.withShares({ rows: results, keepGaps: true });
+
+    return rows.length > 0 ? rows : null;
   }
+
+  /**
+   * On a percent stack, give each row its share of the column at the row's own
+   * time — ragged layers end at different columns. A row whose column is a gap
+   * is dropped, or kept without a share when `keepGaps`.
+   */
+  private withShares(args: { rows: LayerSnapshot[]; keepGaps: boolean }): LayerSnapshot[] {
+    if (this.options.stacking !== 'percent') return args.rows;
+
+    const columns = new Map<number, Map<number, number> | null>();
+    const kept: LayerSnapshot[] = [];
+    for (const row of args.rows) {
+      let shares = columns.get(row.time);
+      if (shares === undefined) {
+        shares = this.percentShares(row.time);
+        columns.set(row.time, shares);
+      }
+
+      const share = shares?.get(row.layerIndex);
+      if (share !== undefined) row.share = share;
+      if (share !== undefined || args.keepGaps) kept.push(row);
+    }
+
+    return kept;
+  }
+
+  /**
+   * Each layer's share of the percent-stack column at `time`, from the current
+   * (smoothed, faded, growing-in) values the renderer draws it with, or `null`
+   * when that column is a gap.
+   */
+  protected abstract percentShares(time: number): Map<number, number> | null;
 
   getTotalLength(): number {
     let total = 0;

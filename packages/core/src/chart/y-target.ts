@@ -70,6 +70,20 @@ export function computeTargetYRange(args: {
   return { min, max };
 }
 
+/**
+ * A range whose data is one value (a flat series, a single point) has no span
+ * for ticks, so the axis showed no labels. Widen it by 5% of the value each
+ * way — `±1` at zero — so the line sits mid-plot under a normal axis. The
+ * relative pad stays positive on a log scale.
+ */
+export function widenFlatRange(raw: YRange): YRange {
+  if (raw.max !== raw.min) return raw;
+
+  const pad = raw.min === 0 ? 1 : Math.abs(raw.min) * 0.05;
+
+  return { min: raw.min - pad, max: raw.max + pad };
+}
+
 /** User-pinned Y bounds, straight from `axis.y`. */
 export interface YBounds {
   min?: AxisBound;

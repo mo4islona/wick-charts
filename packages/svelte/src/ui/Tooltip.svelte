@@ -2,7 +2,6 @@
 import type {
   BandPoint,
   CrosshairPosition,
-  LineData,
   OHLCData,
   SeriesSnapshot,
   SnapshotSort,
@@ -12,9 +11,9 @@ import {
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
-  formatDate,
-  formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
+  formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
@@ -64,8 +63,9 @@ onDestroy(() => {
 });
 
 $: chart = $chartStore;
-$: theme = chart?.getTheme();
-$: dataInterval = chart?.getDataInterval() ?? 86400;
+$: theme = chart && bump >= 0 ? chart.getTheme() : undefined;
+// Re-read on every overlay change: data that lands after mount sets the interval.
+$: dataInterval = chart && bump >= 0 ? chart.getDataInterval() : 86400;
 
 // `bump >= 0` referenced at the top level so the Svelte compiler keeps `bump`
 // as a reactive dep — `void bump` inside an IIFE is dead-code-eliminated in
@@ -132,9 +132,12 @@ $: floatingPos = (() => {
 
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
-  // A band row carries two numbers, so it needs a wider box than a line row.
+  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
   const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
-  const tooltipWidth = hasBand ? 220 : 160;
+  const hasShare = snapshots.some((s) => s.share !== undefined);
+  let tooltipWidth = 160;
+  if (hasBand) tooltipWidth = 220;
+  if (hasShare) tooltipWidth = 240;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   return computeTooltipPosition({
@@ -165,10 +168,7 @@ $: floatingPos = (() => {
       <div
         style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
-        {#if chart.timeScale.getType() === 'time'}
-          {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}
-        {/if}
-        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
+        {formatTooltipHeader(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </div>
 
       {#each snapshots as s (s.id)}
@@ -198,11 +198,10 @@ $: floatingPos = (() => {
             <span style="font-weight:600;color:{s.color};white-space:nowrap;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </div>
         {:else}
-          {@const line = /** @type {LineData} */ (s.data)}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
-            <span style="font-weight:600;color:{s.color};">{format(line.value, 'value')}</span>
+            <span style="font-weight:600;color:{s.color};">{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </div>
         {/if}
       {/each}

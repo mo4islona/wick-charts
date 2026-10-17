@@ -39,7 +39,7 @@ import {
   warnXTimeMixed,
   warnXTypeChange,
 } from './chart/x-guards';
-import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
+import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget, widenFlatRange } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
@@ -323,6 +323,8 @@ interface SeriesEntry {
   xKeys: { x: boolean; time: boolean };
   /** Category axis: each layer's points in input order — the source of truth the store is mapped from. */
   categoryPoints: XKeyedPoint[][];
+  /** The `theme.seriesColors` slots the series' default colours start from — see `SeriesCreateEnv.paletteIndex`. */
+  palette: { type: SeriesType; start: number; count: number };
 }
 
 /** An ingested point on a numeric / category axis — `x` and `time` as passed in. */
@@ -456,6 +458,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * this is what keeps `fitToData` tick churn from flickering the reveal.
    */
   #gridFade: Animator<number>;
+  /** Whether a tick fade ran on the last main frame — the frame it settles on still owes the DOM labels a sync. */
+  #tickFadeRunning = false;
   /** Resolved edge-fade zones — a `null` side is auto: the axis-column ramp on the Y-axis side, off on the other. */
   #fade: ResolvedFade;
   /** See {@link headerHeight}. */
@@ -982,7 +986,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       ...rest,
       ...this.#animationsConfig.overrides(def.type),
     };
-    const renderer = def.create({ theme: this.#theme, layerCount }, merged);
+    const paletteIndex = this.#freePaletteRun({ type: def.type, count: layerCount });
+    const renderer = def.create({ theme: this.#theme, layerCount, paletteIndex }, merged);
     // Spatial series (pie, heatmap) have no X axis to fit.
     if (isTimeSeriesRenderer(renderer)) {
       assertSeriesFitsXAxis({ seriesType: def.type, axisType: this.#xType, supported: def.xTypes ?? ['time'] });
@@ -1000,6 +1005,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       scale,
       xKeys: { x: false, time: false },
       categoryPoints: [],
+      palette: { type: def.type, start: paletteIndex, count: layerCount },
     });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
@@ -1008,6 +1014,31 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#bumpOverlayVersion();
 
     return seriesId;
+  }
+
+  /** The lowest run of `count` palette slots that no other series of `type` holds. */
+  #freePaletteRun(args: { type: SeriesType; count: number }): number {
+    const taken = new Set<number>();
+    for (const entry of this.#series) {
+      if (entry.palette.type !== args.type) continue;
+
+      for (let i = 0; i < entry.palette.count; i++) {
+        taken.add(entry.palette.start + i);
+      }
+    }
+
+    const overlapsTaken = (from: number) => {
+      for (let slot = from; slot < from + args.count; slot++) {
+        if (taken.has(slot)) return true;
+      }
+
+      return false;
+    };
+
+    let start = 0;
+    while (overlapsTaken(start)) start++;
+
+    return start;
   }
 
   /** Remove a series by ID and clean up its resources. */
@@ -3391,7 +3422,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Y initialized on a chart whose default scale holds no series.
     if (scaleId !== undefined) this.#yInited = true;
 
-    return resolveYTarget({ raw, bounds, allValues: allValues ?? [], transform });
+    return resolveYTarget({ raw: widenFlatRange(raw), bounds, allValues: allValues ?? [], transform });
   }
 
   /** Dev-only sweep behind {@link warnUnplottableValues}; stops once it has warned. */
@@ -4091,7 +4122,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // streaming slide between tick boundaries would emit nothing and
       // labels would hold the slide-start `timeToX(time)` value while the
       // canvas glides past them, then snap forward on the next event.
-      if (yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating || animationState.animating) {
+      const tickFadeRunning = yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating;
+      const tickFadeSettled = this.#tickFadeRunning && !tickFadeRunning;
+      this.#tickFadeRunning = tickFadeRunning;
+      if (tickFadeRunning || tickFadeSettled || animationState.animating) {
         this.emit('tickFrame');
       }
 

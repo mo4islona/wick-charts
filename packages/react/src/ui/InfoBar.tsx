@@ -4,13 +4,13 @@ import {
   type BandPoint,
   type OHLCData,
   type SeriesSnapshot,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
   formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -214,8 +214,6 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
             </span>
           );
         }
-        const line = s.data as TimePoint;
-
         return (
           <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
             <span
@@ -227,7 +225,7 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: s.color, fontWeight: 500 }}>{format(line.value, 'value')}</span>
+            <span style={{ color: s.color, fontWeight: 500 }}>{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </span>
         );
       })}

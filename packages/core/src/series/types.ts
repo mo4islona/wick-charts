@@ -93,6 +93,8 @@ export interface LayerSnapshot {
   high?: number;
   /** The sample's own X on a numeric or category axis. */
   x?: number | string;
+  /** On a percent stack, the row's percent of the rows listed with it. Absent elsewhere, and when they sum to 0. */
+  share?: number;
 }
 
 /**

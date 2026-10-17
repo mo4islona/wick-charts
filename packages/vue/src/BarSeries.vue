@@ -3,6 +3,7 @@ import type { BarSeriesOptions, MultiLayerData, SeriesSyncState } from '@wick-ch
 import { BarSeriesDef, EMPTY_SYNC_STATE, syncLayers, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
 
 const props = withDefaults(
@@ -54,7 +55,7 @@ function createSeries(data: MultiLayerData): void {
 }
 
 onMounted(() => {
-  createSeries(props.data);
+  createSeries(rawSeriesData(props.data));
 });
 
 onUnmounted(() => {
@@ -62,8 +63,9 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.data,
-  (data) => {
+  seriesDataSource(() => props.data),
+  () => {
+    const data = rawSeriesData(props.data);
     const id = seriesId.value;
     if (!id) return;
 
