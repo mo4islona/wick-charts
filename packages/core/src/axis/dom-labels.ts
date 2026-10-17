@@ -89,11 +89,13 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     el.style.top = `${yScale().valueToSnappedY(value)}px`;
   }
 
-  // An X label centred on a tick near the chart's edge would be cut by the
-  // container, so it shifts inward just enough to fit — the gridline still
-  // marks the exact spot. The strip starts after a left axis column and ends
-  // before a right one; the label may run under either.
+  // A label on a tick near the chart's edge shifts inward just enough to fit; the
+  // gridline still marks the spot, and the label may run under a Y-axis column.
+  // A tick already out of view keeps its spot, or labels leaving after a pan pile onto the edge.
   function justifiedX(el: HTMLSpanElement, x: number): number {
+    const inView = x >= 0 && x <= chart.timeScale.getMediaWidth();
+    if (!inView) return x;
+
     const half = labelWidth(el) / 2;
     const min = half - chart.getAxisColumnWidth('left');
     const max = chart.timeScale.getMediaWidth() + chart.getAxisColumnWidth('right') - half;
