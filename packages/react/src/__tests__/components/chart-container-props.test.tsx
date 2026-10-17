@@ -28,7 +28,11 @@ describe('ChartContainer props', () => {
 
     mounted.rerender(<CandlestickSeries data={ohlc} />, { theme: undefined });
 
+    // The container paints its background in the same render, not a re-render later.
+    const root = mounted.container.firstElementChild as HTMLElement;
     expect(mounted.chart.getTheme()).toBe(catppuccin.theme);
+    expect(root.getAttribute('style')).toContain(catppuccin.theme.background);
+    expect(root.getAttribute('style')).not.toContain(githubLight.theme.background);
   });
 
   it('interactive=false does not install InteractionHandler (no crosshair cursor)', () => {
