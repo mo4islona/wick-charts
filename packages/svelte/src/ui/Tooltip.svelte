@@ -19,8 +19,8 @@ import {
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext } from '../context';
-import { createCrosshairPosition } from '../stores';
+import { getChartContext } from '../context.js';
+import { createCrosshairPosition } from '../stores.js';
 
 /** Sort order for line values (default: 'none'). */
 export let sort: SnapshotSort = 'none';
@@ -193,14 +193,14 @@ $: floatingPos = (() => {
         {:else if 'high' in s.data}
           {@const band = /** @type {BandPoint} */ (s.data)}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
-            <span style="width:8px;height:8px;border-radius:2px;background:{s.color};flex-shrink:0;" />
+            <span style="width:8px;height:8px;border-radius:2px;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Range'}</span>
             <span style="font-weight:600;color:{s.color};white-space:nowrap;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </div>
         {:else}
           {@const line = /** @type {LineData} */ (s.data)}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
-            <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;" />
+            <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
             <span style="font-weight:600;color:{s.color};">{format(line.value, 'value')}</span>
           </div>

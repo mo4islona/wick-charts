@@ -23,8 +23,8 @@ export interface LegendToggleInfo {
   import type { ChartInstance, LegendItem } from '@wick-charts/core';
   import { onDestroy } from 'svelte';
 
-  import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context';
-  import { portal } from './portal';
+  import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context.js';
+  import { portal } from './portal.js';
 
   type LegendMode = 'toggle' | 'isolate' | 'solo';
 
@@ -230,7 +230,7 @@ export interface LegendToggleInfo {
     >
       {#each items as item, i (i)}
         <div style="display:flex;align-items:center;gap:4px;user-select:none;">
-          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
+          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;"></span>
           <span style="white-space:nowrap;">{item.label}</span>
         </div>
       {/each}
@@ -259,7 +259,7 @@ export interface LegendToggleInfo {
             ? 0.35
             : 1};transition:opacity 0.15s ease;user-select:none;border:none;background:transparent;padding:0;margin:0;font:inherit;color:inherit;text-align:left;"
         >
-          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;" />
+          <span style="width:8px;height:8px;border-radius:2px;background:{item.color};flex-shrink:0;"></span>
           <span style="white-space:nowrap;">{item.label}</span>
         </button>
       {/each}

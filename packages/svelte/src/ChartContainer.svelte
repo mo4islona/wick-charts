@@ -26,7 +26,7 @@ import {
   initNavigatorAnchor,
   initThemeContext,
   initTitleAnchor,
-} from './context';
+} from './context.js';
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
 

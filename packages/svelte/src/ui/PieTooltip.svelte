@@ -3,8 +3,8 @@ import type { ChartInstance, CrosshairPosition, HoverInfo, ValueFormatter } from
 import { computeTooltipPosition, formatCompact } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext } from '../context';
-import { createCrosshairPosition } from '../stores';
+import { getChartContext } from '../context.js';
+import { createCrosshairPosition } from '../stores.js';
 
 const DEFAULT_TOOLTIP_WIDTH = 160;
 const DEFAULT_TOOLTIP_HEIGHT = 70;
@@ -139,7 +139,7 @@ $: tooltipPos = (() => {
       style="position:absolute;left:{tooltipPos.left}px;top:{tooltipPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.typography.fontSize}px;font-family:{theme.typography.fontFamily};color:{theme.tooltip.textColor};z-index:10;display:flex;flex-direction:column;gap:6px;"
     >
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="width:10px;height:10px;border-radius:50%;background:{info.color};flex-shrink:0;" />
+        <span style="width:10px;height:10px;border-radius:50%;background:{info.color};flex-shrink:0;"></span>
         <span style="font-weight:600;">{info.label}</span>
       </div>
       <div style="display:flex;justify-content:space-between;gap:16px;">

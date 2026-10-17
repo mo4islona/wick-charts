@@ -239,7 +239,7 @@ export { default as CandlestickSeries } from './CandlestickSeries.svelte';
 // Svelte components
 export { default as ChartContainer } from './ChartContainer.svelte';
 // Context and stores
-export { getChartContext, getThemeContext } from './context';
+export { getChartContext, getThemeContext } from './context.js';
 export { default as HeatmapSeries } from './HeatmapSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';
@@ -249,7 +249,7 @@ export {
   createPreviousClose,
   createVisibleRange,
   createYRange,
-} from './stores';
+} from './stores.js';
 export { default as Crosshair } from './ui/Crosshair.svelte';
 export { default as HeatmapTooltip } from './ui/HeatmapTooltip.svelte';
 export { default as InfoBar } from './ui/InfoBar.svelte';

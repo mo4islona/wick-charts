@@ -2,8 +2,8 @@
 import type { ChartInstance, CrosshairPosition, YAxisPosition } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext } from '../context';
-import { createCrosshairPosition } from '../stores';
+import { getChartContext } from '../context.js';
+import { createCrosshairPosition } from '../stores.js';
 
 const chartStore = getChartContext();
 let position: CrosshairPosition | null = null;

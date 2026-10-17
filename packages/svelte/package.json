@@ -30,13 +30,12 @@
   ],
   "type": "module",
   "svelte": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "svelte": "./dist/index.js",
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -47,14 +46,14 @@
     "!src/**/*.test.*"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "svelte-package -i src -o dist && node scripts/copy-core.mjs",
     "prepublishOnly": "pnpm -w readme && pnpm build"
   },
   "publishConfig": {
     "access": "public"
   },
   "peerDependencies": {
-    "svelte": ">=4.0.0"
+    "svelte": "^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
     "@wick-charts/core": "workspace:^"

@@ -18,9 +18,9 @@ import {
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
-import { getChartContext, getInfoBarAnchor, getThemeContext } from '../context';
-import { createCrosshairPosition } from '../stores';
-import { portal } from './portal';
+import { getChartContext, getInfoBarAnchor, getThemeContext } from '../context.js';
+import { createCrosshairPosition } from '../stores.js';
+import { portal } from './portal.js';
 
 /** Sort order for line values (default: 'none'). */
 export let sort: SnapshotSort = 'none';
@@ -128,13 +128,13 @@ $: displayTime =
         {:else if 'high' in s.data}
           {@const band = /** @type {BandPoint} */ (s.data)}
           <span style="display:inline-flex;align-items:center;gap:3px;">
-            <span style="width:6px;height:6px;border-radius:1px;background:{s.color};flex-shrink:0;" />
+            <span style="width:6px;height:6px;border-radius:1px;background:{s.color};flex-shrink:0;"></span>
             <span style="color:{s.color};font-weight:500;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </span>
         {:else}
           {@const line = /** @type {LineData} */ (s.data)}
           <span style="display:inline-flex;align-items:center;gap:3px;">
-            <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;" />
+            <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="color:{s.color};font-weight:500;">{format(line.value, 'value')}</span>
           </span>
         {/if}

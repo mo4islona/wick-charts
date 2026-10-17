@@ -3,7 +3,7 @@ import type { ReferenceLineStyle, TimeValue } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from '../context';
+import { getChartContext } from '../context.js';
 
 /** Horizontal line at this Y data value. Mutually exclusive with `time`. */
 export let value: number | undefined = undefined;

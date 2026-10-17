@@ -3,7 +3,7 @@ import type { TimeRegionEnd, TimeValue } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
-import { getChartContext } from '../context';
+import { getChartContext } from '../context.js';
 
 /** Left edge — epoch ms or a `Date`. */
 export let from: TimeValue;

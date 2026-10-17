@@ -123,11 +123,12 @@ const PACKAGES = [
 ];
 
 /** Concatenate every ES module under `dir` (dist is per-module since the
- *  preserveModules switch) — the sum is the "import everything" upper bound. */
+ *  preserveModules switch) — the sum is the "import everything" upper bound.
+ *  The Svelte package ships uncompiled `.svelte` components, so those count too. */
 function readDistModules(dir) {
   const chunks = [];
   for (const entry of readdirSync(dir, { withFileTypes: true, recursive: true })) {
-    if (entry.isFile() && entry.name.endsWith('.js')) {
+    if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.svelte'))) {
       chunks.push(readFileSync(resolve(entry.parentPath, entry.name)));
     }
   }
