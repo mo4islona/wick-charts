@@ -59,8 +59,10 @@ $: chart = $chartStore;
 // runtime theme swaps instead of freezing on the first-render snapshot.
 $: theme = chart && bump >= 0 ? chart.getTheme() : null;
 $: resolvedId = chart && bump >= 0 ? resolvePieSeriesId(chart, seriesId) : null;
-$: info = chart && resolvedId !== null && bump >= 0 ? chart.getHoverInfo(resolvedId) : (null as HoverInfo | null);
-$: mediaSize = chart?.getMediaSize();
+// `crosshair` sits in the condition: the TS preprocessor drops a bare `void crosshair;`, and the dependency with it.
+$: info =
+  chart && crosshair && resolvedId !== null && bump >= 0 ? chart.getHoverInfo(resolvedId) : (null as HoverInfo | null);
+$: mediaSize = chart && crosshair && bump >= 0 ? chart.getMediaSize() : undefined;
 
 // Custom-slot measurement — unknown content dimensions mean we can't
 // pre-compute `tooltipWidth/Height`. Observe the container, then recompute

@@ -55,22 +55,14 @@ $: chart = $chartStore;
 $: theme = chart && bump >= 0 ? chart.getTheme() : null;
 $: resolvedId = chart && bump >= 0 ? resolveHeatmapSeriesId(chart, seriesId) : null;
 
-// Hover-index changes don't emit `overlayChange` — depend on `crosshair` so
-// the info re-reads as the pointer moves between cells (mirrors the Vue
-// tooltip's `void crosshair.value`).
+// Hover-index changes don't emit `overlayChange`, so both reads depend on
+// `crosshair`. It sits in the condition: the TS preprocessor drops a bare
+// `void crosshair;`, and the dependency with it.
 let info: HoverInfo | null = null;
-$: {
-  void crosshair;
-  info = chart && resolvedId !== null && bump >= 0 ? chart.getHoverInfo(resolvedId) : null;
-}
-// Re-read on every crosshair move (and overlay bump) — depending on `chart`
-// alone would freeze the mount-time size, and clamping against a stale
-// width/height flips the tooltip to the wrong side after a container resize.
+$: info = chart && crosshair && resolvedId !== null && bump >= 0 ? chart.getHoverInfo(resolvedId) : null;
+// A stale size would clamp the tooltip to the wrong side after a container resize.
 let mediaSize: { width: number; height: number } | undefined;
-$: {
-  void crosshair;
-  mediaSize = bump >= 0 ? chart?.getMediaSize() : undefined;
-}
+$: mediaSize = chart && crosshair && bump >= 0 ? chart.getMediaSize() : undefined;
 $: meterWidth = info ? Math.max(2, Math.min(100, info.percent)) : 0;
 
 $: tooltipPos =
