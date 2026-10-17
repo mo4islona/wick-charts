@@ -6,12 +6,12 @@ import {
   type ChartTheme,
   type OHLCData,
   type SeriesSnapshot,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
   formatPriceAdaptive,
+  formatRowValue,
   formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -345,8 +345,6 @@ function FloatingTooltip({
             </div>
           );
         }
-        const line = s.data as TimePoint;
-
         return (
           <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
             <span
@@ -359,7 +357,7 @@ function FloatingTooltip({
               }}
             />
             <span style={{ opacity: 0.6, flex: 1 }}>{s.label ?? 'Value'}</span>
-            <span style={{ fontWeight: 600, color: s.color }}>{format(line.value, 'value')}</span>
+            <span style={{ fontWeight: 600, color: s.color }}>{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </div>
         );
       })}

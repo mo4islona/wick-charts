@@ -2,7 +2,6 @@
 import type {
   BandPoint,
   CrosshairPosition,
-  LineData,
   OHLCData,
   SeriesSnapshot,
   SnapshotSort,
@@ -13,6 +12,7 @@ import {
   computeTooltipPosition,
   formatCompact,
   formatPriceAdaptive,
+  formatRowValue,
   formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
@@ -194,11 +194,10 @@ $: floatingPos = (() => {
             <span style="font-weight:600;color:{s.color};white-space:nowrap;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </div>
         {:else}
-          {@const line = /** @type {LineData} */ (s.data)}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
-            <span style="font-weight:600;color:{s.color};">{format(line.value, 'value')}</span>
+            <span style="font-weight:600;color:{s.color};">{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </div>
         {/if}
       {/each}

@@ -2,7 +2,6 @@
 import type {
   BandPoint,
   CrosshairPosition,
-  LineData,
   OHLCData,
   SeriesSnapshot,
   SnapshotSort,
@@ -14,6 +13,7 @@ import {
   formatCompact,
   formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
@@ -132,10 +132,9 @@ $: displayTime =
             <span style="color:{s.color};font-weight:500;">{format(band.low, 'low')} – {format(band.high, 'high')}</span>
           </span>
         {:else}
-          {@const line = /** @type {LineData} */ (s.data)}
           <span style="display:inline-flex;align-items:center;gap:3px;">
             <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
-            <span style="color:{s.color};font-weight:500;">{format(line.value, 'value')}</span>
+            <span style="color:{s.color};font-weight:500;">{formatRowValue(s, (v) => format(v, 'value'))}</span>
           </span>
         {/if}
       {/each}

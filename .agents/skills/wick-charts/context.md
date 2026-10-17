@@ -113,6 +113,7 @@ Both return a **deeply frozen** `readonly SeriesSnapshot[]`. Each row carries:
 - `seriesId` — owning series identity (never carries a layer suffix; use for filtering/grouping).
 - `layerIndex?` — layer within a multi-layer series, `undefined` for single-layer rows.
 - `label?`, `color`, `data` — visual/content payload. `data` is a frozen clone of the chart's internal point, so a consumer can't mutate the store.
+- `share?` — on a percent stack, the layer's share of the column in percent (absent elsewhere, and when the column sums to 0). The built-in rows print it with `formatRowValue(snapshot, format)` as `42.1% · 25.77M`.
 
 Calls with the same `(time, sort, cacheKey)` return the **same reference** while `chart.getOverlayVersion()` is unchanged. That makes `React.memo((a, b) => a.snapshots === b.snapshots)` / Vue `computed` / Svelte `$:` skip renders on crosshair moves that stay within one data point.
 

@@ -118,7 +118,7 @@ Animated pulsing dot at the last data point. Useful for live data. Set `false` f
 |------|----------|
 | `'off'` | Each layer rendered independently, overlapping |
 | `'normal'` | Layers stack cumulatively — each layer's Y = sum of all layers below |
-| `'percent'` | Like `'normal'` but normalized to 0–100% of total |
+| `'percent'` | Like `'normal'` but normalized to 0–100% of total; a column whose total is 0 is a gap. Tooltip rows show the share before the value |
 
 ### `threshold`
 

@@ -4,13 +4,13 @@ import {
   type OHLCData,
   type SeriesSnapshot,
   type SnapshotSort,
-  type TimePoint,
   type TooltipFormatter,
   buildHoverSnapshots,
   buildLastSnapshots,
   formatCompact,
   formatHeaderX,
   formatPriceAdaptive,
+  formatRowValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
@@ -205,7 +205,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               }"
             />
             <span :style="{ color: s.color, fontWeight: 500 }">
-              {{ effectiveFormat((s.data as TimePoint).value, 'value') }}
+              {{ formatRowValue(s, (v) => effectiveFormat(v, 'value')) }}
             </span>
           </span>
         </template>
