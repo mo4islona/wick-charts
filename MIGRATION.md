@@ -1,5 +1,44 @@
 # Migration guide
 
+## 0.7 → 0.8
+
+Version 0.8 changes how `@wick-charts/svelte` is packaged so that it works
+with Svelte 5. React and Vue are unchanged. Svelte component names, props,
+slots and exports stay the same; three things can need attention.
+
+### Svelte: the app compiles the components
+
+The package now ships `.svelte` components in place of compiled JavaScript,
+and the app's own Svelte compiler builds them. Vite with
+`@sveltejs/vite-plugin-svelte`, SvelteKit and svelte-loader compile `.svelte`
+files from `node_modules` by default, so a typical app needs no change. A
+build with no Svelte plugin can no longer import `@wick-charts/svelte`.
+
+As a side effect, server-side rendering on Svelte 4 no longer throws
+`is not a valid SSR component`.
+
+### Svelte: props are typed
+
+Components used to be typed without props, so `svelte-check` accepted any
+attribute. Props and slot props now carry their types, and `svelte-check` may
+report mistakes it missed before, such as a misspelled prop or `null` in
+series data. Runtime behavior is unchanged.
+
+### Svelte 5: runes mode
+
+The components use Svelte 4 syntax, which Svelte 5 compiles in legacy mode.
+If your config forces runes mode for every file, exclude `node_modules`, as
+the `sv create` template does:
+
+```js
+// svelte.config.js
+export default {
+  compilerOptions: {
+    runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true),
+  },
+};
+```
+
 ## 0.6 → 0.7
 
 Version 0.7 is additive for charts on a time axis — numeric and category X
