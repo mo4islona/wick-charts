@@ -42,10 +42,16 @@ export interface SeriesSyncState {
    * data.
    */
   data: readonly InputPoint[] | null;
+  /**
+   * A copy of the last point at the previous sync: when the host edits `data`
+   * in place, it is the only snapshot left to diff against. `null` / absent
+   * before any data.
+   */
+  last?: InputPoint | null;
 }
 
 /** Initial state for a layer that has never been synced. */
-export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, lastTime: null, data: null };
+export const EMPTY_SYNC_STATE: SeriesSyncState = { len: 0, firstTime: null, lastTime: null, data: null, last: null };
 
 /**
  * Only fall back to a full `setSeriesData` replace when more than this many
@@ -142,15 +148,18 @@ type Continuation = 'unchanged' | 'lastEdited';
  * any other kept point changed, or an appended point is not newer than the
  * one before it.
  *
- * Without a snapshot (`null`, or the same array mutated in place) there is
- * nothing to diff, so the caller's length-and-boundary reading stands.
+ * Without a snapshot (`null`) there is nothing to diff, so the caller's
+ * length-and-boundary reading stands. The same array mutated in place can only
+ * be diffed at its old last point, against the copy in `prev`.
  */
 function continuation<T extends InputPoint>(
-  prevData: readonly InputPoint[] | null,
+  prev: SeriesSyncState,
   data: readonly T[],
   dropped: number,
 ): Continuation | null {
-  if (!prevData || prevData === data) return 'unchanged';
+  const prevData = prev.data;
+  if (!prevData) return 'unchanged';
+  if (prevData === data) return lastEditedInPlace(prev, data) ? 'lastEdited' : 'unchanged';
 
   const kept = prevData.length - dropped;
   if (kept <= 0 || kept > data.length) return null;
@@ -172,6 +181,21 @@ function continuation<T extends InputPoint>(
   if (keyOf(lastBefore) !== keyOf(lastNow)) return null;
 
   return 'lastEdited';
+}
+
+/** Whether the point that was last at the previous sync changed its values in place, keeping its X. */
+function lastEditedInPlace<T extends InputPoint>(prev: SeriesSyncState, data: readonly T[]): boolean {
+  const before = (prev.last ?? null) as T | null;
+  const now = data[prev.len - 1];
+  if (before === null || now === undefined) return false;
+
+  return keyOf(before) === keyOf(now) && !pointEquals(before, now);
+}
+
+function syncedState<T extends InputPoint>(data: readonly T[]): SeriesSyncState {
+  const last = data[data.length - 1];
+
+  return { len: data.length, firstTime: keyOf(data[0]), lastTime: keyOf(last), data, last: { ...last } };
 }
 
 /** True for a {@link SeriesLayer} object — an object (not array) carrying a `data` array. */
@@ -307,17 +331,23 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
   if (data.length === 0) {
     chart.setSeriesData(id, [], layerIndex);
 
-    return { len: 0, firstTime: null, lastTime: null, data: [] };
+    return { len: 0, firstTime: null, lastTime: null, data: [], last: null };
   }
 
-  // Re-fired sync with the very same array and no length change: the host
-  // re-rendered with a fresh wrapper around unchanged points (an inline
-  // `{ color, data }` layer literal re-fires the data effect every render).
-  // There is nothing to diff — `middleUnchanged` can't prove anything against
-  // the array itself, so classification would fall through to a bulk
-  // `setSeriesData`, and that snaps both axes mid-ease: one visible viewport
-  // jump per host re-render during streaming.
-  if (prev.data === data && prev.len === data.length) return prev;
+  // Re-fired sync with the very same array and no length change: either the
+  // host re-rendered with a fresh wrapper around unchanged points (an inline
+  // `{ color, data }` layer literal re-fires the data effect every render), or
+  // it edited the array in place (Vue / Svelte `data[i] = x`). The copy of the
+  // last point tells the two apart; an in-place edit of an older point goes
+  // unseen. Classifying the array against itself would fall through to a bulk
+  // `setSeriesData`, which snaps both axes mid-ease.
+  if (prev.data === data && prev.len === data.length) {
+    if (!lastEditedInPlace(prev, data)) return prev;
+
+    chart.updateData(id, data[data.length - 1], layerIndex);
+
+    return syncedState(data);
+  }
 
   const firstTime = keyOf(data[0]);
   const lastTime = keyOf(data[data.length - 1]);
@@ -332,14 +362,14 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
       chart.setSeriesData(id, data, layerIndex);
     }
 
-    return { len: data.length, firstTime, lastTime, data };
+    return syncedState(data);
   }
 
   const shifted = prev.firstTime !== null && prev.firstTime !== firstTime;
   const added = data.length - prev.len;
   const hasNewLast = prev.lastTime !== null && prev.lastTime !== lastTime;
 
-  const slide = shifted && added === 0 && hasNewLast ? continuation(prev.data, data, 1) : null;
+  const slide = shifted && added === 0 && hasNewLast ? continuation(prev, data, 1) : null;
 
   if (slide !== null) {
     // Rolling-window slide (maxPoints cap): oldest dropped, newest appended,
@@ -369,7 +399,7 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
       chart.setSeriesData(id, data, layerIndex);
     }
   } else {
-    const growth = continuation(prev.data, data, 0);
+    const growth = continuation(prev, data, 0);
 
     if (growth === null) {
       chart.setSeriesData(id, data, layerIndex);
@@ -389,5 +419,5 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
     }
   }
 
-  return { len: data.length, firstTime, lastTime, data };
+  return syncedState(data);
 }

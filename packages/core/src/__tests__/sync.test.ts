@@ -60,7 +60,7 @@ describe('syncSeriesLayer', () => {
     const next = syncSeriesLayer({ chart, id: 'a', data, prev: EMPTY_SYNC_STATE });
 
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
-    expect(next).toEqual({ len: 3, firstTime: 1, lastTime: 3, data });
+    expect(next).toEqual({ len: 3, firstTime: 1, lastTime: 3, data, last: data[2] });
   });
 
   it('updates the last point when length/timestamps are unchanged and the middle is proven unchanged', () => {
@@ -107,6 +107,46 @@ describe('syncSeriesLayer', () => {
     syncSeriesLayer({ chart, id: 'a', data, prev });
 
     expect(chart.appendData).toHaveBeenCalledWith('a', point(3), undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+  });
+
+  it('an in-place edit of the last point updates it (Vue / Svelte `data[i] = x`)', () => {
+    const chart = mockChart();
+    const data = [point(1), point(2), point(3)];
+    const prev = syncSeriesLayer({ chart, id: 'a', data, prev: EMPTY_SYNC_STATE });
+    vi.mocked(chart.setSeriesData).mockClear();
+
+    data[2] = { time: 3, value: 128 };
+    const next = syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.updateData).toHaveBeenCalledWith('a', { time: 3, value: 128 }, undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+    expect(next.last).toEqual({ time: 3, value: 128 });
+  });
+
+  it('an in-place field edit of the old last point before a push updates it, then appends', () => {
+    const chart = mockChart();
+    const data = [point(1), point(2)];
+    const prev = syncSeriesLayer({ chart, id: 'a', data, prev: EMPTY_SYNC_STATE });
+
+    Object.assign(data[1], { value: 50 });
+    data.push(point(3));
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.updateData).toHaveBeenCalledWith('a', { time: 2, value: 50 }, undefined);
+    expect(chart.appendData).toHaveBeenCalledWith('a', point(3), undefined);
+  });
+
+  it('the same unchanged array re-synced does nothing', () => {
+    const chart = mockChart();
+    const data = [point(1), point(2), point(3)];
+    const prev = syncSeriesLayer({ chart, id: 'a', data, prev: EMPTY_SYNC_STATE });
+    vi.mocked(chart.setSeriesData).mockClear();
+
+    const next = syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(next).toBe(prev);
+    expect(chart.updateData).not.toHaveBeenCalled();
     expect(chart.setSeriesData).not.toHaveBeenCalled();
   });
 
@@ -174,7 +214,7 @@ describe('syncSeriesLayer', () => {
     expect(chart.prependData).toHaveBeenCalledWith('a', older, undefined);
     expect(chart.setSeriesData).not.toHaveBeenCalled();
     expect(chart.appendData).not.toHaveBeenCalled();
-    expect(next).toEqual({ len: 33, firstTime: older[0].time, lastTime: 12, data });
+    expect(next).toEqual({ len: 33, firstTime: older[0].time, lastTime: 12, data, last: data[32] });
   });
 
   it('prepends even a small (≤ threshold) front growth via prependData, not a same-length replace', () => {
@@ -263,7 +303,7 @@ describe('syncSeriesLayer', () => {
     expect(chart.appendData).toHaveBeenCalledWith('a', point(4), undefined);
     expect(chart.keepLast).toHaveBeenCalledWith('a', 3, undefined);
     expect(chart.setSeriesData).not.toHaveBeenCalled();
-    expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4, data });
+    expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4, data, last: data[2] });
   });
 
   it('tail growth that also edits the old last point updates it before the append', () => {
@@ -366,7 +406,7 @@ describe('syncSeriesLayer', () => {
     const next = syncSeriesLayer({ chart, id: 'a', data: [], prev });
 
     expect(chart.setSeriesData).toHaveBeenCalledWith('a', [], undefined);
-    expect(next).toEqual({ len: 0, firstTime: null, lastTime: null, data: [] });
+    expect(next).toEqual({ len: 0, firstTime: null, lastTime: null, data: [], last: null });
   });
 
   it('full-replaces after a clear → refill (no stale append index)', () => {
