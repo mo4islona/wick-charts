@@ -242,9 +242,12 @@ function FloatingTooltip({
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
 
-  // A band row carries two numbers, so it needs a wider box than a line row.
+  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
   const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
-  const tooltipWidth = hasBand ? 220 : 160;
+  const hasShare = snapshots.some((s) => s.share !== undefined);
+  let tooltipWidth = 160;
+  if (hasBand) tooltipWidth = 220;
+  if (hasShare) tooltipWidth = 240;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   const { left, top } = computeTooltipPosition({
@@ -356,8 +359,21 @@ function FloatingTooltip({
                 flexShrink: 0,
               }}
             />
-            <span style={{ opacity: 0.6, flex: 1 }}>{s.label ?? 'Value'}</span>
-            <span style={{ fontWeight: 600, color: s.color }}>{formatRowValue(s, (v) => format(v, 'value'))}</span>
+            <span
+              style={{
+                opacity: 0.6,
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {s.label ?? 'Value'}
+            </span>
+            <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
+              {formatRowValue(s, (v) => format(v, 'value'))}
+            </span>
           </div>
         );
       })}
