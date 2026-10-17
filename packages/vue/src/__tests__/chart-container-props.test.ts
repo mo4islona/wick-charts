@@ -7,6 +7,7 @@ import {
   Legend,
   LineSeries,
   Title,
+  YLabel,
   catppuccin,
   useChartInstance,
 } from '@wick-charts/vue';
@@ -135,6 +136,22 @@ describe('Vue <ChartContainer> ported props', () => {
 
     const overlay = host.querySelectorAll('canvas')[1] as HTMLCanvasElement;
     expect(overlay.style.cursor).toBe('crosshair');
+
+    wrapper.unmount();
+  });
+
+  it('an absent animations / animate prop stays undefined, not a Boolean-cast false', async () => {
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: ohlc }), h(YLabel)]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect(wrapper.findComponent(ChartContainer).props('animations')).toBeUndefined();
+    expect(wrapper.findComponent(YLabel).props('animate')).toBeUndefined();
 
     wrapper.unmount();
   });

@@ -21,28 +21,32 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 /** Direction of the current value vs. previous close. Drives the badge color in the default UI. */
 export type YLabelDirection = 'up' | 'down' | 'neutral';
 
-const props = defineProps<{
-  /**
-   * Owning series id. **Optional** — when omitted, the first visible
-   * single-layer time series is picked, falling back to the first visible
-   * multi-layer time series.
-   */
-  seriesId?: string;
-  color?: string;
-  /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. Default: the scale's `<YAxis format>`, else a range-adaptive number. */
-  format?: ValueFormatter;
-  /**
-   * Badge motion. `true` (default) glides + counts up + fades in with the
-   * intro; `false` snaps with no easing; an object tunes individual parts.
-   */
-  animate?: YLabelAnimate;
-  /**
-   * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
-   * the series' own scale. The badge sits on that scale's axis side — the
-   * default axis side for an overlay scale.
-   */
-  scale?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    /**
+     * Owning series id. **Optional** — when omitted, the first visible
+     * single-layer time series is picked, falling back to the first visible
+     * multi-layer time series.
+     */
+    seriesId?: string;
+    color?: string;
+    /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. Default: the scale's `<YAxis format>`, else a range-adaptive number. */
+    format?: ValueFormatter;
+    /**
+     * Badge motion. `true` (default) glides + counts up + fades in with the
+     * intro; `false` snaps with no easing; an object tunes individual parts.
+     */
+    animate?: YLabelAnimate;
+    /**
+     * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
+     * the series' own scale. The badge sits on that scale's axis side — the
+     * default axis side for an overlay scale.
+     */
+    scale?: string;
+  }>(),
+  // Vue casts an absent Boolean prop to `false`; an absent `animate` must stay `undefined` (on).
+  { animate: undefined },
+);
 
 defineSlots<{
   default?(ctx: {
