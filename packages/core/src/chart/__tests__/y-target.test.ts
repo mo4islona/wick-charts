@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { resolveBound } from '../y-target';
+import { resolveBound, widenFlatRange } from '../y-target';
 
 describe('resolveBound', () => {
   it('returns the auto value for undefined or "auto"', () => {
@@ -45,5 +45,20 @@ describe('resolveBound', () => {
 
   it('returns the auto value for an unparseable bound string', () => {
     expect(resolveBound('nonsense', 42, 0, [], 'max')).toBe(42);
+  });
+});
+
+describe('widenFlatRange', () => {
+  it('leaves a range with a span alone', () => {
+    expect(widenFlatRange({ min: 1, max: 2 })).toEqual({ min: 1, max: 2 });
+  });
+
+  it('widens one value by 5% each way, keeping it mid-range', () => {
+    expect(widenFlatRange({ min: 7, max: 7 })).toEqual({ min: 6.65, max: 7.35 });
+    expect(widenFlatRange({ min: -40, max: -40 })).toEqual({ min: -42, max: -38 });
+  });
+
+  it('widens zero by one each way', () => {
+    expect(widenFlatRange({ min: 0, max: 0 })).toEqual({ min: -1, max: 1 });
   });
 });

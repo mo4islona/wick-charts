@@ -480,3 +480,36 @@ describe('ChartInstance default line colours', () => {
     expect(chart.getSeriesColor(second)).toBe(githubLight.theme.seriesColors[1]);
   });
 });
+
+describe('ChartInstance Y axis on a flat series', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  it('labels the axis around a constant value', () => {
+    const id = chart.addSeries('line');
+    chart.setSeriesData(
+      id,
+      [7, 7, 7, 7].map((value, i) => ({ time: i * 60_000, value })),
+    );
+
+    const { min, max } = chart.getYRange();
+    expect(min).toBeLessThan(7);
+    expect(max).toBeGreaterThan(7);
+    expect(chart.yScale.niceTickValues().length).toBeGreaterThan(1);
+  });
+
+  it('shows no labels before any data', () => {
+    chart.addSeries('line');
+
+    expect(chart.yScale.niceTickValues()).toEqual([]);
+  });
+});
