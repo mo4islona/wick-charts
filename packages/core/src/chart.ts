@@ -171,6 +171,9 @@ interface YScaleSlot {
   /** Last engine Y (scale space) landed in {@link range}; NaN before the first. */
   prevMin: number;
   prevMax: number;
+  /** {@link range} as the last main paint drew it; NaN before the first. */
+  paintedMin: number;
+  paintedMax: number;
 }
 
 /** A named scale from `options.scales`. */
@@ -187,7 +190,18 @@ function createScaleSlot(yScale: YScale, config: YAxisConfig | undefined): YScal
     range: { min: 0, max: 0 },
     prevMin: Number.NaN,
     prevMax: Number.NaN,
+    paintedMin: Number.NaN,
+    paintedMax: Number.NaN,
   };
+}
+
+/** Record the range a paint draws for one scale; `true` when it moved since the last paint. */
+function takePaintedRange(slot: YScaleSlot): boolean {
+  const moved = slot.range.min !== slot.paintedMin || slot.range.max !== slot.paintedMax;
+  slot.paintedMin = slot.range.min;
+  slot.paintedMax = slot.range.max;
+
+  return moved;
 }
 
 function oppositeSide(side: YAxisPosition): YAxisPosition {
@@ -639,6 +653,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Cached chart width — passed by interactions on every call; kept for the rare
    *  call that omits it (e.g. programmatic `chart.pan(...)` without explicit width). */
   #lastChartWidth = 0;
+  /** X range the last main paint drew. */
+  readonly #paintedX = { from: Number.NaN, to: Number.NaN };
 
   /** Active performance monitor, or `null` when instrumentation is disabled (the default). */
   #perfMonitor: PerfMonitor | null;
@@ -3760,6 +3776,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.syncScales();
   }
 
+  /** Record the X and Y ranges this paint draws; `true` when any moved since the last paint. */
+  #takeViewMove(xRange: XRange): boolean {
+    let moved = xRange.from !== this.#paintedX.from || xRange.to !== this.#paintedX.to;
+    this.#paintedX.from = xRange.from;
+    this.#paintedX.to = xRange.to;
+
+    if (takePaintedRange(this.#defaultSlot)) moved = true;
+    for (const slot of this.#scales.values()) {
+      if (takePaintedRange(slot)) moved = true;
+    }
+
+    return moved;
+  }
+
   /** Each scale's slot with the engine's current Y (scale space) for it. */
   #engineYRanges(state: AnimationState): { slot: YScaleSlot; range: YRange }[] {
     const result = [{ slot: this.#defaultSlot, range: state.yRange }];
@@ -3861,7 +3891,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
 
-    if (yChanged) {
+    // A commit can land the view between frames (a snapped gesture, `animations: false`):
+    // nothing animates afterwards, so no other signal tells the DOM it moved.
+    const viewMoved = this.#takeViewMove(animationState.xRange);
+    if (yChanged || (viewMoved && !animationState.animating)) {
       this.emit('viewportChange');
     }
 
