@@ -67,7 +67,7 @@ export interface ChartContainerProps {
    * via `chart.setPadding`. Set every side to `0` for an edge-to-edge
    * sparkline.
    *
-   * @default `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`
+   * @default `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }`
    */
   padding?: {
     /** Pixels of empty space above the plot area. Default `20`. */
@@ -83,7 +83,7 @@ export interface ChartContainerProps {
     right?: number | { intervals: number };
     /**
      * Empty space on the left edge. A `number` is pixels; an object pads by
-     * data intervals on the time axis. Default `{ intervals: 0 }`.
+     * data intervals on the time axis. Default `{ intervals: 0.5 }` — half a slot, so the first bar or candle is not cut in half.
      */
     left?: number | { intervals: number };
   };

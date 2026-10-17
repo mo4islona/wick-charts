@@ -46,7 +46,7 @@ export let scales: Record<string, YAxisConfig> | undefined = undefined;
  * Viewport padding. `top`/`bottom` are in pixels. `left`/`right` accept either pixels (`50`)
  * or data intervals (`{ intervals: 3 }`). Set to 0 for edge-to-edge sparklines. Updates are
  * applied reactively when this prop or the measured header height changes.
- * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }`.
+ * Defaults: `{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }`.
  */
 // biome-ignore format: keep the inline shape so the parity checker matches React's type string verbatim
 export let padding: { top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number }; } | undefined = undefined;

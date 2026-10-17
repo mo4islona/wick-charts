@@ -45,6 +45,7 @@ const VISIBLE_OPACITY_EPS = 0.01;
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
+  const widths = new WeakMap<HTMLSpanElement, { text: string; width: number }>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
   // A reference change in `sync` triggers a one-shot restyle of reused spans.
   let appliedTheme: ChartTheme | null = null;
@@ -78,7 +79,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // unrounded label sits up to half a CSS pixel off its line.
   function positionSpan(el: HTMLSpanElement, value: number): void {
     if (axis === 'x') {
-      el.style.left = `${chart.timeScale.timeToSnappedX(value)}px`;
+      el.style.left = `${justifiedX(el, chart.timeScale.timeToSnappedX(value))}px`;
       // A category name longer than its step ends in an ellipsis instead of running into the next one.
       if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${chart.timeScale.barWidthMedia(1)}px`;
 
@@ -86,6 +87,31 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     }
 
     el.style.top = `${yScale().valueToSnappedY(value)}px`;
+  }
+
+  // An X label centred on a tick near the chart's edge would be cut by the
+  // container, so it shifts inward just enough to fit — the gridline still
+  // marks the exact spot. The strip starts after a left axis column and ends
+  // before a right one; the label may run under either.
+  function justifiedX(el: HTMLSpanElement, x: number): number {
+    const half = labelWidth(el) / 2;
+    const min = half - chart.getAxisColumnWidth('left');
+    const max = chart.timeScale.getMediaWidth() + chart.getAxisColumnWidth('right') - half;
+    if (min > max) return x;
+
+    return clamp(x, min, max);
+  }
+
+  // Measured once per text: reading layout on every animation frame would force a reflow each time.
+  function labelWidth(el: HTMLSpanElement): number {
+    const text = el.textContent ?? '';
+    const cached = widths.get(el);
+    if (cached !== undefined && cached.text === text) return cached.width;
+
+    const width = el.offsetWidth;
+    widths.set(el, { text, width });
+
+    return width;
   }
 
   // Theme-derived styles are written to inline `style`, so they're effectively

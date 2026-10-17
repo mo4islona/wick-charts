@@ -3501,7 +3501,7 @@
           "name": "padding",
           "type": "{ top?: number; bottom?: number; right?: number | { intervals: number }; left?: number | { intervals: number }; }",
           "optional": true,
-          "defaultValue": "{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }",
+          "defaultValue": "{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }",
           "deprecated": null,
           "description": "Viewport padding around the plot area. Live — a later change re-applies\nvia `chart.setPadding`. Set every side to `0` for an edge-to-edge\nsparkline.",
           "see": [],
@@ -3553,9 +3553,9 @@
                 "name": "left",
                 "type": "number | { intervals: number }",
                 "optional": true,
-                "defaultValue": "{ intervals: 0 }",
+                "defaultValue": "{ intervals: 0.5 }",
                 "deprecated": null,
-                "description": "Empty space on the left edge. A `number` is pixels; an object pads by\ndata intervals on the time axis. Default `{ intervals: 0 }`.",
+                "description": "Empty space on the left edge. A `number` is pixels; an object pads by\ndata intervals on the time axis. Default `{ intervals: 0.5 }` — half a slot, so the first bar or candle is not cut in half.",
                 "see": [],
                 "nested": {
                   "name": "",
@@ -4873,7 +4873,7 @@
           "optional": true,
           "defaultValue": "to `350`",
           "deprecated": null,
-          "description": "Per-digit spin animation duration in milliseconds. Defaults to `350`.",
+          "description": "Per-digit spin animation duration in milliseconds. A value that arrives\nsooner than this after the previous one snaps instead. Defaults to `350`.",
           "see": []
         },
         {

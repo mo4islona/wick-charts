@@ -124,7 +124,7 @@ describe('ChartInstance X axis types', () => {
 
   describe('numeric', () => {
     function lineChart(options: ChartOptions = {}): string {
-      makeChart({ axis: { x: { type: 'numeric' } }, padding: { right: 0 }, ...options });
+      makeChart({ axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 }, ...options });
       const id = chart.addSeries('line', { area: { visible: false } });
       chart.setLayerColors(id, [LINE_COLOR]);
       chart.setSeriesData(id, curve());
@@ -212,6 +212,40 @@ describe('ChartInstance X axis types', () => {
       pointerAt({ container, type: 'mousemove', offsetX: chart.plotLeft + chart.timeScale.timeToX(50) });
       const time = chart.getCrosshairPosition()?.time ?? Number.NaN;
       expect(buildHoverSnapshots(chart, { time, cacheKey: 'gap' })[0]?.data).toMatchObject({ x: 4 });
+    });
+
+    it('leaves half a slot before the first bar at the default padding', () => {
+      makeChart({ axis: { x: { type: 'numeric' } } });
+      chart.setSeriesData(
+        chart.addSeries('bar'),
+        [2.5, 2.6, 2.7, 2.8].map((x) => ({ x, value: 1 })),
+      );
+      raf.flush(5);
+
+      const slot = chart.getDataInterval();
+      expect(chart.getVisibleRange().from).toBeCloseTo(2.5 - slot / 2, 9);
+    });
+
+    it('shifts an edge label inward so the chart does not cut it', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      // Ticks land on both ends of the window: 0 at the left edge, 100 at the right.
+      makeChart({ axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 11 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      const lefts = [...strip.querySelectorAll('span')].map((span) => Number.parseFloat(span.style.left));
+      const plotWidth = chart.timeScale.getMediaWidth();
+      const rightColumn = chart.getAxisColumnWidth('right');
+
+      expect(Math.min(...lefts)).toBe(15);
+      expect(Math.max(...lefts)).toBeLessThanOrEqual(plotWidth + rightColumn - 15);
+      unmount();
     });
 
     it("heads the tooltip with the point's own x, ticks with the step's decimals", () => {
