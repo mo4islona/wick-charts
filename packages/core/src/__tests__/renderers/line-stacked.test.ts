@@ -143,4 +143,36 @@ describe('LineRenderer — stacked curve', () => {
     expect(spy.countOf('bezierCurveTo')).toBe(0);
     expect(spy.countOf('lineTo')).toBeGreaterThan(0);
   });
+
+  it('a sample just before a null gap keeps its height instead of dropping to 0', () => {
+    const r = new LineRenderer(2, { stacking: 'normal', area: { visible: false }, entryMs: 0 });
+    r.setData(
+      [
+        { time: 5, value: 30 },
+        { time: 15, value: 40 },
+        { time: 25, value: null },
+      ],
+      0,
+    );
+    r.setData(
+      [
+        { time: 5, value: 10 },
+        { time: 15, value: 20 },
+        { time: 25, value: null },
+      ],
+      1,
+    );
+    const { ctx, spy, timeScale, yScale } = buildRenderContext(VIEW);
+    r.render(ctx);
+
+    const x = timeScale.timeToBitmapXExact(15);
+    const vertices = spy.calls.filter((c) => c.method === 'moveTo' || c.method === 'lineTo');
+    const heights = vertices.filter((c) => Math.abs((c.args[0] as number) - x) < 0.5).map((c) => c.args[1] as number);
+    const drawnAt = (value: number): boolean =>
+      heights.some((y) => Math.abs(y - yScale.valueToBitmapYExact(value)) < 0.5);
+
+    // Each slice's top edge at t=15: the lower layer at 40, the stack at 60.
+    expect(drawnAt(40)).toBe(true);
+    expect(drawnAt(60)).toBe(true);
+  });
 });
