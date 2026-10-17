@@ -3,6 +3,7 @@ import { clamp } from '../utils/math';
 import { crispCenterOffset } from '../utils/pixel-grid';
 import { formatTime, niceTimeIntervals } from '../utils/time';
 import { AxisTickTracker } from './tick-tracker';
+import { timeTicks } from './time-ticks';
 import { pickNiceCeiling, pickNiceFloor } from './y-scale';
 
 /** Hard cap on generated ticks — defence-in-depth against pathological inputs. */
@@ -308,7 +309,9 @@ export class XScale {
   }
 
   /**
-   * Evenly spaced "nice" tick times. Resolution uses the cached
+   * "Nice" tick values. A time axis puts them on calendar boundaries in the
+   * installed time zone (Jan 1, the 1st of a month, midnight), so their gaps
+   * vary; `tickInterval` is the tier's nominal span. Resolution uses the cached
    * `dataInterval` set by `update()`; callers that bypass `update()` can
    * still pass it here for back-compat.
    */
@@ -339,6 +342,12 @@ export class XScale {
     if (this.resolvedInterval == null) return { ticks: [], tickInterval: 0 };
 
     const interval = this.resolvedInterval;
+    if (this.type === 'time') {
+      const ticks = timeTicks({ from: this.from, to: this.to, interval, timeZone: this.timeZoneValue, max: MAX_TICKS });
+
+      return { ticks, tickInterval: interval };
+    }
+
     const start = Math.ceil(this.from / interval) * interval;
     const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.to - start) / interval) + 1));
 
