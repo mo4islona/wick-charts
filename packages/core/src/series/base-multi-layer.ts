@@ -942,38 +942,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
-   * Each visible layer's share of the percent-stack column at `time`, as the
-   * renderer draws it, or `null` when the column is a gap. This reading is the
-   * bar stack's: exact-time samples, positives scaled to 0–100% and negatives
-   * to 0–-100% on their own.
+   * Each layer's share of the percent-stack column at `time`, from the current
+   * (smoothed, faded, growing-in) values the renderer draws it with, or `null`
+   * when that column is a gap.
    */
-  protected percentShares(time: number): Map<number, number> | null {
-    const values = new Map<number, number>();
-    let positive = 0;
-    let negative = 0;
-    for (let li = 0; li < this.stores.length; li++) {
-      const store = this.stores[li];
-      if (!store.isVisible()) continue;
-
-      const point = store.findNearest(time, 0);
-      if (point === null || !Number.isFinite(point.value)) continue;
-
-      values.set(li, point.value);
-      if (point.value > 0) positive += point.value;
-      if (point.value < 0) negative += point.value;
-    }
-    if (positive === 0 && negative === 0) return null;
-
-    const shares = new Map<number, number>();
-    for (const [li, value] of values) {
-      let share = 0;
-      if (value > 0) share = (value / positive) * 100;
-      if (value < 0) share = (value / negative) * -100;
-      shares.set(li, share);
-    }
-
-    return shares;
-  }
+  protected abstract percentShares(time: number): Map<number, number> | null;
 
   getTotalLength(): number {
     let total = 0;
