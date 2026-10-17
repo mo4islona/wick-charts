@@ -16,6 +16,7 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     prefersReducedMotion,
     resolveAnimate,
     resolveYLabelSeriesId,
+    yLabelFractionDigits,
   } from '@wick-charts/core';
   import { onDestroy, onMount } from 'svelte';
   import { get } from 'svelte/store';
@@ -196,12 +197,8 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
   $: fractionDigits = ((): number => {
     if (!yScale) return 2;
     const yRange = yScale.getRange();
-    const range = yRange.max - yRange.min;
-    if (range < 0.1) return 6;
-    if (range < 10) return 4;
-    if (range < 1000) return 2;
 
-    return 0;
+    return yLabelFractionDigits(yRange.max - yRange.min);
   })();
 
   $: intlFallback = ((): ValueFormatter => {

@@ -187,3 +187,33 @@ describe('<YLabel> positioning vs headerLayout', () => {
     expect(toggledTop).toBeCloseTo(freshTop, 1);
   });
 });
+
+describe('<YLabel> default precision', () => {
+  it('keeps the significant digits of a price below 1e-6', () => {
+    let formatted = '';
+    const tiny: [Array<{ time: number; value: number }>] = [
+      [
+        { time: 1, value: 0.000004 },
+        { time: 2, value: 0.0000008 },
+        { time: 3, value: 0.00000094 },
+      ],
+    ];
+    const mounted = mountChart(
+      <>
+        <LineSeries id="pepe" data={tiny} />
+        <YLabel seriesId="pepe">
+          {({ value, format }) => {
+            formatted = format(value);
+
+            return null;
+          }}
+        </YLabel>
+      </>,
+      { width: 400, height: 240 },
+    );
+
+    expect(formatted).toBe('0.00000094');
+
+    mounted.unmount();
+  });
+});

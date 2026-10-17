@@ -206,6 +206,25 @@ export function resolveAnimate(animate: YLabelAnimate | undefined): ResolvedAnim
   };
 }
 
+// `Intl.NumberFormat` rejects more than 20 fraction digits on older engines.
+const MAX_FRACTION_DIGITS = 20;
+
+/**
+ * Decimal count for the YLabel's default formatter, from the visible Y range.
+ * Below a 0.1 range it keeps two digits past the range's magnitude, so a
+ * 1e-6-scale price is not rounded away.
+ */
+export function yLabelFractionDigits(range: number): number {
+  if (!(range > 0)) return 6;
+  if (range >= 1000) return 0;
+  if (range >= 10) return 2;
+  if (range >= 0.1) return 4;
+
+  const magnitude = Math.ceil(-Math.log10(range));
+
+  return Math.min(MAX_FRACTION_DIGITS, Math.max(6, magnitude + 2));
+}
+
 /** The slice of the chart API the badge count-up start reads. {@link ChartInstance} satisfies it. */
 export interface BadgeChartQuery {
   getVisibleRange(): { from: number; to: number };

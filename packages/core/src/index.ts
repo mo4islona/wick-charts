@@ -56,7 +56,13 @@ export type {
 // so React / Vue / Svelte animate the badge identically. The `resolveAnimate` /
 // `firstVisibleValue` helpers live here too so the three wrappers stay thin
 // and share one set of defaults.
-export { BadgeAnimator, firstVisibleValue, resolveAnimate, resolveYLabelSeriesId } from './chart/badge-animator';
+export {
+  BadgeAnimator,
+  firstVisibleValue,
+  resolveAnimate,
+  resolveYLabelSeriesId,
+  yLabelFractionDigits,
+} from './chart/badge-animator';
 // Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
 // — same shape as the series intro animations. Drives the `loading` visual an
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`
