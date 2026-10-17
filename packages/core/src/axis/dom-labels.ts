@@ -45,7 +45,7 @@ const VISIBLE_OPACITY_EPS = 0.01;
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
-  const widths = new WeakMap<HTMLSpanElement, { text: string; width: number }>();
+  const widths = new WeakMap<HTMLSpanElement, { key: string; width: number }>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
   // A reference change in `sync` triggers a one-shot restyle of reused spans.
   let appliedTheme: ChartTheme | null = null;
@@ -79,9 +79,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // unrounded label sits up to half a CSS pixel off its line.
   function positionSpan(el: HTMLSpanElement, value: number): void {
     if (axis === 'x') {
-      el.style.left = `${justifiedX(el, chart.timeScale.timeToSnappedX(value))}px`;
       // A category name longer than its step ends in an ellipsis instead of running into the next one.
+      // Capped before `justifiedX` measures it, or the edge clamp uses the uncapped width.
       if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${chart.timeScale.barWidthMedia(1)}px`;
+      el.style.left = `${justifiedX(el, chart.timeScale.timeToSnappedX(value))}px`;
 
       return;
     }
@@ -104,14 +105,15 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     return clamp(x, min, max);
   }
 
-  // Measured once per text: reading layout on every animation frame would force a reflow each time.
+  // Measured once per text, font and width cap: reading layout on every animation frame would force a reflow each time.
   function labelWidth(el: HTMLSpanElement): number {
-    const text = el.textContent ?? '';
+    const { fontSize, fontFamily, maxWidth } = el.style;
+    const key = `${el.textContent ?? ''}|${fontSize}|${fontFamily}|${maxWidth}`;
     const cached = widths.get(el);
-    if (cached !== undefined && cached.text === text) return cached.width;
+    if (cached !== undefined && cached.key === key) return cached.width;
 
     const width = el.offsetWidth;
-    widths.set(el, { text, width });
+    widths.set(el, { key, width });
 
     return width;
   }
