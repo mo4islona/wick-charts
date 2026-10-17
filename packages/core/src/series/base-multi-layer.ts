@@ -193,14 +193,16 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     }
 
     const normalized = normalizeTimePointArray((data ?? []) as TimePointInput[]) as unknown as TData[];
-    store.setData(normalized);
 
     // First seed only (empty → non-empty): arm the initial reveal. Bulk
     // re-seeds of a live series must never replay the intro — reconciler
-    // data swaps would strobe the chart.
+    // data swaps would strobe the chart. Armed before the store notifies —
+    // the chart paints first data synchronously from that.
     if (!hadData && normalized.length > 0) {
       this.introWave.arm(this.options.introMs);
     }
+
+    store.setData(normalized);
 
     // Bulk replace — seed `displayedLast` to the new last value and clear any
     // in-flight chase / entrance entries so the next render paints the

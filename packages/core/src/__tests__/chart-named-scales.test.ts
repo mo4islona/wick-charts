@@ -290,7 +290,8 @@ describe('ChartInstance with named Y scales', () => {
       globalThis.matchMedia = reducedMotion;
     });
     makeChart({ animations: true, scales: { rsi: { position: 'left' } } });
-    const id = chart.addSeries('line', { scale: 'rsi' });
+    // An intro in flight holds the trackers unarmed past the flush below.
+    const id = chart.addSeries('line', { scale: 'rsi', introMs: false });
     chart.setSeriesData(id, series([10, 15, 20]));
     raf.flush();
     const tracker = chart.getYScale('rsi').tickTracker;
