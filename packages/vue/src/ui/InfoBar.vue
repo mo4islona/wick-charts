@@ -89,7 +89,12 @@ const snapshots = computed<readonly SeriesSnapshot[]>(() =>
   isHover.value ? (hoverSnapshots.value as readonly SeriesSnapshot[]) : lastSnapshots.value,
 );
 
-const dataInterval = computed(() => chart.getDataInterval());
+// `chart` is not reactive: `bump` re-reads the interval once data lands after mount.
+const dataInterval = computed(() => {
+  void bump.value;
+
+  return chart.getDataInterval();
+});
 const displayTime = computed(() => {
   if (snapshots.value.length === 0) return 0;
   if (isHover.value && crosshair.value) return crosshair.value.time;

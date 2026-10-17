@@ -52,8 +52,17 @@ onUnmounted(() => {
   chart.off('overlayChange', onOverlayChange);
 });
 
-const theme = computed(() => chart.getTheme());
-const dataInterval = computed(() => chart.getDataInterval());
+const theme = computed(() => {
+  void bump.value;
+
+  return chart.getTheme();
+});
+// `chart` is not reactive: `bump` re-reads the interval once data lands after mount.
+const dataInterval = computed(() => {
+  void bump.value;
+
+  return chart.getDataInterval();
+});
 
 const snapshots = computed<readonly SeriesSnapshot[]>(() => {
   void bump.value;

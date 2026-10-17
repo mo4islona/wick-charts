@@ -208,4 +208,30 @@ describe('Svelte <Tooltip> / <InfoBar> parity', () => {
     expect(canvases.length).toBeGreaterThanOrEqual(2);
     unmount();
   });
+
+  it('<Tooltip> heads daily data with the date once, at the interval of the data that landed after mount', async () => {
+    const day = 86_400_000;
+    const start = Date.UTC(2022, 8, 7);
+    const lineData = [[0, 1, 2, 3].map((i) => ({ time: start + i * day, value: i + 1 }))];
+    let chart: ChartInstance | null = null;
+    const { container, unmount } = render(TooltipParityHarness, {
+      props: {
+        variant: 'line-tooltip',
+        lineData,
+        onChart: (c: ChartInstance) => {
+          chart = c;
+        },
+      },
+    });
+    await settle();
+
+    const c = chart as ChartInstance | null;
+    c?.setTimeZone('UTC');
+    c?.setCrosshair({ time: start + day + 3 * 3_600_000, y: 2 });
+    await settle();
+
+    const header = Array.from(container.querySelectorAll('div')).find((el) => el.textContent?.trim() === 'Sep 8, 2022');
+    expect(header).toBeDefined();
+    unmount();
+  });
 });
