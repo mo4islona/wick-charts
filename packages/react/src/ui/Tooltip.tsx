@@ -75,10 +75,13 @@ export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children
   useLayoutEffect(() => {
     const onOverlayChange = () => bump((n) => n + 1);
     chart.on('overlayChange', onOverlayChange);
+    // Rows read animated values (smoothing, fades, percent shares).
+    chart.on('seriesFrame', onOverlayChange);
     if (chart.getSeriesIds().length > 0) bump((n) => n + 1);
 
     return () => {
       chart.off('overlayChange', onOverlayChange);
+      chart.off('seriesFrame', onOverlayChange);
     };
   }, [chart]);
 

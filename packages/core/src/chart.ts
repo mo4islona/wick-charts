@@ -302,6 +302,13 @@ interface ChartEvents {
    * tracked tick has reached its target opacity.
    */
   tickFrame: () => void;
+  /**
+   * Fired once per main-layer frame while a series' displayed values animate
+   * (value smoothing, entrance, layer fade, intro), and once on the frame they
+   * settle. Snapshot readers (`InfoBar`, `Tooltip`) refresh off it, as
+   * `buildHoverSnapshots` / `buildLastSnapshots` report those animated values.
+   */
+  seriesFrame: () => void;
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -538,6 +545,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * @internal
    */
   #overlayVersion = 0;
+  /** Main frames that moved a series' animated values; see `seriesFrame`. */
+  #seriesFrames = 0;
+  #seriesAnimating = false;
 
   /** CSS px of the default Y-axis column. The default collapses to `0` on a spatial-only chart. */
   get yAxisWidth(): number {
@@ -865,6 +875,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   getOverlayVersion(): number {
     return this.#overlayVersion;
+  }
+
+  /**
+   * {@link getOverlayVersion} that also advances on every `seriesFrame`: the
+   * snapshot helpers key their cache on it, since a snapshot reads the
+   * animated values a frame moves.
+   *
+   * @internal
+   */
+  getSnapshotVersion(): number {
+    return this.#overlayVersion + this.#seriesFrames;
   }
 
   /**
@@ -4245,6 +4266,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         this.#mainScheduler.markDirty();
         break;
       }
+    }
+
+    // This frame moved the animated values snapshots report, or settled them.
+    const seriesFrame = seriesNeedsAnim || this.#seriesAnimating;
+    this.#seriesAnimating = seriesNeedsAnim;
+    if (seriesFrame) {
+      this.#seriesFrames++;
+      this.emit('seriesFrame');
     }
 
     // Arm the tick fade trackers only once the entire chart has reached a

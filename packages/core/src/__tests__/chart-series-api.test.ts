@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ChartInstance } from '../chart';
 import { buildHoverSnapshots, buildLastSnapshots, formatRowValue } from '../snapshots';
 import { githubLight } from '../theme/themes/github-light';
+import { installRaf } from './helpers/fake-raf';
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   const container = document.createElement('div');
@@ -687,5 +688,43 @@ describe('ChartInstance percent stack snapshots', () => {
 
     expect(snapshots[0].share).toBeUndefined();
     expect(formatRowValue(snapshots[0], (v) => String(v))).toBe('1');
+  });
+});
+
+describe('percent shares while the stack animates', () => {
+  let raf: ReturnType<typeof installRaf>;
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    raf = installRaf();
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+    raf.uninstall();
+  });
+
+  it('refreshes the cached shares, and tells readers, as a hidden layer fades out', () => {
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    for (const layer of [0, 1]) {
+      chart.setSeriesData(id, [{ time: 0, value: 1 }], layer);
+    }
+    raf.flush(60);
+    let frames = 0;
+    chart.on('seriesFrame', () => {
+      frames++;
+    });
+
+    // A reader re-renders on the toggle itself, while the stack still draws 50/50.
+    chart.setLayerVisible(id, 1, false);
+    expect(buildLastSnapshots(chart, { cacheKey: 'fade' }).map((s) => s.share)).toEqual([50]);
+
+    raf.flush(120);
+
+    expect(frames).toBeGreaterThan(1);
+    expect(buildLastSnapshots(chart, { cacheKey: 'fade' }).map((s) => s.share)).toEqual([100]);
   });
 });

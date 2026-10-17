@@ -68,12 +68,15 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
   useLayoutEffect(() => {
     const onOverlayChange = () => bump((n) => n + 1);
     chart.on('overlayChange', onOverlayChange);
+    // Rows read animated values (smoothing, fades, percent shares).
+    chart.on('seriesFrame', onOverlayChange);
     // Catch-up: a sibling series' layout effect may have registered data in
     // the same commit. Bump so the next synchronous render picks it up.
     if (chart.getSeriesIds().length > 0) bump((n) => n + 1);
 
     return () => {
       chart.off('overlayChange', onOverlayChange);
+      chart.off('seriesFrame', onOverlayChange);
     };
   }, [chart]);
 

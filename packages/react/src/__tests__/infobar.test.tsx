@@ -1,11 +1,13 @@
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CandlestickSeries } from '../CandlestickSeries';
 import { ChartContainer } from '../ChartContainer';
+import { LineSeries } from '../LineSeries';
 import { InfoBar } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
 import { Tooltip } from '../ui/Tooltip';
+import { type MountedChart, mountChart } from './helpers/mount-chart';
 
 const OHLC = [
   { time: 1_700_000_000_000, open: 100, high: 110, low: 90, close: 105, volume: 1000 },
@@ -82,5 +84,40 @@ describe('<InfoBar> integration', () => {
     const canvasBlock = row.children[0] as HTMLElement;
     const bar = canvasBlock.querySelector('[data-tooltip-legend]');
     expect(bar).not.toBeNull();
+  });
+});
+
+describe('<InfoBar> on a percent stack', () => {
+  let mounted: MountedChart | null = null;
+
+  afterEach(() => {
+    mounted?.unmount();
+    mounted = null;
+  });
+
+  it('follows the shares as a hidden layer fades out', () => {
+    const layer = (value: number) => [{ time: 60_000, value }];
+    const chart = mountChart(
+      <>
+        <LineSeries
+          data={[
+            { label: 'a', data: layer(1) },
+            { label: 'b', data: layer(1) },
+          ]}
+          options={{ stacking: 'percent' }}
+        />
+        <InfoBar />
+      </>,
+    );
+    mounted = chart;
+    chart.flushScheduler();
+    const text = () => chart.container.querySelector('[data-tooltip-legend]')?.textContent ?? '';
+    expect(text()).toContain('50% · ');
+
+    const [id] = chart.chart.getSeriesIds();
+    act(() => chart.chart.setLayerVisible(id, 1, false));
+    chart.flushScheduler();
+
+    expect(text()).toContain('100% · ');
   });
 });

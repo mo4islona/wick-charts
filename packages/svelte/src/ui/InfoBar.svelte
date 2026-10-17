@@ -51,7 +51,12 @@ $: {
         bump++;
       };
       c.on('overlayChange', handler);
-      overlayUnsub = () => c.off('overlayChange', handler);
+      // Rows read animated values (smoothing, fades, percent shares).
+      c.on('seriesFrame', handler);
+      overlayUnsub = () => {
+        c.off('overlayChange', handler);
+        c.off('seriesFrame', handler);
+      };
       if (c.getSeriesIds().length > 0) bump++;
     }
   }
