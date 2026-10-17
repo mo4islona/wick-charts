@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 const props = withDefaults(
   defineProps<{
@@ -11,6 +11,7 @@ const props = withDefaults(
      */
     format?: ((value: number) => string) | Intl.NumberFormatOptions;
     locale?: string;
+    /** Per-digit spin duration in ms. A value that arrives sooner than this after the previous one snaps instead. */
     spinDuration?: number;
   }>(),
   {
@@ -50,6 +51,19 @@ const parts = computed<CharPart[]>(() => {
   return result;
 });
 
+// A spin retargeted mid-turn shows two half digits, so values faster than a spin snap.
+const duration = ref(props.spinDuration);
+let changedAt = Number.NEGATIVE_INFINITY;
+watch(
+  () => effectiveFormat.value(props.value),
+  () => {
+    const now = performance.now();
+    const tooFast = now - changedAt < props.spinDuration;
+    changedAt = now;
+    duration.value = tooFast ? 0 : props.spinDuration;
+  },
+);
+
 const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 </script>
 
@@ -77,8 +91,8 @@ const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
             display: 'flex',
             flexDirection: 'column',
             transform: 'translateY(' + (-parseInt(part.value) * 1.2) + 'em)',
-            transition: mounted
-              ? 'transform ' + spinDuration + 'ms cubic-bezier(0.16, 1, 0.3, 1)'
+            transition: mounted && duration > 0
+              ? 'transform ' + duration + 'ms cubic-bezier(0.16, 1, 0.3, 1)'
               : 'none',
           }"
         >
