@@ -589,6 +589,55 @@ describe('ChartInstance percent stack snapshots', () => {
     expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'zero' })).toEqual([]);
   });
 
+  it('scales percent bars like the stack draws them: positives to 100%, negatives to -100%', () => {
+    const id = chart.addSeries('bar', { layers: 3, stacking: 'percent' });
+    chart.setSeriesData(id, [{ time: 0, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: -5 }], 1);
+    chart.setSeriesData(id, [{ time: 0, value: -15 }], 2);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'bars' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([100, -25, -75]);
+  });
+
+  it('lists the rows of a percent bar column whose positives and negatives cancel out', () => {
+    const id = chart.addSeries('bar', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(id, [{ time: 0, value: 10 }], 0);
+    chart.setSeriesData(id, [{ time: 0, value: -10 }], 1);
+
+    const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'cancel' });
+
+    expect(snapshots.map((s) => s.share)).toEqual([100, -100]);
+  });
+
+  it("takes each last-value share against the row's own column", () => {
+    // A is alone at the newest column, where B is a gap; B's last reading is one column earlier.
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 30 },
+        { time: 60_000, value: 30 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 70 },
+        { time: 60_000, value: null },
+      ],
+      1,
+    );
+
+    const snapshots = buildLastSnapshots(chart, { cacheKey: 'ragged-last' });
+
+    expect(snapshots.map((s) => [s.data.time, s.share])).toEqual([
+      [60_000, 100],
+      [0, 70],
+    ]);
+  });
+
   it('prints a plain value off a percent stack', () => {
     const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 0, value: 1 }], 0);
