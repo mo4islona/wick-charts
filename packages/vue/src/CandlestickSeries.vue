@@ -3,6 +3,7 @@ import type { CandlestickData, CandlestickSeriesOptions, OHLCInput, SeriesSyncSt
 import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
+import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
 
 const props = withDefaults(
@@ -47,7 +48,7 @@ onMounted(() => {
   // Initial data load — Vue's `watch` is lazy by default, so the watcher
   // below only fires on subsequent `data` prop mutations. Explicitly apply
   // the first value here so components with static data render immediately.
-  applyData(id, props.data);
+  applyData(id, rawSeriesData(props.data));
   chart.setSeriesVisible(id, props.visible);
 });
 
@@ -56,12 +57,12 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.data,
-  (data) => {
+  seriesDataSource(() => props.data),
+  () => {
     const id = seriesId.value;
     if (!id) return;
 
-    applyData(id, data);
+    applyData(id, rawSeriesData(props.data));
   },
 );
 

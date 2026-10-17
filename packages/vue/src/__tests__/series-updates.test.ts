@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import type { ChartInstance, OHLCInput, PieSliceData, TimePoint } from '@wick-charts/core';
+import { ChartInstance, type OHLCInput, type PieSliceData, type TimePoint } from '@wick-charts/core';
 import {
   BarSeries,
   CandlestickSeries,
@@ -8,8 +8,8 @@ import {
   catppuccin,
   useChartInstance,
 } from '@wick-charts/vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type Ref, defineComponent, h, nextTick, ref } from 'vue';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { type Ref, defineComponent, h, isProxy, nextTick, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
@@ -147,6 +147,56 @@ describe('Vue series watchers', () => {
 
     expect(probeRef.value.chart.getLastValue('cs')?.value).toBe(109);
 
+    wrapper.unmount();
+  });
+
+  it('CandlestickSeries: an in-place push and an in-place last-point edit reach the chart', async () => {
+    const probeRef: { value: ChartProbe | null } = { value: null };
+    const Probe = probeFor(probeRef);
+    const data: Ref<OHLCInput[]> = ref(
+      Array.from({ length: 6 }, (_, i) => ({ time: i + 1, open: 100, high: 105, low: 95, close: 100 + i })),
+    );
+
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(CandlestickSeries, { id: 'cs', data: data.value }),
+        ]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+    if (!probeRef.value) throw new Error('probe did not run');
+
+    data.value.push({ time: 7, open: 100, high: 110, low: 100, close: 109 });
+    await settle();
+    expect(probeRef.value.chart.getLastValue('cs')?.value).toBe(109);
+
+    Object.assign(data.value[6], { close: 104 });
+    await settle();
+    expect(probeRef.value.chart.getLastValue('cs')?.value).toBe(104);
+
+    wrapper.unmount();
+  });
+
+  it('CandlestickSeries: hands the chart the plain array behind a reactive ref', async () => {
+    const setData = vi.spyOn(ChartInstance.prototype, 'setSeriesData');
+    const data: Ref<OHLCInput[]> = ref([{ time: 1, open: 10, high: 12, low: 9, close: 11 }]);
+
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [h(CandlestickSeries, { data: data.value })]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const passed = setData.mock.calls.map(([, points]) => points);
+    expect(passed.length).toBeGreaterThan(0);
+    expect(passed.some((points) => isProxy(points))).toBe(false);
+
+    setData.mockRestore();
     wrapper.unmount();
   });
 
