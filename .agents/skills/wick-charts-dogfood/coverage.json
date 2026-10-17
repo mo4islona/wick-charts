@@ -1,0 +1,1017 @@
+{
+  "$schema": "Coverage map of the dogfood sessions: what was run, how, on which data, and what is still untested. Bugs live in GitHub issues (labels bug, P0-P3, confirmed), not here. Validate: node .agents/skills/wick-charts-dogfood/scripts/coverage.mjs check",
+  "settings": {
+    "staleDays": 90,
+    "ports": {
+      "react": 5181,
+      "vue": 5182,
+      "svelte": 5183
+    }
+  },
+  "sessions": [
+    {
+      "id": "2026-10-17",
+      "type": "full",
+      "commit": "204ef2e",
+      "dirtyTree": true,
+      "libVersion": "0.7.0",
+      "frameworks": {
+        "react": "19.3.1",
+        "vue": "3.5.44",
+        "svelte": "5.57.2 (did not run) / 4.2.20",
+        "vite": "8.3.4"
+      },
+      "approach": "Full session. 1 data agent fetched 15 real datasets (pinned windows); 3 framework agents (React, Vue, Svelte) each built the same 26 scenarios in a fresh Vite app linked to the monorepo build, plus framework probes (StrictMode, SSR import, reactive proxies, in-place mutation, packaging, strict type-check). Tech lead re-checked P0/P1 claims, ran pixel compares in the default and zoom states, filed issues.",
+      "notes": [
+        "Per-team data adapters caused most default-render pixel diffs; next full session starts with shared adapters (test/dogfood/shared/scenarios/<id>.ts).",
+        "The default-render compare is a contract check; the zoom state caught the wrapper bug (a 0.32% diff in axis labels).",
+        "Two teams found the same core bug independently: overlap across frameworks is cheap verification.",
+        "Teams graded the same bug differently (OK vs BUG); the brief now says any attached finding means BUG.",
+        "Svelte 5 blocked the runes probes; they stay unrun until it works."
+      ]
+    }
+  ],
+  "quirkClasses": {
+    "time-gap": "missing bars inside a regular series",
+    "weekend-gap": "market closures (weekends, holidays)",
+    "null-inner": "null values inside a series",
+    "null-trailing": "a run of nulls at the end (source lag)",
+    "zero-as-missing": "the source reports missing data as 0",
+    "zero-values": "legit zeros (pie slices, solar at night)",
+    "negative-values": "values below zero",
+    "zero-crossing": "a series that changes sign",
+    "tiny-magnitude": "values ~1e-6 and below",
+    "huge-magnitude": "values ~1e12 and above",
+    "scale-gap": "layers 10-100x apart",
+    "flat-range": "all values (nearly) equal",
+    "flat-candle": "O=H=L=C candles",
+    "zero-volume": "volume 0",
+    "interval-change": "sampling step changes mid-series",
+    "dst-transition": "23/25-hour local days",
+    "nonmidnight-daily": "daily bars stamped at a non-midnight UTC time",
+    "float-noise": "float32 noise like 29.387500762939453",
+    "descending-order": "newest-first input",
+    "duplicate-time": "several rows with one timestamp",
+    "irregular-time": "no fixed step",
+    "irregular-x": "numeric X with holes",
+    "outlier-spike": "one value 100x+ the baseline",
+    "long-labels": "category labels 40+ chars",
+    "many-categories": "20+ slices / categories",
+    "mixed-frequency": "layers with different steps in one chart",
+    "mixed-units": "different units that need separate scales",
+    "long-span": "decades on one X axis",
+    "big-n": "100k+ points",
+    "burst-stream": "hundreds of updates per ms / s",
+    "empty": "empty array",
+    "single-point": "one point",
+    "nan-infinity": "NaN / Infinity values",
+    "seconds-not-ms": "epoch seconds passed where ms are expected",
+    "pre-1970": "negative epoch timestamps",
+    "non-hour-tz": "timezones with :30 / :45 offsets",
+    "string-numbers": "numeric strings from CSV"
+  },
+  "datasets": [
+    {
+      "id": "btc-1h-gap",
+      "title": "BTC/USDT 1h, Binance, window with a real exchange halt (2023-03-24)",
+      "source": "Binance spot klines API",
+      "fetch": "binance.mjs btc-1h-gap",
+      "rows": 1500,
+      "sizeKB": 225,
+      "window": "pinned",
+      "quirks": ["time-gap", "zero-volume", "flat-candle"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "pepe-1h",
+      "title": "PEPE/USDT 1h, Binance, first 1000 hours after listing",
+      "source": "Binance spot klines API",
+      "fetch": "binance.mjs pepe-1h",
+      "rows": 1000,
+      "sizeKB": 158,
+      "window": "pinned",
+      "quirks": ["tiny-magnitude", "huge-magnitude", "outlier-spike"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "stable-1m-flat",
+      "title": "FDUSD/USDT 1m, Binance, stablecoin pair (nearly flat)",
+      "source": "Binance spot klines API",
+      "fetch": "binance.mjs stable-1m-flat",
+      "rows": 1000,
+      "sizeKB": 125,
+      "window": "pinned",
+      "quirks": ["flat-range", "flat-candle", "zero-volume"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "btc-1m-big",
+      "title": "BTC/USDT 1m, Binance, 90 days (performance dataset)",
+      "source": "Binance spot klines API",
+      "fetch": "binance.mjs btc-1m-big",
+      "rows": 129520,
+      "sizeKB": 7622,
+      "window": "pinned",
+      "quirks": ["big-n", "time-gap", "zero-volume"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "stock-daily",
+      "title": "AAPL daily OHLCV, 10 years (Yahoo Finance chart API)",
+      "source": "Yahoo Finance v8 chart API (Stooq CSV now sits behind a JS proof-of-work page)",
+      "fetch": "others.mjs stock-daily",
+      "rows": 2514,
+      "sizeKB": 419,
+      "window": "pinned",
+      "quirks": ["weekend-gap", "nonmidnight-daily", "dst-transition", "float-noise"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "de-power-price",
+      "title": "German day-ahead electricity price (DE-LU), four windows",
+      "source": "Energy-Charts (Fraunhofer ISE) API, data CC BY 4.0 from Bundesnetzagentur | SMARD.de",
+      "fetch": "others.mjs de-power-price",
+      "rows": 1323,
+      "sizeKB": 58,
+      "window": "pinned",
+      "quirks": ["interval-change", "dst-transition", "negative-values", "zero-crossing"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "de-power-mix",
+      "title": "Germany public net electricity generation by source, 2024-05-10..14 (15-min)",
+      "source": "Energy-Charts (Fraunhofer ISE) public_power API",
+      "fetch": "others.mjs de-power-mix",
+      "rows": 10080,
+      "sizeKB": 369,
+      "window": "pinned",
+      "quirks": ["negative-values", "zero-values", "many-categories", "mixed-units"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "weather-hourly",
+      "title": "Hourly temperature and precipitation, 4 contrasting cities, last ~60 days",
+      "source": "Open-Meteo historical weather API, models=era5 (ERA5 reanalysis, ~5-day lag)",
+      "fetch": "others.mjs weather-hourly",
+      "rows": 5856,
+      "sizeKB": 348,
+      "window": "pinned",
+      "quirks": ["null-trailing", "negative-values", "mixed-units", "zero-values"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "weather-daily",
+      "title": "Daily min / max / mean temperature, Yakutsk vs Singapore, last 12 months",
+      "source": "Open-Meteo historical weather API",
+      "fetch": "others.mjs weather-daily",
+      "rows": 732,
+      "sizeKB": 43,
+      "window": "pinned",
+      "quirks": ["zero-crossing", "negative-values"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "fred-macro",
+      "title": "FRED macro series: UNRATE, GDPC1, DGS10, T10Y2Y",
+      "source": "FRED (Federal Reserve Bank of St. Louis) keyless fredgraph.csv",
+      "fetch": "others.mjs fred-macro",
+      "rows": 31310,
+      "sizeKB": 1586,
+      "window": "pinned",
+      "quirks": ["mixed-frequency", "null-inner", "zero-crossing", "long-span"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "wiki-spike",
+      "title": "English Wikipedia daily pageviews of \"Elizabeth II\", 2021-09..2023-08",
+      "source": "Wikimedia REST API pageviews (agent=user)",
+      "fetch": "others.mjs wiki-spike",
+      "rows": 730,
+      "sizeKB": 28,
+      "window": "pinned",
+      "quirks": ["outlier-spike"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "npm-downloads",
+      "title": "npm daily downloads: react, vue, svelte, preact, solid-js, @angular/core (last 12 months)",
+      "source": "npm registry downloads API",
+      "fetch": "others.mjs npm-downloads",
+      "rows": 2190,
+      "sizeKB": 95,
+      "window": "pinned",
+      "quirks": ["zero-as-missing", "scale-gap"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "trades-stream",
+      "title": "BTC/USDT aggregated trades, Binance, 10 minutes of the 2024-08-05 crash (00:50-01:00 UTC)",
+      "source": "Binance spot aggTrades API",
+      "fetch": "others.mjs trades-stream",
+      "rows": 55097,
+      "sizeKB": 3961,
+      "window": "pinned",
+      "quirks": ["duplicate-time", "burst-stream", "irregular-time"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "earthquakes",
+      "title": "USGS earthquakes M2.5+, 2026-09-17..2026-10-17 (API order: newest first)",
+      "source": "USGS FDSN event web service (GeoJSON)",
+      "fetch": "others.mjs earthquakes",
+      "rows": 1895,
+      "sizeKB": 190,
+      "window": "pinned",
+      "quirks": ["descending-order", "irregular-time", "negative-values", "irregular-x"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    },
+    {
+      "id": "worldbank-gdp",
+      "title": "GDP (current USD) by country and aggregate, 2023, World Bank",
+      "source": "World Bank Indicators API v2 (NY.GDP.MKTP.CD)",
+      "fetch": "others.mjs worldbank-gdp",
+      "rows": 266,
+      "sizeKB": 19,
+      "window": "pinned",
+      "quirks": ["null-inner", "long-labels", "many-categories", "scale-gap"],
+      "fetchedAt": "2026-10-17",
+      "usedIn": ["2026-10-17"]
+    }
+  ],
+  "probes": [
+    {
+      "id": "candles-gap",
+      "kind": "scenario",
+      "title": "Candlestick across a real exchange outage gap",
+      "datasets": ["btc-1h-gap"],
+      "quirks": ["time-gap", "zero-volume"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/candlestick.ts",
+        "packages/core/src/scales/x-scale.ts",
+        "packages/core/src/axis"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "candles-tiny",
+      "kind": "scenario",
+      "title": "Candlestick at 1e-6 prices and 1e13 volumes",
+      "datasets": ["pepe-1h"],
+      "quirks": ["tiny-magnitude", "huge-magnitude"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/candlestick.ts",
+        "packages/core/src/utils/format.ts",
+        "packages/core/src/scales/y-scale.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "candles-flat",
+      "kind": "scenario",
+      "title": "Candlestick with a ~zero Y range",
+      "datasets": ["stable-1m-flat"],
+      "quirks": ["flat-range", "flat-candle"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/candlestick.ts", "packages/core/src/scales/y-scale.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "candles-stock",
+      "kind": "scenario",
+      "title": "Daily stock candles with weekend gaps + Navigator",
+      "datasets": ["stock-daily"],
+      "quirks": ["weekend-gap", "nonmidnight-daily"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/candlestick.ts",
+        "packages/core/src/navigator",
+        "packages/core/src/scales/x-scale.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "candles-big",
+      "kind": "scenario",
+      "title": "130k candles: first paint, zoom/pan FPS",
+      "datasets": ["btc-1m-big"],
+      "quirks": ["big-n"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/candlestick.ts",
+        "packages/core/src/data/decimation.ts",
+        "packages/core/src/interactions",
+        "packages/core/src/render-scheduler.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "line-negative",
+      "kind": "scenario",
+      "title": "Area line across negative prices, ReferenceLine at 0",
+      "datasets": ["de-power-price"],
+      "quirks": ["negative-values", "zero-crossing"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/line.ts", "packages/core/src/series/painters"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "line-interval-change",
+      "kind": "scenario",
+      "title": "Line whose step changes 1h -> 15m mid-series",
+      "datasets": ["de-power-price"],
+      "quirks": ["interval-change"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/line.ts",
+        "packages/core/src/utils/time.ts",
+        "packages/core/src/scales/x-scale.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "bar-dst",
+      "kind": "scenario",
+      "title": "Bars on a 23/25-hour DST day",
+      "datasets": ["de-power-price"],
+      "quirks": ["dst-transition"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/bar.ts", "packages/core/src/utils/time.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "line-weather-nulls",
+      "kind": "scenario",
+      "title": "Multi-layer line with trailing nulls, Legend toggle",
+      "datasets": ["weather-hourly"],
+      "quirks": ["null-trailing", "negative-values"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/line.ts",
+        "packages/core/src/series/base-multi-layer.ts",
+        "packages/core/src/legend.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "band-weather",
+      "kind": "scenario",
+      "title": "Band min..max + mean line",
+      "datasets": ["weather-daily"],
+      "quirks": ["zero-crossing"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/band.ts"],
+      "features": ["9773103"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "secondary-y",
+      "kind": "scenario",
+      "title": "Temperature line vs precipitation bars on two Y scales",
+      "datasets": ["weather-hourly"],
+      "quirks": ["mixed-units", "null-trailing"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/scales/y-scale.ts", "packages/core/src/chart.ts"],
+      "features": ["4507440"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "line-fred-mixed",
+      "kind": "scenario",
+      "title": "Monthly + daily layers, ReferenceLine, TimeRegion, 75-year axis",
+      "datasets": ["fred-macro"],
+      "quirks": ["mixed-frequency", "null-inner", "long-span"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/line.ts",
+        "packages/core/src/series/base-multi-layer.ts",
+        "packages/core/src/scales/x-scale.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "bar-spike",
+      "kind": "scenario",
+      "title": "Daily bars with a 235x outlier",
+      "datasets": ["wiki-spike"],
+      "quirks": ["outlier-spike"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/bar.ts",
+        "packages/core/src/scales/y-scale.ts",
+        "packages/core/src/scales/log-scale.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "stacked-npm",
+      "kind": "scenario",
+      "title": "Normal-stacked bars with 27x scale gaps and zero-as-missing",
+      "datasets": ["npm-downloads"],
+      "quirks": ["zero-as-missing", "scale-gap"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/bar.ts", "packages/core/src/series/stack-math.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "percent-npm",
+      "kind": "scenario",
+      "title": "Percent-stacked area",
+      "datasets": ["npm-downloads"],
+      "quirks": ["zero-as-missing"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/line.ts", "packages/core/src/series/stack-math.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "pie-power-mix",
+      "kind": "scenario",
+      "title": "Donut with negative and zero slices",
+      "datasets": ["de-power-mix"],
+      "quirks": ["negative-values", "zero-values", "many-categories"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/pie.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "pie-gdp",
+      "kind": "scenario",
+      "title": "Pie with nulls, aggregates, long labels, Other grouping",
+      "datasets": ["worldbank-gdp"],
+      "quirks": ["null-inner", "long-labels", "many-categories"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/pie.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "category-gdp",
+      "kind": "scenario",
+      "title": "Bars on a category X axis with long labels",
+      "datasets": ["worldbank-gdp"],
+      "quirks": ["long-labels"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/bar.ts", "packages/core/src/scales/x-scale.ts"],
+      "features": ["af6c918"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "numeric-quakes",
+      "kind": "scenario",
+      "title": "Histogram bars on a numeric X axis",
+      "datasets": ["earthquakes"],
+      "quirks": ["irregular-x"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/bar.ts", "packages/core/src/scales/x-scale.ts"],
+      "features": ["af6c918"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "quakes-unsorted",
+      "kind": "scenario",
+      "title": "Bars from descending (API-order) input",
+      "datasets": ["earthquakes"],
+      "quirks": ["descending-order", "irregular-time"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/bar.ts", "packages/core/src/data/store.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "heatmap-power",
+      "kind": "scenario",
+      "title": "Hour x day heatmap with DST days and negatives",
+      "datasets": ["de-power-price"],
+      "quirks": ["dst-transition", "negative-values"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/series/heatmap.ts", "packages/core/src/heatmap-tooltip.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "stream-trades",
+      "kind": "scenario",
+      "title": "Live replay of same-ms trade bursts into 1s candles",
+      "datasets": ["trades-stream"],
+      "quirks": ["duplicate-time", "burst-stream"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/candlestick.ts",
+        "packages/core/src/data/store.ts",
+        "packages/core/src/animation",
+        "packages/core/src/render-scheduler.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "sparklines",
+      "kind": "scenario",
+      "title": "Sparkline table (React) / closest equivalent (Vue, Svelte)",
+      "datasets": ["npm-downloads"],
+      "quirks": ["flat-range", "single-point"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/react/src", "packages/vue/src", "packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "edge-cases",
+      "kind": "scenario",
+      "title": "Empty, 1 point, dup time, NaN, null, seconds, unsorted, flat, Infinity",
+      "datasets": ["synthetic"],
+      "quirks": [
+        "empty",
+        "single-point",
+        "duplicate-time",
+        "nan-infinity",
+        "null-inner",
+        "seconds-not-ms",
+        "descending-order",
+        "flat-range"
+      ],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/data/store.ts",
+        "packages/core/src/utils/poisoned-data-reporter.ts",
+        "packages/core/src/utils/time.ts"
+      ],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "theme-resize",
+      "kind": "scenario",
+      "title": "Resize 960 -> 360 -> 960 and switch theme",
+      "datasets": ["btc-1h-gap"],
+      "quirks": [],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/canvas-manager.ts", "packages/core/src/theme", "packages/core/src/axis"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "lifecycle",
+      "kind": "scenario",
+      "title": "Mount/unmount x50, toggle series, swap data, live color change",
+      "datasets": ["synthetic"],
+      "quirks": [],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/chart.ts", "packages/react/src", "packages/vue/src", "packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-install-quickstart",
+      "kind": "framework",
+      "title": "Fresh install + README Quick Start pasted as-is (react)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["README.tmpl.md", "packages/react/package.json"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-packaging",
+      "kind": "framework",
+      "title": "npm pack contents, exports map, peer deps (react)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["packages/react/package.json", "packages/react/vite.config.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-typecheck",
+      "kind": "framework",
+      "title": "Strict type-check of a consumer app (react)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["packages/react/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-install-quickstart",
+      "kind": "framework",
+      "title": "Fresh install + README Quick Start pasted as-is (vue)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["README.tmpl.md", "packages/vue/package.json"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-packaging",
+      "kind": "framework",
+      "title": "npm pack contents, exports map, peer deps (vue)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/package.json", "packages/vue/vite.config.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-typecheck",
+      "kind": "framework",
+      "title": "Strict type-check of a consumer app (vue)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte-install-quickstart",
+      "kind": "framework",
+      "title": "Fresh install + README Quick Start pasted as-is (svelte)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["README.tmpl.md", "packages/svelte/package.json"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte-packaging",
+      "kind": "framework",
+      "title": "npm pack contents, exports map, peer deps (svelte)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/package.json", "packages/svelte/vite.config.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte-typecheck",
+      "kind": "framework",
+      "title": "Strict type-check of a consumer app (svelte)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-strictmode",
+      "kind": "framework",
+      "title": "StrictMode double mount",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["packages/react/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-inline-data-churn",
+      "kind": "framework",
+      "title": "New data array identity on every render",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["packages/react/src", "packages/core/src/data/sync.ts"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "react-ssr-import",
+      "kind": "framework",
+      "title": "Import + renderToString under SSR",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": ["packages/react/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-deep-proxy-big",
+      "kind": "framework",
+      "title": "ref/reactive deep proxy of 130k rows vs shallowRef",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-inplace-push",
+      "kind": "framework",
+      "title": "In-place push on a reactive data array",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-keepalive",
+      "kind": "framework",
+      "title": "v-if toggling and KeepAlive",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "vue-ssr-import",
+      "kind": "framework",
+      "title": "Import + renderToString under SSR",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["packages/vue/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte5-compat",
+      "kind": "framework",
+      "title": "Package works in a Svelte 5 app (dev + build)",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/package.json", "packages/svelte/vite.config.ts", "packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte-state-proxy",
+      "kind": "framework",
+      "title": "$state deep proxy vs $state.raw as data",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/src"],
+      "runs": []
+    },
+    {
+      "id": "svelte-inplace-push",
+      "kind": "framework",
+      "title": "In-place push on a $state array",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    },
+    {
+      "id": "svelte-ssr-import",
+      "kind": "framework",
+      "title": "Import + render under svelte/server",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["svelte"],
+      "paths": ["packages/svelte/src"],
+      "runs": ["2026-10-17"]
+    }
+  ],
+  "ideas": [
+    {
+      "id": "log-scale-real-data",
+      "kind": "angle",
+      "idea": "Log Y scale on real data: the 235x wiki spike, PEPE from listing, a series that touches 0",
+      "why": "Feature 995d9e5 shipped without dogfooding; log of 0 / negatives is the classic trap",
+      "priority": "high",
+      "quirks": ["outlier-spike", "zero-values"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "left-axis-real-data",
+      "kind": "angle",
+      "idea": "Left-side Y axis (68cfb25) with a secondary right scale and long tick labels",
+      "why": "Shipped, never dogfooded",
+      "priority": "medium",
+      "quirks": ["mixed-units"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "pre-1970-timestamps",
+      "kind": "dataset",
+      "idea": "Sunspots (SILSO, monthly since 1749) or Central England Temperature (since 1659)",
+      "why": "Negative epoch ms and year < 1900 break naive date formatting and interval detection",
+      "priority": "high",
+      "quirks": ["pre-1970", "long-span"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "non-hour-timezones",
+      "kind": "dataset",
+      "idea": "Daily candles aligned to local midnight in Asia/Kolkata (+5:30) and Asia/Kathmandu (+5:45); time format timeZone option",
+      "why": "Tick snapping usually assumes whole-hour offsets",
+      "priority": "high",
+      "quirks": ["non-hour-tz"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "hidden-tab-mount",
+      "kind": "angle",
+      "idea": "Chart mounted inside a display:none tab, then shown",
+      "why": "Zero-size init is the most common dashboard bug",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "background-tab-stream",
+      "kind": "angle",
+      "idea": "Stream for 5 min in a background tab (rAF paused), then return",
+      "why": "Queued updates may burst, animate from stale state, or leak",
+      "priority": "high",
+      "quirks": ["burst-stream"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "touch-mobile",
+      "kind": "angle",
+      "idea": "Pinch-zoom / pan / tooltip with touch emulation at 375 px",
+      "why": "Mobile users; no current coverage",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "meta-frameworks-ssr",
+      "kind": "angle",
+      "idea": "Next.js App Router (RSC + use client), Nuxt 3, SvelteKit, Astro islands",
+      "why": "Where real users install it; SSR import safety beyond a bare renderToString",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "string-numbers",
+      "kind": "dataset",
+      "idea": "Pass CSV-parsed numeric strings (\"1.23\") without Number()",
+      "why": "The most common user mistake; must fail loudly or coerce",
+      "priority": "medium",
+      "quirks": ["string-numbers"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "long-stream-memory",
+      "kind": "angle",
+      "idea": "1-hour stream: heap growth, DOM nodes, listeners",
+      "why": "Leaks show only over time",
+      "priority": "medium",
+      "quirks": ["burst-stream"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "many-charts-sync",
+      "kind": "angle",
+      "idea": "20 synced charts on one page: FPS and crosshair sync",
+      "why": "Dashboards",
+      "priority": "medium",
+      "quirks": ["big-n"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "dpr-change",
+      "kind": "angle",
+      "idea": "devicePixelRatio change at runtime (window moved between monitors)",
+      "why": "Blurry canvas until reload",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "reduced-motion",
+      "kind": "angle",
+      "idea": "prefers-reduced-motion: do intros and streaming animations respect it?",
+      "why": "Accessibility",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "locale-rtl",
+      "kind": "angle",
+      "idea": "de-DE decimal comma, dir=rtl page",
+      "why": "Formatting and layout assumptions",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "bundlers-resolution",
+      "kind": "angle",
+      "idea": "webpack 5, TS moduleResolution node16/nodenext, exactOptionalPropertyTypes, CJS require in Node",
+      "why": "Install friction outside Vite",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "umd-cdn",
+      "kind": "angle",
+      "idea": "README UMD <script> snippet on a plain HTML page",
+      "why": "Documented entry point, never exercised",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "edge-loader-paginated",
+      "kind": "angle",
+      "idea": "React EdgeLoader against the real paginated Binance klines API",
+      "why": "Only mocked so far",
+      "priority": "medium",
+      "quirks": ["time-gap"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "owid-covid",
+      "kind": "dataset",
+      "idea": "OWID COVID cases: negative corrections, weekly reporting artifacts",
+      "why": "Real negative \"counts\"",
+      "priority": "medium",
+      "quirks": ["negative-values", "irregular-time"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "category-500",
+      "kind": "dataset",
+      "idea": "500 categories on a category X axis",
+      "why": "Label thinning at scale",
+      "priority": "medium",
+      "quirks": ["many-categories", "long-labels"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "heatmap-year",
+      "kind": "dataset",
+      "idea": "365 x 24 hourly heatmap for a full year incl. both DST days",
+      "why": "Heatmap at size",
+      "priority": "low",
+      "quirks": ["dst-transition", "big-n"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "csp-strict",
+      "kind": "angle",
+      "idea": "Strict CSP (no unsafe-inline styles)",
+      "why": "Enterprise installs",
+      "priority": "low",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "a11y-keyboard",
+      "kind": "angle",
+      "idea": "Keyboard navigation and screen-reader text",
+      "why": "Accessibility audit",
+      "priority": "low",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "svelte5-runes",
+      "kind": "angle",
+      "idea": "Re-run the Svelte app on Svelte 5 with $state / $state.raw data, in-place push, and svelte/server SSR",
+      "why": "Blocked in 2026-10-17: the Svelte package did not run on Svelte 5, so the probe svelte-state-proxy never ran",
+      "priority": "high",
+      "quirks": ["big-n"],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "y-range-mount-order",
+      "kind": "angle",
+      "idea": "Same data, two mounts: series created with data vs created empty and fed after mount. Compare the initial Y range and visible window (engine-only probe + all three wrappers)",
+      "why": "Open question O-1 from 2026-10-17: Svelte (mounts with data) shows a slightly lower Y range in band-weather and percent-npm",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "upgrade-path",
+      "kind": "angle",
+      "idea": "Take an app written against an old release (test/react uses 0.3.4 from npm), upgrade to the current version following MIGRATION.md only",
+      "why": "Existing users meet the library through upgrades, not fresh installs",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "docs-only-persona",
+      "kind": "angle",
+      "idea": "One agent per framework gets only the public llms.txt / llms-full.txt URL and a product task (\"a crypto dashboard\"), no repo access",
+      "why": "Measures what an outside user or their AI assistant can build from the published docs alone",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    },
+    {
+      "id": "real-app-embed",
+      "kind": "angle",
+      "idea": "Embed charts into an existing open-source dashboard (forms, routing, state manager, CSS framework) instead of a blank Vite app",
+      "why": "Blank apps hide CSS conflicts, layout containers and state-library integration problems",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-17"
+    }
+  ]
+}
