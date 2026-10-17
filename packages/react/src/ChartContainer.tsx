@@ -25,6 +25,7 @@ import {
   type VisibleRange,
   type VisibleRangeSpec,
   type YAxisConfig,
+  catppuccin,
   deepEqual,
 } from '@wick-charts/core';
 
@@ -483,9 +484,12 @@ export function ChartContainer({
   }, [stableAnimations]);
 
   useEffect(() => {
-    if (chartRef.current && resolvedTheme) {
-      chartRef.current.setTheme(resolvedTheme);
-    }
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    // Dropping the prop restores the default theme the chart was built with.
+    const next = resolvedTheme ?? catppuccin.theme;
+    if (chart.getTheme() !== next) chart.setTheme(next);
   }, [resolvedTheme]);
 
   useEffect(() => {
