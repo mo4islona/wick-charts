@@ -10,8 +10,8 @@ interface TimePoint {
   value: number;  // can be negative
 }
 
-// Also accepts Date objects for time:
-type TimePointInput = Omit<TimePoint, 'time'> & { time: number | Date };
+// Also accepts Date objects for time, and null for a gap (the line breaks, the tooltip skips it):
+type TimePointInput = { time: number | Date; value: number | null };
 ```
 
 **The `data` prop accepts either a flat single layer or an array of layers** (`TimePointInput[] | TimePointInput[][]`). A flat array is normalized to `[data]` internally.

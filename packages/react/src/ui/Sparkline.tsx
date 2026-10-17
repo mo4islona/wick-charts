@@ -90,10 +90,22 @@ function hexToRgba(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function computeChange(data: TimePointInput[]): { value: number; pct: number; positive: boolean } {
-  if (data.length < 2) return { value: 0, pct: 0, positive: true };
-  const first = data[0].value;
-  const last = data[data.length - 1].value;
+/** The readings in order — a `null` / `NaN` gap is not a value to show or diff. */
+function finiteValues(data: TimePointInput[]): number[] {
+  const values: number[] = [];
+  for (const point of data) {
+    if (typeof point.value === 'number' && Number.isFinite(point.value)) {
+      values.push(point.value);
+    }
+  }
+
+  return values;
+}
+
+function computeChange(values: number[]): { value: number; pct: number; positive: boolean } {
+  if (values.length < 2) return { value: 0, pct: 0, positive: true };
+  const first = values[0];
+  const last = values[values.length - 1];
   const diff = last - first;
   const pct = first !== 0 ? (diff / first) * 100 : 0;
   return { value: diff, pct, positive: diff >= 0 };
@@ -122,8 +134,9 @@ export function Sparkline({
   // Default area-visible = true. `area` wins if caller passes it; otherwise
   // fall back to the deprecated flat `areaFill` flag for backward compatibility.
   const areaVisible = area?.visible ?? areaFill ?? true;
-  const lastValue = data.length > 0 ? data[data.length - 1].value : 0;
-  const change = useMemo(() => computeChange(data), [data]);
+  const values = useMemo(() => finiteValues(data), [data]);
+  const lastValue = values.length > 0 ? values[values.length - 1] : 0;
+  const change = useMemo(() => computeChange(values), [values]);
 
   const resolvedColor = color ?? theme.seriesColors[0];
   const resolvedNegColor = negativeColor ?? resolveCandlestickBodyColor(theme.candlestick.down.body);

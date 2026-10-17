@@ -1,7 +1,7 @@
 import type { ChartInstance } from './chart';
 import type { LayerSnapshot } from './series/types';
 import type { BandPoint, OHLCData, TimePoint } from './types';
-import { type SeriesPoint, pointValue } from './utils/point';
+import { type SeriesPoint, isGapPoint, pointValue } from './utils/point';
 
 /**
  * Frozen, per-row snapshot of a series at a single point in time. The shape
@@ -159,13 +159,16 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
       if (!layers) continue;
 
       for (const l of layers) {
+        const point = layerPoint(l);
+        if (isGapPoint(point)) continue;
+
         out.push(
           freezeSnapshot({
             id: `${id}_layer${l.layerIndex}`,
             seriesId: id,
             layerIndex: l.layerIndex,
             label: chart.getLayerLabel(id, l.layerIndex),
-            data: layerPoint(l),
+            data: point,
             color: l.color,
           }),
         );
@@ -174,8 +177,9 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
       continue;
     }
 
+    // A gap has no reading to show — leave its row out instead of printing 0.
     const d = chart.getDataAtTime(id, args.time);
-    if (!d) continue;
+    if (!d || isGapPoint(d)) continue;
 
     out.push(
       freezeSnapshot({
@@ -247,13 +251,16 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
     const layerLasts = chart.getLayerLastSnapshots(id);
     if (layerLasts) {
       for (const l of layerLasts) {
+        const point = layerPoint(l);
+        if (isGapPoint(point)) continue;
+
         out.push(
           freezeSnapshot({
             id: `${id}_layer${l.layerIndex}`,
             seriesId: id,
             layerIndex: l.layerIndex,
             label: chart.getLayerLabel(id, l.layerIndex),
-            data: layerPoint(l),
+            data: point,
             color: l.color,
           }),
         );
@@ -263,7 +270,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
     }
 
     const d = chart.getLastData(id);
-    if (!d) continue;
+    if (!d || isGapPoint(d)) continue;
 
     out.push(
       freezeSnapshot({

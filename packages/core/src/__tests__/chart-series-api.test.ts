@@ -173,6 +173,84 @@ describe('ChartInstance.getStackedLastValue', () => {
 
     expect(chart.getStackedLastValue(id)?.value).toBe(35);
   });
+
+  it('a layer that ends in a null gap adds 0 to the stack, not its older reading', () => {
+    const ids = [
+      chart.addSeries('line', { layers: 2, stacking: 'normal', entryMs: 0 }),
+      chart.addSeries('bar', { layers: 2, stacking: 'normal' }),
+    ];
+    for (const id of ids) {
+      chart.setSeriesData(
+        id,
+        [
+          { time: 1, value: 10 },
+          { time: 2, value: null },
+        ],
+        0,
+      );
+      chart.setSeriesData(
+        id,
+        [
+          { time: 1, value: 5 },
+          { time: 2, value: 5 },
+        ],
+        1,
+      );
+
+      expect(chart.getStackedLastValue(id)?.value).toBe(5);
+    }
+  });
+
+  it('a stack whose every layer ends in a null gap reports the last row drawn before it', () => {
+    const aligned = chart.addSeries('line', { layers: 2, stacking: 'normal', entryMs: 0 });
+    chart.setSeriesData(
+      aligned,
+      [
+        { time: 1, value: 10 },
+        { time: 2, value: null },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      aligned,
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: null },
+      ],
+      1,
+    );
+
+    expect(chart.getStackedLastValue(aligned)?.value).toBe(15);
+  });
+
+  it('when every layer ends in a gap, readings from different times are not summed', () => {
+    const ids = [
+      chart.addSeries('line', { layers: 2, stacking: 'normal', entryMs: 0 }),
+      chart.addSeries('bar', { layers: 2, stacking: 'normal' }),
+    ];
+    for (const id of ids) {
+      chart.setSeriesData(
+        id,
+        [
+          { time: 1, value: 10 },
+          { time: 2, value: null },
+          { time: 3, value: null },
+        ],
+        0,
+      );
+      chart.setSeriesData(
+        id,
+        [
+          { time: 2, value: 7 },
+          { time: 3, value: null },
+        ],
+        1,
+      );
+
+      // The last row drawn is t=2, where only the second layer has a reading.
+      expect(chart.getStackedLastValue(id)?.value).toBe(7);
+    }
+  });
 });
 
 describe('ChartInstance.getLayerSnapshots (real layerIndex + sample time)', () => {

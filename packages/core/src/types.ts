@@ -37,8 +37,8 @@ export interface TimePoint {
   x?: number | string;
 }
 
-/** {@link TimePoint} that also accepts `Date` for the time field. */
-export type TimePointInput = Omit<TimePoint, 'time' | 'x'> & { time: TimeValue };
+/** {@link TimePoint} that also accepts `Date` for the time field, and `null` for a gap. */
+export type TimePointInput = Omit<TimePoint, 'time' | 'x' | 'value'> & { time: TimeValue; value: number | null };
 
 /**
  * A line / bar point on a numeric or category X axis (`axis.x.type`): `x` is a
@@ -46,7 +46,8 @@ export type TimePointInput = Omit<TimePoint, 'time' | 'x'> & { time: TimeValue }
  */
 export interface XPointInput {
   x: number | string;
-  value: number;
+  /** `null` (or any non-finite value) is a gap: the line breaks there and the tooltip leaves the point out. */
+  value: number | null;
 }
 
 /**

@@ -51,6 +51,32 @@ describe('buildLastSnapshots', () => {
     expect((aSnap.data as { value: number }).value).toBe(20);
   });
 
+  it('reads past a trailing null gap to the last finite value', () => {
+    const single = chart.addSeries('line');
+    chart.setSeriesData(single, [
+      { time: 1, value: 3 },
+      { time: 2, value: null },
+    ]);
+    const multi = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(
+      multi,
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: null },
+      ],
+      0,
+    );
+    chart.setSeriesData(multi, [{ time: 1, value: 7 }], 1);
+
+    const snaps = buildLastSnapshots(chart, { cacheKey: 'infobar' });
+    const values = Object.fromEntries(snaps.map((s) => [s.id, s.data as { time: number; value: number }]));
+
+    expect(values[single]).toMatchObject({ time: 1, value: 3 });
+    expect(values[`${multi}_layer0`]).toMatchObject({ time: 1, value: 5 });
+    expect(values[`${multi}_layer1`]).toMatchObject({ time: 1, value: 7 });
+    expect(chart.getLastValue(single)?.value).toBe(3);
+  });
+
   it('skips hidden series', () => {
     const a = chart.addSeries('line');
     const b = chart.addSeries('line');
@@ -265,6 +291,36 @@ describe('buildHoverSnapshots', () => {
     // Later point wins at a midpoint tie → t=200.
     expect((snaps[0].data as { time: number }).time).toBe(200);
     expect((snaps[1].data as { time: number }).time).toBe(200);
+  });
+
+  it('leaves null gaps out instead of reporting them as 0', () => {
+    const single = chart.addSeries('line');
+    chart.setSeriesData(single, [
+      { time: 1, value: 3 },
+      { time: 2, value: null },
+    ]);
+    const multi = chart.addSeries('line', { layers: 2 });
+    chart.setSeriesData(
+      multi,
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: null },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      multi,
+      [
+        { time: 1, value: 7 },
+        { time: 2, value: 8 },
+      ],
+      1,
+    );
+
+    const hover = buildHoverSnapshots(chart, { time: 2, cacheKey: 'tooltip' });
+
+    expect(hover.map((s) => s.id)).toEqual([`${multi}_layer1`]);
+    expect((hover[0].data as { value: number }).value).toBe(8);
   });
 
   it('skips multi-layer series when every layer is hidden (no phantom fallback)', () => {

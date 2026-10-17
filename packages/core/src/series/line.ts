@@ -1136,7 +1136,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // A value-fn color is resolved once per line, at the layer's last value —
       // the whole stroke / area takes that one color (per-segment coloring is a
       // bar-only feature). A plain string resolves to itself.
-      const layerLastValue = this.stores[li].last()?.value ?? data[data.length - 1].value;
+      const layerLastValue = this.lastFinitePoint(li)?.value ?? data[data.length - 1].value;
       const color = this.resolveLayerColor(li, layerLastValue);
 
       // Positional threshold gradient (calm below the level, hot above it). Null
@@ -1581,7 +1581,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const layerAlpha = this.getLayerAlpha(li);
       if (layerAlpha <= 0) continue;
 
-      const lastValue = this.stores[li].last()?.value ?? 0;
+      const lastValue = this.lastFinitePoint(li)?.value ?? 0;
       const color = this.resolveLayerColor(li, lastValue);
 
       const isBottomVisible = li === bottomVisibleLi;
@@ -1832,16 +1832,25 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0) continue;
 
-        const lastValue = this.stores[li].last()?.value ?? 0;
-        const color = this.resolveLayerColor(li, lastValue);
+        // A trailing gap leaves the dot on the last drawn point, not at 0.
+        const last = this.lastFinitePoint(li);
+        if (!last) continue;
+
+        const color = this.resolveLayerColor(li, last.value);
 
         if (stacking === 'off') {
-          if (!yScale.isPlottable(lastValue)) continue;
+          if (!yScale.isPlottable(last.value)) continue;
 
           // `trailingEndpoint` returns the interpolated (x, y) during a 'grow'
           // entrance so the dot glides from penultimate toward the new point in
           // lockstep with the line's trailing segment.
-          const endpoint = this.trailingEndpoint(ctx, li);
+          const endpoint =
+            last === this.stores[li].last()
+              ? this.trailingEndpoint(ctx, li)
+              : {
+                  x: timeScale.timeToBitmapXExact(last.time),
+                  y: yScale.valueToBitmapYExact(this.effectiveValue(ctx, li, last.time, last.value)),
+                };
           if (!endpoint) continue;
 
           this.drawPulse({
@@ -1859,9 +1868,6 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         // Stacked: pulse position must match renderStacked's cumulative at
         // this layer's last time, chain-lerped in lockstep with the
         // rendered trailing segment during a 'grow' entrance.
-        const last = this.stores[li].last();
-        if (!last) continue;
-
         const { x: pulseX, y: pulseY } = this.stackedPositionAt(ctx, li, last.time);
 
         this.drawPulse({
