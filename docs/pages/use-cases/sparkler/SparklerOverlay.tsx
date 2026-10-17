@@ -14,12 +14,39 @@ export interface SparklerHead {
 
 /**
  * Line colors lifted from the spark heat ramp, so the chart burns in the same
- * fire: `color` is the orange stop, `hot` the gold one.
+ * fire: `color` is the orange stop, `hot` the gold one. On a dark page the
+ * threshold's two-tone fill is too loud, so `underlay` is a color for a fainter
+ * one-color fill under the line instead (`null` on a light page).
  */
-export function sparklerColors(theme: ChartTheme): { color: string; hot: string } {
-  if (isDarkColor(theme.background)) return { color: '#ff6a14', hot: '#ffc04d' };
+export function sparklerColors(theme: ChartTheme): { color: string; hot: string; underlay: string | null } {
+  if (isDarkColor(theme.background)) {
+    // The fill's alpha stops are fixed, so it gets fainter through a color sunk toward the background.
+    return {
+      color: '#ff6a14',
+      hot: '#ffc04d',
+      underlay: mixHex({ from: '#ff6a14', to: theme.background, amount: 0.55 }),
+    };
+  }
 
-  return { color: '#d94000', hot: '#ff8a00' };
+  return { color: '#d94000', hot: '#ff8a00', underlay: null };
+}
+
+/** `from` moved `amount` of the way to `to`; `from` unchanged when either isn't `#rrggbb`. */
+function mixHex(options: { from: string; to: string; amount: number }): string {
+  const { from, to, amount } = options;
+  const hex = /^#[0-9a-f]{6}$/i;
+  if (!hex.test(from) || !hex.test(to)) return from;
+
+  let mixed = '#';
+  for (let i = 1; i < 7; i += 2) {
+    const a = Number.parseInt(from.slice(i, i + 2), 16);
+    const b = Number.parseInt(to.slice(i, i + 2), 16);
+    const channel = Math.round(a + (b - a) * amount);
+
+    mixed += channel.toString(16).padStart(2, '0');
+  }
+
+  return mixed;
 }
 
 /** After this long without a feed the intro has ended and the heads burn out. */

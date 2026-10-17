@@ -40,6 +40,10 @@ const peakOut: LineIntroFn = (frame) => {
   };
 };
 
+// The same reveal without heads, for the fill underlay: it opens in step with
+// the line without drawing a second pair of glow dots.
+const peakOutClipOnly: LineIntroFn = (frame) => ({ clip: peakOut(frame).clip });
+
 /** Bitmap Y of the drawn line at bitmap `x`, interpolated between its points. */
 function pathYAt(path: ReadonlyArray<{ x: number; y: number }>, x: number): number {
   const first = path[0];
@@ -88,7 +92,8 @@ export function CustomIntroDemo({ theme }: { theme: ChartTheme }): ReactNode {
   const sparkler = useMemo(() => new Sparkler(), []);
   const intro = useMemo(() => withSparks(peakOut, sparkler), [sparkler]);
 
-  // The line burns in the sparks' colors: orange, turning gold above the midpoint of its range.
+  // The line burns in the sparks' colors: orange, turning gold above the
+  // midpoint of its range.
   const fire = sparklerColors(theme);
   const midpoint = useMemo(() => {
     const values = data.map((point) => point.value);
@@ -96,14 +101,23 @@ export function CustomIntroDemo({ theme }: { theme: ChartTheme }): ReactNode {
     return (Math.min(...values) + Math.max(...values)) / 2;
   }, [data]);
 
+  // The threshold paints the fill too, at a fixed strength that is too loud on
+  // a dark page; there a stroke-less series underneath draws a fainter fill.
   return (
     <ChartContainer theme={theme}>
+      {fire.underlay !== null && (
+        <LineSeries
+          data={{ label: 'Glow', color: fire.underlay, data }}
+          options={{ introAnimation: peakOutClipOnly, introMs: 1400, strokeWidth: 0, pulse: false }}
+        />
+      )}
       <LineSeries
         data={{ label: 'Sparkler', color: fire.color, data }}
         options={{
           introAnimation: intro,
           introMs: 1400,
           strokeWidth: 2,
+          area: { visible: fire.underlay === null },
           threshold: { value: midpoint, above: fire.hot },
         }}
       />
