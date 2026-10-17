@@ -1,6 +1,6 @@
 ---
 name: wick-charts
-description: Build charts with Wick Charts library. Use when creating candlestick, line, bar, band (range), or pie charts in React, Vue, or Svelte.
+description: Build charts with the Wick Charts library. Use when creating candlestick, line, area, bar, band (range), pie or sparkline charts, or streaming live data into a chart, in React, Vue or Svelte.
 ---
 
 # Wick Charts

@@ -1,7 +1,7 @@
 {
   "name": "@wick-charts/react",
   "version": "0.7.0",
-  "description": "High-performance canvas timeseries charts for React — candlestick, line, bar, pie. Tree-shakeable, zero runtime deps.",
+  "description": "Realtime, animated canvas charts for React: candlestick, line, bar, heatmap, pie and more. Tree-shakeable, zero runtime deps.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,10 +14,16 @@
     "charts",
     "charting",
     "canvas",
+    "realtime",
+    "streaming",
+    "animation",
     "candlestick",
     "line-chart",
+    "area-chart",
     "bar-chart",
+    "heatmap",
     "pie-chart",
+    "sparkline",
     "timeseries",
     "react",
     "visualization"

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { type ChartTheme, type ThemePreset, ThemeProvider, createTheme } from '@wick-charts/react';
+import {
+  type ChartTheme,
+  type ThemePreset,
+  ThemeProvider,
+  createTheme,
+  resolveCandlestickBodyColor,
+} from '@wick-charts/react';
 
 import { Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
@@ -20,7 +26,7 @@ import { UseCasesRoutePage } from './pages/use-cases';
 import { resolveInternalPath, usePathRoute } from './router';
 import { type Route, getTitle, hookKeyForRoute } from './routes';
 import { themes } from './themes';
-import { gridBackgroundImage, isDarkColor } from './utils';
+import { gridBackgroundImage, hexToRgba, isDarkColor } from './utils';
 
 // One height for every topbar control — hamburger, icon links, theme picker.
 // They sit on a single row, so a 2px disagreement reads as misalignment.
@@ -56,6 +62,52 @@ function IconLink({ href, label, theme, children }: IconLinkProps) {
       }}
     >
       {children}
+    </a>
+  );
+}
+
+const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
+// Coding agents find llms.txt through a link far more often than by guessing the path.
+function AgentLink({ theme }: { theme: ChartTheme }) {
+  const [hover, setHover] = useState(false);
+  const accent = resolveCandlestickBodyColor(theme.candlestick.up.body);
+
+  return (
+    <a
+      href="/llms.txt"
+      title="llms.txt — the docs index for AI agents"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        height: CONTROL_SIZE,
+        padding: '0 8px',
+        borderRadius: 6,
+        background: hover ? hexToRgba(accent, 0.08) : 'transparent',
+        color: hover ? accent : theme.tooltip.textColor,
+        fontFamily: MONO,
+        fontSize: 12,
+        fontWeight: 500,
+        letterSpacing: '-0.01em',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap',
+        transition: 'color 0.15s ease, background 0.15s ease',
+      }}
+    >
+      <style>{'@keyframes agent-dot-pulse { 50% { opacity: 0.3; } }'}</style>
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: accent,
+          animation: 'agent-dot-pulse 2s ease-in-out infinite',
+        }}
+      />
+      <span style={{ opacity: hover ? 1 : 0.6 }}>Are you an AI agent?</span>
     </a>
   );
 }
@@ -367,6 +419,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8 }}>
+                {!mobile && <AgentLink theme={theme} />}
                 <IconLink href="https://github.com/mo4islona/wick-charts" label="GitHub repository" theme={theme}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />

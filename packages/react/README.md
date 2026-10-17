@@ -5,13 +5,13 @@
 [![codecov](https://codecov.io/gh/mo4islona/wick-charts/branch/main/graph/badge.svg)](https://codecov.io/gh/mo4islona/wick-charts) [![license](https://img.shields.io/github/license/mo4islona/wick-charts.svg)](./LICENSE)
 [![npm @wick-charts/react](https://img.shields.io/npm/v/@wick-charts/react.svg?label=%40wick-charts%2Freact)](https://www.npmjs.com/package/@wick-charts/react)
 
-High-performance timeseries charts for **React**, **Vue**, and **Svelte**. Canvas-rendered, tree-shakeable, zero runtime dependencies.
+Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered, tree-shakeable, zero runtime dependencies.
 
 [Live Demo](https://wick-charts.eeff.io/) · [Docs](https://wick-charts.eeff.io/api/chart-container/)
 
 ## Features
 
-- **Candlestick, Line, Bar, Band, Pie, Sparkline** — all from one package
+- **Chart types** — candlestick, line and area, band, bar, heatmap, pie and donut, sparkline, all from one package
 - **Real-time streaming** — append/update at 60fps with coordinated animations
 - **22 built-in themes** plus `createTheme()` for custom palettes
 - **Interactive** — zoom, pan, crosshair, tooltips
@@ -53,7 +53,7 @@ Every component, prop, type, and slot context lives in the docs site:
 
 [wick-charts.eeff.io/api/chart-container/](https://wick-charts.eeff.io/api/chart-container/)
 
-Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series/), [Line](https://wick-charts.eeff.io/api/line-series/), [Bar](https://wick-charts.eeff.io/api/bar-series/), [Band](https://wick-charts.eeff.io/api/band-series/), [Pie](https://wick-charts.eeff.io/api/pie-series/), [Sparkline](https://wick-charts.eeff.io/api/sparkline/)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip/), [InfoBar](https://wick-charts.eeff.io/api/info-bar/), [Crosshair](https://wick-charts.eeff.io/api/crosshair/), [Legend](https://wick-charts.eeff.io/api/legend/), [YAxis](https://wick-charts.eeff.io/api/y-axis/), [XAxis](https://wick-charts.eeff.io/api/x-axis/), [Navigator](https://wick-charts.eeff.io/api/navigator/), …).
+Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series/), [Line](https://wick-charts.eeff.io/api/line-series/), [Bar](https://wick-charts.eeff.io/api/bar-series/), [Band](https://wick-charts.eeff.io/api/band-series/), [Pie](https://wick-charts.eeff.io/api/pie-series/), [Heatmap](https://wick-charts.eeff.io/api/heatmap-series/), [Sparkline](https://wick-charts.eeff.io/api/sparkline/)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip/), [InfoBar](https://wick-charts.eeff.io/api/info-bar/), [Crosshair](https://wick-charts.eeff.io/api/crosshair/), [Legend](https://wick-charts.eeff.io/api/legend/), [YAxis](https://wick-charts.eeff.io/api/y-axis/), [XAxis](https://wick-charts.eeff.io/api/x-axis/), [Navigator](https://wick-charts.eeff.io/api/navigator/), …).
 
 ## No framework? Use the engine directly
 

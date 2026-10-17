@@ -157,7 +157,7 @@ const exampleTitle = (slug) =>
     .map((w, i) => (i === 0 ? w[0].toUpperCase() + w.slice(1) : w))
     .join(' ');
 
-async function buildLlmsFull(siteUrl) {
+async function buildLlmsFull({ siteUrl, description }) {
   const sections = [];
   for (const name of SKILL_FILES) {
     const md = await readFile(join(SKILL_DIR, name), 'utf8');
@@ -184,7 +184,7 @@ async function buildLlmsFull(siteUrl) {
   const intro = [
     '# Wick Charts — full documentation for LLMs',
     '',
-    `> Canvas-rendered candlestick, line, bar, pie and sparkline charts for React, Vue and Svelte. Page index: ${siteUrl}/llms.txt`,
+    `> ${description} Page index: ${siteUrl}/llms.txt`,
   ].join('\n');
 
   return `${[intro, ...sections].join('\n\n---\n\n')}\n`;
@@ -223,7 +223,9 @@ async function main() {
     await writeFile(join(DIST, 'sitemap.xml'), buildSitemap(routes, siteUrl), 'utf8');
     await writeFile(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}/sitemap.xml\n`, 'utf8');
     await writeFile(join(DIST, 'llms.txt'), llmsTxt, 'utf8');
-    await writeFile(join(DIST, 'llms-full.txt'), await buildLlmsFull(siteUrl), 'utf8');
+    // llms.txt opens with `> DEFAULT_DESCRIPTION`; reuse it so the two files cannot drift.
+    const description = llmsTxt.match(/^> (.+)$/m)?.[1] ?? '';
+    await writeFile(join(DIST, 'llms-full.txt'), await buildLlmsFull({ siteUrl, description }), 'utf8');
 
     // SPA-style fallback: unknown paths boot the prerendered shell, which the
     // client router resolves (Cloudflare serves it with a 404 status).

@@ -524,7 +524,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
             justifyContent: 'center',
           }}
         >
-          <div style={{ marginRight: 8, whiteSpace: 'nowrap' }}>High-performance charting library for</div>
+          <div style={{ marginRight: 8, whiteSpace: 'nowrap' }}>Realtime charts for</div>
           <div style={{ flex: '0 auto' }}>
             <FrameworkRotator />
           </div>
@@ -539,9 +539,9 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
             fontFamily: theme.typography.fontFamily,
           }}
         >
-          Candlestick, line, area, bar, pie, heatmap and sparkline charts &mdash; streaming in realtime.
+          Built for data that never stops: prices, metrics, sensors, logs.
           <br />
-          Tiny bundle, zero deps, 20+ themes, fully open source.
+          Tiny bundle, zero deps, 22 themes, fully open source.
         </p>
       </div>
 

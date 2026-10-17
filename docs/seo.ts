@@ -12,9 +12,9 @@ export const SITE_NAME = 'Wick Charts';
 
 /** Used on the home page and as the fallback when a route has no entry. */
 export const DEFAULT_DESCRIPTION =
-  'Canvas-rendered candlestick, line, bar, pie and sparkline charts for React, Vue and Svelte. ' +
-  'Real-time streaming at 60fps, 22 built-in themes, zoom, pan, crosshair and tooltips. ' +
-  'Tree-shakeable with zero runtime dependencies.';
+  'Realtime, animated charts for React, Vue and Svelte. Candlestick, line, bar, heatmap, pie and more ' +
+  'stream at 60fps on a canvas engine, with zoom, pan, crosshair and tooltips. ' +
+  '22 built-in themes, tree-shakeable, zero runtime dependencies.';
 
 export interface RouteMeta {
   title: string;
@@ -25,7 +25,7 @@ export interface RouteMeta {
 // ranking. API and hook pages are templated below from their sidebar label.
 const CURATED: Partial<Record<Route, RouteMeta>> = {
   overview: {
-    title: 'Wick Charts — High-performance timeseries charts for React, Vue, Svelte',
+    title: 'Wick Charts — Realtime charts for React, Vue and Svelte',
     description: DEFAULT_DESCRIPTION,
   },
   migration: {
@@ -46,7 +46,7 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
   'charts/line': {
     title: 'Line & Area Charts for React, Vue & Svelte — Wick Charts',
     description:
-      'High-performance line and area charts with live streaming, gradient fills, multiple series, crosshair and tooltips. Canvas-rendered at 60fps.',
+      'Animated line and area charts with live streaming, gradient fills, multiple series, crosshair and tooltips. Canvas-rendered at 60fps.',
   },
   'charts/band': {
     title: 'Band & Range Charts for React, Vue & Svelte — Wick Charts',
