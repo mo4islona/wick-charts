@@ -63,8 +63,9 @@ onDestroy(() => {
 });
 
 $: chart = $chartStore;
-$: theme = chart?.getTheme();
-$: dataInterval = chart?.getDataInterval() ?? 86400;
+$: theme = chart && bump >= 0 ? chart.getTheme() : undefined;
+// Re-read on every overlay change: data that lands after mount sets the interval.
+$: dataInterval = chart && bump >= 0 ? chart.getDataInterval() : 86400;
 
 // `bump >= 0` referenced at the top level so the Svelte compiler keeps `bump`
 // as a reactive dep — `void bump` inside an IIFE is dead-code-eliminated in

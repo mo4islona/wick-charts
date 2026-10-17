@@ -65,7 +65,8 @@ onDestroy(() => {
 $: chart = $chartStore;
 $: theme = $themeStore;
 $: anchor = $anchorStore;
-$: dataInterval = chart?.getDataInterval() ?? 86400;
+// Re-read on every overlay change: data that lands after mount sets the interval.
+$: dataInterval = chart && bump >= 0 ? chart.getDataInterval() : 86400;
 
 // Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
 // so a crosshair event fires for offsets past the plotted data. The

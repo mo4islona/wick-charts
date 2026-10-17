@@ -25,6 +25,7 @@ import ChartProbe from './ChartProbe.svelte';
  *     for the old hardcoded `.toFixed(2)`.
  *   - `custom-format-legend`: InfoBar with a custom `format` prop.
  *   - `band-legend` / `band-tooltip`: the band row (`low – high`) in each overlay.
+ *   - `line-tooltip`: Tooltip over a LineSeries, for the header on data that lands after mount.
  */
 export let variant:
   | 'ordered-legend'
@@ -33,7 +34,8 @@ export let variant:
   | 'precision-legend'
   | 'custom-format-legend'
   | 'band-legend'
-  | 'band-tooltip' = 'ordered-legend';
+  | 'band-tooltip'
+  | 'line-tooltip' = 'ordered-legend';
 export let candlestickData: OHLCInput[] = [];
 export let barData: TimePoint[][] = [[]];
 export let lineData: TimePoint[][] = [[]];
@@ -66,5 +68,8 @@ const tagged = (v: number, field: string) => `<${field}:${v}>`;
   {:else if variant === 'band-tooltip'}
     <Tooltip format={tagged} />
     <BandSeries data={bandData} />
+  {:else if variant === 'line-tooltip'}
+    <Tooltip />
+    <LineSeries data={lineData} />
   {/if}
 </ChartContainer>
