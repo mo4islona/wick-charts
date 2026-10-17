@@ -48,6 +48,34 @@ describe('TimeAxis', () => {
     expect(labels.length).toBeLessThanOrEqual(20);
   });
 
+  it('shows every label again after the chart shrinks and grows back', () => {
+    const start = Date.UTC(2023, 3, 10);
+    const data: [Array<{ time: number; value: number }>] = [buildSeries(200, 3_600_000, start)];
+    mounted = mountChart(
+      <>
+        <LineSeries data={data} />
+        <TimeAxis />
+      </>,
+      { width: 960 },
+    );
+    const m = mounted;
+    const shownLabels = () => {
+      const host = m.container.querySelector('div[style*="bottom: 0px"][style*="height: 30px"]');
+
+      return Array.from(host?.querySelectorAll('span') ?? []).filter((s) => s.style.opacity === '1').length;
+    };
+    m.flushScheduler();
+    const wide = shownLabels();
+
+    m.triggerResize(360, 400);
+    m.flushScheduler();
+    m.triggerResize(960, 400);
+    m.flushScheduler();
+
+    expect(wide).toBeGreaterThan(2);
+    expect(shownLabels()).toBe(wide);
+  });
+
   it('hides (height: 0) when axis.x.visible=false', () => {
     const start = Date.UTC(2024, 0, 1);
     const data: [Array<{ time: number; value: number }>] = [buildSeries(5, 3_600_000, start)];

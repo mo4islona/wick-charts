@@ -142,11 +142,13 @@ export class AxisTickTracker {
     const entries: TickEntry[] = [];
     let isAnimating = false;
     for (const [value, anim] of this.#animators) {
+      // A fade-in still at 0 counts too: it is what keeps the chart's frame loop running.
+      if (anim.animating) isAnimating = true;
+
       const opacity = anim.current;
       if (opacity <= 0) continue;
 
       entries.push({ value, opacity });
-      if (anim.animating) isAnimating = true;
     }
 
     return { entries, isAnimating };
