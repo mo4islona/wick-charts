@@ -102,9 +102,11 @@ export const DARK_PALETTE: Palette = {
   additive: true,
 };
 
+// Gold and white-hot vanish on a white page, so the light ramp tops out at a
+// vivid orange and cools into deep red.
 export const LIGHT_PALETTE: Palette = {
-  ramp: new Float32Array([0.45, 0.04, 0.0, 0.85, 0.22, 0.0, 1.0, 0.5, 0.0, 1.0, 0.72, 0.1]),
-  halo: 0.12,
+  ramp: new Float32Array([0.55, 0.05, 0.0, 0.9, 0.2, 0.0, 1.0, 0.4, 0.0, 1.0, 0.6, 0.05]),
+  halo: 0.05,
   glowGain: 0.4,
   additive: false,
 };

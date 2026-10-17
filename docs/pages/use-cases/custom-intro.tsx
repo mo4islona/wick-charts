@@ -86,6 +86,21 @@ const STEPS: Step[] = [
     ),
     code: `const shy: BarIntroFn = (frame) => ({\n  value: ({ value, progress }) => frame.lerpValue(frame.baseline, value, progress), // grow up\n  element: (el) => ({ alpha: 0.3 + 0.7 * el.progress }), // …fading in\n});\n\n<BarSeries data={data} options={{ introAnimation: shy }} />`,
   },
+  {
+    heading: '06 — HEADS CAN DRIVE ANYTHING',
+    body: (
+      <>
+        The intro fn is the one place that knows where the reveal fronts are on every frame, so a thin wrapper can
+        forward them. <code>withSparks</code> calls <code>peakOut</code>, leaves its directives untouched, reads the
+        line's Y under each head from <code>frame.primaryPath()</code>, and feeds the heads to a <code>Sparkler</code>{' '}
+        as fractions of the plot area. The <code>&lt;SparklerOverlay&gt;</code> child maps them onto the page through{' '}
+        <code>chart.getLayout().chartArea</code> and runs the sparks on a full-viewport WebGL canvas: a spray per head
+        that splits into smaller stars, an ignition burst at the peak, a burn-out at each edge. The stroke takes its
+        colors from the same heat ramp through <code>threshold</code>.
+      </>
+    ),
+    code: `const withSparks = (intro: LineIntroFn, sparkler: Sparkler): LineIntroFn => (frame) => {\n  const directives = intro(frame);\n  const path = frame.primaryPath();\n  if (path === null || directives.heads === undefined) return directives;\n\n  sparkler.feed({\n    progress: frame.progress,\n    heads: directives.heads.map((head) => ({\n      x: head.x / frame.width,\n      y: pathYAt(path, head.x) / frame.height,\n    })),\n  });\n\n  return directives;\n};`,
+  },
 ];
 
 export function CustomIntroPage({ theme }: { theme: ChartTheme }) {
@@ -101,8 +116,8 @@ export function CustomIntroPage({ theme }: { theme: ChartTheme }) {
         <>
           Every series plays an intro the first time it receives data, and the choreography is pluggable: a small
           function that reads the frame and returns declarative directives, while the engine keeps owning scales, data
-          and drawing. Here we hand-write one — a reveal that opens from the line's own peak outward, a glowing head
-          riding each front — and walk the whole contract.
+          and drawing. Here we hand-write one — a reveal that opens from the line's own peak outward like a lit
+          sparkler, each front spraying WebGL sparks across the page — and walk the whole contract.
         </>
       }
       chartControls={
