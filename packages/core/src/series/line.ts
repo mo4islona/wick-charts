@@ -1720,13 +1720,28 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         });
       }
 
+      // Per-point dot markers on the slices' upper edges — the layer's own
+      // visual boundary in a stack. One pass over every run, so the density
+      // check spans the whole layer, as on an unstacked line. Fades with
+      // layerAlpha in lockstep with the stroke.
+      if (this.options.points?.visible) {
+        const markers = toPoints(upperXY).filter((_, ti) => !gapColumns[ti]);
+        const dotsFaded = layerAlpha < 1;
+        if (dotsFaded) {
+          context.save();
+          context.globalAlpha *= layerAlpha;
+        }
+        this.drawPointMarkers({ context, points: markers, pixelRatio: scope.horizontalPixelRatio, color });
+        if (dotsFaded) context.restore();
+      }
+
       if (useFade) context.restore();
     }
 
     this.stackedEdges = { times, cumulative, growChain, collapse };
   }
 
-  /** Fill, stroke and point markers of one layer's slice over one run of stacked columns. */
+  /** Fill and stroke of one layer's slice over one run of stacked columns. */
   private drawStackSlice(args: {
     ctx: SeriesRenderContext;
     lowerXY: [number, number][];
@@ -1735,14 +1750,20 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     curve: { kind: CurveKind; growing: boolean; hasStroke: boolean; lineWidth: number };
   }): void {
     const { lowerXY, upperXY } = args;
-    const { scope } = args.ctx;
-    const { context } = scope;
+    const { context } = args.ctx.scope;
     const { color, alpha: layerAlpha, isBottomVisible } = args.layer;
     const { kind: curveKind, growing, hasStroke, lineWidth } = args.curve;
 
+    // A column between two gaps has no edge to fill or stroke: a dot keeps it on screen, as on an unstacked line.
+    const upperPoints = toPoints(upperXY);
+    if (upperPoints.length === 1) {
+      if (hasStroke) this.drawStackDot({ context, point: upperPoints[0], color, lineWidth, alpha: layerAlpha });
+
+      return;
+    }
+
     // Upper-edge curve segments, shared by the area fill and the stroke so the
     // stroked line sits exactly on the filled slice's top edge.
-    const upperPoints = toPoints(upperXY);
     const upperSegs = buildCurveSegments(upperPoints, curveKind, growing);
 
     // Fill area between upper and lower with a per-slice vertical gradient
@@ -1819,19 +1840,27 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       context.stroke();
     }
     if (strokeFaded) context.restore();
+  }
 
-    // Per-point dot markers on the slice's upper edge — the layer's own
-    // visual boundary in a stack. Fades with layerAlpha in lockstep with
-    // the stroke so the dots don't pop out while the slice collapses.
-    if (this.options.points?.visible) {
-      const dotsFaded = layerAlpha < 1;
-      if (dotsFaded) {
-        context.save();
-        context.globalAlpha *= layerAlpha;
-      }
-      this.drawPointMarkers({ context, points: upperPoints, pixelRatio: scope.horizontalPixelRatio, color });
-      if (dotsFaded) context.restore();
-    }
+  /** A stroke-wide dot for a lone stacked column, faded with its layer like the stroke. */
+  private drawStackDot(args: {
+    context: CanvasRenderingContext2D;
+    point: LinePoint;
+    color: string;
+    lineWidth: number;
+    alpha: number;
+  }): void {
+    const { context, point, color, lineWidth, alpha } = args;
+    const radius = Math.max(1, lineWidth / 2);
+
+    context.save();
+    context.globalAlpha *= alpha;
+    context.beginPath();
+    context.moveTo(point.x + radius, point.y);
+    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    context.fillStyle = color;
+    context.fill();
+    context.restore();
   }
 
   /**
@@ -2044,7 +2073,7 @@ export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
     ),
 };
 
-/** Index runs `[from, to)` of at least two columns between gap columns; a lone column has no slice to draw. */
+/** Index runs `[from, to)` of the columns between gap columns. */
 function stackSpans(gapColumns: readonly boolean[]): Array<{ from: number; to: number }> {
   const spans: Array<{ from: number; to: number }> = [];
   let from = 0;
@@ -2052,7 +2081,7 @@ function stackSpans(gapColumns: readonly boolean[]): Array<{ from: number; to: n
     const breaks = i === gapColumns.length || gapColumns[i];
     if (!breaks) continue;
 
-    if (i - from >= 2) spans.push({ from, to: i });
+    if (i > from) spans.push({ from, to: i });
     from = i + 1;
   }
 

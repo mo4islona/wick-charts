@@ -208,4 +208,24 @@ describe('LineRenderer — percent stack with a zero-total column', () => {
       }
     }
   });
+
+  it('keeps a lone column between two gaps as a dot and a point marker', () => {
+    const r = new LineRenderer(2, {
+      stacking: 'percent',
+      colors: ['#111', '#222'],
+      entryAnimation: 'none',
+      points: { visible: true },
+    });
+    r.setData(layer([1, 0, 1, 0, 1]), 0);
+    r.setData(layer([1, 0, 1, 0, 1]), 1);
+    const { ctx, spy, timeScale } = buildRenderContext(VIEW);
+    r.render(ctx);
+
+    const arcXs = spy.callsOf('arc').map((call) => Number(call.args[0]));
+    const columnXs = [5, 25, 45].map((time) => timeScale.timeToBitmapXExact(time));
+
+    // Two layers × three columns, each a stroke dot and a marker.
+    expect(arcXs).toHaveLength(12);
+    expect(new Set(arcXs)).toEqual(new Set(columnXs));
+  });
 });
