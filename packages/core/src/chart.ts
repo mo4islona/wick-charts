@@ -89,6 +89,7 @@ import type {
   SeriesType,
   TimePoint,
   TimePointInput,
+  TimeValue,
   ValueColor,
   VisibleRangeSpec,
   XAxisType,
@@ -187,6 +188,24 @@ interface NamedScaleSlot extends YScaleSlot {
   config: YAxisConfig;
   /** Side of the axis column the scale owns, `null` for an overlay scale (no column). */
   column: YAxisPosition | null;
+}
+
+/** A bar count `setVisibleRange` accepts: an integer of at least 2. */
+function isBarCount(value: number): boolean {
+  return Number.isInteger(value) && value >= 2;
+}
+
+/** `initialRange` with an unusable bar count dropped, as `setVisibleRange` ignores one. */
+function validRangeSpec(spec: VisibleRangeSpec | undefined): VisibleRangeSpec | undefined {
+  if (typeof spec === 'number') return isBarCount(spec) ? spec : undefined;
+  if (spec !== undefined && 'bars' in spec && !isBarCount(spec.bars)) return undefined;
+
+  return spec;
+}
+
+/** The explicit `{ from, to }` form of a {@link VisibleRangeSpec}. */
+function isTimeWindow(spec: VisibleRangeSpec): spec is { from: TimeValue; to: TimeValue } {
+  return typeof spec === 'object' && 'to' in spec;
 }
 
 function createScaleSlot(yScale: YScale, config: YAxisConfig | undefined): YScaleSlot {
@@ -711,7 +730,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (options?.onEdgeReached && this.checkTimeOnlyFeature('onEdgeReached')) {
       this.#onEdgeReached = options.onEdgeReached;
     }
-    this.#initialVisibleRange = options?.viewport?.initialRange;
+    this.#initialVisibleRange = validRangeSpec(options?.viewport?.initialRange);
 
     const resolvedPerf = resolvePerfOptions(options?.perf);
     this.#perfMonitor = resolvedPerf.monitor;
@@ -1909,12 +1928,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return entry?.renderer.isLayerVisible(layerIndex) ?? true;
   }
 
-  /** Auto-fit the viewport to show all data across every series. */
+  /** Auto-fit the viewport to show all data across every series, however many bars that is. */
   fitContent(): void {
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
     const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
-    this.#fitVisibleToData(first, last, chartWidth);
+    this.#releaseAutoWindow();
+    this.#fitVisibleToData({ firstTime: first, lastTime: last, chartWidth });
     // Y and X both ease through the engine — Y rides the sticky-Y baseline,
     // X rides the spring's settle time, so the axis and viewport converge on
     // the same frame.
@@ -1971,48 +1991,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * lockstep rather than lagging behind on the long sticky contract.
    */
   setVisibleRange(spec: VisibleRangeSpec, opts?: { gesture?: boolean }): void {
-    if (typeof spec === 'number') {
-      // Integer check rejects NaN, Infinity, and non-integers in one call;
-      // the floor of 2 matches Viewport's applyRange minimum-span contract.
-      if (!Number.isInteger(spec) || spec < 2) return;
+    const changed = this.#resolveVisibleRange(spec);
+    if (changed === null) return;
 
-      const { first, last } = this.getDataBounds();
-      if (first === undefined || last === undefined) return;
+    this.#releaseAutoWindow();
 
-      const trimmedFirst = Math.max(first, last - (spec - 1) * this.#dataInterval);
-      const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
-      this.#fitVisibleToData(trimmedFirst, last, chartWidth);
-      // Programmatic zoom — X snaps to the new window (matches the legacy
-      // `setRange` semantics every consumer reads `chart.getVisibleRange()`
-      // synchronously after), Y eases via the sticky-Y baseline so the
-      // axis re-fit isn't a jarring jump.
-      this.#commitProgrammaticZoom();
-
-      return;
-    }
-
-    if ('bars' in spec) {
-      if (!Number.isInteger(spec.bars) || spec.bars < 2) return;
-
-      const from = normalizeTime(spec.from);
-      const to = from + spec.bars * this.#dataInterval;
-      this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
-      this.#commitLogical({ from, to }, { emitChange: true });
-      // Hold the viewport until the data fills the gap on the right —
-      // standard streaming warm-up window.
-      this.#holdUntilFilled = true;
-      this.#commitProgrammaticZoom();
-
-      return;
-    }
-
-    const from = normalizeTime(spec.from);
-    const to = normalizeTime(spec.to);
-    this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
-    this.#holdUntilFilled = false;
-    const changed = this.#commitLogical({ from, to }, { emitChange: true });
-
-    if (opts?.gesture) {
+    if (opts?.gesture && isTimeWindow(spec)) {
       // Gesture mode (multi-chart sync): ease X and Y on the same fast,
       // velocity-matched profile a hand pan/zoom uses rather than the
       // sticky-Y programmatic settle, so a synced pane tracks the
@@ -2025,7 +2009,59 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return;
     }
 
+    // Programmatic zoom — X snaps to the new window (matches the legacy
+    // `setRange` semantics every consumer reads `chart.getVisibleRange()`
+    // synchronously after), Y eases via the sticky-Y baseline so the
+    // axis re-fit isn't a jarring jump.
     this.#commitProgrammaticZoom();
+  }
+
+  /**
+   * Write `spec` into the logical X range, the autoscroll flag and the warm-up
+   * hold, without touching the engine. Returns whether the range changed, or
+   * `null` when the spec is invalid or a bar count has no data to count back from.
+   */
+  #resolveVisibleRange(spec: VisibleRangeSpec): boolean | null {
+    if (typeof spec === 'number') {
+      // Integer check rejects NaN, Infinity, and non-integers in one call;
+      // the floor of 2 matches Viewport's applyRange minimum-span contract.
+      if (!isBarCount(spec)) return null;
+
+      const { first, last } = this.getDataBounds();
+      if (first === undefined || last === undefined) return null;
+
+      const trimmedFirst = Math.max(first, last - (spec - 1) * this.#dataInterval);
+      const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
+
+      return this.#fitVisibleToData({ firstTime: trimmedFirst, lastTime: last, chartWidth });
+    }
+
+    if ('bars' in spec) {
+      if (!isBarCount(spec.bars)) return null;
+
+      const from = normalizeTime(spec.from);
+      const to = from + spec.bars * this.#dataInterval;
+      this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
+      const changed = this.#commitLogical({ from, to }, { emitChange: true });
+      // Hold the viewport until the data fills the gap on the right —
+      // standard streaming warm-up window.
+      this.#holdUntilFilled = true;
+
+      return changed;
+    }
+
+    const from = normalizeTime(spec.from);
+    const to = normalizeTime(spec.to);
+    this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
+    this.#holdUntilFilled = false;
+
+    return this.#commitLogical({ from, to }, { emitChange: true });
+  }
+
+  /** The user or the app took over the view: drop `initialRange` and stop growing the chart's own fit. */
+  #releaseAutoWindow(): void {
+    this.#initialVisibleRange = undefined;
+    this.#autoFitFilling = false;
   }
 
   getYRange() {
@@ -2802,11 +2838,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       !isSameHorizontalPadding(prev.left, next.left) || !isSameHorizontalPadding(prev.right, next.right);
     const verticalChanged = prev.top !== next.top || prev.bottom !== next.bottom;
     if (horizontalChanged) {
-      const { first, last } = this.getDataBounds();
-      if (first !== undefined && last !== undefined) {
-        const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
-        this.#fitVisibleToData(first, last, chartWidth);
-      }
+      const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
+      this.#autoFit(chartWidth);
     }
     if (horizontalChanged || verticalChanged) {
       // Horizontal change shifts logicalRange → Y target moves with the new
@@ -3313,12 +3346,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #xInited = false;
 
   /**
-   * One-shot `setVisibleRange` argument applied on the first data arrival.
-   * Captured at chart construction from {@link ChartOptions.viewport.initialRange};
-   * cleared the moment it's consumed so subsequent data swaps don't snap
-   * back to the initial window.
+   * {@link ChartOptions.viewport.initialRange}: the chart's own window until the
+   * user or the app moves the view, so more series or a re-seed keep it. A
+   * `{ from, to }` or `{ from, bars }` window also ends once streaming moves it.
    */
   #initialVisibleRange: VisibleRangeSpec | undefined;
+  /** The chart's own fit holds fewer bars than it asks for, so appends widen it until it is full. */
+  #autoFitFilling = false;
 
   /** Dev warning for values the Y scale can't place — fires once per chart. */
   #warnedUnplottable = false;
@@ -3412,35 +3446,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     // Every data change refits a category axis: a new or vanished category moves the bands.
     if (this.#xType === 'category') {
-      this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
+      this.#fitVisibleToData({ firstTime: this.#dataStart, lastTime: this.#dataEnd, chartWidth });
 
       return this.#logical;
     }
 
+    // Applied inside the closure so the Y target the engine pulls next
+    // reflects the chart's own window rather than the full dataset.
     if (uninitialized) {
-      this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
-      // One-shot `initialVisibleRange` (e.g. "last 35 bars") — applied
-      // inside the closure so the Y target the engine pulls next reflects
-      // the *initial-window* data rather than the full dataset. Folds
-      // post-mount `setVisibleRange` calls into the first paint.
-      if (this.#initialVisibleRange !== undefined) {
-        this.setVisibleRange(this.#initialVisibleRange);
-        this.#initialVisibleRange = undefined;
-
-        // `setVisibleRange` reads a window that ends before the data tail as
-        // "panned into history" and drops tail-follow. At mount that reading
-        // is wrong for a streaming lead-in that parks the seed just past the
-        // right edge so the first tick scrolls it into view (the Sparkline
-        // `flow.align: 'offscreen'` drive-in) — without follow-live the
-        // viewport freezes and the stream accumulates off-canvas forever.
-        // Re-arm when the tail sits within ~one interval past the window.
-        if (!this.#autoScroll && this.#dataEnd !== null) {
-          const { to } = this.#logical;
-          if (this.#dataEnd >= to && this.#dataEnd - to <= this.#dataInterval * 1.5) {
-            this.#autoScroll = true;
-          }
-        }
-      }
+      this.#autoFit(chartWidth);
 
       return this.#logical;
     }
@@ -3448,9 +3462,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (!this.#autoScroll) return null;
 
     if (this.#pendingFitToData) {
-      this.#fitVisibleToData(this.#dataStart, this.#dataEnd, chartWidth);
+      this.#autoFit(chartWidth);
 
       return this.#logical;
+    }
+
+    if (this.#autoFitFilling) {
+      const auto = this.#autoWindow(chartWidth);
+      if (auto !== null) return this.#growAutoFit(auto);
     }
 
     const result = computeStreamingTarget({
@@ -3467,6 +3486,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (result.reengageAutoScroll) this.#autoScroll = true;
     if (result.newLogical === null) return null;
 
+    // Streaming moved an explicit window, so re-applying it would jump back in time.
+    if (typeof this.#initialVisibleRange === 'object') this.#initialVisibleRange = undefined;
+
+    return this.#commitStreamingTarget(result.newLogical);
+  }
+
+  /** Commit an X target that follows the data tail; the engine eases there. */
+  #commitStreamingTarget(range: XRange): XRange {
     // Observe cadence only when X actually advances. Sub-tick / intra-bar
     // emissions that don't move `lastTime` would otherwise poison the EMA
     // with their wall-clock spacing. The spring's baseline settle time is
@@ -3475,41 +3502,126 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#cadence.observe(performance.now());
     this.#engine.setXSettleMs(this.#cadence.pickSettleMs(this.#animationsConfig.axis.x.settleMs));
 
-    this.#commitLogical(result.newLogical, { emitChange: false, skipValidation: true });
+    this.#commitLogical(range, { emitChange: false, skipValidation: true });
     this.#prevDataEnd = this.#dataEnd;
 
-    return result.newLogical;
+    return range;
   }
 
   /**
-   * Fit the viewport's logical X range around a data span. Mirrors the
-   * old `viewport.fitToData` side effects: clears the warm-up hold,
-   * forces autoscroll on (data tail is in the new window by construction),
-   * commits the new range via `viewport.setRange` (which emits `change`).
+   * Fit X to the window the chart picks for itself: `initialRange` while it
+   * holds, else every bar up to `maxVisibleBars`. Runs on the first data, on a
+   * bulk replace and on a horizontal padding change.
    */
-  #fitVisibleToData(firstTime: number, lastTime: number, chartWidth: number): void {
-    const bands = this.timeScale.bandRange();
-    if (this.#xType === 'category' && bands !== null) {
-      this.#holdUntilFilled = false;
-      this.#autoScroll = true;
-      // A single band spans less than the two intervals user ranges need.
-      this.#commitLogical(bands, { emitChange: true, skipValidation: true });
+  #autoFit(chartWidth: number): void {
+    const spec = this.#initialVisibleRange;
+    if (typeof spec === 'object') {
+      this.#autoFitFilling = false;
+      this.#resolveVisibleRange(spec);
 
-      return;
+      const placed = this.#logical.from !== 0 || this.#logical.to !== 0;
+      if (placed) {
+        this.#rearmDriveIn();
+
+        return;
+      }
+
+      // Narrower than two steps of the data, so it never placed: the default fit takes over.
+      this.#initialVisibleRange = undefined;
     }
 
-    const padding = this.#padding;
+    const auto = this.#autoWindow(chartWidth);
+    if (auto === null) return;
+
+    this.#holdUntilFilled = false;
+    this.#autoScroll = true;
+    this.#autoFitFilling = auto.filling;
+    this.#commitLogical(auto.range, { emitChange: true });
+  }
+
+  /**
+   * The chart's own window over the current data: the last `initialRange`
+   * bars, else every bar up to `maxVisibleBars`. `filling` while the data holds
+   * fewer bars than that. `null` before data, or for a `{ from, … }` window.
+   */
+  #autoWindow(chartWidth: number): { range: XRange; filling: boolean } | null {
+    const spec = this.#initialVisibleRange;
+    const first = this.#dataStart;
+    const last = this.#dataEnd;
+    if (first === null || last === null || typeof spec === 'object') return null;
+
+    const bars = spec ?? this.#maxVisibleBars;
+    const firstTime = Math.max(first, last - (bars - 1) * this.#dataInterval);
+    const range = computeFitToData({
+      firstTime: spec === undefined ? first : firstTime,
+      lastTime: last,
+      dataInterval: this.#dataInterval,
+      // An explicit bar count is shown whole; only the default fit is capped.
+      maxVisibleBars: spec === undefined ? this.#maxVisibleBars : Number.POSITIVE_INFINITY,
+      chartWidth,
+      padding: { left: this.#padding.left, right: this.#padding.right },
+    });
+
+    return { range, filling: firstTime === first };
+  }
+
+  /** Widen the chart's own fit to the data tail. A trimmed head never narrows it (`keepLast`). */
+  #growAutoFit(auto: { range: XRange; filling: boolean }): XRange | null {
+    this.#autoFitFilling = auto.filling;
+
+    const current = this.#logical;
+    const currentWidth = current.to - current.from;
+    const fitWidth = auto.range.to - auto.range.from;
+    if (auto.range.to === current.to && fitWidth <= currentWidth) return null;
+
+    const width = Math.max(fitWidth, currentWidth);
+
+    return this.#commitStreamingTarget({ from: auto.range.to - width, to: auto.range.to });
+  }
+
+  /**
+   * `setVisibleRange` reads a window that ends before the data tail as
+   * "panned into history" and drops tail-follow. That is wrong for a streaming
+   * lead-in that parks the seed just past the right edge so the first tick
+   * scrolls it into view (the Sparkline `flow.align: 'offscreen'` drive-in) —
+   * without follow-live the stream accumulates off-canvas forever. Re-arm when
+   * the tail sits within ~one interval past the window.
+   */
+  #rearmDriveIn(): void {
+    if (this.#autoScroll || this.#dataEnd === null) return;
+
+    const { to } = this.#logical;
+    if (this.#dataEnd >= to && this.#dataEnd - to <= this.#dataInterval * 1.5) {
+      this.#autoScroll = true;
+    }
+  }
+
+  /**
+   * Fit the viewport's logical X range around a data span, padding included.
+   * Clears the warm-up hold, forces autoscroll on (the data tail is in the new
+   * window by construction) and emits `viewportChange`. Returns whether the range changed.
+   */
+  #fitVisibleToData(args: { firstTime: number; lastTime: number; chartWidth: number }): boolean {
+    const { firstTime, lastTime, chartWidth } = args;
+    this.#holdUntilFilled = false;
+    this.#autoScroll = true;
+
+    const bands = this.timeScale.bandRange();
+    if (this.#xType === 'category' && bands !== null) {
+      // A single band spans less than the two intervals user ranges need.
+      return this.#commitLogical(bands, { emitChange: true, skipValidation: true });
+    }
+
     const range = computeFitToData({
       firstTime,
       lastTime,
       dataInterval: this.#dataInterval,
-      maxVisibleBars: this.#maxVisibleBars,
+      maxVisibleBars: Number.POSITIVE_INFINITY,
       chartWidth,
-      padding: { left: padding.left, right: padding.right },
+      padding: { left: this.#padding.left, right: this.#padding.right },
     });
-    this.#holdUntilFilled = false;
-    this.#autoScroll = true;
-    this.#commitLogical(range, { emitChange: true });
+
+    return this.#commitLogical(range, { emitChange: true });
   }
 
   /**
@@ -3686,6 +3798,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   pan(timeDelta: number, chartWidth = this.#lastChartWidth): void {
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
+    this.#releaseAutoWindow();
 
     const result = computePan({
       currentLogical: this.#logical,
@@ -3728,6 +3841,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   zoomAt(centerTime: number, factor: number, chartWidth = this.#lastChartWidth): void {
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
+    this.#releaseAutoWindow();
 
     const result = computeZoom({
       currentLogical: this.#logical,

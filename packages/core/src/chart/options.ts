@@ -67,11 +67,10 @@ export interface ChartOptions {
    */
   viewport?: {
     /**
-     * Maximum number of data bars (candles/points) the viewport will fit
-     * before it stops growing and switches to tail-scroll. While the data
-     * span is below this threshold, streaming ticks expand the right edge
-     * to absorb new points; once the span exceeds it, the visible window
-     * holds at this width and slides forward as new data arrives.
+     * Most bars the chart's own fit shows. The first data load fits every bar
+     * up to this count; while the data holds fewer, streamed bars widen the
+     * window, and once it is full the window keeps its width and follows the
+     * latest bar. `fitContent()` and an explicit bar count are not capped.
      * Default: 200. Values below 2 are clamped.
      */
     maxVisibleBars?: number;
@@ -84,8 +83,10 @@ export interface ChartOptions {
      * the same intent into the first render so the very first paint
      * already shows the requested window.
      *
-     * One-shot — consumed by the first `onDataChanged` call that has data,
-     * then cleared. Subsequent `setSeriesData` calls don't re-apply it.
+     * It stays the chart's window until the user zooms or pans or the app
+     * sets a range, so a series that loads later or data set again keeps it.
+     * A bar count widens with streamed bars until it holds that many; a
+     * `{from, …}` window ends once streaming moves it.
      */
     initialRange?: VisibleRangeSpec;
   };

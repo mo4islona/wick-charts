@@ -3592,7 +3592,7 @@
                 "optional": true,
                 "defaultValue": "200",
                 "deprecated": null,
-                "description": "Width of the visible window in data bars, set on the first data load\nto `maxVisibleBars * dataInterval`. While the dataset is smaller than\nthis width, streaming ticks render into the empty right-side gap and\nthe viewport stays put; once the data reaches the right edge, the\nviewport pans forward to keep the latest bar pinned (tail-scroll).\nDefault: 200.",
+                "description": "Most bars the chart's own fit shows. The first data load fits every bar\nup to this count; while the data holds fewer, streamed bars widen the\nwindow, and once it is full the window keeps its width and follows the\nlatest bar. `fitContent()` and an explicit bar count are not capped.\nDefault: 200. Values below 2 are clamped.",
                 "see": []
               },
               {
@@ -3601,7 +3601,7 @@
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Initial visible range applied before the first paint with data. Same\nshape as the imperative `chart.setVisibleRange` — pass a bar count\n(e.g. `35`), an explicit `{from, to}` window, or `{from, bars}` for\na warm-up pair. The standard alternative is calling\n`setVisibleRange` from a `useEffect`, but that runs post-paint and\nmakes the chart visibly re-zoom on the next RAF. Captured at mount.",
+                "description": "Initial visible range applied before the first paint with data. Same\nshape as the imperative `chart.setVisibleRange` — pass a bar count\n(e.g. `35`), an explicit `{from, to}` window, or `{from, bars}` for\na warm-up pair. The standard alternative is calling\n`setVisibleRange` from a `useEffect`, but that runs post-paint and\nmakes the chart visibly re-zoom on the next RAF.\n\nIt stays the chart's window until the user zooms or pans or the app\nsets a range, so a series that loads later or data set again keeps it.\nA bar count widens with streamed bars until it holds that many; a\n`{from, …}` window ends once streaming moves it. Captured at mount.",
                 "see": []
               }
             ]
@@ -3613,7 +3613,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Controlled visible range. Same shape as the imperative\n`chart.setVisibleRange` — a bar count, an explicit `{from, to}` window, or\n`{from, bars}`. Every reference/value change applies via\n`chart.setVisibleRange`, so pair it with onVisibleRangeChange for a\ntwo-way binding; a same-value literal (compared structurally) is a no-op,\nso an inline object from a parent re-render doesn't re-apply.\n\nFor a one-shot initial window that isn't re-applied on every prop change,\nuse `viewport.initialRange` instead.",
+          "description": "Controlled visible range. Same shape as the imperative\n`chart.setVisibleRange` — a bar count, an explicit `{from, to}` window, or\n`{from, bars}`. Every reference/value change applies via\n`chart.setVisibleRange`, so pair it with onVisibleRangeChange for a\ntwo-way binding; a same-value literal (compared structurally) is a no-op,\nso an inline object from a parent re-render doesn't re-apply.\n\nFor an initial window that isn't re-applied on every prop change,\nuse `viewport.initialRange` instead.",
           "see": []
         },
         {
