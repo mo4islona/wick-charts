@@ -7,6 +7,7 @@ import {
   prefersReducedMotion,
   resolveAnimate,
   resolveYLabelSeriesId,
+  yLabelFractionDigits,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
@@ -254,12 +255,8 @@ const bgColor = computed<string>(() => {
 const fractionDigits = computed(() => {
   void bump.value;
   const yRange = yScale.value.getRange();
-  const range = yRange.max - yRange.min;
-  if (range < 0.1) return 6;
-  if (range < 10) return 4;
-  if (range < 1000) return 2;
 
-  return 0;
+  return yLabelFractionDigits(yRange.max - yRange.min);
 });
 
 const effectiveFormat = computed<ValueFormatter>(() => {

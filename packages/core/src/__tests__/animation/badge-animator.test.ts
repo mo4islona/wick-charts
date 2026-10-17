@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { BadgeAnimator } from '../../chart/badge-animator';
+import { BadgeAnimator, yLabelFractionDigits } from '../../chart/badge-animator';
 
 describe('BadgeAnimator', () => {
   it('intro: counts the value from the first visible sample up to the last, locked to the front', () => {
@@ -150,5 +150,26 @@ describe('BadgeAnimator', () => {
     expect(out.textValue).toBe(200);
     expect(out.opacity).toBe(1);
     expect(out.animating).toBe(false);
+  });
+});
+
+describe('yLabelFractionDigits', () => {
+  it('keeps the coarse ranges on their fixed decimal counts', () => {
+    expect(yLabelFractionDigits(5000)).toBe(0);
+    expect(yLabelFractionDigits(500)).toBe(2);
+    expect(yLabelFractionDigits(5)).toBe(4);
+    expect(yLabelFractionDigits(0.05)).toBe(6);
+    expect(yLabelFractionDigits(0.0005)).toBe(6);
+  });
+
+  it('adds decimals as the range drops below 1e-4', () => {
+    expect(yLabelFractionDigits(3.2e-6)).toBe(8);
+    expect(yLabelFractionDigits(4e-9)).toBe(11);
+  });
+
+  it('caps the count at what Intl.NumberFormat accepts and handles a flat range', () => {
+    expect(yLabelFractionDigits(1e-30)).toBe(20);
+    expect(yLabelFractionDigits(0)).toBe(6);
+    expect(yLabelFractionDigits(Number.NaN)).toBe(6);
   });
 });

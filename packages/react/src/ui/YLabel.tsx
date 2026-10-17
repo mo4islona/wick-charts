@@ -9,6 +9,7 @@ import {
   prefersReducedMotion,
   resolveAnimate,
   resolveYLabelSeriesId,
+  yLabelFractionDigits,
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
@@ -187,8 +188,7 @@ export function YLabel({ seriesId, color, format, animate, children, scale }: YL
   const side = chart.getYScaleColumn(scaleId)?.position ?? chart.yAxisPosition;
 
   const yRange = yScale.getRange();
-  const range = yRange.max - yRange.min;
-  const fractionDigits = range < 0.1 ? 6 : range < 10 ? 4 : range < 1000 ? 2 : 0;
+  const fractionDigits = yLabelFractionDigits(yRange.max - yRange.min);
 
   // Build the fallback range-adaptive Intl formatter before the early return
   // so this hook call can't be skipped on subsequent renders (Rules of Hooks).
