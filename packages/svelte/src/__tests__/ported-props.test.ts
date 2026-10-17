@@ -86,6 +86,17 @@ describe('Svelte ported props parity', () => {
     result.unmount();
   });
 
+  it('<ChartContainer style> overrides the built-in min-height floor and background', async () => {
+    const result = render(PortedPropsHarness, { variant: 'style-override', candlestickData });
+    await settle();
+
+    const root = result.container.querySelector('div') as HTMLElement;
+    expect(root.style.minHeight).toBe('0px');
+    expect(root.style.height).toBe('48px');
+    expect(root.style.background).toBe('red');
+    result.unmount();
+  });
+
   it('<ChartContainer headerLayout="inline"> renders Title/InfoBar above the canvas (not absolute)', async () => {
     const result = render(PortedPropsHarness, { variant: 'header-inline', candlestickData });
     await settle();

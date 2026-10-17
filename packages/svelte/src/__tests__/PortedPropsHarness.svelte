@@ -22,6 +22,7 @@ import {
 export let variant:
   | 'gradient-default'
   | 'gradient-on'
+  | 'style-override'
   | 'header-overlay'
   | 'header-inline'
   | 'padded'
@@ -54,6 +55,10 @@ export let yAxisPosition: 'left' | 'right' = 'right';
   </ChartContainer>
 {:else if variant === 'gradient-on'}
   <ChartContainer theme={catppuccin.theme} gradient>
+    <CandlestickSeries data={candlestickData} />
+  </ChartContainer>
+{:else if variant === 'style-override'}
+  <ChartContainer theme={catppuccin.theme} style="min-height: 0; height: 48px; background: red">
     <CandlestickSeries data={candlestickData} />
   </ChartContainer>
 {:else if variant === 'header-overlay'}

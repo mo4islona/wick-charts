@@ -4214,7 +4214,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Inline style for the chart's outer wrapper element. Live.",
+          "description": "Inline style for the chart's outer wrapper element. The wrapper fills its\nparent (`height: 100%`) and keeps a 240px `minHeight` floor; pass\n`minHeight: 0` for a smaller chart. Live.",
           "see": []
         },
         {
