@@ -323,6 +323,8 @@ interface SeriesEntry {
   xKeys: { x: boolean; time: boolean };
   /** Category axis: each layer's points in input order — the source of truth the store is mapped from. */
   categoryPoints: XKeyedPoint[][];
+  /** The `theme.seriesColors` slots the series' default colours start from — see `SeriesCreateEnv.paletteIndex`. */
+  palette: { type: SeriesType; start: number; count: number };
 }
 
 /** An ingested point on a numeric / category axis — `x` and `time` as passed in. */
@@ -984,7 +986,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       ...rest,
       ...this.#animationsConfig.overrides(def.type),
     };
-    const renderer = def.create({ theme: this.#theme, layerCount }, merged);
+    const paletteIndex = this.#freePaletteRun({ type: def.type, count: layerCount });
+    const renderer = def.create({ theme: this.#theme, layerCount, paletteIndex }, merged);
     // Spatial series (pie, heatmap) have no X axis to fit.
     if (isTimeSeriesRenderer(renderer)) {
       assertSeriesFitsXAxis({ seriesType: def.type, axisType: this.#xType, supported: def.xTypes ?? ['time'] });
@@ -1002,6 +1005,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       scale,
       xKeys: { x: false, time: false },
       categoryPoints: [],
+      palette: { type: def.type, start: paletteIndex, count: layerCount },
     });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
@@ -1010,6 +1014,31 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#bumpOverlayVersion();
 
     return seriesId;
+  }
+
+  /** The lowest run of `count` palette slots that no other series of `type` holds. */
+  #freePaletteRun(args: { type: SeriesType; count: number }): number {
+    const taken = new Set<number>();
+    for (const entry of this.#series) {
+      if (entry.palette.type !== args.type) continue;
+
+      for (let i = 0; i < entry.palette.count; i++) {
+        taken.add(entry.palette.start + i);
+      }
+    }
+
+    const overlapsTaken = (from: number) => {
+      for (let slot = from; slot < from + args.count; slot++) {
+        if (taken.has(slot)) return true;
+      }
+
+      return false;
+    };
+
+    let start = 0;
+    while (overlapsTaken(start)) start++;
+
+    return start;
   }
 
   /** Remove a series by ID and clean up its resources. */

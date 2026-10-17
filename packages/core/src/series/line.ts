@@ -165,9 +165,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   protected declare options: ResolvedLineOptions;
   private areaGradientCache = new Map<string, { gradient: CanvasGradient; bottomY: number; color: string }>();
 
-  constructor(layerCount: number, options?: LineOptionsInput) {
+  /** First palette slot of the theme default colours — see `SeriesCreateEnv.paletteIndex`. */
+  readonly #paletteIndex: number;
+
+  constructor(layerCount: number, options?: LineOptionsInput, paletteIndex = 0) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
+    this.#paletteIndex = paletteIndex;
   }
 
   updateOptions(options: LineOptionsInput): void {
@@ -182,7 +186,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     // Reset the theme base only; per-layer `data` color overrides are held
     // separately (setColorOverrides) and ride through a theme swap untouched, so
     // there is no user color to preserve here.
-    const colors = this.stores.length === 1 ? [theme.line.color] : theme.seriesColors.slice(0, this.stores.length);
+    const colors = defaultLineColors({ theme, layerCount: this.stores.length, paletteIndex: this.#paletteIndex });
     this.updateOptions({ colors });
 
     // Stroke width follows theme unless the user pinned it with an explicit option.
@@ -1933,10 +1937,24 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
   type: 'line',
   xTypes: ['time', 'numeric', 'category'],
-  create: ({ theme, layerCount }, options) =>
-    new LineRenderer(layerCount, {
-      colors: layerCount === 1 ? [theme.line.color] : theme.seriesColors.slice(0, layerCount),
-      strokeWidth: theme.line.width,
-      ...options,
-    }),
+  create: ({ theme, layerCount, paletteIndex = 0 }, options) =>
+    new LineRenderer(
+      layerCount,
+      {
+        colors: defaultLineColors({ theme, layerCount, paletteIndex }),
+        strokeWidth: theme.line.width,
+        ...options,
+      },
+      paletteIndex,
+    ),
 };
+
+/** A lone first line takes the theme's line colour; any other line takes palette slots from `paletteIndex`, wrapping. */
+function defaultLineColors(args: { theme: ChartTheme; layerCount: number; paletteIndex: number }): string[] {
+  const { theme, layerCount, paletteIndex } = args;
+  const palette = theme.seriesColors;
+  const loneFirstLine = layerCount === 1 && paletteIndex === 0;
+  if (loneFirstLine || palette.length === 0) return [theme.line.color];
+
+  return Array.from({ length: layerCount }, (_, i) => palette[(paletteIndex + i) % palette.length]);
+}
