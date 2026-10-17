@@ -49,8 +49,11 @@ export function installRaf(startTime = 0): RafHandle {
     queue.push({ id, cb });
     return id;
   };
+  // A browser skips a frame cancelled while its batch runs; the snapshot in `flush` must too.
+  const cancelled = new Set<number>();
   const cancel = (id: number): void => {
     queue = queue.filter((f) => f.id !== id);
+    cancelled.add(id);
   };
 
   // Capture only zero-delay timeouts — longer delays keep real-time semantics.
@@ -97,8 +100,13 @@ export function installRaf(startTime = 0): RafHandle {
       // mirroring real browser behavior.
       const pending = queue;
       queue = [];
+      cancelled.clear();
       now += 16;
-      for (const frame of pending) frame.cb(now);
+      for (const frame of pending) {
+        if (cancelled.has(frame.id)) continue;
+
+        frame.cb(now);
+      }
     }
   };
 

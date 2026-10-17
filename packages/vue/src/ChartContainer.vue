@@ -211,6 +211,8 @@ const props = withDefaults(
     // distinguishable from an explicit `:fade="false"` all-off opt-out.
     // Declaring a default (even `undefined`) suppresses the cast.
     fade: undefined,
+    // Absent must reach the core as `undefined` (animations on), as in React and Svelte.
+    animations: undefined,
   },
 );
 
