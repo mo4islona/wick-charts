@@ -665,12 +665,12 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // `Math.floor(bodyWidth / 2)` can offset the body 0.5 bitmap-px sideways
     // relative to the wick (odd-vs-even width parity mismatch), which reads
     // as a visibly off-center wick — especially at small bar widths or DPR=1.
-    let bodyWidth = Math.max(1, Math.round(barWidth * this.options.bodyWidthRatio) - 2);
+    let bodyWidth = Math.max(1, Math.round(barWidth * this.options.bodyWidthRatio));
     if ((bodyWidth & 1) !== (wickWidth & 1)) {
-      // Down-trim by 1 when possible; when bodyWidth is already the minimum
-      // (1) and the wick is even (DPR=2), bump UP to 2 so the parity match
-      // holds instead of silently leaving a 0.5-bitmap-px offset.
-      bodyWidth = bodyWidth > 1 ? bodyWidth - 1 : 2;
+      // Widen while a gap to the neighbour remains, so a ~4 px slot keeps a body wider than the wick.
+      // A 1 px body next to an even (DPR=2) wick also widens, to 2.
+      const roomToWiden = bodyWidth + 1 < barWidth;
+      bodyWidth = roomToWiden || bodyWidth === 1 ? bodyWidth + 1 : bodyWidth - 1;
     }
     const halfBody = Math.floor(bodyWidth / 2);
 

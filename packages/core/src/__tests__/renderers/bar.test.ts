@@ -57,6 +57,21 @@ describe('BarRenderer.render', () => {
     expect(spy.matchesSequence(['beginPath', 'moveTo', 'lineTo', 'stroke'])).toBe(true);
   });
 
+  it('bar width is barWidthRatio of the slot, with no fixed gap on top', () => {
+    // 200 slots across 900 px → 4.5 px per bar; 0.6 of that rounds to 3.
+    const r = makeBar(1, { colors: ['#000'], barWidthRatio: 0.6, stacking: 'off' });
+    r.setData(ts(3, () => 5));
+    const { ctx, spy } = buildRenderContext({
+      timeRange: { from: 0, to: 2000 },
+      yRange: { min: 0, max: 10 },
+      dataInterval: 10,
+      mediaWidth: 900,
+    });
+    r.render(ctx);
+
+    expect(spy.callsOf('fillRect')[0].args[2]).toBe(3);
+  });
+
   it('bar width respects barWidthRatio (smaller ratio → smaller bars)', () => {
     const wide = makeBar(1, { colors: ['#000'], barWidthRatio: 0.9, stacking: 'off' });
     const narrow = makeBar(1, { colors: ['#000'], barWidthRatio: 0.2, stacking: 'off' });

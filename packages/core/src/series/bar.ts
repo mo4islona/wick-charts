@@ -435,7 +435,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const sparseCap = Math.round(30 * scope.horizontalPixelRatio);
     const barWidth = maxVisibleCount <= 2 ? Math.min(sparseCap, naturalBarWidth) : naturalBarWidth;
 
-    return Math.max(1, Math.round(barWidth * this.options.barWidthRatio) - 2);
+    return Math.max(1, Math.round(barWidth * this.options.barWidthRatio));
   }
 
   /** Stacking off — each layer drawn independently from zero, overlapping */

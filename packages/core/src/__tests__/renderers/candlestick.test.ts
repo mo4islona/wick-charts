@@ -192,6 +192,31 @@ describe('CandlestickRenderer.render', () => {
     expect(widestBody).toBeGreaterThan(100);
   });
 
+  it('keeps the body wider than the wick at the default 200-bar density', () => {
+    // 200 slots across 900 px → 4.5 px per candle at DPR 1.
+    const data: OHLCData[] = [
+      { time: 50, ...BULL },
+      { time: 60, ...BULL },
+      { time: 70, ...BULL },
+    ];
+    const r = mkRenderer(mkStore(data));
+    const { ctx, spy } = buildRenderContext({
+      timeRange: { from: 0, to: 2000 },
+      yRange: { min: 0, max: 20 },
+      dataInterval: 10,
+      mediaWidth: 900,
+      pixelRatio: 1,
+    });
+    r.render(ctx);
+
+    const widths = spy.callsOf('fillRect').map((c) => c.args[2] as number);
+    const wickWidth = Math.min(...widths);
+    const bodyWidth = Math.max(...widths);
+
+    expect(wickWidth).toBe(1);
+    expect(bodyWidth).toBe(3);
+  });
+
   it('parity fix handles the minimum-width case (bodyWidth=1 with even wick)', () => {
     // Edge case: when the natural body is extremely narrow (≤ 1 bitmap-px)
     // and DPR makes the wick 2 px, the old `bodyWidth > 1` guard silently
