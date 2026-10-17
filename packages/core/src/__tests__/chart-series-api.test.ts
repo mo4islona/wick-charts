@@ -638,6 +638,46 @@ describe('ChartInstance percent stack snapshots', () => {
     ]);
   });
 
+  function easingStack(type: 'line' | 'bar'): string {
+    const options = { layers: 2, stacking: 'percent' } as const;
+    const id = type === 'line' ? chart.addSeries('line', options) : chart.addSeries('bar', options);
+    for (const layer of [0, 1]) {
+      chart.setSeriesData(
+        id,
+        [
+          { time: 0, value: 1 },
+          { time: 60_000, value: 1 },
+        ],
+        layer,
+      );
+    }
+
+    return id;
+  }
+
+  for (const type of ['line', 'bar'] as const) {
+    it(`${type}: takes shares from the values on screen while an update eases in`, () => {
+      const id = easingStack(type);
+
+      chart.updateData(id, { time: 60_000, value: 9 }, 0);
+      const [first, second] = buildHoverSnapshots(chart, { time: 60_000, cacheKey: `${type}-easing` });
+      const shown = [first, second].map((s) => ('value' in s.data ? s.data.value : Number.NaN));
+
+      // The chart still draws the old 50/50 split; the rows must agree with it.
+      expect(shown[0]).toBeLessThan(9);
+      expect(first.share).toBeCloseTo((shown[0] / (shown[0] + shown[1])) * 100, 9);
+    });
+
+    it(`${type}: keeps the rows while a column eases down to a zero total`, () => {
+      const id = easingStack(type);
+
+      chart.updateData(id, { time: 60_000, value: 0 }, 0);
+      chart.updateData(id, { time: 60_000, value: 0 }, 1);
+
+      expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: `${type}-to-zero` })).toHaveLength(2);
+    });
+  }
+
   it('prints a plain value off a percent stack', () => {
     const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 0, value: 1 }], 0);

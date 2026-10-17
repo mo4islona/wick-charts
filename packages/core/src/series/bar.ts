@@ -260,6 +260,45 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
+  /**
+   * The bar stack's reading of a percent column (see `renderStacked`): each
+   * layer's sample at `time` as drawn — smoothed, faded, growing in — with
+   * positives scaled to 100% and negatives to -100% on their own; `null` when
+   * the column draws nothing.
+   */
+  protected percentShares(time: number): Map<number, number> | null {
+    const style = this.options.entryAnimation ?? 'fade-grow';
+    const growsIn = (style === 'grow' || style === 'fade-grow') && !this.isProjectedTime(time);
+
+    const values = new Map<number, number>();
+    let positive = 0;
+    let negative = 0;
+    for (let li = 0; li < this.stores.length; li++) {
+      const alpha = this.getLayerAlpha(li);
+      if (alpha <= 0) continue;
+
+      const point = this.stores[li].findNearest(time, 0);
+      if (point === null || !Number.isFinite(point.value)) continue;
+
+      const entrance = growsIn ? this.entranceProgress(li, time) : 1;
+      const value = this.liveValue(li, time, point.value) * alpha * entrance;
+      values.set(li, value);
+      if (value > 0) positive += value;
+      if (value < 0) negative += value;
+    }
+    if (positive === 0 && negative === 0) return null;
+
+    const shares = new Map<number, number>();
+    for (const [li, value] of values) {
+      let share = 0;
+      if (value > 0) share = (value / positive) * 100;
+      if (value < 0) share = (value / negative) * -100;
+      shares.set(li, share);
+    }
+
+    return shares;
+  }
+
   private isProjectedTime(time: number): boolean {
     const from = this.options.projectedFrom;
 

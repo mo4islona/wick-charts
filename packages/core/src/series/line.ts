@@ -530,23 +530,24 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /**
    * The line stack's reading of a percent column (see `renderStacked`): each
-   * layer's value at `time`, 0 for a layer yet to start, over one signed total;
-   * a total at or below 0 is a gap.
+   * layer's current value at `time` times its alpha, 0 for a layer yet to
+   * start, over one signed total; a total at or below 0 is a gap.
    */
   protected percentShares(time: number): Map<number, number> | null {
     const values = new Map<number, number>();
     let total = 0;
     for (let li = 0; li < this.stores.length; li++) {
-      const store = this.stores[li];
-      if (!store.isVisible()) continue;
+      const alpha = this.getLayerAlpha(li);
+      if (alpha <= 0) continue;
 
-      const data = store.getAll();
+      const data = this.stores[li].getAll();
       const pending = data.length > 0 && time < data[0].time;
-      const value = pending ? 0 : valueAtTime(data, time, { resolve: (point) => point.value });
+      const resolve = (point: TimePoint) => this.snapshotValue(li, point.time, point.value);
+      const value = pending ? 0 : valueAtTime(data, time, { resolve });
       if (value === null) continue;
 
-      values.set(li, value);
-      total += value;
+      values.set(li, value * alpha);
+      total += value * alpha;
     }
     if (total <= 0) return null;
 
