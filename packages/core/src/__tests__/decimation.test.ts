@@ -77,6 +77,20 @@ describe('decimateLineData', () => {
     const result = decimateLineData(data, 10);
     expect(result).toBe(data);
   });
+  it('a sparse null does not win its bucket, so the decimated line stays unbroken', () => {
+    // One null every 20 points (holidays in daily data), 10 points per bucket.
+    const data = makeLine(10_000, (i) => (i % 20 === 7 ? Number.NaN : 2 + Math.sin(i / 50)));
+    const result = decimateLineData(data, 1000);
+
+    expect(result.some((p) => !Number.isFinite(p.value))).toBe(false);
+  });
+
+  it('a bucket with no value at all stays a gap', () => {
+    const data = makeLine(10_000, (i) => (i >= 5000 && i < 5100 ? Number.NaN : i));
+    const result = decimateLineData(data, 1000);
+
+    expect(result.some((p) => !Number.isFinite(p.value))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
