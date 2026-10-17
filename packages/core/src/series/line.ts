@@ -228,6 +228,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   render(ctx: SeriesRenderContext): void {
     this.tickAnimations(performance.now());
     this.lastYScale = ctx.yScale;
+    this.lastTimeScale = ctx.timeScale;
 
     const { context } = ctx.scope;
 
@@ -391,6 +392,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /** Y scale of the last render — value queries run without a render context. */
   private lastYScale: YScale | null = null;
+  /** Time scale of the last render — places a share query's column in the intro wave. */
+  private lastTimeScale: SeriesRenderContext['timeScale'] | null = null;
 
   /** Default intro, built lazily — one instance per renderer. */
   private defaultIntro: LineIntroFn | null = null;
@@ -531,7 +534,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   /**
    * The line stack's reading of a percent column (see `renderStacked`): each
    * layer's current value at `time` times its alpha, 0 for a layer yet to
-   * start, over one signed total; a total at or below 0 is a gap.
+   * start, over one signed total, then through the intro's share transform and
+   * the 100% cap; a total at or below 0 is a gap.
    */
   protected percentShares(time: number): Map<number, number> | null {
     const values = new Map<number, number>();
@@ -551,9 +555,16 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
     if (total <= 0) return null;
 
+    // Layer order, as `renderStacked` caps the running edge at 100.
+    const timeScale = this.lastTimeScale;
     const shares = new Map<number, number>();
+    let running = 0;
     for (const [li, value] of values) {
-      shares.set(li, Math.max(0, (value / total) * 100));
+      const column = { layerIndex: li, time, value, total };
+      const share = timeScale === null ? Math.max(0, (value / total) * 100) : this.introShare({ timeScale }, column);
+      const top = Math.min(100, running + share);
+      shares.set(li, top - running);
+      running = top;
     }
 
     return shares;
@@ -561,7 +572,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /** Layer's share of its column in percent, passed through the intro value transform. */
   private introShare(
-    ctx: SeriesRenderContext | OverlayRenderContext,
+    ctx: Pick<SeriesRenderContext, 'timeScale'>,
     column: { layerIndex: number; time: number; value: number; total: number },
   ): number {
     const { layerIndex, time, value, total } = column;
@@ -624,7 +635,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /** The active history-reveal or intro value transform applied to one value. */
   private introValue(
-    ctx: SeriesRenderContext | OverlayRenderContext,
+    ctx: Pick<SeriesRenderContext, 'timeScale'>,
     args: { layerIndex: number; time: number; value: number },
   ): number {
     const { layerIndex, time, value } = args;

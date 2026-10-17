@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BarRenderer } from '../../series/bar';
 import type { BarSeriesOptions, TimePoint } from '../../types';
@@ -238,5 +238,36 @@ describe('BarRenderer.render', () => {
     expect(rightX + width).toBe(cx);
     // ...so it's drawn further left than the centered body.
     expect(rightX).toBeLessThan(centerX);
+  });
+});
+
+describe('BarRenderer — percent shares mid-intro', () => {
+  const reducedMotionStub = globalThis.matchMedia;
+
+  afterEach(() => {
+    globalThis.matchMedia = reducedMotionStub;
+    vi.restoreAllMocks();
+  });
+
+  it('applies the intro value transform, as the stack does', () => {
+    // The global setup reports reduced motion, which skips the intro.
+    globalThis.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof globalThis.matchMedia;
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+    // Triples layer 0 for the whole intro: the column draws 75 / 25.
+    const r = new BarRenderer(2, {
+      stacking: 'percent',
+      introAnimation: () => ({ value: ({ layerIndex, value }) => (layerIndex === 0 ? value * 3 : value) }),
+    });
+    r.setData([{ time: 50, value: 1 }], 0);
+    r.setData([{ time: 50, value: 1 }], 1);
+    r.render(buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } }).ctx);
+
+    expect(r.getLayerSnapshots(50, 1)?.map((row) => row.share)).toEqual([75, 25]);
   });
 });

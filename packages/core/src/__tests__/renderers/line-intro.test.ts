@@ -109,4 +109,39 @@ describe('line intro — regression fixes', () => {
       expect(value).toBeCloseTo(10);
     });
   });
+
+  describe('a percent stack mid-intro', () => {
+    it('reports the shares the stack draws', () => {
+      const r = new LineRenderer(2, { stacking: 'percent', area: { visible: false } });
+      // Unfold eases each layer from its mean share (50 / 50 here) to the raw 25 / 75 at time 0.
+      r.setData(
+        [
+          { time: 0, value: 1 },
+          { time: 100, value: 3 },
+        ],
+        0,
+      );
+      r.setData(
+        [
+          { time: 0, value: 3 },
+          { time: 100, value: 1 },
+        ],
+        1,
+      );
+      const view = { timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } };
+      r.render(buildRenderContext(view).ctx); // stamps the wave start
+
+      advance(90);
+      r.render(buildRenderContext(view).ctx);
+      const painted = (r as unknown as { stackedEdges: { cumulative: readonly number[][] } }).stackedEdges;
+      const drawn = painted.cumulative[0][0];
+
+      const shares = r.getLayerSnapshots(0, 1)?.map((row) => row.share ?? Number.NaN) ?? [];
+
+      expect(Math.abs(drawn - 25)).toBeGreaterThan(5);
+      expect(shares).toHaveLength(2);
+      expect(shares[0]).toBeCloseTo(drawn, 9);
+      expect(shares[1]).toBeCloseTo(100 - drawn, 9);
+    });
+  });
 });
