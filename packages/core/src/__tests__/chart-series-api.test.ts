@@ -567,6 +567,28 @@ describe('ChartInstance percent stack snapshots', () => {
     expect(snapshots.map((s) => s.share)).toEqual([75, 25]);
   });
 
+  it('lists no rows for a column whose layers sum to 0, as for a gap', () => {
+    const id = chart.addSeries('line', { layers: 2, stacking: 'percent' });
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 1 },
+        { time: 60_000, value: 0 },
+      ],
+      0,
+    );
+    chart.setSeriesData(
+      id,
+      [
+        { time: 0, value: 3 },
+        { time: 60_000, value: 0 },
+      ],
+      1,
+    );
+
+    expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'zero' })).toEqual([]);
+  });
+
   it('prints a plain value off a percent stack', () => {
     const id = chart.addSeries('line', { layers: 2 });
     chart.setSeriesData(id, [{ time: 0, value: 1 }], 0);

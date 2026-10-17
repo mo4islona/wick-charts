@@ -135,9 +135,12 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
 
   const hasOHLC = snapshots.value.some((s) => 'open' in s.data);
   const lineCount = snapshots.value.filter((s) => !('open' in s.data)).length;
-  // A band row carries two numbers, so it needs a wider box than a line row.
+  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
   const hasBand = snapshots.value.some((s) => 'high' in s.data && !('open' in s.data));
-  const tooltipWidth = hasBand ? 220 : 160;
+  const hasShare = snapshots.value.some((s) => s.share !== undefined);
+  let tooltipWidth = 160;
+  if (hasBand) tooltipWidth = 220;
+  if (hasShare) tooltipWidth = 240;
   const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
 
   return computeTooltipPosition({

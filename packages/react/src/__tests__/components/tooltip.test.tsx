@@ -86,6 +86,31 @@ describe('Tooltip (floating) overlay positioning', () => {
     return Number.parseFloat(value.replace('px', '')) || 0;
   }
 
+  it('widens the box for percent-stack rows, which carry a share and a value', () => {
+    const layer = (values: number[]) => values.map((value, i) => ({ time: (i + 1) * 60_000, value }));
+    mounted = mountChart(
+      <>
+        <LineSeries
+          data={[
+            { label: 'react', data: layer([4425172, 4500000, 4600000]) },
+            { label: '@angular/core', data: layer([1546000, 1600000, 1650000]) },
+          ]}
+          options={{ stacking: 'percent' }}
+        />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400 },
+    );
+    mounted.dispatchMouse('mousemove', { clientX: 400, clientY: 200 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
+
+    // The innermost absolute box holding a share row is the tooltip itself.
+    const boxes = Array.from(mounted.container.querySelectorAll<HTMLElement>('div')).filter(
+      (el) => el.style.position === 'absolute' && (el.textContent ?? '').includes('% ·'),
+    );
+    expect(boxes.at(-1)?.style.width).toBe('240px');
+  });
+
   it('keeps the floating tooltip inside the plot area when hovering near the top-left', () => {
     mounted = mountChart(
       <>
