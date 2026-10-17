@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { BarSeriesOptions, MultiLayerData, SeriesSyncState } from '@wick-charts/core';
+import type { BarSeriesOptions, ChartInstance, MultiLayerData, SeriesSyncState } from '@wick-charts/core';
 import { BarSeriesDef, syncLayers, toLayers } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
@@ -25,13 +25,36 @@ let seriesId: string | null = null;
 // property keeps the reactive block free of a self-dependency cycle while still
 // driving the shared append/keepLast/update/replace reconciliation (no per-tick
 // Y snap).
-const sync: { state: SeriesSyncState[] } = { state: [] };
+const sync: { state: SeriesSyncState[]; layers: number } = { state: [], layers: 0 };
+
+function createSeries(chart: ChartInstance, layers: number): string {
+  const sid = chart.addSeries(BarSeriesDef, { ...options, scale, layers, id });
+  chart.setSeriesVisible(sid, visible);
+  seriesId = sid;
+  sync.state = [];
+  sync.layers = layers;
+
+  return sid;
+}
+
+function applyData(chart: ChartInstance, current: string, next: MultiLayerData): void {
+  let sid = current;
+
+  // The layer count is fixed when a series is created; a new count re-creates it, as in React.
+  const layers = toLayers(next).length;
+  if (layers !== sync.layers) {
+    chart.removeSeries(sid);
+    sid = createSeries(chart, layers);
+  }
+
+  sync.state = syncLayers({ chart, id: sid, data: next, prev: sync.state });
+}
 
 onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
-  seriesId = chart.addSeries(BarSeriesDef, { ...options, scale, layers: toLayers(data).length, id });
-  chart.setSeriesVisible(seriesId, visible);
+
+  createSeries(chart, toLayers(data).length);
 });
 
 onDestroy(() => {
@@ -44,7 +67,7 @@ $: {
   const chart = $chartStore;
   const sid = seriesId;
   if (sid && chart) {
-    sync.state = syncLayers({ chart, id: sid, data, prev: sync.state });
+    applyData(chart, sid, data);
   }
 }
 

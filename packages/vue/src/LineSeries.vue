@@ -32,13 +32,14 @@ const seriesId = ref<string | null>(null);
 // reconciliation (plus per-layer labels/colors) so streaming eases instead of
 // snapping Y every tick.
 let prevSync: SeriesSyncState[] = [];
+let layerCount = 0;
 
 function applyData(id: string, data: MultiLayerData): void {
   prevSync = syncLayers({ chart, id, data, prev: prevSync });
 }
 
-onMounted(() => {
-  const layerCount = toLayers(props.data).length;
+function createSeries(data: MultiLayerData): void {
+  layerCount = toLayers(data).length;
   const id = chart.addSeries(LineSeriesDef, {
     ...props.options,
     scale: props.scale,
@@ -48,8 +49,12 @@ onMounted(() => {
   seriesId.value = id;
   prevSync = new Array(layerCount).fill(EMPTY_SYNC_STATE);
   // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
-  applyData(id, props.data);
+  applyData(id, data);
   chart.setSeriesVisible(id, props.visible);
+}
+
+onMounted(() => {
+  createSeries(props.data);
 });
 
 onUnmounted(() => {
@@ -61,6 +66,14 @@ watch(
   (data) => {
     const id = seriesId.value;
     if (!id) return;
+
+    // The layer count is fixed when a series is created; a new count re-creates it, as in React.
+    if (toLayers(data).length !== layerCount) {
+      chart.removeSeries(id);
+      createSeries(data);
+
+      return;
+    }
 
     applyData(id, data);
   },
