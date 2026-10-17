@@ -46,10 +46,13 @@ const onOverlayChange = () => {
 };
 onMounted(() => {
   chart.on('overlayChange', onOverlayChange);
+  // Rows read animated values (smoothing, fades, percent shares).
+  chart.on('seriesFrame', onOverlayChange);
   if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
   chart.off('overlayChange', onOverlayChange);
+  chart.off('seriesFrame', onOverlayChange);
 });
 
 const theme = computed(() => {

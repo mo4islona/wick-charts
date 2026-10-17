@@ -135,14 +135,14 @@ function freezeSnapshot(s: {
  * actually be drawing.
  *
  * The result is cached per `(chart, cacheKey)` slot; as long as
- * `chart.getOverlayVersion()` hasn't changed and `time`/`sort` match the
+ * `chart.getSnapshotVersion()` hasn't changed and `time`/`sort` match the
  * cached call, the **same reference** is returned. This makes
  * `React.memo((a, b) => a.snapshots === b.snapshots)` skip renders on
  * crosshair moves that stay within one data point.
  */
 export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapshotsArgs): readonly SeriesSnapshot[] {
   const sort = args.sort ?? 'none';
-  const version = chart.getOverlayVersion();
+  const version = chart.getSnapshotVersion();
   const cached = getSlot(chart, args.cacheKey);
   if (cached && cached.version === version && cached.time === args.time && cached.sort === sort) {
     return cached.data;
@@ -279,12 +279,12 @@ export function formatRowValue(snapshot: SeriesSnapshot, format: (value: number)
  * at the primary layer's timestamp.
  *
  * Cached by `(chart, cacheKey)` + `sort`, invalidated on
- * `chart.getOverlayVersion()` bump. `time` is not an input, so the slot is
+ * `chart.getSnapshotVersion()` bump. `time` is not an input, so the slot is
  * stored with `time: null`.
  */
 export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshotsArgs): readonly SeriesSnapshot[] {
   const sort = args.sort ?? 'none';
-  const version = chart.getOverlayVersion();
+  const version = chart.getSnapshotVersion();
   const cached = getSlot(chart, args.cacheKey);
   if (cached && cached.version === version && cached.time === null && cached.sort === sort) {
     return cached.data;

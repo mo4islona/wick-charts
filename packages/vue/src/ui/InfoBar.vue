@@ -56,12 +56,15 @@ const onOverlayChange = () => {
 };
 onMounted(() => {
   chart.on('overlayChange', onOverlayChange);
+  // Rows read animated values (smoothing, fades, percent shares).
+  chart.on('seriesFrame', onOverlayChange);
   // Catch-up: a sibling series' mount effect may have registered data in the
   // same synchronous flush, so poke the computed now.
   if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
   chart.off('overlayChange', onOverlayChange);
+  chart.off('seriesFrame', onOverlayChange);
 });
 
 // Hover-over-the-y-axis gap: the overlay canvas includes the y-axis strip,
