@@ -39,6 +39,7 @@ export function installRaf(startTime = 0): RafHandle {
   const originalWindowCancel = typeof window !== 'undefined' ? window.cancelAnimationFrame : undefined;
   const originalSetTimeout = globalThis.setTimeout;
   const originalClearTimeout = globalThis.clearTimeout;
+  const originalNow = performance.now;
 
   let queue: RafFrame[] = [];
   let nextId = 1;
@@ -86,6 +87,9 @@ export function installRaf(startTime = 0): RafHandle {
   globalThis.cancelAnimationFrame = cancel;
   globalThis.setTimeout = fakeSetTimeout;
   globalThis.clearTimeout = fakeClearTimeout;
+  // Events stamp their start with `performance.now()` and frames advance on `now`:
+  // on two clocks, an ease started past the frame clock never runs.
+  performance.now = () => now;
   if (typeof window !== 'undefined') {
     window.requestAnimationFrame = raf;
     window.cancelAnimationFrame = cancel;
@@ -134,6 +138,7 @@ export function installRaf(startTime = 0): RafHandle {
       globalThis.cancelAnimationFrame = originalCancel;
       globalThis.setTimeout = originalSetTimeout;
       globalThis.clearTimeout = originalClearTimeout;
+      performance.now = originalNow;
       if (typeof window !== 'undefined' && originalWindowRaf && originalWindowCancel) {
         window.requestAnimationFrame = originalWindowRaf;
         window.cancelAnimationFrame = originalWindowCancel;
