@@ -104,8 +104,8 @@ const DEFAULT_HISTORY_REVEAL_FN = backfillSweepIntro();
  * (binary search — `data` is time-sorted). Values are read through
  * `read.resolve`, so callers can substitute renderer-smoothed values while the
  * raw sample still gates finiteness, and blended by `read.lerp` (a plain lerp
- * by default). `null` when the bracket contains a non-finite gap; edges clamp
- * to the boundary sample.
+ * by default). A sample at `time` is read on its own; between samples, `null`
+ * when the bracket contains a non-finite gap. Edges clamp to the boundary sample.
  */
 function valueAtTime(
   data: readonly TimePoint[],
@@ -131,6 +131,8 @@ function valueAtTime(
   }
 
   const a = data[lo];
+  if (a.time === time) return Number.isFinite(a.value) ? resolve(a) : null;
+
   const b = data[hi];
   if (!Number.isFinite(a.value) || !Number.isFinite(b.value)) return null;
 
