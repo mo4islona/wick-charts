@@ -456,6 +456,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * this is what keeps `fitToData` tick churn from flickering the reveal.
    */
   #gridFade: Animator<number>;
+  /** Whether a tick fade ran on the last main frame — the frame it settles on still owes the DOM labels a sync. */
+  #tickFadeRunning = false;
   /** Resolved edge-fade zones — a `null` side is auto: the axis-column ramp on the Y-axis side, off on the other. */
   #fade: ResolvedFade;
   /** See {@link headerHeight}. */
@@ -4091,7 +4093,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // streaming slide between tick boundaries would emit nothing and
       // labels would hold the slide-start `timeToX(time)` value while the
       // canvas glides past them, then snap forward on the next event.
-      if (yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating || animationState.animating) {
+      const tickFadeRunning = yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating;
+      const tickFadeSettled = this.#tickFadeRunning && !tickFadeRunning;
+      this.#tickFadeRunning = tickFadeRunning;
+      if (tickFadeRunning || tickFadeSettled || animationState.animating) {
         this.emit('tickFrame');
       }
 
