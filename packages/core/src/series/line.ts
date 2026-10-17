@@ -1296,20 +1296,37 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           }
         }
         context.fillStyle = grad;
+        // One fill for every run: abutting subpaths of one fill share their edge
+        // coverage, where separate translucent fills would leave a seam.
+        context.beginPath();
+        // A gap the stroke's round caps already close reads as no gap, so the fill bridges it too.
+        const maxBridgedGap = lineWidth + scope.horizontalPixelRatio;
+        let previous: { x: number; y: number } | null = null;
         for (const run of runs) {
           if (run.length < 2) continue;
-          context.beginPath();
+
+          const first = run[0];
+          const last = run[run.length - 1];
+          if (previous !== null && first.x - previous.x <= maxBridgedGap) {
+            context.moveTo(previous.x, previous.y);
+            context.lineTo(first.x, first.y);
+            context.lineTo(first.x, bottomY);
+            context.lineTo(previous.x, bottomY);
+            context.closePath();
+          }
+
           // Same builder as the stroke → the area's curved top edge is identical
           // to the stroked line above it.
           builder(paintEnv, { points: run, color, lineWidth, closing: true, grew: growing && run === growingRun });
           // Close the polygon: drop from the last point to the baseline, run
           // back to the first point's x on the baseline, and closePath snaps
           // the final edge back up to (first.x, first.y).
-          context.lineTo(run[run.length - 1].x, bottomY);
-          context.lineTo(run[0].x, bottomY);
+          context.lineTo(last.x, bottomY);
+          context.lineTo(first.x, bottomY);
           context.closePath();
-          context.fill();
+          previous = last;
         }
+        context.fill();
       }
 
       // Per-point dot markers on top of the stroke and fill. `runs` already

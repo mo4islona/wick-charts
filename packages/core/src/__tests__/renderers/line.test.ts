@@ -385,9 +385,9 @@ describe('LineRenderer.drawOverlay', () => {
     const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } });
     expect(() => r.render(ctx)).not.toThrow();
 
-    // 3 finite runs: {1,2}, {3,4}, {5, trailing(6)} → 3 fill polygons → 3
-    // fills + 3 closePath. One stroke pass across all runs.
-    expect(spy.countOf('fill')).toBe(3);
+    // 3 finite runs: {1,2}, {3,4}, {5, trailing(6)} → 3 closed polygons in one
+    // fill; the 40 px gaps are too wide to bridge. One stroke pass across all runs.
+    expect(spy.countOf('fill')).toBe(1);
     expect(spy.countOf('closePath')).toBe(3);
     expect(spy.countOf('stroke')).toBe(1);
 
@@ -397,6 +397,20 @@ describe('LineRenderer.drawOverlay', () => {
         if (typeof arg === 'number') expect(Number.isFinite(arg)).toBe(true);
       }
     }
+  });
+
+  it('bridges the area fill over a gap the stroke caps already close', () => {
+    // 0.8 px per sample: one null leaves a 1.6 px hole, narrower than the
+    // stroke plus a pixel, which would otherwise read as a seam in the fill.
+    const data = Array.from({ length: 1001 }, (_, i) => ({ time: i, value: i === 500 ? Number.NaN : 5 }));
+    const r = new LineRenderer(1, { area: { visible: true }, colors: ['#00f'], strokeWidth: 1 });
+    r.setData(data, 0);
+    const { ctx, spy } = buildRenderContext({ timeRange: { from: 0, to: 1000 }, yRange: { min: 0, max: 10 } });
+    r.render(ctx);
+
+    // Two run polygons plus the bridge between them, all in one fill.
+    expect(spy.countOf('fill')).toBe(1);
+    expect(spy.countOf('closePath')).toBe(3);
   });
 
   it('all-non-finite data renders without crash and draws no stroke geometry', () => {
