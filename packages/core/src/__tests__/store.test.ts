@@ -82,6 +82,52 @@ describe('TimeSeriesStore', () => {
     expect(s.getVisibleData(0, 100_000)).toEqual([]);
   });
 
+  describe('a rolling window', () => {
+    const times = (points: readonly Point[]) => points.map((p) => p.time);
+    const seed = () => makeStore([0, 1, 2, 3, 4].map((time) => ({ time, value: time })));
+
+    it('draws a slid-out point while the view still reaches it', () => {
+      const s = seed();
+      s.getVisibleData(-0.5, 4.5);
+      s.append({ time: 5, value: 5 });
+      s.trimStart(1);
+
+      expect(times(s.getVisibleData(0.5, 5.5))).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(times(s.getAll())).toEqual([1, 2, 3, 4, 5]);
+      expect(s.first()?.time).toBe(1);
+    });
+
+    it('forgets the slid-out points once the view passes them', () => {
+      const s = seed();
+      s.getVisibleData(-0.5, 4.5);
+      s.append({ time: 5, value: 5 });
+      s.trimStart(1);
+      s.getVisibleData(2.5, 7.5);
+      s.append({ time: 6, value: 6 });
+      s.trimStart(1);
+
+      expect(times(s.getVisibleData(-10, 10))).toEqual([2, 3, 4, 5, 6]);
+    });
+
+    it('drops a one-off trim at once', () => {
+      const s = seed();
+      s.getVisibleData(-0.5, 4.5);
+      s.trimStart(3);
+
+      expect(times(s.getVisibleData(-0.5, 4.5))).toEqual([3, 4]);
+    });
+
+    it('keeps no slid-out point when nothing reads the view', () => {
+      const s = seed();
+      for (const time of [5, 6, 7]) {
+        s.append({ time, value: time });
+        s.trimStart(1);
+      }
+
+      expect(times(s.getVisibleData(-10, 10))).toEqual([3, 4, 5, 6, 7]);
+    });
+  });
+
   it('emits update on setData', () => {
     const s = makeStore();
     let called = false;

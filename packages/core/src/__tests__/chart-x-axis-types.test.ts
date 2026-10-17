@@ -146,6 +146,28 @@ describe('ChartInstance X axis types', () => {
       expect(verticalGridlines().length).toBeGreaterThan(0);
     });
 
+    it('carries a rolling window out past the left edge', () => {
+      makeChart({ axis: { x: { type: 'numeric' } } });
+      const id = chart.addSeries('line', { area: { visible: false } });
+      chart.setLayerColors(id, [LINE_COLOR]);
+      // Wide steps set the fit width; the narrow ones after them keep fewer x units than the view shows.
+      chart.setSeriesData(
+        id,
+        Array.from({ length: 20 }, (_, i) => ({ x: i * 2, value: i % 3 })),
+      );
+      raf.flush(5);
+      for (let i = 1; i <= 20; i++) {
+        if (i === 20) spy.reset();
+        chart.appendData(id, { x: 38 + i, value: i % 3 });
+        chart.keepLast(id, 20);
+        raf.flush(5);
+      }
+
+      expect(chart.getDataRange()?.from).toBe(39);
+      expect(chart.getVisibleRange().from).toBeLessThan(30);
+      expect(Math.min(...lineVertices())).toBeLessThanOrEqual(0);
+    });
+
     it('fits the range to the data and sizes slots by the median spacing', () => {
       lineChart();
 
