@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChartInstance } from '../chart';
+import { githubLight } from '../theme/themes/github-light';
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   const container = document.createElement('div');
@@ -425,5 +426,57 @@ describe('ChartInstance.getDataBounds (multi-layer aggregation)', () => {
       1,
     );
     expect(dataBounds(chart)).toEqual({ first: 3, last: 7 });
+  });
+});
+
+describe('ChartInstance default line colours', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+
+  beforeEach(() => {
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+  });
+
+  it('gives each separate line the next palette colour', () => {
+    const palette = chart.getTheme().seriesColors;
+    const first = chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(first)).toBe(chart.getTheme().line.color);
+    expect(chart.getSeriesColor(second)).toBe(palette[1]);
+  });
+
+  it('starts a line after the slots a multi-layer line takes', () => {
+    const palette = chart.getTheme().seriesColors;
+    chart.addSeries('line', { layers: 3 });
+    const single = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(single)).toBe(palette[3]);
+  });
+
+  it('gives a re-created line its free slot back instead of the next one', () => {
+    const palette = chart.getTheme().seriesColors;
+    const first = chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    chart.removeSeries(first);
+    const recreated = chart.addSeries('line');
+
+    expect(chart.getSeriesColor(recreated)).toBe(chart.getTheme().line.color);
+    expect(chart.getSeriesColor(second)).toBe(palette[1]);
+  });
+
+  it('keeps the palette slot across a theme swap', () => {
+    chart.addSeries('line');
+    const second = chart.addSeries('line');
+
+    chart.setTheme(githubLight.theme);
+
+    expect(chart.getSeriesColor(second)).toBe(githubLight.theme.seriesColors[1]);
   });
 });
