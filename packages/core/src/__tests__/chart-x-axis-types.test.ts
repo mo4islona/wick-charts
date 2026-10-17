@@ -7,7 +7,7 @@ import type { ChartOptions } from '../chart/options';
 import { EMPTY_SYNC_STATE, syncSeriesLayer } from '../data/sync';
 import type { SeriesDefinition } from '../series/definition';
 import { LineSeriesDef } from '../series/line';
-import { buildHoverSnapshots, formatHeaderX } from '../snapshots';
+import { buildHoverSnapshots, formatHeaderX, formatTooltipHeader } from '../snapshots';
 import type { CanvasRecorder } from '../testing/recording-context';
 import { catppuccin } from '../theme/themes/catppuccin';
 import type { CrosshairPosition, XPointInput } from '../types';
@@ -90,6 +90,36 @@ describe('ChartInstance X axis types', () => {
     container?.remove();
     raf.uninstall();
     vi.restoreAllMocks();
+  });
+
+  describe('time', () => {
+    const HOUR = 3_600_000;
+    const DAY = 24 * HOUR;
+
+    function headerAt(args: { start: number; step: number; hover: number }): string {
+      makeChart({ timeZone: 'UTC' });
+      const id = chart.addSeries('line');
+      chart.setSeriesData(
+        id,
+        [0, 1, 2, 3].map((i) => ({ time: args.start + i * args.step, value: i })),
+      );
+      const interval = chart.getDataInterval();
+      const snapshots = buildHoverSnapshots(chart, { time: args.hover, cacheKey: 'header' });
+
+      return formatTooltipHeader(chart, { time: args.hover, snapshots, interval });
+    }
+
+    it("heads the tooltip with the hovered point's time, not the pointer's", () => {
+      const start = Date.UTC(2023, 2, 24, 16);
+
+      expect(headerAt({ start, step: HOUR, hover: start + HOUR + 6 * 60_000 })).toBe('Mar 24, 2023 17:00');
+    });
+
+    it('prints the date once on daily data', () => {
+      const start = Date.UTC(2022, 8, 7);
+
+      expect(headerAt({ start, step: DAY, hover: start + DAY + 3 * HOUR })).toBe('Sep 8, 2022');
+    });
   });
 
   describe('numeric', () => {

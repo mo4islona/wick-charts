@@ -9,9 +9,8 @@ import {
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
-  formatDate,
-  formatHeaderX,
   formatPriceAdaptive,
+  formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
@@ -188,10 +187,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
         letterSpacing: '0.02em',
       }"
     >
-      <template v-if="chart.timeScale.getType() === 'time'">
-        {{ formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() }) }}
-      </template>
-      {{ formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
+      {{ formatTooltipHeader(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
     </div>
 
     <template v-for="s in snapshots" :key="s.id">
