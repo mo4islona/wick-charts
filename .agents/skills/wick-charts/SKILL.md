@@ -37,7 +37,7 @@ Root component. Requires a defined width + height.
 <ChartContainer
   theme={catppuccin.theme}
   axis={{ y: { min: 0, max: 'auto' }, x: { visible: true } }}
-  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0 } }}
+  padding={{ top: 20, bottom: 20, right: { intervals: 3 }, left: { intervals: 0.5 } }}
   viewport={{ maxVisibleBars: 200, initialRange: 35 }}
   gradient grid={{ visible: true }} interactive
   headerLayout="overlay"
