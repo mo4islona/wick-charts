@@ -588,6 +588,32 @@ describe('ChartInstance X axis types', () => {
       expect(chart.timeScale.niceTickValues(1).ticks).toHaveLength(60);
     });
 
+    it('measures a long category name at its slot width, again after the slot narrows', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        const cap = Number.parseFloat(this.style.maxWidth);
+
+        return Number.isNaN(cap) ? 190 : Math.min(190, cap);
+      });
+      makeChart({ axis: { x: { type: 'category' } } });
+      const id = chart.addSeries('bar');
+      const regions = (count: number) => Array.from({ length: count }, (_, i) => ({ x: `Long region ${i}`, value: 1 }));
+      chart.setSeriesData(id, regions(4));
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+      const firstLeft = () => Number.parseFloat(strip.querySelector('span')?.style.left ?? '');
+
+      expect(firstLeft()).toBe(chart.timeScale.timeToSnappedX(0));
+
+      chart.setSeriesData(id, regions(20));
+      raf.flush(5);
+
+      expect(chart.timeScale.barWidthMedia(1)).toBeLessThan(60);
+      expect(firstLeft()).toBe(chart.timeScale.timeToSnappedX(0));
+      unmount();
+    });
+
     it('renames a still crosshair when the categories reorder', () => {
       const id = barChart();
       pointerAt({ container, type: 'mousemove', offsetX: chart.timeScale.timeToX(0) });
