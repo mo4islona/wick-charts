@@ -36,6 +36,27 @@ describe('detectInterval', () => {
     const result = detectInterval(times);
     expect(result).toBe(MINUTE);
   });
+
+  it('follows a switch to a finer resolution after the first 20 points', () => {
+    const hourly = Array.from({ length: 200 }, (_, i) => i * HOUR);
+    const switchAt = 200 * HOUR;
+    const quarterly = Array.from({ length: 30 }, (_, i) => switchAt + i * 15 * MINUTE);
+
+    expect(detectInterval([...hourly, ...quarterly])).toBe(15 * MINUTE);
+  });
+
+  it('ignores a few short steps scattered through the series', () => {
+    const times = Array.from({ length: 300 }, (_, i) => i * MINUTE);
+    times[50] = times[49] + 1_000;
+    times[180] = times[179] + 1_000;
+
+    expect(detectInterval(times)).toBe(MINUTE);
+  });
+
+  it('skips repeated timestamps', () => {
+    expect(detectInterval([0, 0, MINUTE, MINUTE, 2 * MINUTE])).toBe(MINUTE);
+    expect(detectInterval([5, 5])).toBe(DAY);
+  });
 });
 
 describe('normalizeTime', () => {

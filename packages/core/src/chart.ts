@@ -66,6 +66,7 @@ import {
   type SeriesKind,
   type SeriesRenderer,
   type SliceInfo,
+  type TimeSeriesRenderer,
   isTimeSeriesRenderer,
 } from './series/types';
 import { catppuccin } from './theme/themes/catppuccin';
@@ -151,6 +152,11 @@ const RIGHT_EDGE_SIDE: readonly EdgeSide[] = ['right'];
 
 /** Default Y-axis column width in CSS px — the default axis and named scales alike. */
 const DEFAULT_Y_AXIS_WIDTH = 55;
+
+/** A series up to this long re-reads every step on each data change; a longer one reads its tail on an append. */
+const FULL_INTERVAL_SCAN_POINTS = 2_000;
+/** Points of the tail an append reads: one full detection window. */
+const INTERVAL_TAIL_POINTS = 20;
 
 /** The layout the DOM axis / label components anchor to. */
 interface AxisGutters {
@@ -3171,7 +3177,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return;
     }
 
-    this.updateDataInterval();
+    this.updateDataInterval({ full: this.#dataReplaceSnapPending || !this.#yInited });
 
     const { first, last } = this.getDataBounds();
     if (first !== undefined) this.#dataStart = first;
@@ -3258,7 +3264,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#bumpOverlayVersion();
   }
 
-  private updateDataInterval(): void {
+  /** `full`: the data was replaced, so a long series is read whole instead of from its tail. */
+  private updateDataInterval(opts: { full: boolean }): void {
     // One step per category, whichever categories a series happens to hold.
     if (this.#xType === 'category') {
       this.#dataInterval = 1;
@@ -3270,12 +3277,26 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
       // `>= 2` guard preserved: `detectInterval` on a lone timestamp lies.
-      const times = entry.renderer.sampleTimes(20);
-      if (times.length >= 2) {
-        this.#dataInterval = detectInterval(times);
-        break;
-      }
+      const head = entry.renderer.sampleTimes(FULL_INTERVAL_SCAN_POINTS + 1);
+      if (head.length < 2) continue;
+
+      this.#dataInterval = this.#seriesInterval({ renderer: entry.renderer, head, full: opts.full });
+
+      return;
     }
+  }
+
+  /** The step of one series. Past {@link FULL_INTERVAL_SCAN_POINTS}, an append can only refine it from the tail. */
+  #seriesInterval(args: { renderer: TimeSeriesRenderer; head: number[]; full: boolean }): number {
+    const { renderer, head, full } = args;
+    if (head.length <= FULL_INTERVAL_SCAN_POINTS) return detectInterval(head);
+    if (full) return detectInterval(renderer.sampleTimes(Number.POSITIVE_INFINITY));
+
+    // The same layer as `head`, so a full window is there unless the renderer cannot read its tail.
+    const tail = renderer.sampleTimes(INTERVAL_TAIL_POINTS, 'end');
+    if (tail.length < INTERVAL_TAIL_POINTS) return this.#dataInterval;
+
+    return Math.min(this.#dataInterval, detectInterval(tail));
   }
 
   /** Whether the Y range has been initialized (first snap vs smooth lerp).

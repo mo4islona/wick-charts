@@ -27,14 +27,48 @@ export function normalizeTimePointArray(data: TimePointInput[]): TimePoint[] {
   return data.map((d) => ({ ...d, time: normalizeTime(d.time) }) as TimePoint);
 }
 
-export function detectInterval(times: number[]): number {
-  if (times.length < 2) return DAY;
-  const diffs: number[] = [];
-  for (let i = 1; i < Math.min(times.length, 20); i++) {
-    diffs.push(times[i] - times[i - 1]);
+/** Steps per window: a median over 19 shrugs off a few glitches but follows a run of finer steps. */
+const INTERVAL_WINDOW = 19;
+
+/**
+ * The bar step of an ascending time array: the smallest median step over any
+ * run of 20 points, so a series that switches to a finer resolution part-way
+ * through is sized for its finest part. `DAY` without two distinct times.
+ */
+export function detectInterval(times: readonly number[]): number {
+  const steps: number[] = [];
+  for (let i = 1; i < times.length; i++) {
+    const step = times[i] - times[i - 1];
+    if (step > 0) steps.push(step);
   }
-  diffs.sort((a, b) => a - b);
-  return diffs[Math.floor(diffs.length / 2)];
+
+  if (steps.length === 0) return DAY;
+  if (steps.length <= INTERVAL_WINDOW) return medianOf(steps);
+
+  // Windows overlap by half, and the last one ends on the last step.
+  const stride = Math.ceil(INTERVAL_WINDOW / 2);
+  let finest = Number.POSITIVE_INFINITY;
+  for (let end = INTERVAL_WINDOW; ; end = Math.min(end + stride, steps.length)) {
+    finest = Math.min(finest, medianOf(steps.slice(end - INTERVAL_WINDOW, end)));
+    if (end === steps.length) break;
+  }
+
+  return finest;
+}
+
+/** The first, or with `'end'` the last, `maxCount` items: the window a renderer's `sampleTimes` reads. */
+export function sliceSample<T>(items: readonly T[], opts: { maxCount: number; from: 'start' | 'end' }): T[] {
+  const { maxCount, from } = opts;
+  if (from === 'start') return items.slice(0, maxCount);
+
+  return items.slice(Math.max(0, items.length - maxCount));
+}
+
+/** Upper median; sorts `values` in place. */
+function medianOf(values: number[]): number {
+  values.sort((a, b) => a - b);
+
+  return values[Math.floor(values.length / 2)];
 }
 
 /** Locale / timezone override for {@link formatTime} / {@link formatDate}. Any field omitted keeps the built-in default. */
