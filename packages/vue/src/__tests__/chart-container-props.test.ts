@@ -121,6 +121,24 @@ describe('Vue <ChartContainer> ported props', () => {
     wrapper.unmount();
   });
 
+  it('a style attribute overrides the built-in min-height floor', async () => {
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, style: 'min-height: 0; height: 48px' }, () => [
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const root = host.querySelector(':scope > div > div') as HTMLElement;
+    expect(Number.parseFloat(root.style.minHeight)).toBe(0);
+    expect(root.style.height).toBe('48px');
+    wrapper.unmount();
+  });
+
   it('interactive is on by default (no prop passed) — InteractionHandler installs the crosshair cursor', async () => {
     // Regression: Vue's type-based `defineProps` casts an absent
     // Boolean-typed prop to `false`, not `undefined` — without an explicit

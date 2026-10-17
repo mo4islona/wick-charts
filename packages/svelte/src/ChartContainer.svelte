@@ -172,7 +172,11 @@ export let onVisibleRangeChange: ((range: VisibleRange) => void) | undefined = u
  * chart. Live — the latest callback is always used.
  */
 export let onCrosshairMove: ((position: CrosshairPosition | null) => void) | undefined = undefined;
-/** Inline style for the chart's outer wrapper element. Live. */
+/**
+ * Inline style for the chart's outer wrapper element. The wrapper fills its
+ * parent (`height: 100%`) and keeps a 240px `min-height` floor; pass
+ * `min-height: 0` for a smaller chart. Live.
+ */
 export let style: string = '';
 
 let containerEl: HTMLDivElement;
@@ -485,19 +489,15 @@ $: gradientBg = (() => {
 
   return gradient ? `linear-gradient(to bottom, ${gtop} 0%, ${bg} 70%, ${gbot} 100%)` : bg;
 })();
+
+// One attribute with `style` last, so it overrides the layout as in React and Vue —
+// `style:` directives would win over it.
+$: rootStyle =
+  'position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:240px;overflow:hidden;' +
+  `background:${gradientBg};${style}`;
 </script>
 
-<div
-  {style}
-  style:position="relative"
-  style:display="flex"
-  style:flex-direction="column"
-  style:width="100%"
-  style:height="100%"
-  style:min-height="240px"
-  style:overflow="hidden"
-  style:background={gradientBg}
->
+<div style={rootStyle}>
   <div style="display:flex;flex-direction:row;flex:1;min-height:0">
     <div style="display:flex;flex-direction:column;flex:1;min-width:0;min-height:0">
       {#if headerLayout === 'inline'}

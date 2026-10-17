@@ -47,6 +47,8 @@ function Chart({ data }) {
 }
 ```
 
+`ChartContainer` fills its parent (`width` and `height` are `100%`), so give the parent a height. The container also has a 240px `min-height`, so a parent with no height still shows a chart. For a smaller chart, such as a sparkline in a table row, set `min-height: 0` (`minHeight: 0` in React) in the container's `style`.
+
 ## API
 
 Every component, prop, type, and slot context lives in the docs site:

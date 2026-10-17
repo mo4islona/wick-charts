@@ -255,7 +255,11 @@ export interface ChartContainerProps {
    * chart. Live — the latest callback is always used.
    */
   onCrosshairMove?: (position: CrosshairPosition | null) => void;
-  /** Inline style for the chart's outer wrapper element. Live. */
+  /**
+   * Inline style for the chart's outer wrapper element. The wrapper fills its
+   * parent (`height: 100%`) and keeps a 240px `minHeight` floor; pass
+   * `minHeight: 0` for a smaller chart. Live.
+   */
   style?: CSSProperties;
   /** Extra class for the chart's outer wrapper element. Live. */
   className?: string;
