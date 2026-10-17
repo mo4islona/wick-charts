@@ -174,6 +174,27 @@ describe('LineRenderer.drawOverlay', () => {
     expect(spy.countOf('arc')).toBe(4);
   });
 
+  it('pulse dot: a trailing null gap leaves the dot on the last finite point, not at 0', () => {
+    const r = new LineRenderer(1, { area: { visible: false }, pulse: true });
+    r.setData([
+      { time: 10, value: 4 },
+      { time: 20, value: 6 },
+      { time: 30, value: null },
+    ]);
+    const { overlayCtx, spy, timeScale, yScale } = buildRenderContext({
+      timeRange: { from: 0, to: 40 },
+      yRange: { min: 0, max: 10 },
+    });
+    r.drawOverlay(overlayCtx(null));
+
+    const arcs = spy.callsOf('arc');
+    expect(arcs.length).toBeGreaterThan(0);
+    for (const arc of arcs) {
+      expect(arc.args[0]).toBeCloseTo(timeScale.timeToBitmapXExact(20));
+      expect(arc.args[1]).toBeCloseTo(yScale.valueToBitmapYExact(6));
+    }
+  });
+
   it('crosshair present → extra arcs for nearest-point markers', () => {
     const r = new LineRenderer(1, { area: { visible: false }, pulse: false, colors: ['#111'] });
     r.setData(seed(5), 0);

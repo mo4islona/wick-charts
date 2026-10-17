@@ -727,7 +727,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     for (let li = 0; li < layers.length; li++) {
       // A stacked layer is one category — resolve a value-fn once at the layer's
       // last value rather than per segment.
-      const color = this.resolveLayerColor(li, this.stores[li].last()?.value ?? 0);
+      const color = this.resolveLayerColor(li, this.lastFinitePoint(li)?.value ?? 0);
 
       for (const [time, values] of timeMap) {
         const raw = values[li];

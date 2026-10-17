@@ -417,7 +417,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   getLayerColors(): string[] {
     const colors: string[] = [];
     for (let i = 0; i < this.stores.length; i++) {
-      const lastValue = this.stores[i]?.last()?.value ?? 0;
+      const lastValue = this.lastFinitePoint(i)?.value ?? 0;
       colors.push(this.resolveLayerColor(i, lastValue));
     }
 
@@ -702,9 +702,26 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
   // --- Data queries ---------------------------------------------------------
 
+  /**
+   * The layer's newest point with a finite value, after skipping `skip` such
+   * points — a trailing `null` / `NaN` is a gap, not the latest reading.
+   */
+  protected lastFinitePoint(layerIndex: number, skip = 0): TData | null {
+    const all = this.stores[layerIndex]?.getAll() ?? [];
+    let remaining = skip;
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (!Number.isFinite(all[i].value)) continue;
+      if (remaining === 0) return all[i];
+
+      remaining--;
+    }
+
+    return null;
+  }
+
   getLastValue(): number | null {
     for (let i = this.stores.length - 1; i >= 0; i--) {
-      const last = this.stores[i].last();
+      const last = this.lastFinitePoint(i);
       if (last) return last.value;
     }
 
@@ -747,7 +764,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
   getStackedLastValue(): { value: number; isLive: boolean } | null {
     if (this.stores.length <= 1) {
-      const last = this.stores[0]?.last();
+      const last = this.lastFinitePoint(0);
 
       return last ? { value: this.snapshotValue(0, last.time, last.value), isLive: true } : null;
     }
@@ -760,7 +777,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       for (let i = this.stores.length - 1; i >= 0; i--) {
         if (!this.stores[i].isVisible()) continue;
 
-        const last = this.stores[i].last();
+        const last = this.lastFinitePoint(i);
         if (last) return { value: this.snapshotValue(i, last.time, last.value), isLive: true };
       }
 
@@ -772,27 +789,56 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     // hold-last-value handling of ragged streams: a layer that hasn't ticked
     // as recently as its siblings still contributes its last reading instead
     // of dropping to 0, which would otherwise collapse the whole stack toward
-    // whichever single layer just ticked.
-    let sawAny = false;
-    const values: number[] = [];
-    for (let li = 0; li < this.stores.length; li++) {
-      if (!this.stores[li].isVisible()) continue;
-
-      const l = this.stores[li].last();
-      if (!l) {
-        values.push(0);
-        continue;
-      }
-
-      sawAny = true;
-      values.push(this.snapshotValue(li, l.time, l.value));
-    }
-    if (!sawAny) return null;
+    // whichever single layer just ticked. A layer that ends in a gap is drawn
+    // as nothing there, so it adds 0 instead of its older reading.
+    const heads = this.stackHeadValues((li) => this.stores[li].last() ?? null);
+    // Every layer ends in a gap: the head is the last row drawn before it.
+    const values = heads ?? this.lastDrawnRowValues();
+    if (!values) return null;
 
     const totals = sumStack(values);
     const value = stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
 
     return { value, isLive: true };
+  }
+
+  /** Stack contributions at the newest time any visible layer has a finite point. */
+  private lastDrawnRowValues(): number[] | null {
+    let rowTime: number | null = null;
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+
+      const last = this.lastFinitePoint(li);
+      const newer = last !== null && (rowTime === null || last.time > rowTime);
+      if (newer) rowTime = last.time;
+    }
+    if (rowTime === null) return null;
+
+    // Only a sample at the row's own time counts: every layer ends in a gap, so
+    // the stack draws an older reading as nothing there.
+    const time = rowTime;
+
+    return this.stackHeadValues((li) => this.stores[li].findNearest(time, 0));
+  }
+
+  /** Each visible layer's stack contribution at `pick(layer)`, or `null` when none is finite. */
+  private stackHeadValues(pick: (layerIndex: number) => TData | null): number[] | null {
+    let sawAny = false;
+    const values: number[] = [];
+    for (let li = 0; li < this.stores.length; li++) {
+      if (!this.stores[li].isVisible()) continue;
+
+      const point = pick(li);
+      if (!point || !Number.isFinite(point.value)) {
+        values.push(0);
+        continue;
+      }
+
+      sawAny = true;
+      values.push(this.snapshotValue(li, point.time, point.value));
+    }
+
+    return sawAny ? values : null;
   }
 
   getStackedValueAtTime(time: number, interval: number): number | null {
@@ -847,7 +893,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     for (let li = 0; li < this.stores.length; li++) {
       if (!this.stores[li].isVisible()) continue;
 
-      const last = this.stores[li].last();
+      const last = this.lastFinitePoint(li);
       if (!last) continue;
 
       const row: LayerSnapshot = {
@@ -893,22 +939,19 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   }
 
   /**
-   * Last data point of **layer 0 (`stores[0]`) only** — preserves the behavior
+   * Last finite data point of **layer 0 (`stores[0]`) only** — preserves the behavior
    * of the deleted `get store()` getter. NOTE: this is intentionally NOT the
    * same as {@link getStackedLastValue}, which for non-stacked multi-layer
    * reports the top visible layer and for stacked reports the cumulative sum.
    * Last-data / previous-close semantics stay pinned to layer 0 for back-compat.
    */
   getLastDataPoint(): TData | null {
-    return this.stores[0]?.last() ?? null;
+    return this.lastFinitePoint(0);
   }
 
   /** Second-to-last point of layer 0 (`stores[0]`). See {@link getLastDataPoint}. */
   getSecondLastDataPoint(): TData | null {
-    const all = this.stores[0]?.getAll();
-    if (!all || all.length < 2) return null;
-
-    return all[all.length - 2];
+    return this.lastFinitePoint(0, 1);
   }
 
   /** First `maxCount` sample times from the first populated layer. */

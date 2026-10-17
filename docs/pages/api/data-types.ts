@@ -110,11 +110,21 @@ const TIME_POINT: DataShape = {
   ],
 };
 
-// Line/bar accept `TimePointInput` (time may be a `Date`); only `time` differs
-// from `TimePoint`, so reuse its `value` field.
+// Line/bar accept `TimePointInput`: time may be a `Date`, and value may be `null`.
 const TIME_POINT_INPUT: DataShape = {
   typeName: 'TimePointInput',
-  props: [TIME_FIELD_INPUT, ...TIME_POINT.props.slice(1)],
+  props: [
+    TIME_FIELD_INPUT,
+    {
+      name: 'value',
+      type: 'number | null',
+      optional: false,
+      defaultValue: null,
+      deprecated: null,
+      description:
+        'Y-axis value at this point. Drives the line height / bar height. `null` is a gap: the line breaks there and the tooltip leaves the point out.',
+    },
+  ],
 };
 
 /** OHLC candle fields (time accepts a `Date`). Shared by the candlestick `props` and its switcher variant. */

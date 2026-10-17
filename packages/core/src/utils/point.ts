@@ -19,3 +19,8 @@ export function pointValue(point: SeriesPoint): number {
 
   return point.value;
 }
+
+/** True when a point has no finite value to show — a `null` / `NaN` gap, drawn as a break. */
+export function isGapPoint(point: SeriesPoint): boolean {
+  return !Number.isFinite(pointValue(point));
+}

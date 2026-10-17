@@ -21,9 +21,10 @@ export function normalizeOHLCArray(data: OHLCInput[]): OHLCData[] {
 
 /** Normalize the `time` field of every element in a {@link TimePointInput} array to produce {@link TimePoint}. */
 export function normalizeTimePointArray(data: TimePointInput[]): TimePoint[] {
+  // A `null` value passes through: renderers read any non-finite value as a gap.
   if (data.length === 0) return data as TimePoint[];
   if (!data.some((d) => d.time instanceof Date)) return data as TimePoint[];
-  return data.map((d) => ({ ...d, time: normalizeTime(d.time) }));
+  return data.map((d) => ({ ...d, time: normalizeTime(d.time) }) as TimePoint);
 }
 
 export function detectInterval(times: number[]): number {
