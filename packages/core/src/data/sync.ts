@@ -131,6 +131,49 @@ function isFrontPrepend<T extends InputPoint>(
   return true;
 }
 
+/** How the kept part of the previous data reads in the new array — see {@link continuation}. */
+type Continuation = 'unchanged' | 'lastEdited';
+
+/**
+ * Whether `data` is the previous data with its first `dropped` points removed
+ * and newer points appended — the precondition for the cheap append paths.
+ * `'lastEdited'` when the old last point kept its X but changed its values
+ * (a candle closed in the same commit that opens the next one); `null` when
+ * any other kept point changed, or an appended point is not newer than the
+ * one before it.
+ *
+ * Without a snapshot (`null`, or the same array mutated in place) there is
+ * nothing to diff, so the caller's length-and-boundary reading stands.
+ */
+function continuation<T extends InputPoint>(
+  prevData: readonly InputPoint[] | null,
+  data: readonly T[],
+  dropped: number,
+): Continuation | null {
+  if (!prevData || prevData === data) return 'unchanged';
+
+  const kept = prevData.length - dropped;
+  if (kept <= 0 || kept > data.length) return null;
+
+  for (let i = 0; i < kept - 1; i++) {
+    const before = prevData[dropped + i] as T;
+    if (before === data[i]) continue;
+
+    if (!pointEquals(before, data[i])) return null;
+  }
+
+  for (let i = kept; i < data.length; i++) {
+    if (keyOf(data[i - 1]) >= keyOf(data[i])) return null;
+  }
+
+  const lastBefore = prevData[prevData.length - 1] as T;
+  const lastNow = data[kept - 1];
+  if (lastBefore === lastNow || pointEquals(lastBefore, lastNow)) return 'unchanged';
+  if (keyOf(lastBefore) !== keyOf(lastNow)) return null;
+
+  return 'lastEdited';
+}
+
 /** True for a {@link SeriesLayer} object — an object (not array) carrying a `data` array. */
 function isSeriesLayer<T>(x: unknown): x is SeriesLayer<T> {
   return typeof x === 'object' && x !== null && !Array.isArray(x) && Array.isArray((x as { data?: unknown }).data);
@@ -239,8 +282,8 @@ export interface SyncSeriesLayerArgs<T extends InputPoint> {
  * previous {@link SeriesSyncState}, choosing the cheapest correct mutation so
  * streamed updates ease instead of Y-snapping:
  *
- *   - rolling-window slide (same length, head dropped + tail appended) →
- *     `appendData` + `keepLast` (eases — no Y snap),
+ *   - rolling-window slide (same length, head dropped + tail appended, every
+ *     kept point proven unchanged) → `appendData` + `keepLast` (eases — no Y snap),
  *   - history prepend (N older points spliced onto the front, existing suffix
  *     untouched) → `prependData` (keeps the viewport put — no re-fit or snap),
  *   - bulk load / shrink / window shift → `setSeriesData`,
@@ -249,7 +292,9 @@ export interface SyncSeriesLayerArgs<T extends InputPoint> {
  *   - same length but a middle value edited underneath matching boundary
  *     timestamps → `setSeriesData` (can't cheaply patch an arbitrary middle
  *     point, and skipping it would leave stale values on screen),
- *   - tail growth → `appendData` per new point.
+ *   - tail growth → `appendData` per new point,
+ *   - either append path with the old last point edited at the same X →
+ *     `updateData` on it first; any other kept point changed → `setSeriesData`.
  *
  * Stateless: returns the new state for the caller to persist. Shared by the
  * React, Vue and Svelte series wrappers so all three behave identically — in
@@ -294,12 +339,18 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
   const added = data.length - prev.len;
   const hasNewLast = prev.lastTime !== null && prev.lastTime !== lastTime;
 
-  if (shifted && added === 0 && hasNewLast) {
+  const slide = shifted && added === 0 && hasNewLast ? continuation(prev.data, data, 1) : null;
+
+  if (slide !== null) {
     // Rolling-window slide (maxPoints cap): oldest dropped, newest appended,
     // length unchanged. Append the new tail then trim the head — this path
     // goes through `keepLast` (no Y snap) instead of `setSeriesData`. Batched
     // so the append + trim run one `onDataChanged` pass, not two.
     chart.batch(() => {
+      if (slide === 'lastEdited') {
+        chart.updateData(id, data[data.length - 2], layerIndex);
+      }
+
       chart.appendData(id, data[data.length - 1], layerIndex);
       chart.keepLast(id, data.length, layerIndex);
     });
@@ -318,14 +369,24 @@ export function syncSeriesLayer<T extends InputPoint>(args: SyncSeriesLayerArgs<
       chart.setSeriesData(id, data, layerIndex);
     }
   } else {
-    // Tail growth — a burst of ≤ BULK_THRESHOLD points in one commit. Batched:
-    // every point still seeds its own entrance animator, but the engine
-    // retargets once for the whole burst instead of once per point.
-    chart.batch(() => {
-      for (let i = prev.len; i < data.length; i++) {
-        chart.appendData(id, data[i], layerIndex);
-      }
-    });
+    const growth = continuation(prev.data, data, 0);
+
+    if (growth === null) {
+      chart.setSeriesData(id, data, layerIndex);
+    } else {
+      // Tail growth — a burst of ≤ BULK_THRESHOLD points in one commit. Batched:
+      // every point still seeds its own entrance animator, but the engine
+      // retargets once for the whole burst instead of once per point.
+      chart.batch(() => {
+        if (growth === 'lastEdited') {
+          chart.updateData(id, data[prev.len - 1], layerIndex);
+        }
+
+        for (let i = prev.len; i < data.length; i++) {
+          chart.appendData(id, data[i], layerIndex);
+        }
+      });
+    }
   }
 
   return { len: data.length, firstTime, lastTime, data };

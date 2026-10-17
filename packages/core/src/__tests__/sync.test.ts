@@ -266,6 +266,75 @@ describe('syncSeriesLayer', () => {
     expect(next).toEqual({ len: 3, firstTime: 2, lastTime: 4, data });
   });
 
+  it('tail growth that also edits the old last point updates it before the append', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(2)];
+    const prev: SeriesSyncState = { len: 2, firstTime: 1, lastTime: 2, data: prevData };
+    const edited = { time: 2, value: 128 };
+    const data = [prevData[0], edited, point(3)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.updateData).toHaveBeenCalledWith('a', edited, undefined);
+    expect(chart.appendData).toHaveBeenCalledWith('a', point(3), undefined);
+    expect(vi.mocked(chart.updateData).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(chart.appendData).mock.invocationCallOrder[0],
+    );
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+  });
+
+  it('tail growth with an edited middle point falls back to setSeriesData', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(2), point(3)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: prevData };
+    const data = [point(1), { time: 2, value: 999 }, point(3), point(4)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+    expect(chart.appendData).not.toHaveBeenCalled();
+  });
+
+  it('tail growth with an out-of-order new point falls back to setSeriesData', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(3)];
+    const prev: SeriesSyncState = { len: 2, firstTime: 1, lastTime: 3, data: prevData };
+    const data = [...prevData, point(2)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+    expect(chart.appendData).not.toHaveBeenCalled();
+  });
+
+  it('rolling-window slide that also edits the old last point updates it before the append', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(2), point(3)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: prevData };
+    const edited = { time: 3, value: 128 };
+    const data = [prevData[1], edited, point(4)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.updateData).toHaveBeenCalledWith('a', edited, undefined);
+    expect(chart.appendData).toHaveBeenCalledWith('a', point(4), undefined);
+    expect(chart.keepLast).toHaveBeenCalledWith('a', 3, undefined);
+    expect(chart.setSeriesData).not.toHaveBeenCalled();
+  });
+
+  it('a same-length window that did not slide by one point is a full replace', () => {
+    const chart = mockChart();
+    const prevData = [point(1), point(2), point(3)];
+    const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: prevData };
+    const data = [point(10), point(11), point(12)];
+
+    syncSeriesLayer({ chart, id: 'a', data, prev });
+
+    expect(chart.setSeriesData).toHaveBeenCalledWith('a', data, undefined);
+    expect(chart.appendData).not.toHaveBeenCalled();
+    expect(chart.keepLast).not.toHaveBeenCalled();
+  });
+
   it('wraps the rolling-window append + trim in one chart.batch (single onDataChanged pass)', () => {
     const chart = mockChart();
     const prev: SeriesSyncState = { len: 3, firstTime: 1, lastTime: 3, data: null };
