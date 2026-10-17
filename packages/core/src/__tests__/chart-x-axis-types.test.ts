@@ -248,6 +248,29 @@ describe('ChartInstance X axis types', () => {
       unmount();
     });
 
+    it('leaves the labels that fade out after a pan at their own spots', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      makeChart({ animations: true, axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 21 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      chart.setVisibleRange({ from: 0, to: 100 });
+      raf.flush(200);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      // Mid-fade: the ticks that left on the left are still drawn.
+      chart.setVisibleRange({ from: 80, to: 180 });
+      raf.flush(2);
+      const lefts = [...strip.querySelectorAll('span')].map((span) => span.style.left);
+
+      expect(lefts.length).toBeGreaterThan(5);
+      expect(new Set(lefts).size).toBe(lefts.length);
+      unmount();
+    });
+
     it("heads the tooltip with the point's own x, ticks with the step's decimals", () => {
       makeChart({ axis: { x: { type: 'numeric' } } });
       const id = chart.addSeries('line');
