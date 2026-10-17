@@ -62,19 +62,23 @@ const props = withDefaults(
      */
     viewport?: {
       /**
-       * Width of the visible window in data bars, set on the first data load
-       * to `maxVisibleBars * dataInterval`. While the dataset is smaller than
-       * this width, streaming ticks render into the empty right-side gap and
-       * the viewport stays put; once the data reaches the right edge, the
-       * viewport pans forward to keep the latest bar pinned (tail-scroll).
-       * Default: 200.
+       * Most bars the chart's own fit shows. The first data load fits every bar
+       * up to this count; while the data holds fewer, streamed bars widen the
+       * window, and once it is full the window keeps its width and follows the
+       * latest bar. `fitContent()` and an explicit bar count are not capped.
+       * Default: 200. Values below 2 are clamped.
        */
       maxVisibleBars?: number;
       /**
        * Initial visible range applied before the first paint with data. Same
        * shape as the imperative `chart.setVisibleRange` — pass a bar count
        * (e.g. `35`), an explicit `{from, to}` window, or `{from, bars}` for
-       * a warm-up pair. Captured at mount.
+       * a warm-up pair.
+       *
+       * It stays the chart's window until the user zooms or pans or the app
+       * sets a range, so a series that loads later or data set again keeps it.
+       * A bar count widens with streamed bars until it holds that many; a
+       * `{from, …}` window ends once streaming moves it. Captured at mount.
        */
       initialRange?: VisibleRangeSpec;
     };
@@ -86,7 +90,7 @@ const props = withDefaults(
      * two-way binding; a same-value literal (compared structurally) is a
      * no-op, so an inline object doesn't re-apply on every render.
      *
-     * For a one-shot initial window that isn't re-applied on every prop
+     * For an initial window that isn't re-applied on every prop
      * change, use `viewport.initialRange` instead.
      */
     visibleRange?: VisibleRangeSpec;

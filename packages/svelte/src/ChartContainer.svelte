@@ -63,7 +63,7 @@ export let viewport: { maxVisibleBars?: number; initialRange?: VisibleRangeSpec 
  * two-way binding; a same-value literal (compared structurally) is a no-op,
  * so an inline object doesn't re-apply on every render.
  *
- * For a one-shot initial window that isn't re-applied on every prop change,
+ * For an initial window that isn't re-applied on every prop change,
  * use `viewport.initialRange` instead.
  */
 export let visibleRange: VisibleRangeSpec | undefined = undefined;
