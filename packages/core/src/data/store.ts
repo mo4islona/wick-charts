@@ -10,6 +10,12 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   private _visible = true;
   private cachedRange: { from: number; to: number } | null = null;
   private cachedResult: T[] = [];
+  // Points `trimStart` dropped, oldest first. A view whose left edge is older
+  // than the kept head still draws them, so a rolling window slides out of view.
+  private exited: T[] = [];
+  // Leftmost `from` read since the last trim: older exited points are out of every view since then.
+  private lowestReadFrom = Number.POSITIVE_INFINITY;
+  private appendedSinceTrim = 0;
   // Dev-only, warn-once-per-instance: these two conditions are almost always
   // a persistent bug in the caller's feed (not a one-off), so a per-call
   // warning would just spam the console on every tick.
@@ -42,6 +48,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     }
 
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
+    this.exited = [];
+    this.appendedSinceTrim = 0;
     this.cachedRange = null;
     this.emit('update');
   }
@@ -60,6 +68,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       return;
     }
     this.data.push(point);
+    this.appendedSinceTrim++;
     this.cachedRange = null;
     this.emit('update');
   }
@@ -82,21 +91,39 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     if (points.length === 0) return;
 
     this.data = points.concat(this.data);
+    this.exited = [];
     this.cachedRange = null;
     this.emit('update');
   }
 
   trimStart(count: number): void {
     if (count <= 0 || this.data.length === 0) return;
-    if (count >= this.data.length) {
-      this.data = [];
-      this.cachedRange = null;
-      this.emit('update');
-      return;
-    }
+
+    // Only the newest as many as were appended since the last trim stay drawable:
+    // a rolling window slides out of view, while a one-off trim still drops at once.
+    const dropped = this.data.slice(0, count);
+    const sliding = dropped.slice(Math.max(0, dropped.length - this.appendedSinceTrim));
+    const exited = sliding.length === dropped.length ? this.exited.concat(sliding) : sliding;
     this.data = this.data.slice(count);
+    this.exited = this.reachedByView(exited);
+    this.appendedSinceTrim = 0;
+    this.lowestReadFrom = Number.POSITIVE_INFINITY;
     this.cachedRange = null;
     this.emit('update');
+  }
+
+  /**
+   * The exited points the leftmost view read since the last trim needs to reach its left edge.
+   * None without a read, so a chart that does not paint (a hidden tab) does not pile them up.
+   */
+  private reachedByView(exited: T[]): T[] {
+    const from = this.lowestReadFrom;
+    const head = this.data[0];
+    if (head === undefined || head.time <= from) return [];
+
+    const start = Math.max(0, binarySearch(exited, from, (d) => d.time) - 1);
+
+    return exited.slice(start);
   }
 
   getAll(): T[] {
@@ -107,11 +134,23 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     if (this.data.length === 0) return [];
     if (this.cachedRange && this.cachedRange.from === from && this.cachedRange.to === to) return this.cachedResult;
 
+    this.lowestReadFrom = Math.min(this.lowestReadFrom, from);
     const startIdx = Math.max(0, binarySearch(this.data, from, (d) => d.time) - 1);
     const endIdx = Math.min(this.data.length, binarySearch(this.data, to, (d) => d.time) + 1);
-    this.cachedResult = this.data.slice(startIdx, endIdx);
+    let result = this.data.slice(startIdx, endIdx);
+
+    // The kept head starts inside the view: the exited points carry the series out past the left edge.
+    const headInView = startIdx === 0 && this.data[0].time > from;
+    if (headInView && this.exited.length > 0) {
+      const exitStart = Math.max(0, binarySearch(this.exited, from, (d) => d.time) - 1);
+      const exitEnd = Math.min(this.exited.length, binarySearch(this.exited, to, (d) => d.time) + 1);
+      result = this.exited.slice(exitStart, exitEnd).concat(result);
+    }
+
+    this.cachedResult = result;
     this.cachedRange = { from, to };
-    return this.cachedResult;
+
+    return result;
   }
 
   first(): T | undefined {
