@@ -15,7 +15,10 @@ export interface NumberFlowProps {
   format?: ((value: number) => string) | Intl.NumberFormatOptions;
   /** BCP 47 locale tag used by the default formatter. Defaults to `'en-US'`. */
   locale?: string;
-  /** Per-digit spin animation duration in milliseconds. Defaults to `350`. */
+  /**
+   * Per-digit spin animation duration in milliseconds. A value that arrives
+   * sooner than this after the previous one snaps instead. Defaults to `350`.
+   */
   spinDuration?: number;
   /** Extra class on the root `<span>`. */
   className?: string;
@@ -52,6 +55,14 @@ export function NumberFlow({ value, format, locale = 'en-US', spinDuration = 350
   const formatted = effectiveFormat(value);
   const parts = decompose(formatted);
 
+  // A spin retargeted mid-turn shows two half digits, so values faster than a spin snap.
+  const spin = useRef({ formatted, changedAt: Number.NEGATIVE_INFINITY, duration: spinDuration });
+  if (spin.current.formatted !== formatted) {
+    const now = performance.now();
+    const tooFast = now - spin.current.changedAt < spinDuration;
+    spin.current = { formatted, changedAt: now, duration: tooFast ? 0 : spinDuration };
+  }
+
   return (
     <span
       className={className}
@@ -64,7 +75,7 @@ export function NumberFlow({ value, format, locale = 'en-US', spinDuration = 350
     >
       {parts.map((part, i) =>
         part.type === 'digit' ? (
-          <DigitSlot key={`d${i}`} digit={parseInt(part.value, 10)} duration={spinDuration} />
+          <DigitSlot key={`d${i}`} digit={parseInt(part.value, 10)} duration={spin.current.duration} />
         ) : (
           <span key={`s${i}`} style={{ display: 'inline-block' }}>
             {part.value}
@@ -101,7 +112,8 @@ function DigitSlot({ digit, duration }: DigitSlotProps) {
           display: 'flex',
           flexDirection: 'column',
           transform: `translateY(${-digit * 1.2}em)`,
-          transition: mountedRef.current ? `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1)` : 'none',
+          transition:
+            mountedRef.current && duration > 0 ? `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1)` : 'none',
         }}
       >
         {DIGITS.map((d) => (
