@@ -39,7 +39,7 @@ import {
   warnXTimeMixed,
   warnXTypeChange,
 } from './chart/x-guards';
-import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget } from './chart/y-target';
+import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget, widenFlatRange } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
@@ -3422,7 +3422,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Y initialized on a chart whose default scale holds no series.
     if (scaleId !== undefined) this.#yInited = true;
 
-    return resolveYTarget({ raw, bounds, allValues: allValues ?? [], transform });
+    return resolveYTarget({ raw: widenFlatRange(raw), bounds, allValues: allValues ?? [], transform });
   }
 
   /** Dev-only sweep behind {@link warnUnplottableValues}; stops once it has warned. */
