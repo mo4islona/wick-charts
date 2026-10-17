@@ -12,9 +12,8 @@ import {
   buildHoverSnapshots,
   computeTooltipPosition,
   formatCompact,
-  formatDate,
-  formatHeaderX,
   formatPriceAdaptive,
+  formatTooltipHeader,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
@@ -165,10 +164,7 @@ $: floatingPos = (() => {
       <div
         style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
       >
-        {#if chart.timeScale.getType() === 'time'}
-          {formatDate(displayTime, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() })}
-        {/if}
-        {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
+        {formatTooltipHeader(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </div>
 
       {#each snapshots as s (s.id)}
