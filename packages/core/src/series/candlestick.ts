@@ -265,14 +265,16 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   // --- SeriesRenderer interface implementation ------------------------------
 
   setData(data: unknown): void {
-    const hadData = this.store.length > 0;
-    this.store.setData(normalizeOHLCArray((data ?? []) as OHLCInput[]));
+    const candles = normalizeOHLCArray((data ?? []) as OHLCInput[]);
 
     // First seed only (empty → non-empty): arm the initial reveal. Bulk
-    // re-seeds of a live series must never replay the intro.
-    if (!hadData && this.store.length > 0) {
+    // re-seeds of a live series must never replay the intro. Armed before the
+    // store notifies — the chart paints first data synchronously from that.
+    if (this.store.length === 0 && candles.length > 0) {
       this.introWave.arm(this.options.introMs);
     }
+
+    this.store.setData(candles);
 
     // Bulk replace — seed `displayedLast` to the new last candle, drop any
     // in-flight chase and per-candle entries so the next render paints the

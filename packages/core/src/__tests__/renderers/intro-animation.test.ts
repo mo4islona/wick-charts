@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
 import { logScale } from '../../scales/log-scale';
+import { BandRenderer } from '../../series/band';
 import { BarRenderer } from '../../series/bar';
 import { growIntro, springIntro } from '../../series/bar-intro';
 import { CandlestickRenderer } from '../../series/candlestick';
@@ -351,6 +352,20 @@ describe('intro animations — initial-load reveal', () => {
       expect(Math.max(...leftAlphas)).toBeGreaterThan(Math.max(0, ...rightAlphas));
     });
 
+    it('a paint from the data listener already plays the intro — no settled flash', () => {
+      const r = makeCandle();
+      let alphas: number[] = [];
+      r.onDataChanged(() => {
+        alphas = renderFrame(r)
+          .spy.callsOf('fillRect')
+          .map((c) => c.globalAlpha);
+      });
+
+      r.setData(CANDLES);
+
+      expect(Math.max(0, ...alphas)).toBe(0);
+    });
+
     it('bulk re-seed does not replay; cancel aborts', () => {
       const r = makeCandle();
       r.setData(CANDLES);
@@ -459,6 +474,19 @@ describe('intro animations — initial-load reveal', () => {
 
       return built;
     }
+
+    it('a paint from the data listener already plays the intro — no settled flash', () => {
+      const r = makeLine({ introAnimation: sweepIntro() });
+      let front = -1;
+      r.onDataChanged(() => {
+        renderFrame(r);
+        front = r.getIntroFront();
+      });
+
+      r.setData(POINTS);
+
+      expect(front).toBe(0);
+    });
 
     it('sweepIntro(): clips to the reveal front mid-intro and draws the head glow', () => {
       const r = makeLine({ introAnimation: sweepIntro() });
@@ -924,6 +952,24 @@ describe('intro animations — initial-load reveal', () => {
         // Two heads → at least 4 arcs (halo + core each).
         expect(spy.countOf('arc')).toBeGreaterThanOrEqual(4);
       });
+    });
+  });
+
+  describe('BandRenderer', () => {
+    it('a paint from the data listener already plays the intro — no settled flash', () => {
+      const r = new BandRenderer(1);
+      let front = -1;
+      r.onDataChanged(() => {
+        r.render(buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 10 } }).ctx);
+        front = r.getIntroFront();
+      });
+
+      r.setData([
+        { time: 0, low: 2, high: 4 },
+        { time: 100, low: 3, high: 6 },
+      ]);
+
+      expect(front).toBe(0);
     });
   });
 

@@ -260,12 +260,14 @@ export class BandRenderer implements TimeSeriesRenderer {
 
     const hadData = this.#layers.some((l) => l.store.length > 0);
     const points = ((data ?? []) as BandPointInput[]).map(toBandPoint);
-    layer.store.setData(points);
 
     // First seed only — a bulk re-seed of a live series must never replay the intro.
+    // Armed before the store notifies — the chart paints first data synchronously from that.
     if (!hadData && points.length > 0) {
       this.#introWave.arm(this.#options.introMs);
     }
+
+    layer.store.setData(points);
 
     const last = layer.store.last();
     layer.displayedLast = last ? edgesOf(last) : null;
