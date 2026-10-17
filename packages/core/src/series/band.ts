@@ -14,7 +14,7 @@ import type { ChartTheme } from '../theme/types';
 import type { BandEntryAnimation, BandPoint, BandPointInput, BandSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba, resolveColor } from '../utils/color';
 import { lerp } from '../utils/math';
-import { normalizeTime } from '../utils/time';
+import { normalizeTime, sliceSample } from '../utils/time';
 import type { SeriesDefinition } from './definition';
 import {
   type LineIntroDirectives,
@@ -1242,12 +1242,12 @@ export class BandRenderer implements TimeSeriesRenderer {
     return all.length < 2 ? null : all[all.length - 2];
   }
 
-  sampleTimes(maxCount: number): number[] {
+  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start'): number[] {
     for (const layer of this.#layers) {
       const all = layer.store.getAll();
       if (all.length === 0) continue;
 
-      return all.slice(0, maxCount).map((p) => p.time);
+      return sliceSample(all, { maxCount, from }).map((p) => p.time);
     }
 
     return [];

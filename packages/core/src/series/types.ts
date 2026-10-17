@@ -341,8 +341,11 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   getLastDataPoint(): OHLCData | TimePoint | BandPoint | null;
   /** Second-to-last data point (layer 0 for multi-layer), or null. */
   getSecondLastDataPoint(): OHLCData | TimePoint | BandPoint | null;
-  /** First `maxCount` sample times from the first populated layer — feeds interval detection. */
-  sampleTimes(maxCount: number): number[];
+  /**
+   * First `maxCount` sample times from the first populated layer — feeds
+   * interval detection. With `'end'`, the last `maxCount` of that same layer.
+   */
+  sampleTimes(maxCount: number, from?: 'start' | 'end'): number[];
   /** Visible points in `[from, to]` (layer 0 for multi-layer). */
   getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint | BandPoint)[];
   /**

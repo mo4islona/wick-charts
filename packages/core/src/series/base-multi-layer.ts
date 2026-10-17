@@ -5,7 +5,7 @@ import { TimeSeriesStore } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { StackingMode, TimePoint, TimePointInput, ValueColor } from '../types';
 import { resolveColor } from '../utils/color';
-import { normalizeTime, normalizeTimePointArray } from '../utils/time';
+import { normalizeTime, normalizeTimePointArray, sliceSample } from '../utils/time';
 import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
 import type { LayerSnapshot, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 
@@ -954,13 +954,13 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.lastFinitePoint(0, 1);
   }
 
-  /** First `maxCount` sample times from the first populated layer. */
-  sampleTimes(maxCount: number): number[] {
+  /** First (or with `'end'`, last) `maxCount` sample times from the first populated layer. */
+  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start'): number[] {
     for (const store of this.stores) {
       const all = store.getAll();
       if (all.length === 0) continue;
 
-      return all.slice(0, maxCount).map((d) => d.time);
+      return sliceSample(all, { maxCount, from }).map((d) => d.time);
     }
 
     return [];

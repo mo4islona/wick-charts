@@ -17,7 +17,7 @@ import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { hexToRgba, mixColors } from '../utils/color';
 import { clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
-import { normalizeOHLCArray, normalizeTime } from '../utils/time';
+import { normalizeOHLCArray, normalizeTime, sliceSample } from '../utils/time';
 import {
   type CandleElementTransform,
   type CandleIntroDirectives,
@@ -513,11 +513,8 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     return all.length >= 2 ? all[all.length - 2] : null;
   }
 
-  sampleTimes(maxCount: number): number[] {
-    return this.store
-      .getAll()
-      .slice(0, maxCount)
-      .map((d) => d.time);
+  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start'): number[] {
+    return sliceSample(this.store.getAll(), { maxCount, from }).map((d) => d.time);
   }
 
   getVisibleDataPoints(from: number, to: number): readonly OHLCData[] {
