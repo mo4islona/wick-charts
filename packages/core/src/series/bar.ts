@@ -262,7 +262,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
   /**
    * The bar stack's reading of a percent column (see `renderStacked`): each
-   * layer's sample at `time` as drawn — smoothed, faded, growing in — with
+   * layer's sample at `time` as drawn — smoothed, faded, growing in, intro applied — with
    * positives scaled to 100% and negatives to -100% on their own; `null` when
    * the column draws nothing.
    */
@@ -281,7 +281,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (point === null || !Number.isFinite(point.value)) continue;
 
       const entrance = growsIn ? this.entranceProgress(li, time) : 1;
-      const value = this.liveValue(li, time, point.value) * alpha * entrance;
+      const settled = this.liveValue(li, time, point.value) * alpha * entrance;
+      const value = this.introValue({ layerIndex: li, time, value: settled });
       values.set(li, value);
       if (value > 0) positive += value;
       if (value < 0) negative += value;

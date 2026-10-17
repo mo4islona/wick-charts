@@ -943,7 +943,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
   /**
    * Each layer's share of the percent-stack column at `time`, from the current
-   * (smoothed, faded, growing-in) values the renderer draws it with, or `null`
+   * (smoothed, faded, growing-in, intro) values the renderer draws it with, or `null`
    * when that column is a gap.
    */
   protected abstract percentShares(time: number): Map<number, number> | null;
