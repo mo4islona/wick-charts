@@ -10,7 +10,7 @@ describe('BarRenderer.getValueRange', () => {
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 100 });
   });
 
-  it('single layer (off) returns its own min/max', () => {
+  it('single layer (off) spans its values and zero', () => {
     const r = new BarRenderer(1);
     r.setData(
       [
@@ -19,9 +19,8 @@ describe('BarRenderer.getValueRange', () => {
       ],
       0,
     );
-    // The `length <= 1 → null` early-out was removed; off-stacking single layer
-    // degenerates to the store's own min/max, which y-target now relies on.
-    expect(r.getValueRange(0, 100)).toEqual({ min: 5, max: 15 });
+    // Bars keep zero in view so their lengths stay proportional.
+    expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 15 });
   });
 
   it('single layer (normal) anchors min at 0', () => {
@@ -38,7 +37,7 @@ describe('BarRenderer.getValueRange', () => {
     expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 70 });
   });
 
-  it('stacking: off multi-layer returns union of all layers min/max', () => {
+  it('stacking: off multi-layer returns union of all layers min/max and zero', () => {
     const r = new BarRenderer(2, { stacking: 'off' });
     r.setData(
       [
@@ -54,7 +53,33 @@ describe('BarRenderer.getValueRange', () => {
       ],
       1,
     );
-    expect(r.getValueRange(0, 100)).toEqual({ min: 5, max: 30 });
+    expect(r.getValueRange(0, 100)).toEqual({ min: 0, max: 30 });
+  });
+
+  it('keeps zero above all-negative bars', () => {
+    const r = new BarRenderer(1);
+    r.setData(
+      [
+        { time: 1, value: -5 },
+        { time: 2, value: -15 },
+      ],
+      0,
+    );
+
+    expect(r.getValueRange(0, 100)).toEqual({ min: -15, max: 0 });
+  });
+
+  it('leaves zero out where the scale cannot place it (log)', () => {
+    const r = new BarRenderer(1);
+    r.setData(
+      [
+        { time: 1, value: 5 },
+        { time: 2, value: 15 },
+      ],
+      0,
+    );
+
+    expect(r.getValueRange(0, 100, { plottable: (v) => v > 0 })).toEqual({ min: 5, max: 15 });
   });
 
   it('stacking: normal multi-layer returns stacked totals', () => {

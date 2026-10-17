@@ -8,7 +8,7 @@ import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import { ScaleStack } from './scale-stack';
-import type { SeriesRenderContext } from './types';
+import type { SeriesRenderContext, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -172,6 +172,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   updateOptions(options: BarOptionsInput): void {
     this.options = normalize({ ...this.options, ...options });
+  }
+
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
+    const range = super.getValueRange(from, to, opts);
+    const zeroPlottable = opts?.plottable?.(0) ?? true;
+    if (range === null || !zeroPlottable) return range;
+
+    // A bar is read by its length from zero, so zero stays on the axis; stacked ranges already hold it.
+    return { min: Math.min(0, range.min), max: Math.max(0, range.max) };
   }
 
   protected isEntryEnabled(): boolean {

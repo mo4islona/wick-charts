@@ -78,9 +78,10 @@ describe('SeriesRenderer interface', () => {
 
   it('BarRenderer.setData writes to the right layer (layerIndex)', () => {
     const r = new BarRenderer(2, { stacking: 'off' });
-    r.setData([{ time: 1, value: 5 }], 0);
+    // Opposite signs: bars keep zero in range, so only the two layers' values can set both ends.
+    r.setData([{ time: 1, value: -5 }], 0);
     r.setData([{ time: 1, value: 50 }], 1);
-    expect(r.getValueRange(0, 100)).toEqual({ min: 5, max: 50 });
+    expect(r.getValueRange(0, 100)).toEqual({ min: -5, max: 50 });
   });
 
   it('PieRenderer.setData replaces slice data', () => {
