@@ -88,6 +88,8 @@ export type {
   OverlayRenderContext,
   PaintEnv,
   PerfConfig,
+  PerfHudColors,
+  PerfHudOptions,
   PerfMonitorOptions,
   PerfStats,
   PieSeriesOptions,
