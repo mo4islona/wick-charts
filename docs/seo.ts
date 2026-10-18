@@ -14,7 +14,7 @@ export const SITE_NAME = 'Wick Charts';
 export const DEFAULT_DESCRIPTION =
   'Realtime, animated charts for React, Vue and Svelte. Candlestick, line, bar, heatmap, pie and more ' +
   'stream at 60fps on a canvas engine, with zoom, pan, crosshair and tooltips. ' +
-  '22 built-in themes, tree-shakeable, zero runtime dependencies.';
+  'Built-in and custom themes, tree-shakeable, zero runtime dependencies.';
 
 export interface RouteMeta {
   title: string;
@@ -36,7 +36,7 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
   'use-cases/theme': {
     title: 'Theming & Custom Themes — Wick Charts',
     description:
-      'Customize colors, typography, grid and axes with 22 built-in themes or your own. Live theme editor for Wick Charts in React, Vue and Svelte.',
+      'Customize colors, typography, grid and axes with built-in themes or your own. Live theme editor for Wick Charts in React, Vue and Svelte.',
   },
   'charts/candlestick': {
     title: 'Candlestick Charts for React, Vue & Svelte — Wick Charts',
