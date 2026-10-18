@@ -134,6 +134,11 @@ function fpsFromStamps(stamps: readonly number[]): number {
   return ((stamps.length - 1) * 1000) / span;
 }
 
+/** True when the newest sample in `stamps` belongs to the frame at `timestamp`. */
+function isLastStamp(stamps: readonly number[], timestamp: number): boolean {
+  return stamps.length > 0 && stamps[stamps.length - 1] === timestamp;
+}
+
 function mapToRecord(map: Map<string, number>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [k, v] of map) out[k] = v;
@@ -147,9 +152,11 @@ function mapToRecord(map: Map<string, number>): Record<string, number> {
  * attached to the chart, so the zero-perf path remains byte-identical to a
  * monitorless build.
  *
- * Not thread-safe (there are no threads) — a single chart writes to a single
- * monitor. Multiple charts may share a monitor, but `perSeries` keys must be
- * unique across charts or samples will collide.
+ * Several charts may share one monitor: paints with the same rAF timestamp
+ * merge into one frame sample, so the stats describe whole frames. Series ids
+ * must be unique across the charts, or their samples merge too. `onFrame`
+ * fires on every paint, so a listener can see a frame that only some charts
+ * have painted yet — read totals from a timer, as the perf HUD does.
  */
 export class PerfMonitor {
   /** Draw-call tally map for the main layer. Mutated in place by the counting context; cleared at the start of each frame. */
@@ -184,8 +191,15 @@ export class PerfMonitor {
     this.heapCounter = this.heapInterval;
   }
 
-  /** Clear the draw-call tally for the given layer. Call at the start of each frame. */
-  resetDrawCalls(kind: FrameKind): void {
+  /**
+   * Clear the draw-call tally for the given layer. Call at the start of each
+   * paint with the frame's timestamp: when another chart on this monitor
+   * already painted that frame, the tally keeps its calls.
+   */
+  resetDrawCalls(kind: FrameKind, timestamp?: number): void {
+    const stamps = kind === 'main' ? this.mainStamps : this.overlayStamps;
+    if (timestamp !== undefined && isLastStamp(stamps, timestamp)) return;
+
     (kind === 'main' ? this.drawCallsMain : this.drawCallsOverlay).clear();
   }
 
@@ -199,19 +213,27 @@ export class PerfMonitor {
     return createCountingContext(ctx, kind === 'main' ? this.drawCallsMain : this.drawCallsOverlay);
   }
 
-  /** Record a completed frame's wall-clock duration and emit stats to subscribers. */
+  /**
+   * Record a completed paint's wall-clock duration and emit stats to
+   * subscribers. A paint with the same timestamp as the previous one (another
+   * chart on this monitor, same rAF frame) adds to that frame's sample.
+   */
   recordFrame(kind: FrameKind, ms: number, timestamp: number): void {
     this.lastStamp = timestamp;
 
-    if (kind === 'main') {
-      this.mainMs.push(ms);
-      this.mainStamps.push(timestamp);
-      this.mainFrameCount++;
-      this.sampleHeap();
+    const values = kind === 'main' ? this.mainMs : this.overlayMs;
+    const stamps = kind === 'main' ? this.mainStamps : this.overlayStamps;
+    if (isLastStamp(stamps, timestamp)) {
+      values[values.length - 1] += ms;
     } else {
-      this.overlayMs.push(ms);
-      this.overlayStamps.push(timestamp);
-      this.overlayFrameCount++;
+      values.push(ms);
+      stamps.push(timestamp);
+      if (kind === 'main') {
+        this.mainFrameCount++;
+        this.sampleHeap();
+      } else {
+        this.overlayFrameCount++;
+      }
     }
 
     this.trimAll(timestamp);
@@ -232,6 +254,13 @@ export class PerfMonitor {
       this.perSeriesMs.set(id, values);
       this.perSeriesStamps.set(id, stamps);
     }
+
+    if (isLastStamp(stamps, timestamp)) {
+      values[values.length - 1] += ms;
+
+      return;
+    }
+
     values.push(ms);
     stamps.push(timestamp);
   }

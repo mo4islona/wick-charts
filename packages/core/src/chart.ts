@@ -4907,7 +4907,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return;
     }
 
-    monitor.resetDrawCalls(layer);
+    monitor.resetDrawCalls(layer, timestamp);
     const t0 = performance.now();
     render();
     monitor.recordFrame(layer, performance.now() - t0, timestamp ?? t0);

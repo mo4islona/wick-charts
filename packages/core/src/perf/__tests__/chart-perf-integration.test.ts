@@ -86,6 +86,10 @@ function seedCandles(chart: ChartInstance, count: number): string {
   return id;
 }
 
+function sumCalls(calls: Record<string, number>): number {
+  return Object.values(calls).reduce((a, b) => a + b, 0);
+}
+
 describe('ChartInstance — perf instrumentation', () => {
   let raf: ReturnType<typeof installRaf>;
   let container: HTMLElement;
@@ -199,5 +203,36 @@ describe('ChartInstance — perf instrumentation', () => {
     // PerfMonitor.destroy() resets sample buffers — if the chart didn't call it,
     // frameCount would still reflect the pre-destroy frames.
     expect(internal.getStats().frameCount.main).toBe(0);
+  });
+
+  it('books two charts sharing a monitor as one frame per rAF tick', () => {
+    const shared = new PerfMonitor();
+    const solo = new PerfMonitor();
+    const containers = [container, makeContainer(), makeContainer()];
+    const charts = [
+      new ChartInstance(containers[0], { perf: shared, interactive: false }),
+      new ChartInstance(containers[1], { perf: shared, interactive: false }),
+      new ChartInstance(containers[2], { perf: solo, interactive: false }),
+    ];
+    try {
+      for (const chart of charts) {
+        seedCandles(chart, 20);
+      }
+      raf.flush(5);
+
+      const one = solo.getStats();
+      const both = shared.getStats();
+      expect(one.frameCount.main).toBeGreaterThan(0);
+      expect(both.frameCount.main).toBe(one.frameCount.main);
+      expect(both.mainRendersPerSec).toBe(one.mainRendersPerSec);
+      // Identical charts: the frame's tally holds both charts' calls.
+      expect(sumCalls(both.drawCalls.main)).toBe(2 * sumCalls(one.drawCalls.main));
+    } finally {
+      for (const chart of charts) {
+        chart.destroy();
+      }
+      containers[1].remove();
+      containers[2].remove();
+    }
   });
 });
