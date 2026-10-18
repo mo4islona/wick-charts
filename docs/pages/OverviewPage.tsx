@@ -27,7 +27,6 @@ import {
   growIntro,
   perfHud,
   plotterIntro,
-  resolveCandlestickBodyColor,
   riseIntro,
   springIntro,
   sweepIntro,
@@ -585,15 +584,6 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
               whiteSpace: 'nowrap',
             }}
           >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: resolveCandlestickBodyColor(theme.candlestick.up.body),
-                boxShadow: `0 0 6px ${hexToRgba(resolveCandlestickBodyColor(theme.candlestick.up.body), 0.7)}`,
-              }}
-            />
             v{latestVersion}
           </a>
         )}
