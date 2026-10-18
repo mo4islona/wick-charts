@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   type BandPoint,
@@ -13,6 +13,8 @@ import {
   InfoBar,
   type LineIntroFn,
   LineSeries,
+  type PerfHudOptions,
+  PerfMonitor,
   TimeAxis,
   type TimePoint,
   Title,
@@ -23,6 +25,7 @@ import {
   centerOutIntro,
   fadeIntro,
   growIntro,
+  perfHud,
   plotterIntro,
   resolveCandlestickBodyColor,
   riseIntro,
@@ -150,6 +153,7 @@ const DEBUG = hasDebugFlag();
 interface StreamProps {
   theme: ChartTheme;
   speed: number;
+  perf: PerfMonitor;
 }
 
 // The hero cells give the chart a definite height (220px on mobile), which is
@@ -159,12 +163,12 @@ const HERO_CHART_STYLE = { minHeight: 0 } as const;
 
 // ── Chart components ──────────────────────────────────────────
 
-function CandleChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: CandleIntroFn }) {
+function CandleChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: CandleIntroFn }) {
   const { data } = useOHLCStream(ohlcBTC, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
-  const sid = 'candle';
+  const sid = 'btc';
   const mobile = useIsMobile();
   return (
-    <ChartContainer theme={theme} viewport={{ initialRange: INITIAL_CANDLE_BARS }} style={HERO_CHART_STYLE}>
+    <ChartContainer theme={theme} viewport={{ initialRange: INITIAL_CANDLE_BARS }} perf={perf} style={HERO_CHART_STYLE}>
       <Title sub="Live Candlestick">BTC/USD</Title>
       {!mobile && <InfoBar />}
       <CandlestickSeries id={sid} data={data} options={{ introAnimation }} />
@@ -235,7 +239,7 @@ function zipBand(upper: readonly TimePoint[], lower: readonly TimePoint[]): Band
   return band.length > BAND_WINDOW ? band.slice(band.length - BAND_WINDOW) : band;
 }
 
-function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
+function AreaBandsChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
   // Historical band edges come from `generateBandLine(ohlcETH, ±1)`, the same
   // OHLC source as the line; live edges wrap the streamed ETH value instead.
   const strategy = useMemo(() => createAreaBandStrategy(), []);
@@ -250,12 +254,13 @@ function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introA
   const mobile = useIsMobile();
 
   return (
-    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
+    <ChartContainer theme={theme} perf={perf} style={HERO_CHART_STYLE}>
       <Title sub="Live Area + Bands">ETH/USD</Title>
       {!mobile && <InfoBar />}
       {/* Declared first so the ETH line draws over the band. */}
-      <BandSeries data={{ label: 'Bands', data: band }} options={{ introAnimation }} />
+      <BandSeries id="eth-band" data={{ label: 'Bands', data: band }} options={{ introAnimation }} />
       <LineSeries
+        id="eth"
         data={{ label: 'ETH', data: eth }}
         options={{ area: { visible: true }, strokeWidth: 1, introAnimation }}
       />
@@ -267,12 +272,16 @@ function AreaBandsChart({ theme, speed, introAnimation }: StreamProps & { introA
   );
 }
 
-function MultiLineChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
+function MultiLineChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
   const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
   return (
-    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
+    <ChartContainer theme={theme} perf={perf} style={HERO_CHART_STYLE}>
       <Title sub="10 assets · Live">Portfolio</Title>
-      <LineSeries data={datasets} options={{ area: { visible: false }, strokeWidth: 1, introAnimation }} />
+      <LineSeries
+        id="portfolio"
+        data={datasets}
+        options={{ area: { visible: false }, strokeWidth: 1, introAnimation }}
+      />
       <Crosshair />
       <YAxis />
       <TimeAxis />
@@ -280,7 +289,7 @@ function MultiLineChart({ theme, speed, introAnimation }: StreamProps & { introA
   );
 }
 
-function BarChart({ theme, speed, introAnimation }: StreamProps & { introAnimation: BarIntroFn }) {
+function BarChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: BarIntroFn }) {
   const { datasets } = useLineStreams(BAR_SERIES, {
     interval: DEMO_INTERVAL,
     kind: 'bar',
@@ -288,10 +297,10 @@ function BarChart({ theme, speed, introAnimation }: StreamProps & { introAnimati
     maxPoints: MAX_POINTS,
   });
   return (
-    <ChartContainer theme={theme} style={HERO_CHART_STYLE}>
+    <ChartContainer theme={theme} perf={perf} style={HERO_CHART_STYLE}>
       <Title sub="Live Bar">P&L Delta</Title>
       {/* Sign coloring (green-up / red-down) comes from the theme's bar.color. */}
-      <BarSeries data={[datasets[0]]} options={{ introAnimation }} />
+      <BarSeries id="pnl" data={[datasets[0]]} options={{ introAnimation }} />
       <Tooltip />
       <Crosshair />
       <YAxis />
@@ -776,7 +785,75 @@ function GettingStarted({ theme, mobile }: { theme: ChartTheme; mobile: boolean 
 
 // ── Page ──────────────────────────────────────────────────────
 
-function ShuffleButton({ onClick, theme, mobile }: { onClick: () => void; theme: ChartTheme; mobile: boolean }) {
+/** Same height as the Shuffle pill, so the two line up. */
+const HUD_HEIGHT_PX = 35;
+/** Room for `● 60.0 fps`; the HUD shows the unit from 100px up. */
+const HUD_WIDTH_PX = 104;
+const HUD_GAP_PX = 16;
+/** The HUD pins itself this far inside its host's top-right corner. */
+const HUD_INSET_PX = 8;
+
+// Collapsed, a bare `● 60.0 fps` readout pinned beside the button; a click
+// opens the full panel in the theme's colors, and that panel can be dragged.
+const HUD_OPTIONS: PerfHudOptions = {
+  mini: { width: HUD_WIDTH_PX, height: HUD_HEIGHT_PX, sparkline: false, frame: false, draggable: false },
+  pulse: false,
+};
+
+/**
+ * The library's perf HUD for the monitor all hero charts share. It sits
+ * outside the charts, so it mounts through the `hud` hook of a `perfHud`
+ * config instead of a chart's `perf` prop.
+ */
+function PerfHudBadge({ monitor, theme }: { monitor: PerfMonitor; theme: ChartTheme }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const hudRef = useRef<{ setTheme?(theme: ChartTheme): void } | null>(null);
+
+  // Theme changes go through setTheme below, so the graph keeps its history.
+  useEffect(() => {
+    const host = hostRef.current;
+    const mount = perfHud({ ...HUD_OPTIONS, monitor }).hud;
+    if (!host || !mount) return;
+
+    const hud = mount(host, monitor, theme);
+    hudRef.current = hud;
+
+    return () => {
+      hud.destroy();
+      hudRef.current = null;
+    };
+  }, [monitor]);
+
+  useEffect(() => {
+    hudRef.current?.setTheme?.(theme);
+  }, [theme]);
+
+  return (
+    <div
+      ref={hostRef}
+      style={{
+        position: 'relative',
+        width: HUD_WIDTH_PX + HUD_INSET_PX,
+        height: HUD_HEIGHT_PX + HUD_INSET_PX,
+        // Cancels the inset: the flex row lays out exactly the visible panel.
+        margin: `-${HUD_INSET_PX}px -${HUD_INSET_PX}px 0 0`,
+      }}
+    />
+  );
+}
+
+function ShuffleButton({
+  onClick,
+  theme,
+  mobile,
+  children,
+}: {
+  onClick: () => void;
+  theme: ChartTheme;
+  mobile: boolean;
+  /** Placed right of the button; the pair is centered as one group. */
+  children?: React.ReactNode;
+}) {
   // Hover fills with the theme accent; the label takes the page background
   // color so the pairing stays inside the theme's own palette.
   const hoverBg = theme.line.color;
@@ -784,60 +861,65 @@ function ShuffleButton({ onClick, theme, mobile }: { onClick: () => void; theme:
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: mobile ? '2px 6px' : '2px 12px' }}>
-      <button
-        type="button"
-        onClick={onClick}
-        className="shuffle-animations-btn"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '8px 20px',
-          borderRadius: 100,
-          border: `1px solid ${theme.tooltip.borderColor}`,
-          background: 'transparent',
-          color: theme.tooltip.textColor,
-          fontSize: 13,
-          fontWeight: 400,
-          fontFamily: theme.typography.fontFamily,
-          cursor: 'pointer',
-          transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = hoverBg;
-          e.currentTarget.style.borderColor = hoverBg;
-          e.currentTarget.style.color = hoverText;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.borderColor = theme.tooltip.borderColor;
-          e.currentTarget.style.color = theme.tooltip.textColor;
-        }}
-        onMouseDown={(e) => {
-          e.currentTarget.style.transform = 'scale(0.95)';
-        }}
-        onMouseUp={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-        }}
+      <div
+        style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: HUD_GAP_PX }}
       >
-        <svg
-          aria-hidden="true"
-          className="shuffle-animations-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <button
+          type="button"
+          onClick={onClick}
+          className="shuffle-animations-btn"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 20px',
+            borderRadius: 100,
+            border: `1px solid ${theme.tooltip.borderColor}`,
+            background: 'transparent',
+            color: theme.tooltip.textColor,
+            fontSize: 13,
+            fontWeight: 400,
+            fontFamily: theme.typography.fontFamily,
+            cursor: 'pointer',
+            transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = hoverBg;
+            e.currentTarget.style.borderColor = hoverBg;
+            e.currentTarget.style.color = hoverText;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.borderColor = theme.tooltip.borderColor;
+            e.currentTarget.style.color = theme.tooltip.textColor;
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = 'scale(0.95)';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
         >
-          <polyline points="23 4 23 10 17 10" />
-          <polyline points="1 20 1 14 7 14" />
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.63 4.36A9 9 0 0 0 20.49 15" />
-        </svg>
-        Shuffle animations
-      </button>
+          <svg
+            aria-hidden="true"
+            className="shuffle-animations-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.63 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          Shuffle animations
+        </button>
+        {children}
+      </div>
       <style>{`
         .shuffle-animations-icon { display: block; transition: transform 0.5s ease; }
         .shuffle-animations-btn:hover .shuffle-animations-icon { transform: rotate(180deg); }
@@ -860,6 +942,10 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
   const [introIndices, setIntroIndices] = useState<IntroIndices>(() => randomIntroIndices());
   const intros = useMemo(() => introSetFrom(introIndices), [introIndices]);
 
+  // One monitor for all charts: they paint in the same browser frame, so the
+  // HUD shows the page's frame rate and their summed paint time.
+  const [monitor] = useState(() => new PerfMonitor());
+
   function shuffleAnimations() {
     setIntroIndices((indices) => nextIntroIndices(indices));
     setIntroEpoch((epoch) => epoch + 1);
@@ -878,7 +964,9 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
 
       {DEBUG && <SpeedControl value={speed} onChange={setSpeed} theme={theme} mobile={mobile} />}
 
-      <ShuffleButton onClick={shuffleAnimations} theme={theme} mobile={mobile} />
+      <ShuffleButton onClick={shuffleAnimations} theme={theme} mobile={mobile}>
+        <PerfHudBadge monitor={monitor} theme={theme} />
+      </ShuffleButton>
 
       <div
         key={introEpoch}
@@ -892,18 +980,18 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
         }}
       >
         <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <CandleChart theme={theme} speed={speed} introAnimation={intros.candle} />
+          <CandleChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.candle} />
         </Cell>
         <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
-          <AreaBandsChart theme={theme} speed={speed} introAnimation={intros.areaBands} />
+          <AreaBandsChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.areaBands} />
         </Cell>
         {!mobile && (
           <>
             <Cell theme={theme}>
-              <MultiLineChart theme={theme} speed={speed} introAnimation={intros.portfolio} />
+              <MultiLineChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.portfolio} />
             </Cell>
             <Cell theme={theme}>
-              <BarChart theme={theme} speed={speed} introAnimation={intros.bar} />
+              <BarChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.bar} />
             </Cell>
           </>
         )}
