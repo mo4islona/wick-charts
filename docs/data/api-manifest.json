@@ -1394,6 +1394,118 @@
         }
       ]
     },
+    "DepthSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/DepthSeries.tsx",
+      "alias": null,
+      "description": "Order book chart: cumulative bid and ask size stepping away from the\nmid price. Plots on a numeric X axis — set `axis={{ x: { type: 'numeric' } }}`\non the container. A new `bids` / `asks` array morphs the book on screen.",
+      "props": [
+        {
+          "name": "bids",
+          "type": "readonly DepthLevel[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Bid levels as `[price, size]`, in any order. Cumulative depth is computed from them.",
+          "see": []
+        },
+        {
+          "name": "asks",
+          "type": "readonly DepthLevel[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Ask levels as `[price, size]`, in any order. Cumulative depth is computed from them.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<DepthSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — `span` of the default view, side colors, stroke width, intro / update durations.",
+          "see": [],
+          "nested": {
+            "name": "DepthSeriesOptions",
+            "props": [
+              {
+                "name": "span",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "fit to the book",
+                "deprecated": null,
+                "description": "Half-width of the default view as a fraction of the mid price: `0.01`\nshows mid ± 1%. Without it the view reaches from mid to the nearer of\nthe two outermost levels on both sides, so both walls fill it.\nDefault: fit to the book.",
+                "see": []
+              },
+              {
+                "name": "bidColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "the theme's up color",
+                "deprecated": null,
+                "description": "Bid wall color. Default: the theme's up color.",
+                "see": []
+              },
+              {
+                "name": "askColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "the theme's down color",
+                "deprecated": null,
+                "description": "Ask wall color. Default: the theme's down color.",
+                "see": []
+              },
+              {
+                "name": "strokeWidth",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "1",
+                "deprecated": null,
+                "description": "Step line width in CSS pixels. Default: `1`.",
+                "see": []
+              },
+              {
+                "name": "introMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Initial-load reveal: both walls grow outward from mid while their steps\nrise from 0. The full reveal lasts ~2× `introMs`. `0` disables it.\nDefault: chart animation config (500).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Morph from the book on screen to a new snapshot or delta, the mid\nmarker's glide, and the hover highlight's ease. `0` snaps.\nDefault: chart animation config (500).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -3884,7 +3996,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -4125,6 +4237,38 @@
                             "defaultValue": "300ms",
                             "deprecated": null,
                             "description": "In-place value/color tween and hover-lift ease.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "depth",
+                      "type": "false | { intro?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Order book tweens. `false` disables the intro, the update\nmorph, the mid-marker glide and the hover ease.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Initial-load reveal — both walls grow outward from mid while\ntheir steps rise from 0. The full reveal lasts ~2×.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Morph from the book on screen to each snapshot or delta, the\nmid-marker glide and the hover-highlight ease.",
                             "see": []
                           }
                         ]

@@ -97,12 +97,21 @@ export interface LayerSnapshot {
   share?: number;
 }
 
+/** See {@link BaseSeriesRenderer.getXFocus}. */
+export interface XFocus {
+  /** Where the view settles — the target the zoom and the Y fit read. */
+  center: number;
+  /** Where the series draws its center this frame, mid-tween; the view rides it. */
+  drawnCenter: number;
+  halfWidth: number;
+}
+
 /**
  * Discriminant for the {@link SeriesRenderer} union. Open-ended — a custom
  * series (see {@link CustomSpatialSeriesRenderer} / {@link TimeSeriesRenderer})
  * picks any string that isn't one of the built-ins.
  */
-export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | (string & {});
+export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | 'depth' | (string & {});
 
 /**
  * Members shared by every series renderer, regardless of whether it owns a
@@ -256,6 +265,14 @@ export interface BaseSeriesRenderer {
   /** Total data points across all owned stores. Used by Chart for batch-load detection. */
   getTotalLength?(): number;
 
+  /**
+   * The X the view stays centered on (an order book's mid) and the default
+   * half-width around it, or `null` without data. While a visible series
+   * reports one, the chart centers each frame on `drawnCenter`, zooms around
+   * it rather than the pointer, and turns drag-pan off. Optional.
+   */
+  getXFocus?(): XFocus | null;
+
   // --- Animation & overlays ------------------------------------------------
 
   /**
@@ -335,7 +352,7 @@ export interface BaseSeriesRenderer {
  * pinned to layer 0 (see {@link BaseMultiLayerSeries}).
  */
 export interface TimeSeriesRenderer extends BaseSeriesRenderer {
-  readonly kind: 'candlestick' | 'line' | 'bar' | 'band' | (string & {});
+  readonly kind: 'candlestick' | 'line' | 'bar' | 'band' | 'depth' | (string & {});
 
   /** Earliest/latest sample time across all owned layers, or null when empty. */
   getTimeBounds(): { first: number; last: number } | null;

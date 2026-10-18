@@ -11,6 +11,7 @@ import type { Route } from '../../routes';
 import { BandPage } from '../BandPage';
 import { BarPage } from '../BarPage';
 import { CandlestickPage } from '../CandlestickPage';
+import { DepthPage } from '../DepthPage';
 import { HeatmapPage } from '../HeatmapPage';
 import { LinePage } from '../LinePage';
 import { PiePage } from '../PiePage';
@@ -23,6 +24,7 @@ const CHARTS: Record<string, FC<{ theme: ChartTheme }>> = {
   'charts/bar': BarPage,
   'charts/pie': PiePage,
   'charts/heatmap': HeatmapPage,
+  'charts/depth': DepthPage,
   'charts/sparkline': SparklinePage,
 };
 

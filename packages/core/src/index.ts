@@ -154,6 +154,7 @@ export {
   type SeriesDefinition,
   registerSeriesDefinition,
 } from './series/definition';
+export { DepthSeriesDef } from './series/depth';
 export { HeatmapSeriesDef } from './series/heatmap';
 export { LineSeriesDef } from './series/line';
 // LineIntroFn contract for fully custom intros. An intro is a plain function
@@ -212,6 +213,7 @@ export type {
   SliceInfo,
   TimeSeriesRenderer,
   ValueRangeOptions,
+  XFocus,
 } from './series/types';
 export { isTimeSeriesRenderer } from './series/types';
 export type {
@@ -292,6 +294,10 @@ export type {
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,
+  DepthBook,
+  DepthBookDelta,
+  DepthLevel,
+  DepthSeriesOptions,
   HeatmapCellData,
   HeatmapCellLabelsOptions,
   HeatmapSeriesOptions,

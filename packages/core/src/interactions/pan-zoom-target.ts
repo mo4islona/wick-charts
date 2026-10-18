@@ -23,6 +23,11 @@ export interface PanZoomTarget {
    */
   canPanZoom?(): boolean;
   /**
+   * Whether a drag pans the view. `false` keeps wheel and pinch zoom but
+   * ignores drags (a depth chart stays centered on its mid). Omitted means `true`.
+   */
+  canDragPan?(): boolean;
+  /**
    * Left edge of the plot area in canvas CSS px — nonzero when the Y axis
    * sits on the left. Pointer offsets subtract it before mapping through the
    * time scale. Omitted means `0`.

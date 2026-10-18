@@ -10,6 +10,7 @@ export type Route =
   | 'charts/bar'
   | 'charts/pie'
   | 'charts/heatmap'
+  | 'charts/depth'
   | 'charts/sparkline'
   // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
   // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
@@ -32,6 +33,7 @@ export type Route =
   | 'api/candlestick-series'
   | 'api/pie-series'
   | 'api/heatmap-series'
+  | 'api/depth-series'
   | 'api/sparkline'
   | 'api/chart-container'
   | 'api/x-axis'
@@ -112,6 +114,7 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/bar', label: 'Bar', title: 'Bar' },
   { route: 'charts/pie', label: 'Pie & Donut', title: 'Pie & Donut' },
   { route: 'charts/heatmap', label: 'Heatmap', title: 'Heatmap' },
+  { route: 'charts/depth', label: 'Order Book', title: 'Order Book' },
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
@@ -137,6 +140,7 @@ const API_CHARTS: RouteEntry[] = [
   { route: 'api/band-series', label: 'BandSeries', title: '' },
   { route: 'api/bar-series', label: 'BarSeries', title: '' },
   { route: 'api/candlestick-series', label: 'CandlestickSeries', title: '' },
+  { route: 'api/depth-series', label: 'DepthSeries', title: '' },
   { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
   { route: 'api/line-series', label: 'LineSeries', title: '' },
   { route: 'api/pie-series', label: 'PieSeries', title: '' },
@@ -290,6 +294,7 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/candlestick-series': 'charts/candlestick',
   'api/pie-series': 'charts/pie',
   'api/heatmap-series': 'charts/heatmap',
+  'api/depth-series': 'charts/depth',
   'api/sparkline': 'charts/sparkline',
 };
 

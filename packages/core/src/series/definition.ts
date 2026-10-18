@@ -32,6 +32,8 @@ export interface SeriesDefinition<O = Record<string, unknown>> {
    * spatial series (pie, heatmap), which has no X axis.
    */
   readonly xTypes?: readonly XAxisType[];
+  /** Layer names the tooltip and legend show when `addSeries` gets no `label` / `labels`. */
+  readonly layerLabels?: readonly string[];
   /** Construct the renderer. `options` arrives with the chart's animation defaults/overrides already merged. */
   create(env: SeriesCreateEnv, options: Partial<O>): SeriesRenderer;
 }

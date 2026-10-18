@@ -12,7 +12,8 @@ export class PanHandler {
   ) {}
 
   handleMouseDown(e: MouseEvent): void {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || this.target.canDragPan?.() === false) return;
+
     this.dragging = true;
     this.lastX = e.clientX;
     this.canvas.style.cursor = 'grabbing';

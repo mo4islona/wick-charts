@@ -57,6 +57,13 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
   PieSeries: { required: [{ name: 'data', valueExpr: 'pieData' }], selfClosingWhenEmpty: true },
   HeatmapSeries: { required: [{ name: 'data', valueExpr: 'heatmapData' }], selfClosingWhenEmpty: true },
   BandSeries: { required: [{ name: 'data', valueExpr: 'bandData' }], selfClosingWhenEmpty: true },
+  DepthSeries: {
+    required: [
+      { name: 'bids', valueExpr: 'book.bids' },
+      { name: 'asks', valueExpr: 'book.asks' },
+    ],
+    selfClosingWhenEmpty: true,
+  },
 
   Sparkline: {
     required: [{ name: 'data', valueExpr: 'data' }],

@@ -53,6 +53,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Canvas band charts that fill between a low and a high edge: Bollinger bands, confidence intervals and fan charts, with live streaming and tooltips.',
   },
+  'charts/depth': {
+    title: 'Order Book Charts for React, Vue & Svelte — Wick Charts',
+    description:
+      'Live order book charts: cumulative bid and ask walls around the mid price, with smooth morphing updates, mid and spread marker, zoom around mid and tooltips.',
+  },
   'charts/bar': {
     title: 'Bar Charts for React, Vue & Svelte — Wick Charts',
     description:
