@@ -82,14 +82,13 @@ function AgentLink({ theme }: { theme: ChartTheme }) {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
         height: CONTROL_SIZE,
         padding: '0 8px',
         borderRadius: 6,
         background: hover ? hexToRgba(accent, 0.08) : 'transparent',
         color: hover ? accent : theme.tooltip.textColor,
         fontFamily: MONO,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: 500,
         letterSpacing: '-0.01em',
         textDecoration: 'none',
@@ -97,16 +96,6 @@ function AgentLink({ theme }: { theme: ChartTheme }) {
         transition: 'color 0.15s ease, background 0.15s ease',
       }}
     >
-      <style>{'@keyframes agent-dot-pulse { 50% { opacity: 0.3; } }'}</style>
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: accent,
-          animation: 'agent-dot-pulse 2s ease-in-out infinite',
-        }}
-      />
       <span style={{ opacity: hover ? 1 : 0.6 }}>Are you an AI agent?</span>
     </a>
   );
