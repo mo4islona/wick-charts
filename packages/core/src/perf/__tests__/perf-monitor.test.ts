@@ -110,13 +110,52 @@ describe('PerfMonitor', () => {
 
   it('records per-series samples under the series id', () => {
     const m = new PerfMonitor();
-    m.recordSeries('candle', 2);
-    m.recordSeries('candle', 4);
-    m.recordSeries('line', 1);
+    m.recordSeries('candle', 2, 16);
+    m.recordSeries('candle', 4, 32);
+    m.recordSeries('line', 1, 32);
 
     const stats = m.getStats();
     expect(stats.perSeries.candle).toEqual({ last: 4, p50: 4, p95: 4 });
     expect(stats.perSeries.line).toEqual({ last: 1, p50: 1, p95: 1 });
+  });
+
+  it('merges paints that share a timestamp into one frame sample', () => {
+    const m = new PerfMonitor();
+    // Two charts on one monitor, two rAF frames: each frame gets one paint per chart.
+    m.recordFrame('main', 3, 16);
+    m.recordFrame('main', 2, 16);
+    m.recordFrame('main', 3, 32);
+    m.recordFrame('main', 2, 32);
+
+    const stats = m.getStats();
+    expect(stats.frameCount.main).toBe(2);
+    expect(stats.mainFrameMs.last).toBe(5);
+    expect(stats.mainRendersPerSec).toBe(62.5);
+  });
+
+  it('merges per-series samples that share a timestamp', () => {
+    const m = new PerfMonitor();
+    m.recordSeries('candle', 2, 16);
+    m.recordSeries('candle', 3, 16);
+
+    expect(m.getStats().perSeries.candle).toEqual({ last: 5, p50: 5, p95: 5 });
+  });
+
+  it('keeps the draw-call tally when a second chart paints the same frame', () => {
+    const m = new PerfMonitor();
+
+    m.resetDrawCalls('main', 16);
+    m.drawCallsMain.set('fillRect', 3);
+    m.recordFrame('main', 1, 16);
+
+    m.resetDrawCalls('main', 16);
+    m.drawCallsMain.set('fillRect', (m.drawCallsMain.get('fillRect') ?? 0) + 2);
+    m.recordFrame('main', 1, 16);
+
+    expect(m.getStats().drawCalls.main).toEqual({ fillRect: 5 });
+
+    m.resetDrawCalls('main', 32);
+    expect(m.drawCallsMain.size).toBe(0);
   });
 
   it('resetDrawCalls clears the tally Map in place, keeping the same reference', () => {
