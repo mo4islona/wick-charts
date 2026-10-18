@@ -49,6 +49,10 @@ export type {
   CrosshairPosition,
   CurveKind,
   CustomSpatialSeriesRenderer,
+  DepthBook,
+  DepthBookDelta,
+  DepthLevel,
+  DepthSeriesOptions,
   EdgeReachedInfo,
   EdgeSide,
   EdgeState,
@@ -153,6 +157,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  DepthSeriesDef,
   HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
@@ -241,6 +246,8 @@ export { CandlestickSeries } from './CandlestickSeries';
 export { ChartContainer } from './ChartContainer';
 // React hooks
 export { useChartInstance } from './context';
+export type { DepthSeriesProps } from './DepthSeries';
+export { DepthSeries } from './DepthSeries';
 export type { EdgeLoaderProps, EdgeLoaderRenderArgs } from './EdgeLoader';
 export { EdgeLoader } from './EdgeLoader';
 export type { HeatmapSeriesProps } from './HeatmapSeries';

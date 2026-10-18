@@ -67,6 +67,7 @@ import {
   type SeriesRenderer,
   type SliceInfo,
   type TimeSeriesRenderer,
+  type XFocus,
   isTimeSeriesRenderer,
 } from './series/types';
 import { catppuccin } from './theme/themes/catppuccin';
@@ -81,6 +82,8 @@ import type {
   CandlestickSeriesOptions,
   ChartLayout,
   CrosshairPosition,
+  DepthBookDelta,
+  DepthSeriesOptions,
   HeatmapSeriesOptions,
   LineSeriesOptions,
   OHLCData,
@@ -338,7 +341,7 @@ interface SeriesEntry {
 type XKeyedPoint = { x?: unknown; time?: unknown };
 
 /** Any point `appendData` / `prependData` / `updateData` take. */
-type SeriesPointInput = OHLCInput | TimePointInput | BandPointInput | XPointInput | XBandPointInput;
+type SeriesPointInput = OHLCInput | TimePointInput | BandPointInput | XPointInput | XBandPointInput | DepthBookDelta;
 
 /** Internal bookkeeping for a registered marker. `time` is normalized to epoch ms; `shape`/`pulse` carry resolved defaults. */
 interface MarkerEntry {
@@ -500,6 +503,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Whether the last overlay pass painted anything — gates the full-bitmap
    *  clear so an empty overlay isn't cleared again every main frame. */
   #overlayHasContent = false;
+  /** Whether the last overlay pass had a crosshair; see `renderOverlay`. */
+  #overlayHadCrosshair = false;
   /** Cached series ID list — invalidated on add/remove. */
   #seriesIdCache: string[] | null = null;
   /** Axis visibility and sizing configuration. */
@@ -958,6 +963,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   ): string;
   addSeries(type: 'pie', options?: Partial<PieSeriesOptions & { id?: string; label?: string }>): string;
   addSeries(type: 'heatmap', options?: Partial<HeatmapSeriesOptions & { id?: string; label?: string }>): string;
+  addSeries(
+    type: 'depth',
+    options?: Partial<DepthSeriesOptions & { id?: string; labels?: (string | undefined)[] }>,
+  ): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
     options?: Partial<O> & {
@@ -1014,7 +1023,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       assertSeriesFitsXAxis({ seriesType: def.type, axisType: this.#xType, supported: def.xTypes ?? ['time'] });
     }
 
-    const entryLabels = labels ?? (typeof label === 'string' ? [label] : undefined);
+    const entryLabels = labels ?? (typeof label === 'string' ? [label] : def.layerLabels?.slice());
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
     const prevGutters = this.#readGutters();
@@ -1391,7 +1400,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * underlying animator mutates between frames.
    */
   getAnimationState(): AnimationState {
-    return this.#toValueSpace(this.#engine.getAnimationState());
+    const state = this.#engine.getAnimationState();
+
+    return this.#toValueSpace({ ...state, xRange: this.#viewXRange(state.xRange) });
   }
 
   /** The engine animates Y in scale space (the scale's forward); readers outside it get values. */
@@ -1498,13 +1509,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (!entry) return;
 
     const category = this.#xType === 'category' && this.#takesXKeys(entry);
+    // An order-book snapshot is a stream tick: the book morphs, so Y eases too.
+    const followsFocus = entry.renderer.getXFocus !== undefined;
     // Bulk replace → onDataChanged should snap the Y range so yScale reflects
     // the new domain synchronously (the long-standing public contract pinned
     // by chart-scales-sync.test). Streaming `appendData` ticks don't set
     // this flag, so per-tick Y can ease both directions for a smooth axis.
-    this.#dataReplaceSnapPending = !category;
+    this.#dataReplaceSnapPending = !category && !followsFocus;
 
-    if (!this.#takesXKeys(entry)) {
+    // Data of a series' own shape (an order book) isn't a list of X-keyed points.
+    const ownShape = data !== null && data !== undefined && !Array.isArray(data);
+    if (!this.#takesXKeys(entry) || ownShape) {
       entry.renderer.setData(data, layerIndex);
 
       return;
@@ -1799,6 +1814,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<BandSeriesOptions>
       | Partial<PieSeriesOptions>
       | Partial<HeatmapSeriesOptions>
+      | Partial<DepthSeriesOptions>
     ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
@@ -1830,7 +1846,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // here — otherwise a simple parent re-render silently re-enables
     // animations the chart asked to hold off.
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
+    const prevFocusWidth = entry.renderer.getXFocus?.()?.halfWidth;
     entry.renderer.updateOptions({ ...rendererOptions, ...forceOff });
+
+    // A new default width from the app (a depth `span`) wins over the user's zoom, even on a static book.
+    const focus = entry.visible ? (entry.renderer.getXFocus?.() ?? null) : null;
+    if (focus !== null && focus.halfWidth !== prevFocusWidth) this.#resetFocusWidth(focus);
     // Keep the stored single-name label in sync with options (pie / candlestick
     // back-compat — line/bar set per-layer names through `setSeriesLabels`).
     if ('label' in options && typeof options.label === 'string') {
@@ -1982,6 +2003,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Auto-fit the viewport to show all data across every series, however many bars that is. */
   fitContent(): void {
+    const focus = this.#xFocus();
+    if (focus !== null) {
+      this.#resetFocusWidth(focus);
+
+      return;
+    }
+
     const { first, last } = this.getDataBounds();
     if (first === undefined || last === undefined) return;
     const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
@@ -2199,7 +2227,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Get the last visible value and whether the absolute last point is on screen. */
   getLastValue(seriesId: string): { value: number; isLive: boolean } | null {
-    return getLastValue(seriesId, this.#series, this.#engine.getAnimationState().xRange);
+    return getLastValue(seriesId, this.#series, this.#viewXRange(this.#engine.getAnimationState().xRange));
   }
 
   /** Get the second-to-last value, useful for computing change. */
@@ -2398,7 +2426,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * Returns `null` for unknown ids or empty series.
    */
   getStackedLastValue(seriesId: string): { value: number; isLive: boolean } | null {
-    return getStackedLastValue(seriesId, this.#series, this.#engine.getAnimationState().xRange);
+    return getStackedLastValue(seriesId, this.#series, this.#viewXRange(this.#engine.getAnimationState().xRange));
   }
 
   /**
@@ -3405,6 +3433,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #initialVisibleRange: VisibleRangeSpec | undefined;
   /** The chart's own fit holds fewer bars than it asks for, so appends widen it until it is full. */
   #autoFitFilling = false;
+  /** Half-width the user zoomed an X focus to; `null` keeps the series' default. */
+  #focusHalfWidth: number | null = null;
 
   /** Dev warning for values the Y scale can't place — fires once per chart. */
   #warnedUnplottable = false;
@@ -3496,6 +3526,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const uninitialized = from === 0 && to === 0;
     const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
 
+    const focus = this.#xFocus();
+    if (focus !== null) return this.#followFocus({ focus, uninitialized });
+
     // Every data change refits a category axis: a new or vanished category moves the bands.
     if (this.#xType === 'category') {
       this.#fitVisibleToData({ firstTime: this.#dataStart, lastTime: this.#dataEnd, chartWidth });
@@ -3542,6 +3575,63 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (typeof this.#initialVisibleRange === 'object') this.#initialVisibleRange = undefined;
 
     return this.#commitStreamingTarget(result.newLogical);
+  }
+
+  /**
+   * The X focus of the first visible series that reports one (a depth chart's
+   * mid), or `null`. See `BaseSeriesRenderer.getXFocus`.
+   */
+  #xFocus(): XFocus | null {
+    for (const entry of this.#series) {
+      if (!entry.visible) continue;
+
+      const focus = entry.renderer.getXFocus?.() ?? null;
+      if (focus !== null) return focus;
+    }
+
+    return null;
+  }
+
+  /** Drop the user's zoom and ease the view to the series' default width around its focus. */
+  #resetFocusWidth(focus: XFocus): void {
+    this.#focusHalfWidth = null;
+    this.#commitLogical(this.#focusRange(focus), { emitChange: true, skipValidation: true });
+    this.#commitProgrammaticZoom({ xEase: true });
+  }
+
+  /** The window around the focus: the user's zoomed half-width, else the series' default. */
+  #focusRange(focus: XFocus): XRange {
+    const halfWidth = this.#focusHalfWidth ?? focus.halfWidth;
+
+    return { from: focus.center - halfWidth, to: focus.center + halfWidth };
+  }
+
+  /**
+   * The engine's X range re-centered on the focus as drawn this frame, so the
+   * view, the walls and the mid line move as one; the engine still eases the width.
+   */
+  #viewXRange(range: XRange): XRange {
+    const focus = this.#xFocus();
+    if (focus === null) return range;
+
+    const halfWidth = (range.to - range.from) / 2;
+
+    return { from: focus.drawnCenter - halfWidth, to: focus.drawnCenter + halfWidth };
+  }
+
+  /** Center the view on the focus — snapped on the first data, eased like a stream tick after. */
+  #followFocus(args: { focus: XFocus; uninitialized: boolean }): XRange | null {
+    const range = this.#focusRange(args.focus);
+    if (args.uninitialized) {
+      const placed = this.#commitLogical(range, { emitChange: true, skipValidation: true });
+
+      return placed ? this.#logical : null;
+    }
+
+    const unchanged = range.from === this.#logical.from && range.to === this.#logical.to;
+    if (unchanged) return null;
+
+    return this.#commitStreamingTarget(range);
   }
 
   /** Commit an X target that follows the data tail; the engine eases there. */
@@ -3845,9 +3935,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * gesture (i.e., the user pushed past the boundary), so consumers can
    * trigger history loads. Forwards the committed target to the engine
    * as a gesture for visual easing. Public so consumers can drive pan
-   * programmatically.
+   * programmatically. A no-op while {@link canDragPan} is `false`.
    */
   pan(timeDelta: number, chartWidth = this.#lastChartWidth): void {
+    if (!this.canDragPan()) return;
+
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
     this.#releaseAutoWindow();
@@ -3889,11 +3981,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * offset clamp (which would otherwise slide X left to the follow position
    * and produce a visible jump). Cursor-anchored zoom is intentionally
    * sacrificed in follow-live mode — pan first to inspect history.
+   *
+   * While a series keeps the view on its X focus (a depth chart's mid), the
+   * zoom scales the half-width around that focus instead.
    */
   zoomAt(centerTime: number, factor: number, chartWidth = this.#lastChartWidth): void {
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
     this.#releaseAutoWindow();
+
+    const focus = this.#xFocus();
+    if (focus !== null) {
+      this.#zoomAroundFocus({ focus, factor });
+
+      return;
+    }
 
     const result = computeZoom({
       currentLogical: this.#logical,
@@ -3918,6 +4020,32 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     this.#commitLogical(newLogical, { emitChange: true });
+    this.#cadence.pause();
+    this.#emitGestureToEngine();
+  }
+
+  /**
+   * Whether a drag pans the view — not while a series keeps it centered on
+   * its focus (a depth chart's mid), which a pan would fight.
+   */
+  canDragPan(): boolean {
+    return this.#xFocus() === null;
+  }
+
+  /** Scale the half-width around the focus' center, out to at most the whole book. */
+  #zoomAroundFocus(args: { focus: XFocus; factor: number }): void {
+    const { focus, factor } = args;
+    const current = (this.#logical.to - this.#logical.from) / 2;
+    // A hair above 0 rather than a price step: a sparse or irregular book still zooms in.
+    const minHalfWidth = Math.abs(focus.center) * 1e-6;
+    const bookReach = Math.max(
+      focus.center - (this.#dataStart ?? focus.center),
+      (this.#dataEnd ?? focus.center) - focus.center,
+    );
+    const maxHalfWidth = Math.max(minHalfWidth, bookReach, focus.halfWidth);
+
+    this.#focusHalfWidth = clamp(current * factor, minHalfWidth, maxHalfWidth);
+    this.#commitLogical(this.#focusRange(focus), { emitChange: true, skipValidation: true });
     this.#cadence.pause();
     this.#emitGestureToEngine();
   }
@@ -4013,7 +4141,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const chartHeight = size.media.height - this.xAxisHeight;
 
     this.timeScale.update(
-      this.#engine.getAnimationState().xRange,
+      this.#viewXRange(this.#engine.getAnimationState().xRange),
       chartWidth,
       size.horizontalPixelRatio,
       this.#dataInterval,
@@ -4080,7 +4208,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     // A commit can land the view between frames (a snapped gesture, `animations: false`):
     // nothing animates afterwards, so no other signal tells the DOM it moved.
-    const viewMoved = this.#takeViewMove(animationState.xRange);
+    const viewMoved = this.#takeViewMove(this.timeScale.getRange());
     if (yChanged || (viewMoved && !animationState.animating)) {
       this.emit('viewportChange');
     }
@@ -4261,6 +4389,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Generic animation poll — any renderer that still needs a frame keeps us going.
     let seriesNeedsAnim = false;
     for (const entry of this.#series) {
+      // A hidden, faded-out series isn't rendered, so its tweens never settle.
+      const alpha = entry.renderer.getAlpha?.() ?? (entry.visible ? 1 : 0);
+      if (alpha <= 0) continue;
+
       if (entry.renderer.needsAnimation) {
         seriesNeedsAnim = true;
         this.#mainScheduler.markDirty();
@@ -4820,12 +4952,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Skip the full-bitmap clear when the overlay is empty AND was already
     // empty last pass — only the painted→empty transition (e.g. mouseleave
     // erasing a stale crosshair) needs one erasing clear.
-    const hasContent =
-      Boolean(this.#crosshairPos) ||
-      overlayAnimates ||
-      edgeVisible ||
-      this.#markers.length > 0 ||
-      this.#lines.length > 0;
+    // The pass right after the crosshair leaves still reaches the series overlays, with
+    // `crosshair: null`, so a hover ease (the depth glow) can start fading out.
+    const crosshairJustLeft = this.#crosshairPos === null && this.#overlayHadCrosshair;
+    this.#overlayHadCrosshair = this.#crosshairPos !== null;
+
+    const persistentContent = edgeVisible || this.#markers.length > 0 || this.#lines.length > 0;
+    const hasContent = Boolean(this.#crosshairPos) || crosshairJustLeft || overlayAnimates || persistentContent;
     if (!hasContent && !this.#overlayHasContent) return;
 
     this.#overlayHasContent = hasContent;
@@ -4873,6 +5006,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           state: scaleId === undefined ? overlayState : this.#scaleAnimationState(overlayState, scaleId),
           seriesId: entry.id,
         });
+        // A hover ease starts inside `drawOverlay`, after the check above.
+        if (entry.renderer.overlayNeedsAnimation) overlayAnimates = true;
       }
 
       // Reference lines (thresholds / event boundaries): above series overlays,
@@ -4905,6 +5040,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       scope.context.restore();
     });
+
+    // The leave pass paints only what animates; with nothing animating the layer is already blank.
+    if (crosshairJustLeft && !overlayAnimates && !persistentContent) this.#overlayHasContent = false;
 
     // Keep overlay animating while any renderer still requests it and its animated
     // content is within the visible time range. Renderers that don't expose

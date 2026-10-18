@@ -224,7 +224,7 @@ export interface ChartLayout {
 }
 
 /** Primary series types. Open-ended — a custom {@link SeriesDefinition} picks any string that isn't a built-in. */
-export type SeriesType = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | (string & {});
+export type SeriesType = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | 'depth' | (string & {});
 
 /**
  * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).
@@ -1095,6 +1095,54 @@ export interface HeatmapSeriesOptions {
   /**
    * Value/color tween duration when a cell's value changes in place, and the
    * hover-lift ease. `0` snaps. Default: chart animation config (300).
+   */
+  updateMs?: number;
+}
+
+/** One order-book level: `[price, size]`. */
+export type DepthLevel = readonly [price: number, size: number];
+
+/**
+ * The order book a depth series plots. Levels come in any order: the series
+ * sorts them and accumulates the depth itself — bids from the best bid down,
+ * asks from the best ask up. A level whose size isn't above 0 is skipped.
+ */
+export interface DepthBook {
+  bids: readonly DepthLevel[];
+  asks: readonly DepthLevel[];
+}
+
+/**
+ * Level changes `chart.updateData` merges into a depth series' book: a level
+ * replaces the one at its price, and a size of 0 removes it.
+ */
+export type DepthBookDelta = Partial<DepthBook>;
+
+/** Visual options for an order book series. */
+export interface DepthSeriesOptions {
+  /**
+   * Half-width of the default view as a fraction of the mid price: `0.01`
+   * shows mid ± 1%. Without it the view reaches from mid to the nearer of
+   * the two outermost levels on both sides, so both walls fill it.
+   * Default: fit to the book.
+   */
+  span?: number;
+  /** Bid wall color. Default: the theme's up color. */
+  bidColor?: string;
+  /** Ask wall color. Default: the theme's down color. */
+  askColor?: string;
+  /** Step line width in CSS pixels. Default: `1`. */
+  strokeWidth?: number;
+  /**
+   * Initial-load reveal: both walls grow outward from mid while their steps
+   * rise from 0. The full reveal lasts ~2× `introMs`. `0` disables it.
+   * Default: chart animation config (500).
+   */
+  introMs?: number;
+  /**
+   * Morph from the book on screen to a new snapshot or delta, the mid
+   * marker's glide, and the hover highlight's ease. `0` snaps.
+   * Default: chart animation config (500).
    */
   updateMs?: number;
 }

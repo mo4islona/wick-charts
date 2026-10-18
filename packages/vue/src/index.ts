@@ -49,6 +49,10 @@ export type {
   CrosshairPosition,
   CurveKind,
   CustomSpatialSeriesRenderer,
+  DepthBook,
+  DepthBookDelta,
+  DepthLevel,
+  DepthSeriesOptions,
   EdgeReachedInfo,
   EdgeSide,
   EdgeState,
@@ -153,6 +157,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  DepthSeriesDef,
   HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
@@ -241,6 +246,7 @@ export { default as ChartContainer } from './ChartContainer.vue';
 export { useCrosshairPosition, useLastYValue, usePreviousClose, useVisibleRange, useYRange } from './composables';
 // Composables and context
 export { useChartInstance, useTheme } from './context';
+export { default as DepthSeries } from './DepthSeries.vue';
 export { default as HeatmapSeries } from './HeatmapSeries.vue';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';

@@ -49,6 +49,10 @@ export type {
   CrosshairPosition,
   CurveKind,
   CustomSpatialSeriesRenderer,
+  DepthBook,
+  DepthBookDelta,
+  DepthLevel,
+  DepthSeriesOptions,
   EdgeReachedInfo,
   EdgeSide,
   EdgeState,
@@ -153,6 +157,7 @@ export {
   BarSeriesDef,
   CandlestickSeriesDef,
   ChartInstance,
+  DepthSeriesDef,
   HeatmapSeriesDef,
   LineSeriesDef,
   NavigatorController,
@@ -240,6 +245,7 @@ export { default as CandlestickSeries } from './CandlestickSeries.svelte';
 export { default as ChartContainer } from './ChartContainer.svelte';
 // Context and stores
 export { getChartContext, getThemeContext } from './context.js';
+export { default as DepthSeries } from './DepthSeries.svelte';
 export { default as HeatmapSeries } from './HeatmapSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';

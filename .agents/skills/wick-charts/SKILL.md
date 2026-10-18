@@ -1,6 +1,6 @@
 ---
 name: wick-charts
-description: Build charts with the Wick Charts library. Use when creating candlestick, line, area, bar, band (range), pie or sparkline charts, or streaming live data into a chart, in React, Vue or Svelte.
+description: Build charts with the Wick Charts library. Use when creating candlestick, line, area, bar, band (range), order book, pie or sparkline charts, or streaming live data into a chart, in React, Vue or Svelte.
 ---
 
 # Wick Charts
@@ -26,6 +26,7 @@ Framework-specific gaps to know about:
 - [Line / Area](line.md) — multi-layer, stacking, area, pulse
 - [Bar / Histogram](bar.md) — multi-layer, stacking
 - [Band / Range](#band-series) — fill between a `low` and a `high` edge; percentile bands, Bollinger, fan charts (section below)
+- [Order book](#depth-series) — cumulative bid / ask walls around mid on a numeric price axis (section below)
 - [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation, "Other" grouping (on by default)
 - [Sparkline](sparkline.md) — inline mini-chart + value label (React only)
 
@@ -71,6 +72,7 @@ import { hermite, spring, snap } from '@wick-charts/react';
       bar:         { entry: 250, smooth: 250 },
       band:        { entry: 250, smooth: 250 },
       pie:         { entry: 250, update: 250 },
+      depth:       { intro: 500, update: 500 },
     },
     toggle: 250,
   }}
@@ -91,6 +93,8 @@ import { hermite, spring, snap } from '@wick-charts/react';
 | `series.<kind>.smooth` | ms | `250` | Last-value chase on `updateData` ticks. `false` snaps. |
 | `series.line.pulse` | ms | `600` | Halo cycle period at the line tail (periodic loop). `false` disables. |
 | `series.pie.update` | ms | `250` | Slice-resize duration on data change. |
+| `series.depth.intro` | ms | `500` | Depth walls grow out from mid on the first data; the full reveal lasts ~2×. |
+| `series.depth.update` | ms | `500` | Depth morph to each new book, mid-marker glide and hover-highlight ease. |
 | `toggle` | ms | `250` | Series-visibility fade + Y re-fit duration. |
 
 **Disabling a whole group.** Any group field accepts `false` to skip animations for that subtree — `animations: false` (chart-wide), `animations: { axis: false }`, `animations: { series: { line: false } }`, etc.
@@ -287,7 +291,7 @@ const SCALES = { rsi: { position: 'left', min: 0, max: 100 } }; // stable object
 - **Category**: categories come from the data in first-seen order (series in mount order, points in data order) and follow every data change; a category no series holds disappears. Band `i` is centred on coordinate `i`; `axis.x.padding` = `{ inner, outer }` in fractions of a step (default 0.3 / 0.2). Bars fill the band (`barWidthRatio` is ignored), lines and bands run through band centres, long labels end in an ellipsis, the viewport fits every band.
 - `axis.x.panZoom` (default `true`, `false` on category) turns drag / wheel off; the crosshair still works. Live.
 - `CrosshairPosition.x` / `PointClickInfo.x` hold the domain value (epoch ms / number / category name); `time` is the internal coordinate (the band index on a category axis). Stored points keep their `x`.
-- Line, bar and band work on every type; candlestick is time-only — `addSeries` throws for a series whose definition doesn't list the axis type (`SeriesDefinition.xTypes`, default `['time']`). Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are time-only: disabled with a dev warning.
+- Line, bar and band work on every type; candlestick is time-only and depth numeric-only — `addSeries` throws for a series whose definition doesn't list the axis type (`SeriesDefinition.xTypes`, default `['time']`). Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are time-only: disabled with a dev warning.
 - A point whose `x` doesn't fit (a string on numeric, a non-string on category) is skipped with a dev warning.
 
 ## Band series
@@ -318,6 +322,27 @@ Several bands in one series make a fan chart — layers draw in order with trans
 - **Options** — `fill` (a color, or `[top, bottom]` for a vertical gradient), `stroke: { visible, width, color }`, `curve: 'straight' | 'smooth' | 'stepped'` (`'smooth'` is monotone, never overshoots), `entryAnimation` / `entryMs`, `introAnimation` / `introMs`, `historyReveal` / `historyRevealMs`, `smoothMs`. `introAnimation` takes a `LineIntroFn` — the same `unfoldIntro()` (default), `sweepIntro()`, … as `LineSeries`. **No stacking.**
 - **Overlays** — `Tooltip` / `InfoBar` show `low – high` (the snapshot `data` is a `BandPoint`); the crosshair marks both edges; the Y range covers both edges. `YLabel` skips bands.
 - **Streaming** — same as a line: `appendData`, `updateData` (both edges chase smoothly), `prependData`, `keepLast`.
+
+## Depth series
+
+`<DepthSeries>` plots an order book: cumulative bid size stepping down to the best bid on the left of mid, cumulative ask size stepping up from the best ask on the right, with a dashed mid line and a `mid · spread` label. It needs a numeric X axis — on a time or category axis `addSeries` throws.
+
+```tsx
+<ChartContainer axis={{ x: { type: 'numeric' }, y: { min: 0 } }}>
+  <DepthSeries bids={book.bids} asks={book.asks} options={{ span: 0.01 }} />
+  <XAxis />
+  <YAxis />
+  <Crosshair />
+  <Tooltip />
+  <Legend />
+</ChartContainer>
+```
+
+- **Data** — `bids` / `asks` are `DepthLevel[]` = `[price, size]` tuples in any order; the series sorts them and computes the cumulative depth. A level with size ≤ 0 is skipped; a repeated price keeps the last size.
+- **Live updates** — pass new `bids` / `asks` arrays (a full snapshot morphs from the book on screen; 10+ per second is fine). Imperative: `chart.setSeriesData(id, { bids, asks })`, or `chart.updateData(id, { bids?, asks? })` to merge level deltas — a size of `0` removes that level.
+- **View** — centered on mid: half-width `span × mid`, or without `span` the book fit (mid out to the nearer of the two outermost levels). The view eases to each new mid; wheel / pinch zoom around mid (double-click resets); drag-pan is off. Y runs from 0 to the deepest visible cumulative size.
+- **Options** — `span`, `bidColor` / `askColor` (default: the theme's candlestick up / down colors), `strokeWidth` (1), `introMs`, `updateMs`.
+- **Overlays** — `Tooltip` / `InfoBar` rows: `Bids` / `Asks` (the layers; `Legend` toggles them), the level price in the header, the cumulative size as the value. The hover dot snaps to the step's level and the area from mid to the pointer brightens. `InfoBar` in last-mode shows the best bid and ask.
 
 ## Custom render (slots / render-props)
 
@@ -416,4 +441,5 @@ Vue and Svelte also pick up an in-place `push` and an in-place edit of the last 
 - `CandlestickSeries` `data` is `OHLCInput[]` or `{ label, data }` (single stream; `color` not applicable).
 - `BandSeries` `data` (`BandData`) takes the same omnivorous shapes as `LineSeries`, with `{ time, low, high }` points — one band per layer, no stacking.
 - `PieSeries` `data` is flat `PieSliceData[]`.
+- `DepthSeries` takes `bids` / `asks` (`[price, size][]`), not `data`, and needs `axis.x.type: 'numeric'`.
 - `VisibleRange` is a deprecated alias for `XRange` (identical shape `{ from, to }`). Use `XRange` in new code.
