@@ -7,18 +7,20 @@
 
 Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered, tree-shakeable, zero runtime dependencies.
 
-[Live Demo](https://wick-charts.eeff.io/) · [Docs](https://wick-charts.eeff.io/api/chart-container/)
+[Live demo](https://wick-charts.eeff.io/) · [Documentation](https://wick-charts.eeff.io/api/chart-container/) · [License](#license)
 
-## Features
+## Why Wick Charts
 
-- **Chart types** — candlestick, line and area, band, bar, heatmap, pie and donut, sparkline, all from one package
+- **8+ chart types**: candlestick, line, bar, heatmap, pie and more, or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/)
 - **Real-time streaming** — append/update at 60fps with coordinated animations
-- **22 built-in themes** plus `createTheme()` for custom palettes
+- **Themes** — built-in themes, `createTheme()` for your own palette, and a [theme editor](https://wick-charts.eeff.io/use-cases/theme/)
 - **Interactive** — zoom, pan, crosshair, tooltips
 - **Stacking** — normal and percent modes for line/bar
 - **Custom-render slots** — keep the built-in positioning, replace the contents
 - **Tree-shakeable** — import only what you use
+- **TypeScript-first** — type definitions ship with every package
 - **Zero runtime dependencies** — just your framework
+- **Always free and open** — [MIT licensed](#license)
 
 ## Install
 
@@ -26,7 +28,7 @@ Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered
 npm install @wick-charts/svelte
 ```
 
-## Quick Start
+## Quick start
 
 ```svelte
 <script>
@@ -49,13 +51,16 @@ npm install @wick-charts/svelte
 
 `ChartContainer` fills its parent (`width` and `height` are `100%`), so give the parent a height. The container also has a 240px `min-height`, so a parent with no height still shows a chart. For a smaller chart, such as a sparkline in a table row, set `min-height: 0` (`minHeight: 0` in React) in the container's `style`.
 
-## API
+Each chart page listed below has a Code tab next to its controls: copy, paste, ship.
 
-Every component, prop, type, and slot context lives in the docs site:
+## Chart types
 
-[wick-charts.eeff.io/api/chart-container/](https://wick-charts.eeff.io/api/chart-container/)
+- [Candlestick](https://wick-charts.eeff.io/charts/candlestick/) · [Order book](https://wick-charts.eeff.io/charts/depth/)
+- [Line & Area](https://wick-charts.eeff.io/charts/line/) · [Band](https://wick-charts.eeff.io/charts/band/) · [Bar](https://wick-charts.eeff.io/charts/bar/)
+- [Pie & Donut](https://wick-charts.eeff.io/charts/pie/) · [Heatmap](https://wick-charts.eeff.io/charts/heatmap/)
+- [Sparkline](https://wick-charts.eeff.io/charts/sparkline/)
 
-Start there for [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then drill into the series ([Candlestick](https://wick-charts.eeff.io/api/candlestick-series/), [Line](https://wick-charts.eeff.io/api/line-series/), [Bar](https://wick-charts.eeff.io/api/bar-series/), [Band](https://wick-charts.eeff.io/api/band-series/), [Pie](https://wick-charts.eeff.io/api/pie-series/), [Heatmap](https://wick-charts.eeff.io/api/heatmap-series/), [Sparkline](https://wick-charts.eeff.io/api/sparkline/)) and overlays ([Tooltip](https://wick-charts.eeff.io/api/tooltip/), [InfoBar](https://wick-charts.eeff.io/api/info-bar/), [Crosshair](https://wick-charts.eeff.io/api/crosshair/), [Legend](https://wick-charts.eeff.io/api/legend/), [YAxis](https://wick-charts.eeff.io/api/y-axis/), [XAxis](https://wick-charts.eeff.io/api/x-axis/), [Navigator](https://wick-charts.eeff.io/api/navigator/), …).
+Put them on [numeric and category X axes](https://wick-charts.eeff.io/use-cases/x-axis-types/) or a [secondary Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/), [sync several charts](https://wick-charts.eeff.io/use-cases/multi-chart-sync/), stream them [in real time](https://wick-charts.eeff.io/use-cases/realtime-data/), or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/).
 
 ## No framework? Use the engine directly
 
@@ -94,9 +99,9 @@ For a CodePen, JSFiddle, or a plain HTML page, load the prebuilt UMD bundle from
 </script>
 ```
 
-The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~86 kB gzipped, self-contained.
+The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~96 kB gzipped, self-contained.
 
-## Bundle size
+## Bundle size: ship only what you use
 
 Packages ship per-module ESM with `sideEffects: false`, and each series component carries its own renderer — your bundler only ships the chart types you import.
 
@@ -104,9 +109,13 @@ Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, 
 
 | Scenario | Raw | Gzip | Brotli |
 |---|---:|---:|---:|
-| Candlestick only | 137.6 kB | 42.9 kB | 37.6 kB |
-| Line only        | 158.4 kB | 49.0 kB | 42.7 kB |
-| Full React       | 307.9 kB | 94.9 kB | 79.5 kB |
+| Candlestick only | 146.3 kB | 45.9 kB | 40.2 kB |
+| Line only        | 170.1 kB | 53.0 kB | 46.1 kB |
+| Full React       | 331.8 kB | 103.0 kB | 86.2 kB |
+
+## Documentation
+
+Every component, prop, type, and slot context lives in the docs site. Start at [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then pick a series or an overlay in the sidebar.
 
 ## Migration
 
@@ -128,4 +137,4 @@ A pull request should pass `pnpm test`, `pnpm lint` and `pnpm typecheck`, and ad
 
 ## License
 
-MIT
+MIT — always free and open.

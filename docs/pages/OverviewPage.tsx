@@ -541,7 +541,7 @@ function Hero({ theme, mobile }: { theme: ChartTheme; mobile: boolean }) {
         >
           Built for data that never stops: prices, metrics, sensors, logs.
           <br />
-          Tiny bundle, zero deps, 22 themes, fully open source.
+          Tiny bundle, zero deps, extensible themes, always free and open.
         </p>
       </div>
 
