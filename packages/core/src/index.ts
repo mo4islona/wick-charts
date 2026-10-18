@@ -110,7 +110,15 @@ export type {
 // Navigator
 export { NavigatorController } from './navigator';
 // Performance instrumentation
-export type { FrameKind, PercentileSample, PerfConfig, PerfMonitorOptions, PerfStats } from './perf';
+export type {
+  FrameKind,
+  PercentileSample,
+  PerfConfig,
+  PerfHudColors,
+  PerfHudOptions,
+  PerfMonitorOptions,
+  PerfStats,
+} from './perf';
 export { PerfMonitor, perfHud } from './perf';
 export { type LogScaleOptions, logScale } from './scales/log-scale';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)

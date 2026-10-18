@@ -8,6 +8,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ChartInstance } from '../../chart';
+import { createTheme } from '../../theme/palettes';
+import { resolveCandlestickBodyColor } from '../../theme/resolve';
 import { perfHud } from '../perf-hud';
 import { PerfMonitor } from '../perf-monitor';
 
@@ -166,6 +168,22 @@ describe('ChartInstance — perf instrumentation', () => {
     } finally {
       chart.destroy();
       expect(container.querySelector('[data-chart-perf-hud]')).toBeNull();
+    }
+  });
+
+  it('colors the HUD from the chart theme and follows setTheme', () => {
+    const light = createTheme({ background: '#ffffff' }).theme;
+    const dark = createTheme({ background: '#10141c' }).theme;
+    const chart = new ChartInstance(container, { perf: perfHud(), theme: light, interactive: false });
+    const good = () =>
+      container.querySelector<HTMLElement>('[data-chart-perf-hud]')?.style.getPropertyValue('--wick-perf-good');
+    try {
+      expect(good()).toBe(resolveCandlestickBodyColor(light.candlestick.up.body));
+
+      chart.setTheme(dark);
+      expect(good()).toBe(resolveCandlestickBodyColor(dark.candlestick.up.body));
+    } finally {
+      chart.destroy();
     }
   });
 

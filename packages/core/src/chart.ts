@@ -705,7 +705,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** When true, `destroy()` tears down the monitor; false for caller-supplied monitors we must not destroy. */
   #ownsPerfMonitor = false;
   /** Visible HUD overlay (mounted by the perf config); non-null only when the caller requested one. */
-  #perfHud: { destroy(): void } | null = null;
+  #perfHud: { destroy(): void; setTheme?(theme: ChartTheme): void } | null = null;
 
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
@@ -786,7 +786,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
     );
     if (this.#perfMonitor && resolvedPerf.hud) {
-      this.#perfHud = resolvedPerf.hud(container, this.#perfMonitor);
+      this.#perfHud = resolvedPerf.hud(container, this.#perfMonitor, this.#theme);
     }
 
     const interactive = options?.interactive !== false;
@@ -2553,6 +2553,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // so applyTheme rewrites only the base and the overrides ride through.
       entry.renderer.applyTheme(theme, prev);
     }
+    this.#perfHud?.setTheme?.(theme);
     this.#mainScheduler.markDirty();
     this.#bumpOverlayVersion();
   }

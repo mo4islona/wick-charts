@@ -1,6 +1,8 @@
 import { ChartInstance } from '../chart';
 import { LineSeriesDef } from '../series/line';
-import { createTheme } from '../theme/palettes';
+import { createTheme, isDarkBg } from '../theme/palettes';
+import { resolveCandlestickBodyColor } from '../theme/resolve';
+import type { ChartTheme } from '../theme/types';
 import { type FrameTimingSample, PerfMonitor, type PerfMonitorOptions, type PerfStats } from './perf-monitor';
 
 /**
@@ -12,10 +14,87 @@ import { type FrameTimingSample, PerfMonitor, type PerfMonitorOptions, type Perf
 export interface PerfConfig {
   /** Monitor that collects frame timing / draw calls for this chart. */
   monitor: PerfMonitor;
-  /** Mounts the HUD overlay; the chart calls it at construction and destroys the result. */
-  hud?: (container: HTMLElement, monitor: PerfMonitor) => { destroy(): void };
+  /**
+   * Mounts the HUD overlay. The chart calls it at construction with its theme,
+   * calls `setTheme` when the theme changes, and destroys the result.
+   */
+  hud?: (
+    container: HTMLElement,
+    monitor: PerfMonitor,
+    theme?: ChartTheme,
+  ) => { destroy(): void; setTheme?(theme: ChartTheme): void };
   /** True when the config constructed the monitor — the chart then destroys it on teardown. */
   ownsMonitor?: boolean;
+}
+
+/**
+ * HUD palette. Keys left out of {@link PerfHudOptions.colors} follow the chart
+ * theme, or a dark-glass palette when the HUD is mounted without a theme.
+ */
+export interface PerfHudColors {
+  /** Panel fill — any CSS background, so a gradient works. */
+  background: string;
+  /** Panel outline. */
+  border: string;
+  /** Hairlines inside the panel: the collapse button and the series divider. */
+  divider: string;
+  /** Table numbers. */
+  text: string;
+  /** Column heads, units and the idle readout. */
+  dim: string;
+  /** The hero FPS number. */
+  bright: string;
+  /** Row labels and the PERF title. */
+  label: string;
+  /** Live dot, graph line, and frame times within the 120 Hz budget. */
+  good: string;
+  /** Frame times within the 60 Hz budget. */
+  warn: string;
+  /** Frame times over the 60 Hz budget. */
+  bad: string;
+  /** Status dot while waiting or idle. */
+  idle: string;
+}
+
+/** {@link perfHud} options: the monitor to create (or reuse), and the HUD's look and behavior. */
+export interface PerfHudOptions extends PerfMonitorOptions {
+  /**
+   * Show the HUD for this monitor instead of a new one — e.g. a monitor that
+   * several charts share. The monitor options are then ignored.
+   */
+  monitor?: PerfMonitor;
+  colors?: Partial<PerfHudColors>;
+  /**
+   * Collapsed panel. Size in px, default 64 × 64; a panel at least three
+   * times wider than tall puts the graph in a framed box left of the number.
+   */
+  mini?: {
+    width?: number;
+    height?: number;
+    /** Draw the FPS graph. Default true; the expanded panel always has its graph. */
+    sparkline?: boolean;
+    /** Fill, outline, shadow and blur. Default true; false leaves a bare readout. */
+    frame?: boolean;
+    /** Let the pointer move the collapsed panel. Default: {@link PerfHudOptions.draggable}. */
+    draggable?: boolean;
+  };
+  /** Expanded panel width in px, default 216; its height follows the content. */
+  full?: { width?: number };
+  /** Corner radius in px. Default 10. */
+  radius?: number;
+  /** CSS `box-shadow` of the panel. Default: a drop shadow for the theme's dark or light background. */
+  shadow?: string;
+  /** Backdrop blur behind the panel in px; 0 turns it off. Default 10. */
+  blur?: number;
+  /**
+   * Let the pointer move the panel inside its container — or inside the
+   * viewport on an axis where the panel is larger than the container. Default true.
+   */
+  draggable?: boolean;
+  /** Pulse a ring around the status dot while frames arrive. Default true. */
+  pulse?: boolean;
+  /** Expand the collapsed panel to the full stats on click. Default true. */
+  expandable?: boolean;
 }
 
 /**
@@ -26,19 +105,20 @@ export interface PerfConfig {
  * new ChartInstance(el, { perf: perfHud() });
  * <ChartContainer perf={perfHud({ windowMs: 500 })} />
  * perfHud(sharedMonitor) // HUD on an externally-owned monitor
+ * perfHud({ monitor: sharedMonitor, mini: { width: 120, height: 36 }, colors: { background: '#fff' } })
  * ```
  *
  * Importing this factory is what pulls the monitor + HUD code into the
  * bundle; pass a bare `PerfMonitor` instance as `perf` for HUD-less
  * instrumentation.
  */
-export function perfHud(init?: PerfMonitorOptions | PerfMonitor): PerfConfig {
-  const external = init instanceof PerfMonitor;
+export function perfHud(init?: PerfHudOptions | PerfMonitor): PerfConfig {
+  const options: PerfHudOptions = init instanceof PerfMonitor ? { monitor: init } : (init ?? {});
 
   return {
-    monitor: external ? init : new PerfMonitor(init),
-    hud: (container, monitor) => new PerfHud(container, monitor),
-    ownsMonitor: !external,
+    monitor: options.monitor ?? new PerfMonitor(options),
+    hud: (container, monitor, theme) => new PerfHud(container, monitor, { ...options, theme }),
+    ownsMonitor: options.monitor === undefined,
   };
 }
 
@@ -80,6 +160,12 @@ type HudMode = 'mini' | 'full';
 const MINI_SIZE_PX = 64;
 /** Top padding of the graph in mini mode — keeps the line below the FPS number. */
 const MINI_TOP_PX = 24;
+/** Graph strip plus bottom padding that a short mini panel keeps under the number. */
+const MINI_GRAPH_MIN_PX = 12;
+/** A mini panel at least this wide has room for the `fps` unit. */
+const MINI_SUFFIX_MIN_PX = 100;
+/** A mini panel this many times wider than tall puts the graph beside the number. */
+const MINI_ROW_RATIO = 3;
 
 /**
  * Y-axis `max` reducer: the window peak snapped up to a round decade
@@ -107,30 +193,57 @@ function sparkScaleMin(values: number[]): number {
   return -sparkScaleMax(values) / 12;
 }
 
-const COLOR_TEXT = '#9aa6b6';
-const COLOR_DIM = '#5d6877';
-const COLOR_BRIGHT = '#e8eef7';
-const COLOR_LABEL = '#cdd6e2';
-const COLOR_GOOD = '#3fd68f';
-const COLOR_WARN = '#f5c451';
-const COLOR_BAD = '#f4756a';
-const COLOR_IDLE_DOT = '#5d6877';
+const DEFAULT_COLORS: PerfHudColors = {
+  background: 'linear-gradient(165deg, rgba(22, 26, 36, 0.92), rgba(10, 12, 18, 0.88))',
+  border: 'rgba(255, 255, 255, 0.09)',
+  divider: 'rgba(255, 255, 255, 0.1)',
+  text: '#9aa6b6',
+  dim: '#5d6877',
+  bright: '#e8eef7',
+  label: '#cdd6e2',
+  good: '#3fd68f',
+  warn: '#f5c451',
+  bad: '#f4756a',
+  idle: '#5d6877',
+};
+
+const DEFAULT_SHADOW = '0 10px 28px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)';
+const LIGHT_SHADOW = '0 8px 24px rgba(0, 0, 0, 0.12)';
+
+/** The panel reads like the chart's own tooltip. */
+function themeColors(theme: ChartTheme): PerfHudColors {
+  const dark = isDarkBg(theme.background);
+
+  return {
+    background: theme.tooltip.background,
+    border: theme.tooltip.borderColor,
+    divider: theme.tooltip.borderColor,
+    text: theme.tooltip.textColor,
+    dim: theme.axis.textColor,
+    bright: theme.tooltip.textColor,
+    label: theme.tooltip.textColor,
+    good: resolveCandlestickBodyColor(theme.candlestick.up.body),
+    // Themes have no amber; pick one that reads on their background.
+    warn: dark ? '#f5c451' : '#b7791f',
+    bad: resolveCandlestickBodyColor(theme.candlestick.down.body),
+    idle: theme.axis.textColor,
+  };
+}
+
+/** Palette entries live in CSS variables on the panel, so a theme change only rewrites the variables. */
+function colorVar(key: keyof PerfHudColors): string {
+  return `var(--wick-perf-${key})`;
+}
+const DEFAULT_RADIUS_PX = 10;
+const DEFAULT_BLUR_PX = 10;
+const FULL_WIDTH_PX = 216;
 
 const HUD_STYLE: Partial<CSSStyleDeclaration> = {
   position: 'absolute',
   top: '8px',
   right: '8px',
-  // Fixed width on purpose: a content-driven box changes width whenever a
-  // streamed value gains or loses a digit, which makes the whole panel (and
-  // the nested sparkline chart tracking it) visibly twitch.
-  width: '216px',
   boxSizing: 'border-box',
   padding: '8px 10px 9px',
-  background: 'linear-gradient(165deg, rgba(22, 26, 36, 0.92), rgba(10, 12, 18, 0.88))',
-  border: '1px solid rgba(255, 255, 255, 0.09)',
-  borderRadius: '10px',
-  boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
-  color: COLOR_TEXT,
   font: '10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace',
   fontVariantNumeric: 'tabular-nums',
   letterSpacing: '0.02em',
@@ -146,19 +259,20 @@ function ensureKeyframes(doc: Document): void {
 
   const style = doc.createElement('style');
   style.id = STYLE_ELEMENT_ID;
+  // The glow takes each panel's own `good` color through a custom property.
   style.textContent = `@keyframes wick-perf-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(63, 214, 143, 0.55); }
-  50% { box-shadow: 0 0 0 4px rgba(63, 214, 143, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--wick-perf-good) 55%, transparent); }
+  50% { box-shadow: 0 0 0 4px transparent; }
 }`;
   doc.head.appendChild(style);
 }
 
 /** Traffic-light color for a frame duration: green within the 120 Hz budget, amber within 60 Hz, red over. */
 function msColor(ms: number): string {
-  if (ms <= BUDGET_120HZ_MS) return COLOR_GOOD;
-  if (ms <= BUDGET_60HZ_MS) return COLOR_WARN;
+  if (ms <= BUDGET_120HZ_MS) return colorVar('good');
+  if (ms <= BUDGET_60HZ_MS) return colorVar('warn');
 
-  return COLOR_BAD;
+  return colorVar('bad');
 }
 
 /** Compact count: `1234` → `1,234`, `12345` → `12.3k`, `1234567` → `1.2M`. */
@@ -167,6 +281,17 @@ function formatCompact(n: number): string {
   if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`;
 
   return Math.round(n).toLocaleString('en-US');
+}
+
+/**
+ * Where the panel may move on one axis: the container, or the viewport when
+ * the panel is larger than the container (a HUD mounted in a small host).
+ */
+function dragSpan(axis: { container: [number, number]; panelSize: number; viewportSize: number }): [number, number] {
+  const [start, end] = axis.container;
+  if (end - start >= axis.panelSize) return axis.container;
+
+  return [0, axis.viewportSize];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -220,9 +345,16 @@ interface LayerUpdate {
 
 type HudStatus = 'waiting' | 'live' | 'idle';
 
+interface PerfHudViewOptions extends PerfHudOptions {
+  /** Minimum gap between DOM writes, ms. */
+  updateIntervalMs?: number;
+  /** Chart theme the palette follows. */
+  theme?: ChartTheme;
+}
+
 /**
  * DOM overlay that renders {@link PerfStats} inside a chart's container as a
- * compact dark glass panel. Two modes: it always mounts as the small FPS
+ * compact glass panel in the chart theme's colors. Two modes: it always mounts as the small FPS
  * square (status dot, hero rate, graph as background; click to expand), and
  * the full stats panel (the `–` header button collapses back):
  *
@@ -252,14 +384,32 @@ type HudStatus = 'waiting' | 'live' | 'idle';
  */
 export class PerfHud {
   private readonly element: HTMLDivElement;
+  private readonly monitor: PerfMonitor;
   private readonly unsubscribe: () => void;
   private readonly updateIntervalMs: number;
+  private readonly colorOverrides: Partial<PerfHudColors>;
+  private readonly shadowOverride: string | undefined;
+  private theme: ChartTheme | undefined;
+  /** Resolved palette: theme (or default) colors with the overrides on top. */
+  private colors: PerfHudColors = DEFAULT_COLORS;
+  private readonly miniSize: { width: number; height: number };
+  private readonly fullWidth: number;
+  private readonly draggable: boolean;
+  private readonly expandable: boolean;
+  private readonly miniDraggable: boolean;
+  private readonly pulse: boolean;
+  private readonly miniSparkline: boolean;
+  private readonly miniFrame: boolean;
+  private readonly blur: number;
   private readonly sampleTimer: ReturnType<typeof setInterval>;
 
   private readonly dot: HTMLSpanElement;
+  /** Takes the status dot's place in a draggable open panel. */
+  private readonly dragIcon: HTMLSpanElement;
   private readonly fpsValue: HTMLSpanElement;
   private readonly fpsSuffix: HTMLSpanElement;
   private readonly header: HTMLDivElement;
+  private readonly spacer: HTMLSpanElement;
   private readonly titleEl: HTMLSpanElement;
   private readonly body: HTMLDivElement;
   private readonly sparkHost: HTMLDivElement;
@@ -286,9 +436,26 @@ export class PerfHud {
   private dragY = 0;
   private lastFrameAt = 0;
   private lastUpdate = 0;
+  private renderTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(container: HTMLElement, monitor: PerfMonitor, updateIntervalMs = DEFAULT_UPDATE_MS) {
-    this.updateIntervalMs = updateIntervalMs;
+  constructor(container: HTMLElement, monitor: PerfMonitor, options: PerfHudViewOptions = {}) {
+    this.monitor = monitor;
+    this.updateIntervalMs = options.updateIntervalMs ?? DEFAULT_UPDATE_MS;
+    this.colorOverrides = options.colors ?? {};
+    this.shadowOverride = options.shadow;
+    this.theme = options.theme;
+    this.miniSize = {
+      width: options.mini?.width ?? MINI_SIZE_PX,
+      height: options.mini?.height ?? MINI_SIZE_PX,
+    };
+    this.fullWidth = options.full?.width ?? FULL_WIDTH_PX;
+    this.draggable = options.draggable ?? true;
+    this.expandable = options.expandable ?? true;
+    this.miniDraggable = options.mini?.draggable ?? this.draggable;
+    this.pulse = options.pulse ?? true;
+    this.miniSparkline = options.mini?.sparkline ?? true;
+    this.miniFrame = options.mini?.frame ?? true;
+    this.blur = options.blur ?? DEFAULT_BLUR_PX;
 
     // Defensive: if the same container is reused across mounts (StrictMode
     // double-invoke, hot reload, host-side remount), strip any prior HUD so
@@ -303,14 +470,19 @@ export class PerfHud {
     this.element = doc.createElement('div');
     this.element.setAttribute('data-chart-perf-hud', '');
     Object.assign(this.element.style, HUD_STYLE);
-    this.element.style.setProperty('backdrop-filter', 'blur(10px) saturate(1.3)');
-    this.element.style.setProperty('-webkit-backdrop-filter', 'blur(10px) saturate(1.3)');
+    Object.assign(this.element.style, {
+      border: '1px solid transparent',
+      borderRadius: `${options.radius ?? DEFAULT_RADIUS_PX}px`,
+      color: colorVar('text'),
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.applyColors();
 
     // Host of the FPS graph; styled and placed per mode by rebuildSparkChart.
     this.sparkHost = doc.createElement('div');
     this.sparkHost.style.overflow = 'hidden';
+    this.sparkHost.setAttribute('data-perf', 'spark');
 
-    // Header: status dot, title, layout toggle, collapse, hero render rate.
+    // Header: status dot, title, hero render rate.
     this.header = doc.createElement('div');
     const header = this.header;
     Object.assign(header.style, {
@@ -331,6 +503,25 @@ export class PerfHud {
       flexShrink: '0',
     } satisfies Partial<CSSStyleDeclaration>);
 
+    this.dragIcon = doc.createElement('span');
+    this.dragIcon.setAttribute('data-perf', 'drag');
+    this.dragIcon.title = 'Drag to move';
+    // Six-dot grip: two columns, three rows.
+    this.dragIcon.innerHTML =
+      '<svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor" aria-hidden="true"><circle cx="2" cy="2" r="1.1"/><circle cx="6" cy="2" r="1.1"/><circle cx="2" cy="6" r="1.1"/><circle cx="6" cy="6" r="1.1"/><circle cx="2" cy="10" r="1.1"/><circle cx="6" cy="10" r="1.1"/></svg>';
+    Object.assign(this.dragIcon.style, {
+      display: 'none',
+      flexShrink: '0',
+      cursor: 'grab',
+      color: colorVar('dim'),
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.dragIcon.addEventListener('mouseenter', () => {
+      this.dragIcon.style.color = colorVar('bright');
+    });
+    this.dragIcon.addEventListener('mouseleave', () => {
+      this.dragIcon.style.color = colorVar('dim');
+    });
+
     this.titleEl = doc.createElement('span');
     const title = this.titleEl;
     title.textContent = 'PERF';
@@ -338,38 +529,57 @@ export class PerfHud {
       fontSize: '9px',
       fontWeight: '700',
       letterSpacing: '0.18em',
-      color: COLOR_LABEL,
+      color: colorVar('label'),
     } satisfies Partial<CSSStyleDeclaration>);
 
+    // Collapse: a round badge on the panel's top-right corner, half outside it.
     this.minimizeButton = doc.createElement('button');
     this.minimizeButton.type = 'button';
-    this.minimizeButton.textContent = '–';
-    this.minimizeButton.title = 'Collapse to FPS square';
+    this.minimizeButton.title = 'Collapse';
+    this.minimizeButton.setAttribute('aria-label', 'Collapse');
+    this.minimizeButton.innerHTML =
+      '<svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6M7 1L1 7"/></svg>';
     Object.assign(this.minimizeButton.style, {
+      position: 'absolute',
+      top: '-8px',
+      right: '-8px',
+      zIndex: '2',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: '18px',
+      height: '18px',
+      padding: '0',
       pointerEvents: 'auto',
       cursor: 'pointer',
-      font: 'inherit',
-      fontSize: '8px',
-      lineHeight: '1',
-      color: COLOR_DIM,
-      background: 'transparent',
-      border: '1px solid rgba(255, 255, 255, 0.14)',
-      borderRadius: '4px',
-      padding: '2px 5px',
+      color: colorVar('dim'),
+      background: colorVar('background'),
+      border: `1px solid ${colorVar('border')}`,
+      borderRadius: '50%',
     } satisfies Partial<CSSStyleDeclaration>);
-    // The header doubles as the drag handle — a press on the button must not start a drag.
+    this.minimizeButton.addEventListener('mouseenter', () => {
+      this.minimizeButton.style.color = colorVar('bright');
+    });
+    this.minimizeButton.addEventListener('mouseleave', () => {
+      this.minimizeButton.style.color = colorVar('dim');
+    });
+    // Neither the press nor the click may reach the panel: one would start a
+    // drag, the other would expand the panel it just collapsed.
     this.minimizeButton.addEventListener('pointerdown', (e) => e.stopPropagation());
-    this.minimizeButton.addEventListener('click', () => this.setMode('mini'));
+    this.minimizeButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.setMode('mini');
+    });
 
-    const spacer = doc.createElement('span');
-    spacer.style.flex = '1';
+    this.spacer = doc.createElement('span');
+    this.spacer.style.flex = '1';
 
     this.fpsValue = cell({ doc, perfId: 'hero-fps' });
     Object.assign(this.fpsValue.style, {
       fontSize: '16px',
       fontWeight: '700',
       lineHeight: '1',
-      color: COLOR_BRIGHT,
+      color: colorVar('bright'),
     } satisfies Partial<CSSStyleDeclaration>);
     this.fpsValue.textContent = '—';
 
@@ -377,12 +587,16 @@ export class PerfHud {
     this.fpsSuffix.textContent = 'fps';
     Object.assign(this.fpsSuffix.style, {
       fontSize: '9px',
-      color: COLOR_DIM,
+      color: colorVar('dim'),
       alignSelf: 'flex-end',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    header.append(this.dot, title, this.minimizeButton, spacer, this.fpsValue, this.fpsSuffix);
-    this.installDrag(container);
+    header.append(this.dragIcon, this.dot, title, this.spacer, this.fpsValue, this.fpsSuffix);
+    if (this.draggable || this.miniDraggable) this.installDrag(container);
+    if (this.expandable && !this.miniDraggable) {
+      // A draggable mini panel expands on a still press in the drag handler; any other on a click.
+      this.element.addEventListener('click', () => this.setMode('full'));
+    }
 
     // Body: everything that dims while the chart is idle.
     this.body = doc.createElement('div');
@@ -398,7 +612,7 @@ export class PerfHud {
       marginTop: '7px',
     } satisfies Partial<CSSStyleDeclaration>);
     for (const label of ['', 'fps', 'ms', 'calls/s']) {
-      const head = cell({ doc, align: label === '' ? 'left' : 'right', color: COLOR_DIM });
+      const head = cell({ doc, align: label === '' ? 'left' : 'right', color: colorVar('dim') });
       head.textContent = label;
       head.style.fontSize = '9px';
       grid.appendChild(head);
@@ -410,7 +624,7 @@ export class PerfHud {
     this.seriesSection.style.display = 'none';
     this.seriesSection.style.marginTop = '6px';
     this.seriesSection.style.paddingTop = '5px';
-    this.seriesSection.style.borderTop = '1px solid rgba(255, 255, 255, 0.07)';
+    this.seriesSection.style.borderTop = `1px solid ${colorVar('divider')}`;
     this.seriesGrid = doc.createElement('div');
     Object.assign(this.seriesGrid.style, {
       display: 'grid',
@@ -426,7 +640,7 @@ export class PerfHud {
       justifyContent: 'space-between',
       marginTop: '6px',
       fontSize: '9px',
-      color: COLOR_DIM,
+      color: colorVar('dim'),
     } satisfies Partial<CSSStyleDeclaration>);
     const heapLabel = doc.createElement('span');
     heapLabel.textContent = 'heap';
@@ -450,12 +664,12 @@ export class PerfHud {
       fontSize: '8px',
       lineHeight: '1',
       letterSpacing: '0.05em',
-      color: COLOR_DIM,
+      color: colorVar('dim'),
       zIndex: '1',
     } satisfies Partial<CSSStyleDeclaration>);
 
     this.body.append(grid, this.seriesSection, this.heapRow);
-    this.element.append(this.sparkHost, header, this.body, this.sparkMaxTick);
+    this.element.append(this.sparkHost, header, this.body, this.sparkMaxTick, this.minimizeButton);
     container.appendChild(this.element);
 
     // After attach, so the nested chart measures a real box on construction.
@@ -466,18 +680,68 @@ export class PerfHud {
     this.unsubscribe = monitor.onFrame((stats) => this.onFrame(stats));
   }
 
+  /** Recolor from a new chart theme; color overrides stay on top. */
+  setTheme(theme: ChartTheme): void {
+    this.theme = theme;
+    this.applyColors();
+  }
+
   destroy(): void {
     clearInterval(this.sampleTimer);
+    if (this.renderTimer !== null) clearTimeout(this.renderTimer);
     this.unsubscribe();
     this.sparkChart?.destroy();
     this.element.remove();
+  }
+
+  /** Resolve the palette and push it into the panel's CSS variables and the graph line. */
+  private applyColors(): void {
+    const base = this.theme ? themeColors(this.theme) : DEFAULT_COLORS;
+    this.colors = { ...base, ...this.colorOverrides };
+
+    for (const key of Object.keys(this.colors) as (keyof PerfHudColors)[]) {
+      this.element.style.setProperty(`--wick-perf-${key}`, this.colors[key]);
+    }
+
+    this.applyFrame();
+
+    if (this.sparkChart && this.sparkSeriesId) {
+      this.sparkChart.setLayerColors(this.sparkSeriesId, [this.colors.good]);
+    }
+  }
+
+  /** Fill, outline, shadow and blur — left off on a frameless mini panel. */
+  private applyFrame(): void {
+    const framed = this.mode === 'full' || this.miniFrame;
+    const lightTheme = this.theme !== undefined && !isDarkBg(this.theme.background);
+    const shadow = this.shadowOverride ?? (lightTheme ? LIGHT_SHADOW : DEFAULT_SHADOW);
+    const filter = framed && this.blur > 0 ? `blur(${this.blur}px) saturate(1.3)` : '';
+
+    const style = this.element.style;
+    style.background = framed ? colorVar('background') : 'transparent';
+    style.borderColor = framed ? colorVar('border') : 'transparent';
+    style.boxShadow = framed ? shadow : 'none';
+    style.setProperty('backdrop-filter', filter);
+    style.setProperty('-webkit-backdrop-filter', filter);
   }
 
   private setMode(mode: HudMode): void {
     if (this.mode === mode) return;
 
     this.mode = mode;
+    // A mode that can't be dragged sits in its home spot — e.g. a pinned
+    // readout after its open panel was dragged away.
+    if (!this.canDrag()) {
+      this.dragX = 0;
+      this.dragY = 0;
+      this.element.style.transform = '';
+    }
+
     this.applyMode();
+  }
+
+  private canDrag(): boolean {
+    return this.mode === 'mini' ? this.miniDraggable : this.draggable;
   }
 
   /**
@@ -488,18 +752,21 @@ export class PerfHud {
   private applyMode(): void {
     const mini = this.mode === 'mini';
 
+    // Fixed widths on purpose: a content-driven box changes width whenever a
+    // streamed value gains or loses a digit, and the panel visibly twitches.
     if (mini) {
+      const interactive = this.expandable || this.miniDraggable;
       Object.assign(this.element.style, {
-        width: `${MINI_SIZE_PX}px`,
-        height: `${MINI_SIZE_PX}px`,
+        width: `${this.miniSize.width}px`,
+        height: `${this.miniSize.height}px`,
         padding: '7px 8px',
-        pointerEvents: 'auto',
-        cursor: 'pointer',
+        pointerEvents: interactive ? 'auto' : 'none',
+        cursor: this.expandable ? 'pointer' : '',
       } satisfies Partial<CSSStyleDeclaration>);
-      this.element.title = 'Click to expand';
+      this.element.title = this.expandable ? 'Click to expand' : '';
     } else {
       Object.assign(this.element.style, {
-        width: '216px',
+        width: `${this.fullWidth}px`,
         height: 'auto',
         padding: '8px 10px 9px',
         pointerEvents: 'none',
@@ -508,19 +775,51 @@ export class PerfHud {
       this.element.title = '';
     }
 
+    const row = this.isMiniRow();
+    Object.assign(this.element.style, {
+      display: row ? 'flex' : '',
+      alignItems: row ? 'center' : '',
+      gap: row ? '8px' : '',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.spacer.style.display = row ? 'none' : '';
+
+    const dragHandle = !mini && this.draggable;
+    this.dragIcon.style.display = dragHandle ? 'flex' : 'none';
+    this.dot.style.display = dragHandle ? 'none' : '';
+
     this.titleEl.style.display = mini ? 'none' : '';
-    this.minimizeButton.style.display = mini ? 'none' : '';
+    this.minimizeButton.style.display = mini ? 'none' : 'flex';
     // 16px "idle" doesn't fit the square next to the dot; numbers get tight too.
     this.fpsValue.style.fontSize = mini ? '13px' : '16px';
     this.body.style.display = mini ? 'none' : '';
-    this.header.style.cursor = mini ? 'pointer' : 'grab';
+    this.header.style.cursor = this.headerCursor();
 
     // Suffix visibility is otherwise status-driven — re-sync for the new mode.
     if (this.status === 'live') {
-      this.fpsSuffix.style.display = mini ? 'none' : '';
+      this.fpsSuffix.style.display = this.showsSuffix() ? '' : 'none';
     }
 
+    this.applyFrame();
     this.applySparkLayout();
+  }
+
+  /** Without a graph, any mini panel is one row: dot, number, unit. */
+  private isMiniRow(): boolean {
+    if (this.mode !== 'mini') return false;
+    if (!this.miniSparkline) return true;
+
+    return this.miniSize.width >= MINI_ROW_RATIO * this.miniSize.height;
+  }
+
+  private headerCursor(): string {
+    if (this.mode === 'mini') return this.expandable ? 'pointer' : '';
+
+    return this.draggable ? 'grab' : '';
+  }
+
+  /** The full panel always shows the `fps` unit; a mini panel only when it is wide enough. */
+  private showsSuffix(): boolean {
+    return this.mode === 'full' || this.miniSize.width >= MINI_SUFFIX_MIN_PX;
   }
 
   /**
@@ -531,12 +830,40 @@ export class PerfHud {
    * expand/collapse.
    */
   private applySparkLayout(): void {
-    if (this.mode === 'mini') {
+    // The graph chart is only built once a panel shows it.
+    if (this.mode === 'mini' && !this.miniSparkline) {
+      this.sparkHost.style.display = 'none';
+      this.sparkMaxTick.style.display = 'none';
+
+      return;
+    }
+
+    this.sparkHost.style.display = '';
+
+    if (this.isMiniRow()) {
+      // Wide and short: a boxed graph, then the number at the right.
+      Object.assign(this.sparkHost.style, {
+        position: 'relative',
+        inset: 'auto',
+        flex: '1',
+        alignSelf: 'stretch',
+        height: 'auto',
+        marginTop: '0',
+        border: `1px solid ${colorVar('divider')}`,
+        borderRadius: '4px',
+        opacity: '1',
+        zIndex: '0',
+      } satisfies Partial<CSSStyleDeclaration>);
+      this.element.insertBefore(this.sparkHost, this.header);
+    } else if (this.mode === 'mini') {
       Object.assign(this.sparkHost.style, {
         position: 'absolute',
         inset: '0',
+        flex: '',
+        alignSelf: '',
         height: 'auto',
         marginTop: '0',
+        border: '',
         borderRadius: 'inherit',
         opacity: '0.75',
         zIndex: '0',
@@ -546,8 +873,11 @@ export class PerfHud {
       Object.assign(this.sparkHost.style, {
         position: 'relative',
         inset: 'auto',
+        flex: '',
+        alignSelf: '',
         height: `${SPARK_STRIP_HEIGHT_PX}px`,
         marginTop: '7px',
+        border: '',
         borderRadius: '4px',
         opacity: '1',
         zIndex: '0',
@@ -626,7 +956,7 @@ export class PerfHud {
       });
       // `colors` is no longer an option — set the line color via the per-layer
       // override path.
-      chart.setLayerColors(seriesId, [COLOR_GOOD]);
+      chart.setLayerColors(seriesId, [this.colors.good]);
 
       // Seed the entire window with zeros so the plot spans the full width
       // from the first paint — a partially filled window reads as a mystery
@@ -645,7 +975,12 @@ export class PerfHud {
 
   /** Keeps the plateau below the FPS number (mini) or the Y tick (strip). */
   private sparkPaddingTop(): number {
-    return this.mode === 'mini' ? MINI_TOP_PX : 12;
+    if (this.mode === 'full') return 12;
+    // Clear of the frame's top edge.
+    if (this.isMiniRow()) return 4;
+
+    // A short custom mini panel still keeps a strip of graph under the number.
+    return Math.max(0, Math.min(MINI_TOP_PX, this.miniSize.height - MINI_GRAPH_MIN_PX));
   }
 
   /** Append one FPS sample to the sparkline chart and roll its window. */
@@ -680,19 +1015,32 @@ export class PerfHud {
     let limits = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
     el.addEventListener('pointerdown', (e) => {
+      if (!this.canDrag()) return;
+
       // Clamp the gesture to the chart container so the panel can't be lost
       // outside it. Limits are computed once per gesture from current rects.
       const containerRect = container.getBoundingClientRect();
       const panelRect = el.getBoundingClientRect();
+      const view = el.ownerDocument.defaultView;
+      const xSpan = dragSpan({
+        container: [containerRect.left, containerRect.right],
+        panelSize: panelRect.width,
+        viewportSize: view?.innerWidth ?? containerRect.right,
+      });
+      const ySpan = dragSpan({
+        container: [containerRect.top, containerRect.bottom],
+        panelSize: panelRect.height,
+        viewportSize: view?.innerHeight ?? containerRect.bottom,
+      });
       startX = e.clientX;
       startY = e.clientY;
       baseX = this.dragX;
       baseY = this.dragY;
       limits = {
-        minX: baseX + (containerRect.left - panelRect.left),
-        maxX: baseX + (containerRect.right - panelRect.right),
-        minY: baseY + (containerRect.top - panelRect.top),
-        maxY: baseY + (containerRect.bottom - panelRect.bottom),
+        minX: baseX + (xSpan[0] - panelRect.left),
+        maxX: baseX + (xSpan[1] - panelRect.right),
+        minY: baseY + (ySpan[0] - panelRect.top),
+        maxY: baseY + (ySpan[1] - panelRect.bottom),
       };
 
       el.setPointerCapture(e.pointerId);
@@ -712,7 +1060,7 @@ export class PerfHud {
 
       el.releasePointerCapture(e.pointerId);
       const moved = Math.hypot(e.clientX - startX, e.clientY - startY);
-      if (this.mode === 'mini' && moved < 5) {
+      if (this.expandable && this.mode === 'mini' && moved < 5) {
         this.setMode('full');
       }
     });
@@ -732,7 +1080,7 @@ export class PerfHud {
   }): LayerRowCells {
     const { doc, grid, label, perfPrefix } = options;
 
-    const labelCell = cell({ doc, align: 'left', color: COLOR_LABEL });
+    const labelCell = cell({ doc, align: 'left', color: colorVar('label') });
     labelCell.textContent = label;
 
     const cells: LayerRowCells = {
@@ -756,19 +1104,18 @@ export class PerfHud {
     this.element.setAttribute('data-perf-state', status);
 
     if (status === 'live') {
-      this.dot.style.background = COLOR_GOOD;
-      this.dot.style.animation = 'wick-perf-pulse 1.6s ease-out infinite';
-      this.fpsValue.style.color = COLOR_BRIGHT;
-      // No room for the unit in the mini square — the number speaks for itself.
-      this.fpsSuffix.style.display = this.mode === 'mini' ? 'none' : '';
+      this.dot.style.background = colorVar('good');
+      this.dot.style.animation = this.pulse ? 'wick-perf-pulse 1.6s ease-out infinite' : 'none';
+      this.fpsValue.style.color = colorVar('bright');
+      this.fpsSuffix.style.display = this.showsSuffix() ? '' : 'none';
       this.body.style.opacity = '1';
 
       return;
     }
 
-    this.dot.style.background = COLOR_IDLE_DOT;
+    this.dot.style.background = colorVar('idle');
     this.dot.style.animation = 'none';
-    this.fpsValue.style.color = COLOR_DIM;
+    this.fpsValue.style.color = colorVar('dim');
     this.fpsValue.textContent = status === 'idle' ? 'idle' : '—';
     this.fpsSuffix.style.display = 'none';
     this.body.style.opacity = '0.6';
@@ -781,10 +1128,15 @@ export class PerfHud {
     this.lastHeroFps = Math.max(stats.mainRendersPerSec, stats.overlayRendersPerSec);
     this.setStatus('live');
 
-    if (now - this.lastUpdate < this.updateIntervalMs) return;
+    if (this.renderTimer !== null || now - this.lastUpdate < this.updateIntervalMs) return;
 
     this.lastUpdate = now;
-    this.render(stats);
+    // Charts sharing the monitor paint a frame in consecutive rAF callbacks;
+    // a timer runs after the last of them, so the readout sees the whole frame.
+    this.renderTimer = setTimeout(() => {
+      this.renderTimer = null;
+      this.render(this.monitor.getStats());
+    }, 0);
   }
 
   /**
@@ -883,14 +1235,14 @@ export class PerfHud {
     this.seriesCells = new Map();
 
     for (const label of ['series', 'ms']) {
-      const head = cell({ doc, align: label === 'series' ? 'left' : 'right', color: COLOR_DIM });
+      const head = cell({ doc, align: label === 'series' ? 'left' : 'right', color: colorVar('dim') });
       head.textContent = label;
       head.style.fontSize = '9px';
       this.seriesGrid.appendChild(head);
     }
 
     for (const id of ids) {
-      const labelCell = cell({ doc, align: 'left', color: COLOR_LABEL });
+      const labelCell = cell({ doc, align: 'left', color: colorVar('label') });
       labelCell.textContent = id;
       labelCell.style.overflow = 'hidden';
       labelCell.style.textOverflow = 'ellipsis';
