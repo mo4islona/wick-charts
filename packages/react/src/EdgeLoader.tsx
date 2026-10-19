@@ -5,6 +5,8 @@ import type { EdgeSide, LoadingIndicatorFn } from '@wick-charts/core';
 import { useChartInstance } from './context';
 import { useLatestFn } from './use-latest-fn';
 
+const DEFAULT_MIN_DURATION_MS = 400;
+
 /** Argument shape passed to the {@link EdgeLoader} render-prop. */
 export interface EdgeLoaderRenderArgs {
   /**
@@ -48,12 +50,19 @@ export interface EdgeLoaderProps {
    * - `'custom'`: skip the canvas indicator entirely. Use the render-prop
    *   `children` to draw your own DOM/SVG loader.
    * - A {@link LoadingIndicatorFn}: keep the canvas indicator, but swap its
-   *   painter — the built-in `skeletonLoadingIndicator` (from
+   *   painter — a built-in preset such as `glassLoadingIndicator` (from
    *   `@wick-charts/core`) or a custom one, same pluggable-function
    *   contract either way. Drawn in a clipped stage anchored at the data
    *   boundary, inside the overshoot zone.
    */
   indicator?: 'canvas' | 'custom' | LoadingIndicatorFn;
+  /**
+   * Shortest time the canvas indicator stays on screen, in ms. A fetch that
+   * resolves sooner keeps it up and holds the fetched history back until
+   * then, so a fast response doesn't flash it for a frame. `0` turns it off.
+   * Has no effect with `indicator="custom"`. Default `400`.
+   */
+  minDuration?: number;
   /**
    * Optional render-prop. Receives the live edge state — render whatever
    * positioned overlay you want, or return `null`.
@@ -78,7 +87,14 @@ export function EdgeLoader(props: EdgeLoaderProps) {
   return <TimeEdgeLoader {...props} />;
 }
 
-function TimeEdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas', children }: EdgeLoaderProps) {
+function TimeEdgeLoader({
+  side,
+  threshold = 5,
+  onTrigger,
+  indicator = 'canvas',
+  minDuration = DEFAULT_MIN_DURATION_MS,
+  children,
+}: EdgeLoaderProps) {
   const chart = useChartInstance();
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
@@ -128,10 +144,12 @@ function TimeEdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas', 
 
     const fire = () => {
       if (inflight.current || !hasMore) return;
+      // A resolved fetch can still be inside its minDuration hold, its history not landed yet.
+      if (usesCanvas && chart.getEdgeState(side) === 'loading') return;
 
       inflight.current = true;
       setIsLoading(true);
-      if (usesCanvas) chart.setEdgeState(side, 'loading');
+      if (usesCanvas) chart.setEdgeState(side, 'loading', { minDuration });
 
       // biome-ignore lint/suspicious/noConfusingVoidType: matches onTrigger's return type exactly
       let result: void | Promise<unknown>;
@@ -195,7 +213,7 @@ function TimeEdgeLoader({ side, threshold = 5, onTrigger, indicator = 'canvas', 
       chart.off('viewportChange', onChange);
       chart.off('overlayChange', onChange);
     };
-  }, [chart, side, threshold, usesCanvas, hasMore]);
+  }, [chart, side, threshold, usesCanvas, hasMore, minDuration]);
 
   // Reset the canvas indicator when this loader unmounts so a remount with a
   // fresh side / threshold doesn't inherit stale state.

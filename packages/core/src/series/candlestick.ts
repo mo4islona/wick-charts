@@ -8,7 +8,7 @@ import {
 import { easeOutCubic } from '../animation/easing';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
-import type { PlaceholderBar } from '../components/loading-indicator';
+import type { PlaceholderBar, PlaceholderStyle } from '../components/loading-indicator';
 import { decimateOHLCData } from '../data/decimation';
 import { TimeSeriesStore } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
@@ -343,6 +343,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     this.#historyRange = { from: deepestTime, to: boundary };
     this.#historyWave.arm(revealMs);
+  }
+
+  placeholderStyle(slotWidth: number): PlaceholderStyle {
+    return { bodyWidth: slotWidth * this.options.bodyWidthRatio };
   }
 
   setHistoryHandoff(bars: PlaceholderBar[]): void {

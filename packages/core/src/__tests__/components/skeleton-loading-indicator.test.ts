@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { type PlaceholderBar, skeletonLoadingIndicator } from '../../components/loading-indicator';
+import { skeletonLoadingIndicator } from '../../components/loading/skeleton';
+import type { PlaceholderBar } from '../../components/loading-indicator';
 import { buildRenderContext } from '../helpers/render-context';
 
 /**

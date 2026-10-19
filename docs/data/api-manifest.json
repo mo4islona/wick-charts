@@ -5141,7 +5141,16 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "- `'canvas'` (default): drive the chart's built-in canvas spinner via\n  {@link ChartInstance.setEdgeState }. Renders inside the chart area at\n  the data boundary.\n- `'custom'`: skip the canvas indicator entirely. Use the render-prop\n  `children` to draw your own DOM/SVG loader.\n- A LoadingIndicatorFn: keep the canvas indicator, but swap its\n  painter — the built-in `skeletonLoadingIndicator` (from\n  `@wick-charts/core`) or a custom one, same pluggable-function\n  contract either way. Drawn in a clipped stage anchored at the data\n  boundary, inside the overshoot zone.",
+          "description": "- `'canvas'` (default): drive the chart's built-in canvas spinner via\n  {@link ChartInstance.setEdgeState }. Renders inside the chart area at\n  the data boundary.\n- `'custom'`: skip the canvas indicator entirely. Use the render-prop\n  `children` to draw your own DOM/SVG loader.\n- A LoadingIndicatorFn: keep the canvas indicator, but swap its\n  painter — a built-in preset such as `glassLoadingIndicator` (from\n  `@wick-charts/core`) or a custom one, same pluggable-function\n  contract either way. Drawn in a clipped stage anchored at the data\n  boundary, inside the overshoot zone.",
+          "see": []
+        },
+        {
+          "name": "minDuration",
+          "type": "number",
+          "optional": true,
+          "defaultValue": "400",
+          "deprecated": null,
+          "description": "Shortest time the canvas indicator stays on screen, in ms. A fetch that\nresolves sooner keeps it up and holds the fetched history back until\nthen, so a fast response doesn't flash it for a frame. `0` turns it off.\nHas no effect with `indicator=\"custom\"`. Default `400`.",
           "see": []
         },
         {

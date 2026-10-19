@@ -2,7 +2,7 @@ import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { XScale } from '../scales/x-scale';
 import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
-import type { LoadingIndicatorFn, PlaceholderBar } from './loading-indicator';
+import type { LoadingIndicatorFn, PlaceholderBar, PlaceholderStyle } from './loading-indicator';
 
 /** Radius of each spinner dot, in media pixels. */
 const DOT_RADIUS_MEDIA = 3;
@@ -22,6 +22,14 @@ const NO_DATA_LABEL_Y_MEDIA = 18;
 const CUSTOM_INDICATOR_ZONE_MEDIA = 150;
 
 export type EdgeSide = 'left' | 'right';
+
+/** The primary series at the data boundary, as a custom indicator sees it — see `LoadingIndicatorArgs`. */
+export interface EdgeAnchor {
+  valueY: number;
+  baselineY: number;
+  seriesKind: SeriesKind;
+  style: PlaceholderStyle;
+}
 export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
 
 export interface EdgeIndicatorContext {
@@ -53,7 +61,7 @@ export interface EdgeIndicatorContext {
    * where the real chart leaves off and match its shape. Only called when
    * `customIndicator` is present — cheap to omit otherwise.
    */
-  resolveEdgeAnchor?: () => { valueY: number; seriesKind: SeriesKind } | null;
+  resolveEdgeAnchor?: () => EdgeAnchor | null;
   /**
    * Resolves the media-pixel spacing between adjacent bars at the chart's
    * current zoom level, for a custom indicator that wants to size its
@@ -137,7 +145,10 @@ function drawCustomLoadingIndicator(
     now,
     side,
     edgeValueY: anchor?.valueY,
+    baselineY: anchor?.baselineY,
     seriesKind: anchor?.seriesKind,
+    bodyWidth: anchor?.style.bodyWidth,
+    strokeWidth: anchor?.style.strokeWidth,
     barSpacing,
     reportPlaceholders,
   });
