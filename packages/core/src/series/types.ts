@@ -2,7 +2,7 @@ import type { AnimationState } from '../animation/viewport-engine';
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 // Type-only — the runtime dependency points the other way (loading-indicator
 // reads SeriesKind from here), so this does not create an import cycle.
-import type { PlaceholderBar } from '../components/loading-indicator';
+import type { PlaceholderBar, PlaceholderStyle } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
@@ -164,6 +164,13 @@ export interface BaseSeriesRenderer {
    * renderer that doesn't implement this simply plays its plain reveal.
    */
   setHistoryHandoff?(bars: PlaceholderBar[]): void;
+
+  /**
+   * Mark sizes a loading indicator's placeholders should copy, so they match
+   * this series' real candles, bars or line. `slotWidth` is the media px
+   * between adjacent points at the current zoom.
+   */
+  placeholderStyle?(slotWidth: number): PlaceholderStyle;
 
   /** Replace the last point in place (live candle update). Optional. */
   updateLastPoint?(point: unknown, layerIndex?: number): void;

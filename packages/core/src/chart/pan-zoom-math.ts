@@ -185,6 +185,9 @@ export function computePan(input: PanInput): PanResult {
   };
 }
 
+/** Zoom-out may grow the window to at most this many padded data spans. */
+const MAX_EDGE_ROOM_SPANS = 2;
+
 export interface ZoomInput {
   currentLogical: XRange;
   centerTime: number;
@@ -194,11 +197,44 @@ export interface ZoomInput {
   padding: { left: HorizontalPadding; right: HorizontalPadding };
   dataStart: number | null;
   dataEnd: number | null;
+  /**
+   * Sides whose empty zone past the data a loader is drawing in. Zoom-out
+   * there runs on until the whole padded data is in view next to that zone.
+   */
+  edgeRoom?: { left: boolean; right: boolean };
 }
 
 export interface ZoomResult {
   /** New logical X range to commit, or `null` if the input range is invalid. */
   newLogical: XRange | null;
+}
+
+interface ZoomOutCapInput {
+  span: number;
+  softLeft: number;
+  softRight: number;
+  centerTime: number;
+  ratioAnchor: number;
+  edgeRoom: { left: boolean; right: boolean };
+}
+
+/**
+ * The widest window a zoom-out may reach: the padded data span, or — with a
+ * loader zone on a side — the anchored window that just reaches the far
+ * padded edge, so the data fits whole beside the zone.
+ */
+function zoomOutCap(input: ZoomOutCapInput): number {
+  const { span, softLeft, softRight, centerTime, ratioAnchor, edgeRoom } = input;
+  let cap = span;
+
+  if (edgeRoom.left && ratioAnchor < 1) {
+    cap = Math.max(cap, (softRight - centerTime) / (1 - ratioAnchor));
+  }
+  if (edgeRoom.right && ratioAnchor > 0) {
+    cap = Math.max(cap, (centerTime - softLeft) / ratioAnchor);
+  }
+
+  return Math.min(cap, span * MAX_EDGE_ROOM_SPANS);
 }
 
 /**
@@ -208,7 +244,9 @@ export interface ZoomResult {
  *   is on) is the caller's concern — see `Chart.zoomAt`.
  * - Zoom-in is hard-clamped at the 10-bar floor (`softMinRange`).
  * - Zoom-out is hard-clamped at the padded data span — beyond that the
- *   data shrinks to a useless dot.
+ *   data shrinks to a useless dot. A side in `edgeRoom` lifts the cap until
+ *   the whole data is in view beside that side's empty zone (at most
+ *   2 spans). A zoom-out never narrows a window that is already wider.
  * - No position clamping: the cursor anchor always wins. Zooming past a
  *   data edge leaves empty space on one side of the window; pan to bring
  *   the data back into focus. The pan path enforces the "at least one
@@ -217,11 +255,14 @@ export interface ZoomResult {
  */
 export function computeZoom(input: ZoomInput): ZoomResult {
   const { currentLogical, centerTime, factor, chartWidth, dataInterval, padding, dataStart, dataEnd } = input;
+  const { edgeRoom = { left: false, right: false } } = input;
   const { from, to } = currentLogical;
   const range = to - from;
   if (range <= 0) {
     return { newLogical: null };
   }
+
+  const ratioAnchor = (centerTime - from) / range;
 
   const softMin = softMinRange(dataInterval);
   const { left: softLeft, right: softRight } = computeSoftBounds({
@@ -234,7 +275,7 @@ export function computeZoom(input: ZoomInput): ZoomResult {
   });
   const hardMaxRange =
     softLeft !== null && softRight !== null
-      ? softRight - softLeft
+      ? zoomOutCap({ span: softRight - softLeft, softLeft, softRight, centerTime, ratioAnchor, edgeRoom })
       : softMaxRange({ dataInterval, padding, dataStart, dataEnd });
 
   let newRange = range * factor;
@@ -243,10 +284,9 @@ export function computeZoom(input: ZoomInput): ZoomResult {
   if (newRange < softMin) newRange = softMin;
   // Zoom-out: hard-cap at the padded data span.
   if (factor > 1 && hardMaxRange !== null && newRange > hardMaxRange) {
-    newRange = hardMaxRange;
+    newRange = Math.max(hardMaxRange, range);
   }
 
-  const ratioAnchor = (centerTime - from) / range;
   const newFrom = centerTime - ratioAnchor * newRange;
   const newTo = newFrom + newRange;
 

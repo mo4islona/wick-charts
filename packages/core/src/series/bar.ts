@@ -1,4 +1,5 @@
 import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH, DEFAULT_HISTORY_REVEAL } from '../animation/config';
+import type { PlaceholderStyle } from '../components/loading-indicator';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
@@ -151,6 +152,10 @@ interface AnimatedBar {
 export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   readonly kind = 'bar' as const;
   protected declare options: ResolvedBarOptions;
+
+  placeholderStyle(slotWidth: number): PlaceholderStyle {
+    return { bodyWidth: slotWidth * this.options.barWidthRatio };
+  }
 
   /** Resolved drawing context for the in-flight render pass. Set at the top of
    *  {@link render}, read by {@link drawAnimatedBar}. */

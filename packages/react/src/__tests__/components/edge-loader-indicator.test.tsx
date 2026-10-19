@@ -1,3 +1,4 @@
+import { act } from '@testing-library/react';
 import type { LoadingIndicatorArgs, OHLCData } from '@wick-charts/core';
 import { CandlestickSeries, ChartInstance, EdgeLoader } from '@wick-charts/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -98,5 +99,52 @@ describe('EdgeLoader indicator prop', () => {
     registered?.(FAKE_ARGS);
     expect(second).toHaveBeenCalledWith(FAKE_ARGS);
     expect(first).not.toHaveBeenCalled();
+  });
+});
+
+describe('EdgeLoader minDuration', () => {
+  let mounted: ReturnType<typeof mountChart> | null = null;
+
+  afterEach(() => {
+    mounted?.unmount();
+    mounted = null;
+    vi.restoreAllMocks();
+  });
+
+  function panToHistoryEdge(chart: ChartInstance): void {
+    act(() => chart.setVisibleRange(60));
+    act(() => chart.pan(-200 * INTERVAL));
+  }
+
+  it('enters `loading` with a 400 ms hold by default', () => {
+    const setEdgeState = vi.spyOn(ChartInstance.prototype, 'setEdgeState');
+    mounted = mountChart(
+      <>
+        <CandlestickSeries id="candle" data={makeBars(200)} />
+        <EdgeLoader side="left" onTrigger={() => new Promise(() => {})} />
+      </>,
+    );
+
+    panToHistoryEdge(mounted.chart);
+
+    expect(setEdgeState).toHaveBeenCalledWith('left', 'loading', { minDuration: 400 });
+  });
+
+  it('does not fire again while a resolved fetch is still inside its hold', async () => {
+    const onTrigger = vi.fn(() => Promise.resolve());
+    mounted = mountChart(
+      <>
+        <CandlestickSeries id="candle" data={makeBars(200)} />
+        <EdgeLoader side="left" onTrigger={onTrigger} minDuration={10_000} />
+      </>,
+    );
+    const { chart } = mounted;
+
+    panToHistoryEdge(chart);
+    await act(async () => {});
+    act(() => chart.pan(-INTERVAL));
+
+    expect(onTrigger).toHaveBeenCalledTimes(1);
+    expect(chart.getEdgeState('left')).toBe('loading');
   });
 });

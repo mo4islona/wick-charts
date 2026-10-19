@@ -140,7 +140,8 @@ const MORPH_MATCH_RATIO = 1.5;
  * `fadeIntro()` unless overridden.
  *
  * Meant for the `historyReveal` option, paired with an `EdgeLoader` whose
- * indicator reports placeholders (`skeletonLoadingIndicator` does).
+ * indicator reports placeholders (`glassLoadingIndicator` and
+ * `condenseLoadingIndicator` do).
  */
 export function skeletonMorphIntro(options: { fallback?: CandleIntroFn } = {}): CandleIntroFn {
   const fallback: CandleIntroFn = options.fallback ?? fadeIntro();

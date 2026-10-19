@@ -175,6 +175,67 @@ describe('computeZoom — cursor anchor', () => {
   });
 });
 
+describe('computeZoom — loader zone room', () => {
+  // Padded data: softLeft = 0, softRight = 103 intervals, span = 103.
+  const overshootLeft = { from: -40 * INTERVAL, to: 20 * INTERVAL };
+
+  it('without edge room, zoom-out stops at the padded span and data falls off the far side', () => {
+    const result = computeZoom({ ...baseInput, currentLogical: overshootLeft, centerTime: -20 * INTERVAL, factor: 10 });
+    const { from, to } = result.newLogical ?? { from: 0, to: 0 };
+
+    expect(to - from).toBeCloseTo(103 * INTERVAL, -1);
+    expect(to).toBeLessThan(103 * INTERVAL);
+  });
+
+  it('with left edge room, zoom-out runs on until the far padded edge is in view', () => {
+    const result = computeZoom({
+      ...baseInput,
+      currentLogical: overshootLeft,
+      centerTime: -20 * INTERVAL,
+      factor: 10,
+      edgeRoom: { left: true, right: false },
+    });
+    const { from, to } = result.newLogical ?? { from: 0, to: 0 };
+
+    expect(to).toBeCloseTo(103 * INTERVAL, -1);
+    expect(from).toBeLessThan(-40 * INTERVAL);
+  });
+
+  it('with right edge room, zoom-out runs on until the near padded edge is in view', () => {
+    const result = computeZoom({
+      ...baseInput,
+      currentLogical: { from: 60 * INTERVAL, to: 140 * INTERVAL },
+      centerTime: 120 * INTERVAL,
+      factor: 10,
+      edgeRoom: { left: false, right: true },
+    });
+    const { from } = result.newLogical ?? { from: 1 };
+
+    expect(from).toBeCloseTo(0, -1);
+  });
+
+  it('edge room never grows the window past two padded spans', () => {
+    const result = computeZoom({
+      ...baseInput,
+      currentLogical: overshootLeft,
+      centerTime: 10 * INTERVAL,
+      factor: 10,
+      edgeRoom: { left: true, right: false },
+    });
+    const { from, to } = result.newLogical ?? { from: 0, to: 0 };
+
+    expect(to - from).toBeCloseTo(206 * INTERVAL, -1);
+  });
+
+  it('a zoom-out never narrows a window that is already past the cap', () => {
+    const currentLogical = { from: -100 * INTERVAL, to: 50 * INTERVAL };
+    const result = computeZoom({ ...baseInput, currentLogical, centerTime: 0, factor: 1.25 });
+    const { from, to } = result.newLogical ?? { from: 0, to: 0 };
+
+    expect(to - from).toBeCloseTo(150 * INTERVAL, -1);
+  });
+});
+
 describe('computePan — hard clamp', () => {
   const PAN_INPUT = {
     chartWidth: 800,

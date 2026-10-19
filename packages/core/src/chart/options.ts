@@ -29,6 +29,17 @@ export type EdgeSide = 'left' | 'right';
  */
 export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
 
+/** Options for `ChartInstance.setEdgeState`. */
+export interface EdgeStateOptions {
+  /**
+   * Entering `loading` only: the shortest time the indicator stays on screen,
+   * in ms. Until it elapses, a later `setEdgeState` call is deferred and the
+   * history `prependData` lands is held back, so a fast fetch can't flash the
+   * indicator for a frame or two. Default `0`.
+   */
+  minDuration?: number;
+}
+
 /** Payload for {@link ChartOptions.onEdgeReached}. */
 export interface EdgeReachedInfo {
   side: EdgeSide;

@@ -32,7 +32,7 @@ function toHex(r: number, g: number, b: number): string {
  * `rgba(...)`. Returns `null` for anything else (named colors, `hsl()`,
  * gradients, malformed input) — callers pick their own fallback.
  */
-function parseColorChannels(color: string): [number, number, number] | null {
+export function parseColorChannels(color: string): [number, number, number] | null {
   const hex = expandShorthandHex(color);
   if (hex.startsWith('#')) {
     if (hex.length < 7) return null;

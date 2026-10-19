@@ -94,7 +94,12 @@ describe('renderEdgeIndicator', () => {
   it('passes side and the resolved edge value Y through to the custom indicator, only when it is present', () => {
     const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
     const customIndicator = vi.fn();
-    const resolveEdgeAnchor = vi.fn(() => ({ valueY: 42, seriesKind: 'candlestick' as const }));
+    const resolveEdgeAnchor = vi.fn(() => ({
+      valueY: 42,
+      baselineY: 380,
+      seriesKind: 'candlestick' as const,
+      style: { bodyWidth: 7 },
+    }));
     const resolveEdgeBarSpacing = vi.fn(() => 18);
 
     renderEdgeIndicator({
@@ -117,6 +122,9 @@ describe('renderEdgeIndicator', () => {
     const arg = customIndicator.mock.calls[0][0];
     expect(arg.side).toBe('left');
     expect(arg.edgeValueY).toBe(42);
+    expect(arg.baselineY).toBe(380);
+    expect(arg.bodyWidth).toBe(7);
+    expect(arg.strokeWidth).toBeUndefined();
     expect(arg.seriesKind).toBe('candlestick');
     expect(arg.barSpacing).toBe(18);
 
@@ -161,6 +169,7 @@ describe('renderEdgeIndicator', () => {
 
     const arg = customIndicator.mock.calls[0][0];
     expect(arg.edgeValueY).toBeUndefined();
+    expect(arg.baselineY).toBeUndefined();
     expect(arg.seriesKind).toBeUndefined();
     expect(arg.barSpacing).toBeUndefined();
   });

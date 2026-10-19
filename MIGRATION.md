@@ -1,5 +1,32 @@
 # Migration guide
 
+## 0.8 → 0.9
+
+### Deprecated: `skeletonLoadingIndicator`
+
+The edge-loading presets are new: `glassLoadingIndicator`,
+`condenseLoadingIndicator`, `auroraLoadingIndicator`,
+`halftoneLoadingIndicator` and `dustLoadingIndicator`. Each one draws
+placeholders in the shape and width of the series' real candles, bars or
+line. `skeletonLoadingIndicator` still works but is deprecated and will be
+removed in a future major release. The closest replacement is
+`glassLoadingIndicator`, and it also feeds `skeletonMorphIntro`:
+
+```tsx
+// before
+<EdgeLoader side="left" onTrigger={loadOlder} indicator={skeletonLoadingIndicator} />
+// after
+<EdgeLoader side="left" onTrigger={loadOlder} indicator={glassLoadingIndicator} />
+```
+
+### Behavior: `EdgeLoader` keeps its loader up for at least 400 ms
+
+A fetch that resolves sooner keeps the canvas loader on screen, and the
+history it prepends lands when the loader leaves, so a fast response no
+longer flashes the loader for a frame. Pass `minDuration={0}` for the old
+timing. Without `EdgeLoader`, the same hold is
+`chart.setEdgeState(side, 'loading', { minDuration })`.
+
 ## 0.7 → 0.8
 
 Version 0.8 changes how `@wick-charts/svelte` is packaged so that it works

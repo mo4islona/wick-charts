@@ -6,6 +6,7 @@ import {
   DEFAULT_LINE_SMOOTH,
 } from '../animation/config';
 import { easeOutCubic } from '../animation/easing';
+import type { PlaceholderStyle } from '../components/loading-indicator';
 import { decimateLineData } from '../data/decimation';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
@@ -167,6 +168,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   /** First palette slot of the theme default colours — see `SeriesCreateEnv.paletteIndex`. */
   readonly #paletteIndex: number;
+
+  placeholderStyle(): PlaceholderStyle {
+    return { strokeWidth: this.options.strokeWidth };
+  }
 
   constructor(layerCount: number, options?: LineOptionsInput, paletteIndex = 0) {
     super(layerCount);

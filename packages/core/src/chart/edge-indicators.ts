@@ -6,10 +6,9 @@
  */
 
 import type { CanvasManager } from '../canvas-manager';
-import { type EdgeSide, type EdgeState, renderEdgeIndicator } from '../components/edge-indicator';
+import { type EdgeAnchor, type EdgeSide, type EdgeState, renderEdgeIndicator } from '../components/edge-indicator';
 import type { LoadingIndicatorFn, PlaceholderBar } from '../components/loading-indicator';
 import type { XScale } from '../scales/x-scale';
-import type { SeriesKind } from '../series/types';
 import type { ChartTheme } from '../theme/types';
 import { type SeriesPoint, pointValue } from '../utils/point';
 
@@ -39,7 +38,7 @@ export interface EdgeIndicatorContext {
    * visible time series, for a custom indicator that wants to start exactly
    * where the real chart leaves off and match its shape.
    */
-  resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): { valueY: number; seriesKind: SeriesKind } | null;
+  resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): EdgeAnchor | null;
   /**
    * Resolve the media-pixel spacing between adjacent bars at the chart's
    * current zoom level, for a custom indicator that wants to size its

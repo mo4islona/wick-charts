@@ -109,6 +109,23 @@ describe('ChartInstance edge-indicator anchor resolution (integration)', () => {
     expect(args.barSpacing).toBeGreaterThan(0);
   });
 
+  it("passes a bar series' zero line as baselineY", () => {
+    const id = chart.addSeries('bar');
+    const data = Array.from({ length: 40 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 50 + i }));
+    chart.setSeriesData(id, data);
+    raf.flush(5);
+
+    const custom = vi.fn();
+    chart.setEdgeIndicator('left', custom);
+    chart.setEdgeState('left', 'loading');
+    raf.flush(2);
+
+    const args = custom.mock.calls[0][0];
+    expect(args.seriesKind).toBe('bar');
+    expect(args.baselineY).toBeCloseTo(chart.yScale.valueToY(0));
+    expect(args.baselineY).toBeGreaterThan(args.edgeValueY);
+  });
+
   it('resolves no anchor/spacing once the edge indicator is unregistered', () => {
     const id = chart.addSeries('candlestick');
     chart.setSeriesData(

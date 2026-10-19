@@ -12,6 +12,7 @@ import {
   type EdgeReachedInfo,
   type EdgeSide,
   type EdgeState,
+  type EdgeStateOptions,
   type ResolvedFade,
   type ResolvedPadding,
   isSameHorizontalPadding,
@@ -41,6 +42,7 @@ import {
 } from './chart/x-guards';
 import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget, widenFlatRange } from './chart/y-target';
 import { renderCrosshair } from './components/crosshair';
+import type { EdgeAnchor } from './components/edge-indicator';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
@@ -110,7 +112,14 @@ import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { isBandPoint, pointValue } from './utils/point';
 import { detectInterval, normalizeTime } from './utils/time';
 
-export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig } from './chart/options';
+export type {
+  ChartOptions,
+  EdgeReachedInfo,
+  EdgeSide,
+  EdgeState,
+  EdgeStateOptions,
+  FadeConfig,
+} from './chart/options';
 
 /** Exit-fade duration for the edge `loading` indicator — long enough to read
  *  as a hand-off to the arriving data's reveal, short enough not to linger
@@ -526,6 +535,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *  and the upcoming `loading → idle` transition skips its exit fade. Reset
    *  by the next {@link setEdgeState} call. */
   #edgeHandoff: Record<EdgeSide, boolean> = { left: false, right: false };
+  /** A `loading` state still inside its `minDuration`, per side. `next` is the
+   *  state the host asked for meanwhile, applied when the hold ends. */
+  #edgeHolds: Record<EdgeSide, { timer: ReturnType<typeof setTimeout>; next: EdgeState | null } | null> = {
+    left: null,
+    right: null,
+  };
+  /** History prepends that arrived during a left-side hold, applied in order when it ends. */
+  #heldPrepends: Array<{ id: string; points: SeriesPointInput[]; layerIndex?: number }> = [];
   /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
   #onEdgeReached?: (info: EdgeReachedInfo) => void;
   /** Per-side custom painter for the edge `loading` spinner. `null` falls back to the built-in dots. */
@@ -1075,6 +1092,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   removeSeries(id: string): void {
     const idx = this.#series.findIndex((s) => s.id === id);
     if (idx >= 0) {
+      this.#dropHeldPrepends(id);
       const prevGutters = this.#readGutters();
       this.#series[idx].renderer.dispose();
       this.#series.splice(idx, 1);
@@ -1508,6 +1526,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
 
+    this.#dropHeldPrepends(id, layerIndex);
+
     const category = this.#xType === 'category' && this.#takesXKeys(entry);
     // An order-book snapshot is a stream tick: the book morphs, so Y eases too.
     const followsFocus = entry.renderer.getXFocus !== undefined;
@@ -1721,6 +1741,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   prependData(id: string, points: SeriesPointInput[], layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.prependPoints === undefined) return;
+
+    if (this.#edgeHolds.left !== null) {
+      this.#heldPrepends.push({ id, points, layerIndex });
+
+      return;
+    }
 
     // Hand the freshest left-edge placeholder snapshot to the renderer so a
     // morph-style history reveal can grow the real candles out of the exact
@@ -2983,8 +3009,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *   - `idle` when the host no longer wants any edge affordance.
    * The state persists until replaced. `has-more` is accepted for API
    * symmetry and currently renders identically to `idle`.
+   *
+   * Pass `{ minDuration }` with `loading` to keep the indicator up for at
+   * least that long — see {@link EdgeStateOptions.minDuration}.
    */
-  setEdgeState(side: EdgeSide, state: EdgeState): void {
+  setEdgeState(side: EdgeSide, state: EdgeState, options: EdgeStateOptions = {}): void {
+    const hold = this.#edgeHolds[side];
+    if (hold !== null) {
+      hold.next = state === 'loading' ? null : state;
+
+      return;
+    }
+
     if (this.#edgeStates[side] === state) return;
     if (!this.checkTimeOnlyFeature('EdgeLoader')) return;
 
@@ -3002,6 +3038,43 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#edgeStates[side] = state;
     this.#overlayScheduler.markDirty();
+
+    const minDuration = options.minDuration ?? 0;
+    if (state === 'loading' && minDuration > 0) {
+      const timer = setTimeout(() => this.#releaseEdgeHold(side), minDuration);
+      this.#edgeHolds[side] = { timer, next: null };
+    }
+  }
+
+  /** End a side's `minDuration` hold: land the held history first, so a morph
+   *  reveal takes the indicator's last placeholders, then apply the deferred state. */
+  #releaseEdgeHold(side: EdgeSide): void {
+    const hold = this.#edgeHolds[side];
+    if (hold === null) return;
+
+    clearTimeout(hold.timer);
+    this.#edgeHolds[side] = null;
+
+    if (side === 'left') {
+      const held = this.#heldPrepends;
+      this.#heldPrepends = [];
+      for (const prepend of held) {
+        this.prependData(prepend.id, prepend.points, prepend.layerIndex);
+      }
+    }
+
+    if (hold.next !== null) this.setEdgeState(side, hold.next);
+  }
+
+  /** Drop held prepends a bulk replace or a removal has made stale. */
+  #dropHeldPrepends(id: string, layerIndex?: number): void {
+    if (this.#heldPrepends.length === 0) return;
+
+    this.#heldPrepends = this.#heldPrepends.filter((prepend) => {
+      const sameLayer = layerIndex === undefined || prepend.layerIndex === layerIndex;
+
+      return prepend.id !== id || !sameLayer;
+    });
   }
 
   /** Read the current host-declared state for a given edge. */
@@ -3048,7 +3121,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * `open` (the value immediately preceding the boundary); `right` from the
    * last visible candle's `close`.
    */
-  #resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): { valueY: number; seriesKind: SeriesKind } | null {
+  #resolveEdgeAnchor(side: EdgeSide, boundaryTime: number): EdgeAnchor | null {
     const singleLayer = this.getSeriesIdsByType('time', { visibleOnly: true, singleLayerOnly: true });
     const seriesId = singleLayer[0] ?? this.getSeriesIdsByType('time', { visibleOnly: true })[0];
     if (!seriesId) return null;
@@ -3059,9 +3132,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
 
+    const yScale = this.getYScale(this.#scaleIdOf(entry));
+    const slotWidth = this.#resolveEdgeBarSpacing();
+    const style = slotWidth === null ? {} : (entry.renderer.placeholderStyle?.(slotWidth) ?? {});
+
     return {
-      valueY: this.getYScale(this.#scaleIdOf(entry)).valueToY(resolveEdgeAnchorValue(side, point)),
+      valueY: yScale.valueToY(resolveEdgeAnchorValue(side, point)),
+      baselineY: yScale.valueToY(yScale.baselineValue()),
       seriesKind: entry.renderer.kind,
+      style,
     };
   }
 
@@ -3235,6 +3314,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Tear down the chart: cancel animations, remove listeners, and detach the canvas. */
   destroy(): void {
+    for (const side of ['left', 'right'] as const) {
+      const hold = this.#edgeHolds[side];
+      if (hold !== null) clearTimeout(hold.timer);
+      this.#edgeHolds[side] = null;
+    }
+    this.#heldPrepends = [];
+
     for (const entry of this.#series) entry.renderer.dispose();
     this.#series = [];
     this.#markers = [];
@@ -3971,9 +4057,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /**
    * Zoom around a time anchor. `factor < 1` zooms in, `> 1` zooms out.
    * In historical mode the window anchors to `centerTime` (cursor-driven).
-   * Zoom-out is hard-capped at the padded data span. Forwards the committed
-   * target to the engine as a gesture for visual easing. Public so consumers
-   * can drive zoom programmatically.
+   * Zoom-out is hard-capped at the padded data span; while a side shows its
+   * loading indicator, the cap lifts so the whole data fits beside it.
+   * Forwards the committed target to the engine as a gesture for visual
+   * easing. Public so consumers can drive zoom programmatically.
    *
    * Sticky-follow: while `#autoScroll` is on, the new window is repositioned
    * so its right edge sits at `dataEnd + paddingRight` (follow position).
@@ -4007,6 +4094,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       padding: { left: this.#padding.left, right: this.#padding.right },
       dataStart: this.#dataStart,
       dataEnd: this.#dataEnd,
+      edgeRoom: { left: this.#edgeStates.left === 'loading', right: this.#edgeStates.right === 'loading' },
     });
     if (result.newLogical === null) return;
 
