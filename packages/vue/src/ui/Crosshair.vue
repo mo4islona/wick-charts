@@ -61,6 +61,14 @@ const scaleLabels = computed(() => {
 });
 // A named scale can own the default axis's side when the default axis is hidden.
 const defaultSideTaken = computed(() => scaleLabels.value.some((label) => label.position === chart.yAxisPosition));
+// Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
+// `position` re-reads the axis height on each move, like `tickInterval`.
+const timeLabelPlacement = computed(() => {
+  void position.value;
+  const bottom = chart.xAxisHeight / 2;
+
+  return { bottom: `${bottom}px`, transform: bottom > 0 ? 'translate(-50%, 50%)' : 'translateX(-50%)' };
+});
 
 const labelStyle = computed(() => ({
   // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -113,9 +121,8 @@ const labelStyle = computed(() => ({
     <div
       :style="{
         position: 'absolute',
-        bottom: '0',
         left: position.mediaX + 'px',
-        transform: 'translateX(-50%)',
+        ...timeLabelPlacement,
         ...labelStyle,
       }"
     >

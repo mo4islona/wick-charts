@@ -52,10 +52,10 @@ function installSizePatch(width = 800, height = 400): () => void {
   };
 }
 
-/** The time pill is the absolutely-positioned label translated -50% on X.
+/** The time pill is the absolutely-positioned label centred on the X-axis label row.
  *  Scoped to this render's container so a sibling test can't leak a stale pill. */
 function timePill(container: HTMLElement): HTMLElement | null {
-  return container.querySelector('[style*="translateX(-50%)"]');
+  return container.querySelector('[style*="translate(-50%, 50%)"]');
 }
 
 function mountHarness(): { chart: () => ChartInstance; container: HTMLElement } {

@@ -163,11 +163,11 @@ describe('Vue <Crosshair>', () => {
     chart.setCrosshair({ time: 15, y: 150 });
     await settle();
 
-    // The time pill is the absolutely-positioned label translated by -50% on X.
+    // The time pill is the absolutely-positioned label centred on the X-axis label row.
     // (happy-dom drops the `color-mix(...)` background as an unknown value, so
     // the assertion targets the plain `color` = `labelTextColor`, which survives
     // and differs between presets.)
-    const pill = () => wrapper.find('[style*="translateX(-50%)"]');
+    const pill = () => wrapper.find('[style*="translate(-50%, 50%)"]');
     expect(pill().exists()).toBe(true);
     const before = pill().attributes('style') ?? '';
     expect(before).toContain(`color: ${catppuccin.theme.crosshair.labelTextColor}`);
