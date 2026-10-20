@@ -387,7 +387,7 @@ export function HookPage({ hookKey, theme }: { hookKey: string; theme: ChartThem
 
   return (
     <div style={{ padding: '8px 20px 40px', maxWidth: 1080 }}>
-      <h2 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>{variant.name}</h2>
+      <h1 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>{variant.name}</h1>
 
       <pre
         className="pg-code"

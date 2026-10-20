@@ -73,6 +73,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Tiny inline sparkline charts for dashboards and tables. Streaming-ready, canvas-rendered, with near-zero overhead.',
   },
+  'charts/heatmap': {
+    title: 'Heatmap Charts for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas heatmaps of category cells colored by value on a perceptual sequential or diverging scale, with an animated entrance, smooth in-place updates, hover and tooltips.',
+  },
   'use-cases/realtime-data': {
     title: 'Realtime Data Streaming — Wick Charts',
     description:
@@ -89,14 +94,29 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
       'Render chart types the library doesn’t ship by combining a data transform with a custom painter. A worked Renko example built on the candlePainter escape hatch in Wick Charts.',
   },
   'use-cases/x-axis-types': {
-    title: 'Numeric & Category X Axes — Wick Charts',
+    title: 'Numeric X Axis — Wick Charts',
     description:
-      'Plot and stream line, bar and band series over plain numbers or named categories instead of time — a load-test curve, users by region, a live elevation profile and a live poll. React, Vue and Svelte.',
+      'Plot and stream line, bar and band series over plain numbers instead of time — a load-test curve over concurrency levels and a live elevation profile over distance. React, Vue and Svelte.',
   },
   'use-cases/category-bars': {
     title: 'Category Bar Charts — Wick Charts',
     description:
-      'Grouped, stacked and 100% bar charts over named categories, with value labels, a fixed category order, a hovered-band highlight and fades for categories that come and go. React, Vue and Svelte.',
+      'Bar charts over named categories: a category X axis with band padding, grouped, stacked and 100% bars, value labels, a fixed category order, negative values and fades for categories that come and go. React, Vue and Svelte.',
+  },
+  'use-cases/annotations': {
+    title: 'Chart Annotations: Markers, Regions & Reference Lines — Wick Charts',
+    description:
+      'Pin events with markers, shade a time window with a region and draw thresholds with reference lines — annotations that stay out of the tooltip, legend and Y range. React, Vue and Svelte.',
+  },
+  'use-cases/data-loading': {
+    title: 'Load History on Scroll — Wick Charts',
+    description:
+      'Fetch older data when the reader pans or zooms near the edge of the series with EdgeLoader, show a pluggable loading indicator at the boundary and animate the new bars in.',
+  },
+  'use-cases/custom-intro': {
+    title: 'Custom Intro Animations — Wick Charts',
+    description:
+      'Write your own series intro: a small function that reads the frame and returns clip, head and value directives while the engine keeps scales, data and drawing. Works for line, bar and candlestick series.',
   },
   'use-cases/secondary-scale': {
     title: 'Secondary Y Scale — Wick Charts',
@@ -118,11 +138,25 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
   'api/line-series':
     'Line and area series with multiple layers, stacking, curve interpolation, gradient fills and a live pulse effect.',
   'api/pie-series': 'Pie and donut series with inner radius control, hover animation and animated slice updates.',
+  'api/heatmap-series':
+    'Matrix heatmap series — category cells colored by value on a perceptual ramp from the theme, with an entrance wave, in-place morphing and hover lift.',
+  'api/depth-series':
+    'Order book series on a numeric price axis — cumulative bid and ask walls, a mid and spread marker, morphing updates and level deltas via updateData.',
   'api/sparkline':
     'Self-contained inline mini chart with an optional value label — renders without a ChartContainer (React only).',
   'api/chart-container':
     'Root chart component — theme, axes, padding, viewport, grid, gradient, animations and interactivity for the series inside.',
   'api/crosshair': 'Cursor-tracking crosshair that pins axis labels to the hovered time and value.',
+  'api/edge-loader':
+    'Triggers a history fetch when the visible range nears the data edge, with a pluggable loading indicator at the boundary (React only).',
+  'api/heatmap-tooltip':
+    'Hover tooltip for heatmap cells — row and column label, value and an intensity meter on the color ramp.',
+  'api/marker':
+    'Point annotation pinned to a time and value, with shapes, labels and an optional pulse — outside the series model.',
+  'api/reference-line':
+    'Straight reference line across the plot — a horizontal threshold pinned to a value or a vertical boundary pinned to a time.',
+  'api/time-region':
+    'Translucent vertical band that shades a time interval, such as an incident or maintenance window, behind the series.',
   'api/info-bar':
     'Top info bar showing OHLC or values for the hovered (or last) bar across every visible series, with sorting and number formatting.',
   'api/legend':

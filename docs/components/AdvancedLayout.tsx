@@ -11,6 +11,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import { hexToRgba } from '../utils';
+import { GuideNav } from './GuideNav';
 import { Segmented } from './kit';
 import { HighlightedCode } from './playground/CodeView';
 import { Splitter } from './Splitter';
@@ -243,13 +244,17 @@ export function AdvancedLayout({
 
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        padding: mobile ? 8 : '8px 16px 48px',
-        color: theme.tooltip.textColor,
-      }}
+      className="doc-prose"
+      style={
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          padding: mobile ? 8 : '8px 16px 48px',
+          color: theme.tooltip.textColor,
+          '--doc-link': theme.line.color,
+        } as CSSProperties
+      }
     >
       <div
         style={{
@@ -309,6 +314,7 @@ export function AdvancedLayout({
                 <StepBlock key={`${i}-${step.heading}`} step={step} theme={theme} muted={muted} first={i === 0} />
               ))
             )}
+            <GuideNav theme={theme} />
           </div>
         </div>
 

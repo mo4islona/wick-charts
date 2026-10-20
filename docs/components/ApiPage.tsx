@@ -86,14 +86,14 @@ export function ApiPage({ component, theme, children, fallbackDescription, demoR
           marginBottom: 12,
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em' }}>
           {component}
           {entry.alias && (
             <span style={{ marginLeft: 10, fontSize: 14, color: theme.axis.textColor, opacity: 0.65 }}>
               · also exported as {entry.alias}
             </span>
           )}
-        </h2>
+        </h1>
         {demoRoute && <DemoLink demoRoute={demoRoute} theme={theme} />}
       </div>
 

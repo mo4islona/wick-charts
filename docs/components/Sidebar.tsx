@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type RefObject, useEffect, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 import { ChevronDown, X } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
 } from '../routes';
 import { gridBackgroundImage, hexToRgba, isDarkColor, saturate } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
+import { SearchBox } from './SearchBox';
 import { WickLogo } from './WickLogo';
 import { WickWordmark } from './WickWordmark';
 
@@ -34,12 +35,19 @@ const SECTIONS: RouteSection[] = getSections();
 export function Sidebar({
   route,
   onClose,
+  onNavigate,
+  searchRef,
+  autoFocusSearch = false,
   theme,
   mobile = false,
 }: {
   route: Route;
   /** Close handler — only used by the mobile overlay drawer. */
   onClose?: () => void;
+  /** Opens a search result; `hash` is an element id on the target page. */
+  onNavigate: (route: Route, hash?: string) => void;
+  searchRef?: RefObject<HTMLInputElement>;
+  autoFocusSearch?: boolean;
   theme: ChartTheme;
   mobile?: boolean;
 }) {
@@ -57,9 +65,9 @@ export function Sidebar({
 
   // Only top-level section headings are collapsible — subsection labels
   // (API → Components, API → Hooks) render as static groupings inside an
-  // open parent. "Charts" and "Use Cases" start expanded; the useEffect below
+  // open parent. "Charts" and "Guides" start expanded; the useEffect below
   // expands the top-level section that contains the current route on deep-link.
-  const DEFAULT_OPEN = new Set(['Charts', 'Use Cases', 'Resources']);
+  const DEFAULT_OPEN = new Set(['Charts', 'Guides', 'Resources']);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const s of SECTIONS) {
@@ -187,6 +195,14 @@ export function Sidebar({
           </button>
         )}
       </div>
+
+      <SearchBox
+        theme={theme}
+        mobile={mobile}
+        onNavigate={onNavigate}
+        inputRef={searchRef}
+        autoFocus={autoFocusSearch}
+      />
 
       <nav
         style={{

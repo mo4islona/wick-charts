@@ -92,6 +92,8 @@
         background: radial-gradient(ellipse 120% 60% at 50% -10%, var(--page-glow, transparent), transparent);
       }
       #root { position: relative; z-index: 1; }
+      /* Links in guide prose; AdvancedLayout sets --doc-link from the theme. */
+      .doc-prose a { color: var(--doc-link); text-underline-offset: 2px; }
       /* Prism token colors */
       .token.keyword { color: #c678dd; }
       .token.string, .token.template-string { color: #98c379; }

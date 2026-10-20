@@ -9,7 +9,7 @@ import source from './annotations.example.tsx?raw';
 
 const SHAPES: MarkerShape[] = ['arrow-down', 'dot', 'circle', 'arrow-up'];
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — MARKERS: PIN A MOMENT',
     body: (

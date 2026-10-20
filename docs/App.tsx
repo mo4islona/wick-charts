@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   type ChartTheme,
@@ -23,8 +23,8 @@ import { OverviewPage } from './pages/OverviewPage';
 import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
 import { UseCasesRoutePage } from './pages/use-cases';
-import { resolveInternalPath, usePathRoute } from './router';
-import { type Route, getTitle, hookKeyForRoute } from './routes';
+import { hashOf, resolveInternalPath, routeToPath, usePathRoute } from './router';
+import { CHART_DEMO_TO_API, CHART_GUIDES, type Route, getTitle, hookKeyForRoute, labelForRoute } from './routes';
 import { themes } from './themes';
 import { gridBackgroundImage, hexToRgba, isDarkColor } from './utils';
 
@@ -101,6 +101,87 @@ function AgentLink({ theme }: { theme: ChartTheme }) {
   );
 }
 
+/** Keys typed into a field belong to it, not to the page shortcuts. */
+function isTextField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+
+  const tag = target.tagName;
+  const formField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+  return formField || target.isContentEditable;
+}
+
+/**
+ * The guides and the API page for a chart, beside its title. Plain links, so
+ * crawlers follow them from every chart page.
+ */
+function RelatedLinks({ route, theme, mobile = false }: { route: Route; theme: ChartTheme; mobile?: boolean }) {
+  const guides = CHART_GUIDES[route] ?? [];
+  const api = CHART_DEMO_TO_API[route];
+  if (guides.length === 0 && !api) return null;
+
+  const muted = theme.axis.textColor;
+  const fontSize = theme.typography.fontSize - 1;
+
+  return (
+    <nav
+      aria-label="Related pages"
+      style={{
+        display: 'flex',
+        flexWrap: mobile ? 'wrap' : 'nowrap',
+        alignItems: 'baseline',
+        columnGap: 10,
+        rowGap: 4,
+        minWidth: 0,
+        overflowX: mobile ? 'visible' : 'auto',
+        scrollbarWidth: 'none',
+        padding: mobile ? '0 12px 6px' : '0 0 0 12px',
+        marginLeft: mobile ? 0 : 4,
+        borderLeft: mobile ? 'none' : `1px solid ${theme.tooltip.borderColor}`,
+        fontSize,
+        color: muted,
+      }}
+    >
+      {guides.length > 0 && <span style={{ whiteSpace: 'nowrap' }}>Guides:</span>}
+      {guides.map((guide) => (
+        <RelatedLink key={guide} route={guide} theme={theme} />
+      ))}
+      {api && (
+        <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 10, whiteSpace: 'nowrap' }}>
+          <span style={{ marginLeft: guides.length > 0 ? 6 : 0 }}>API:</span>
+          <RelatedLink route={api} theme={theme} mono />
+        </span>
+      )}
+    </nav>
+  );
+}
+
+function RelatedLink({ route, theme, mono = false }: { route: Route; theme: ChartTheme; mono?: boolean }) {
+  return (
+    <a
+      href={routeToPath(route)}
+      style={{
+        color: theme.tooltip.textColor,
+        fontFamily: mono ? MONO : 'inherit',
+        textDecoration: 'none',
+        whiteSpace: 'nowrap',
+        opacity: 0.8,
+        transition: 'opacity 0.15s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '1';
+        e.currentTarget.style.textDecoration = 'underline';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '0.8';
+        e.currentTarget.style.textDecoration = 'none';
+      }}
+    >
+      {labelForRoute(route)}
+    </a>
+  );
+}
+
 interface IconLinkProps {
   href: string;
   label: string;
@@ -149,6 +230,20 @@ export default function App() {
   const mobile = useIsMobile();
   const [framework, setFramework] = useFrameworkState();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [focusSearchOnOpen, setFocusSearchOnOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // `seq` makes a repeat jump to the same id (e.g. two searches for one prop) re-run the effect.
+  const [scrollTarget, setScrollTarget] = useState<{ id: string; seq: number } | null>(null);
+
+  const navigateTo = useCallback(
+    (next: Route, hash?: string) => {
+      navigate(next, hash);
+      setMobileMenuOpen(false);
+
+      if (hash) setScrollTarget((prev) => ({ id: hash, seq: (prev?.seq ?? 0) + 1 }));
+    },
+    [navigate],
+  );
 
   useEffect(() => {
     localStorage.setItem('chart-theme', themeName);
@@ -185,19 +280,65 @@ export default function App() {
       if (!next) return;
 
       e.preventDefault();
-      navigate(next);
+      navigateTo(next, hashOf(href));
     };
 
     document.addEventListener('click', onClick);
 
     return () => document.removeEventListener('click', onClick);
-  }, [navigate]);
+  }, [navigateTo]);
+
+  // A deep link opened in a new tab: the browser's own jump runs before React
+  // has rendered the target, so repeat it once the page is up.
+  useEffect(() => {
+    const id = hashOf(window.location.href);
+    if (id) setScrollTarget({ id, seq: 0 });
+  }, []);
+
+  useEffect(() => {
+    if (!scrollTarget) return;
+
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(scrollTarget.id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [scrollTarget]);
+
+  // ⌘K / Ctrl+K, or `/` outside a text field, jumps to the docs search.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const shortcut = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
+      const slash = e.key === '/' && !e.metaKey && !e.ctrlKey && !isTextField(e.target);
+      if (!shortcut && !slash) return;
+
+      e.preventDefault();
+
+      if (mobile) {
+        setFocusSearchOnOpen(true);
+        setMobileMenuOpen(true);
+
+        return;
+      }
+
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobile]);
 
   // Close the mobile drawer after any navigation (links no longer call a
   // close handler directly — navigation flows through the click interceptor).
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [route]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) setFocusSearchOnOpen(false);
+  }, [mobileMenuOpen]);
 
   const preset = themes[themeName];
   const baseTheme = preset.theme;
@@ -324,7 +465,7 @@ export default function App() {
           }}
         >
           {/* Sidebar — hidden on mobile, shown on desktop */}
-          {!mobile && <Sidebar route={route} theme={theme} />}
+          {!mobile && <Sidebar route={route} theme={theme} onNavigate={navigateTo} searchRef={searchRef} />}
 
           {/* Mobile overlay sidebar */}
           {mobile && mobileMenuOpen && (
@@ -346,7 +487,14 @@ export default function App() {
                 }}
               />
               <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 201 }}>
-                <Sidebar route={route} onClose={() => setMobileMenuOpen(false)} theme={theme} mobile />
+                <Sidebar
+                  route={route}
+                  onClose={() => setMobileMenuOpen(false)}
+                  onNavigate={navigateTo}
+                  autoFocusSearch={focusSearchOnOpen}
+                  theme={theme}
+                  mobile
+                />
               </div>
             </>
           )}
@@ -364,7 +512,7 @@ export default function App() {
                 gap: 8,
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 {/* Mobile hamburger */}
                 {mobile && (
                   <button
@@ -400,11 +548,13 @@ export default function App() {
                       fontSize: mobile ? theme.typography.fontSize + 2 : theme.typography.fontSize + 4,
                       fontWeight: 600,
                       letterSpacing: '-0.01em',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {pageTitle}
                   </h1>
                 )}
+                {!mobile && <RelatedLinks route={route} theme={theme} />}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8 }}>
@@ -427,6 +577,9 @@ export default function App() {
                 <ThemeSelect value={currentPreset} onChange={pickPreset} />
               </div>
             </div>
+
+            {/* The title row has no room on a phone, so the links get their own row. */}
+            {mobile && <RelatedLinks route={route} theme={theme} mobile />}
 
             {/* Page content */}
             <main style={{ flex: 1, minHeight: 0, padding: mobile ? 4 : 6, overflow: 'auto' }}>

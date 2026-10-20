@@ -13,7 +13,7 @@ type Mode = 'declarative' | 'imperative';
 const COUNT = 60;
 const INTERVAL = 60_000 * 60;
 
-const DECLARATIVE_STEPS: Step[] = [
+export const DECLARATIVE_STEPS: Step[] = [
   {
     heading: '01 — UPDATE THE DATA PROP',
     body: (
@@ -49,7 +49,7 @@ const DECLARATIVE_STEPS: Step[] = [
   },
 ];
 
-const IMPERATIVE_STEPS: Step[] = [
+export const IMPERATIVE_STEPS: Step[] = [
   {
     heading: '01 — GRAB THE INSTANCE',
     body: (

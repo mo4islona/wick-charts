@@ -62,7 +62,7 @@ Each chart page listed below has a Code tab next to its controls: copy, paste, s
 - [Pie & Donut](https://wick-charts.eeff.io/charts/pie/) · [Heatmap](https://wick-charts.eeff.io/charts/heatmap/)
 - [Sparkline](https://wick-charts.eeff.io/charts/sparkline/)
 
-Put them on [numeric and category X axes](https://wick-charts.eeff.io/use-cases/x-axis-types/) or a [secondary Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/), [sync several charts](https://wick-charts.eeff.io/use-cases/multi-chart-sync/), stream them [in real time](https://wick-charts.eeff.io/use-cases/realtime-data/), or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/).
+Put them on [numeric](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [category](https://wick-charts.eeff.io/use-cases/category-bars/) X axes or a [secondary Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/), [sync several charts](https://wick-charts.eeff.io/use-cases/multi-chart-sync/), stream them [in real time](https://wick-charts.eeff.io/use-cases/realtime-data/), or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/).
 
 ## No framework? Use the engine directly
 
