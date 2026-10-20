@@ -39,6 +39,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   private appendedSinceTrim = 0;
   // Stored points with a fractional value, kept in step with every mutation.
   private fractionalPoints = 0;
+  // The caller may edit the last point in place before updateLast reads it.
+  private lastHasFraction = false;
   // Dev-only, warn-once-per-instance: these two conditions are almost always
   // a persistent bug in the caller's feed (not a one-off), so a per-call
   // warning would just spam the console on every tick.
@@ -72,6 +74,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
     this.fractionalPoints = countFractions(this.data);
+    this.lastHasFraction = this.data.length > 0 && hasFraction(this.data[this.data.length - 1]);
     this.exited = [];
     this.appendedSinceTrim = 0;
     this.cachedRange = null;
@@ -92,7 +95,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       return;
     }
     this.data.push(point);
-    if (hasFraction(point)) this.fractionalPoints++;
+    this.lastHasFraction = hasFraction(point);
+    if (this.lastHasFraction) this.fractionalPoints++;
     this.appendedSinceTrim++;
     this.cachedRange = null;
     this.emit('update');
@@ -100,8 +104,9 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   updateLast(point: T): void {
     if (this.data.length === 0) return;
-    if (hasFraction(this.data[this.data.length - 1])) this.fractionalPoints--;
-    if (hasFraction(point)) this.fractionalPoints++;
+    if (this.lastHasFraction) this.fractionalPoints--;
+    this.lastHasFraction = hasFraction(point);
+    if (this.lastHasFraction) this.fractionalPoints++;
     this.data[this.data.length - 1] = point;
     this.cachedRange = null;
     this.emit('update');
@@ -117,6 +122,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   prepend(points: T[]): void {
     if (points.length === 0) return;
 
+    if (this.data.length === 0) this.lastHasFraction = hasFraction(points[points.length - 1]);
     this.data = points.concat(this.data);
     this.fractionalPoints += countFractions(points);
     this.exited = [];
@@ -134,6 +140,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     const exited = sliding.length === dropped.length ? this.exited.concat(sliding) : sliding;
     this.data = this.data.slice(count);
     this.fractionalPoints -= countFractions(dropped);
+    if (this.data.length === 0) this.lastHasFraction = false;
     this.exited = this.reachedByView(exited);
     this.appendedSinceTrim = 0;
     this.lowestReadFrom = Number.POSITIVE_INFINITY;

@@ -222,6 +222,40 @@ describe('TimeSeriesStore', () => {
       expect(s.hasOnlyWholeValues()).toBe(true);
     });
 
+    it.each([
+      'setData',
+      'append',
+      'prepend',
+    ] as const)('tracks repeated in-place edits of a last point added with %s', (method) => {
+      const point = at(2, 120.5);
+      const s = makeStore();
+      if (method === 'append') s.append(point);
+      else s[method]([point]);
+
+      point.value = 120;
+      s.updateLast(point);
+      expect(s.hasOnlyWholeValues()).toBe(true);
+
+      point.value = 120.5;
+      s.updateLast(point);
+      expect(s.hasOnlyWholeValues()).toBe(false);
+
+      point.value = 121;
+      s.updateLast(point);
+      expect(s.hasOnlyWholeValues()).toBe(true);
+    });
+
+    it('keeps the last-point fraction state when prepending or trimming other points', () => {
+      const point = at(2, 120.5);
+      const s = makeStore([point]);
+      s.prepend([at(1, 237)]);
+      s.trimStart(1);
+
+      point.value = 120;
+      s.updateLast(point);
+      expect(s.hasOnlyWholeValues()).toBe(true);
+    });
+
     it('turns true again once a trim drops the last fractional point', () => {
       const s = makeStore([at(1, 0.5), at(2, 120), at(3, 73)]);
       expect(s.hasOnlyWholeValues()).toBe(false);
