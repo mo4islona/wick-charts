@@ -110,6 +110,30 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
     selfClosingWhenEmpty: true,
   },
 
+  ReferenceLine: {
+    required: [{ name: 'value', valueExpr: 'baseline' }],
+    optional: [{ name: 'label', valueExpr: "'baseline'" }],
+    selfClosingWhenEmpty: true,
+  },
+
+  TimeRegion: {
+    required: [
+      { name: 'from', valueExpr: 'incidentStart' },
+      { name: 'to', valueExpr: 'incidentEnd' },
+    ],
+    optional: [{ name: 'label', valueExpr: "'incident'" }],
+    selfClosingWhenEmpty: true,
+  },
+
+  EdgeLoader: {
+    required: [
+      { name: 'side', valueExpr: "'left'" },
+      { name: 'onTrigger', valueExpr: 'loadOlder' },
+    ],
+    selfClosingWhenEmpty: true,
+    reactOnly: true,
+  },
+
   Tooltip: {
     optional: [{ name: 'sort', valueExpr: "'desc'" }],
     slot: {

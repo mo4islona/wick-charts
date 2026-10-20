@@ -7,7 +7,7 @@ import { Button } from '../../components/kit';
 import { CustomIntroDemo } from './custom-intro.example';
 import source from './custom-intro.example.tsx?raw';
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — AN INTRO IS A FUNCTION',
     body: (

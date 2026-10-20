@@ -9,8 +9,16 @@ import { useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 
+import { propAnchor } from '../search';
 import { docFontSize, hexToRgba } from '../utils';
 import { Markdown } from './Markdown';
+
+/** The URL fragment without `#` — search results link to `#prop-<path>`. */
+function currentHash(): string {
+  if (typeof window === 'undefined') return '';
+
+  return decodeURIComponent(window.location.hash.slice(1));
+}
 
 export interface ApiProp {
   name: string;
@@ -81,11 +89,29 @@ export function ApiTable({ props, theme }: { props: ApiProp[]; theme: ChartTheme
   );
 }
 
-function PropList({ props, theme, depth }: { props: ApiProp[]; theme: ChartTheme; depth: number }) {
+function PropList({
+  props,
+  theme,
+  depth,
+  parent,
+}: {
+  props: ApiProp[];
+  theme: ChartTheme;
+  depth: number;
+  /** Dotted path of the prop that holds this list; unset at the top level. */
+  parent?: string;
+}) {
   return (
     <div>
       {props.map((p, i) => (
-        <PropEntry key={p.name} prop={p} theme={theme} depth={depth} isFirst={i === 0} />
+        <PropEntry
+          key={p.name}
+          prop={p}
+          theme={theme}
+          depth={depth}
+          isFirst={i === 0}
+          path={parent ? `${parent}.${p.name}` : p.name}
+        />
       ))}
     </div>
   );
@@ -96,19 +122,27 @@ function PropEntry({
   theme,
   depth,
   isFirst,
+  path,
 }: {
   prop: ApiProp;
   theme: ChartTheme;
   depth: number;
   isFirst: boolean;
+  path: string;
 }) {
   const hasVariants = !!prop.variants && prop.variants.length > 0;
   const hasNested = !hasVariants && !!prop.nested && prop.nested.props.length > 0;
+
+  const anchor = propAnchor(path);
+  const hash = currentHash();
+  const targeted = hash === anchor;
+  const holdsTarget = hash.startsWith(`${anchor}.`);
+
   // Collapsed by default with the card layout — auto-expanding everything
   // would scroll forever. Individual props can opt into open-by-default
   // via `defaultOpen` (used for the chart `data` prop where the inner
-  // shape is the lead).
-  const [open, setOpen] = useState(prop.defaultOpen ?? false);
+  // shape is the lead); a deep link to a nested field opens its parents.
+  const [open, setOpen] = useState(holdsTarget || (prop.defaultOpen ?? false));
   // Selected tab when the prop has switchable `variants`.
   const [variant, setVariant] = useState(0);
 
@@ -120,9 +154,12 @@ function PropEntry({
 
   return (
     <div
+      id={anchor}
       style={{
         padding: '12px 16px',
         borderTop: isFirst ? 'none' : `1px solid ${borderColor}`,
+        background: targeted ? hexToRgba(theme.line.color, 0.1) : undefined,
+        scrollMarginTop: 12,
       }}
     >
       {/* Header line: name + meta on the right */}
@@ -303,7 +340,7 @@ function PropEntry({
                   borderRadius: 4,
                 }}
               >
-                <PropList props={prop.variants[variant].props} theme={theme} depth={depth + 1} />
+                <PropList props={prop.variants[variant].props} theme={theme} depth={depth + 1} parent={path} />
               </div>
             </>
           )}
@@ -345,7 +382,7 @@ function PropEntry({
                 borderRadius: 4,
               }}
             >
-              <PropList props={prop.nested.props} theme={theme} depth={depth + 1} />
+              <PropList props={prop.nested.props} theme={theme} depth={depth + 1} parent={path} />
             </div>
           )}
         </div>

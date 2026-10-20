@@ -57,7 +57,7 @@ function deriveRSI(candles: OHLCData[]): TimePoint[] {
   return out;
 }
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — REGISTER EACH CHART',
     body: (

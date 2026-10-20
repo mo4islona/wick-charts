@@ -101,7 +101,7 @@ const REVEAL_SNIPPET = `// skeletonMorphIntro: the loading indicator reports its
 // Opt out — new history appears instantly:
 <CandlestickSeries data={data} options={{ historyReveal: 'none' }} />`;
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — SWAP THE SPINNER',
     body: (

@@ -10,7 +10,7 @@ import source from './custom-renders.example.tsx?raw';
 const COUNT = 240;
 const INTERVAL = 60_000 * 60;
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — A PAINTER IS THE RENDERER',
     body: (

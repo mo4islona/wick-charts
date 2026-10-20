@@ -55,6 +55,14 @@ export function resolveInternalPath(href: string): Route | null {
   return null;
 }
 
+/** The `#fragment` of an href without the `#`, or `undefined` when it has none. */
+export function hashOf(href: string): string | undefined {
+  const at = href.indexOf('#');
+  if (at === -1 || at === href.length - 1) return undefined;
+
+  return decodeURIComponent(href.slice(at + 1));
+}
+
 /**
  * One-time redirect for old hash URLs (`#charts/line`, `#dashboard`, …) shared
  * before the move to path routing. Rewrites the location to the path form
@@ -73,8 +81,11 @@ export function migrateLegacyHash(): void {
   window.history.replaceState({}, '', routeToPath(target) + window.location.search);
 }
 
-/** Current route + a `navigate` that pushes a new history entry. */
-export function usePathRoute(): [Route, (r: Route) => void] {
+/**
+ * Current route + a `navigate` that pushes a new history entry. An optional
+ * `hash` (an element id on the target page) goes into the URL as `#hash`.
+ */
+export function usePathRoute(): [Route, (r: Route, hash?: string) => void] {
   const [route, setRoute] = useState<Route>(() =>
     typeof window === 'undefined' ? 'overview' : pathToRoute(window.location.pathname),
   );
@@ -86,10 +97,11 @@ export function usePathRoute(): [Route, (r: Route) => void] {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const navigate = useCallback((r: Route) => {
-    const path = routeToPath(r);
-    if (path !== window.location.pathname) {
-      window.history.pushState({}, '', path);
+  const navigate = useCallback((r: Route, hash?: string) => {
+    const url = hash ? `${routeToPath(r)}#${hash}` : routeToPath(r);
+    const current = window.location.pathname + window.location.hash;
+    if (url !== current) {
+      window.history.pushState({}, '', url);
     }
 
     setRoute(r);

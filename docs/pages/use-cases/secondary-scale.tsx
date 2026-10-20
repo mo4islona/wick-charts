@@ -4,7 +4,7 @@ import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
 import { SecondaryScaleDemo } from './secondary-scale.example';
 import source from './secondary-scale.example.tsx?raw';
 
-const STEPS: Step[] = [
+export const STEPS: Step[] = [
   {
     heading: '01 — NAME A SCALE',
     body: (

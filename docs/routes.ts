@@ -37,6 +37,9 @@ export type Route =
   | 'api/depth-series'
   | 'api/sparkline'
   | 'api/chart-container'
+  | 'api/edge-loader'
+  | 'api/reference-line'
+  | 'api/time-region'
   | 'api/x-axis'
   | 'api/y-axis'
   | 'api/tooltip'
@@ -119,19 +122,21 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
-const USE_CASES: RouteEntry[] = [
+// Most needed first. URLs keep the `use-cases/` prefix: they are indexed and
+// linked from the READMEs.
+const GUIDES: RouteEntry[] = [
   { route: 'use-cases/realtime-data', label: 'Realtime Data', title: 'Realtime Data' },
+  { route: 'use-cases/data-loading', label: 'Data loading', title: 'Data loading' },
+  { route: 'use-cases/annotations', label: 'Annotations', title: 'Annotations' },
   { route: 'use-cases/multi-chart-sync', label: 'Multi-chart Sync', title: 'Multi-chart Sync' },
+  { route: 'use-cases/secondary-scale', label: 'Secondary Y scale', title: 'Secondary Y scale' },
+  { route: 'use-cases/category-bars', label: 'Category bars', title: 'Category bars' },
+  { route: 'use-cases/x-axis-types', label: 'Numeric X axis', title: 'Numeric X axis' },
   { route: 'use-cases/custom-renders', label: 'Custom renders', title: 'Custom renders' },
   { route: 'use-cases/custom-intro', label: 'Custom intro animation', title: 'Custom intro animation' },
-  { route: 'use-cases/annotations', label: 'Annotations', title: 'Annotations' },
-  { route: 'use-cases/data-loading', label: 'Data loading', title: 'Data loading' },
-  { route: 'use-cases/secondary-scale', label: 'Secondary Y scale', title: 'Secondary Y scale' },
-  { route: 'use-cases/x-axis-types', label: 'Numeric & category X', title: 'Numeric & category X axes' },
-  { route: 'use-cases/category-bars', label: 'Category bars', title: 'Category bars' },
 ];
 
-// API entries own their own header (rendered by ApiPage), so the App-level
+// API entries own their H1 (rendered by ApiPage), so the App-level
 // title is left blank to avoid the "PieLegend / PieLegend" duplication.
 // Split into two flat A→Z lists:
 //   - `Charts` — series renderers (have a "↗ Try the live demo" link
@@ -152,6 +157,7 @@ const API_CHARTS: RouteEntry[] = [
 const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/chart-container', label: 'ChartContainer', title: '' },
   { route: 'api/crosshair', label: 'Crosshair', title: '' },
+  { route: 'api/edge-loader', label: 'EdgeLoader', title: '' },
   { route: 'api/heatmap-tooltip', label: 'HeatmapTooltip', title: '' },
   { route: 'api/info-bar', label: 'InfoBar', title: '' },
   { route: 'api/legend', label: 'Legend', title: '' },
@@ -160,6 +166,8 @@ const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/number-flow', label: 'NumberFlow', title: '' },
   { route: 'api/pie-legend', label: 'PieLegend', title: '' },
   { route: 'api/pie-tooltip', label: 'PieTooltip', title: '' },
+  { route: 'api/reference-line', label: 'ReferenceLine', title: '' },
+  { route: 'api/time-region', label: 'TimeRegion', title: '' },
   { route: 'api/title', label: 'Title', title: '' },
   { route: 'api/tooltip', label: 'Tooltip', title: '' },
   { route: 'api/x-axis', label: 'XAxis', title: '' },
@@ -170,7 +178,7 @@ const API_COMPONENTS: RouteEntry[] = [
 /** Combined flat list — used by `getSection` / `isRoute` lookups. */
 const API: RouteEntry[] = [...API_CHARTS, ...API_COMPONENTS];
 
-// Hook pages render their own H2, so leave the App-level title blank.
+// Hook pages render their own H1, so leave the App-level title blank.
 const HOOKS: RouteEntry[] = [
   { route: 'hooks/use-chart-instance', label: 'useChartInstance', title: '' },
   { route: 'hooks/use-theme', label: 'useTheme', title: '' },
@@ -195,7 +203,7 @@ const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress Tests', title:
 const BASE_SECTIONS: RouteSection[] = [
   { heading: null, items: [OVERVIEW] },
   { heading: 'Charts', items: CHARTS },
-  { heading: 'Use Cases', items: USE_CASES },
+  { heading: 'Guides', items: GUIDES },
   // Resources — references / tools (theme editor, migration guide, stress tests).
   // Sits above API and is expanded by default (see Sidebar's DEFAULT_OPEN). Stress
   // is no longer dev-gated.
@@ -214,7 +222,7 @@ export function getSections(): RouteSection[] {
   return BASE_SECTIONS;
 }
 
-const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...USE_CASES, ...API, ...HOOKS, THEME, STRESS];
+const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...GUIDES, ...API, ...HOOKS, THEME, STRESS];
 
 const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
 
@@ -299,6 +307,41 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/depth-series': 'charts/depth',
   'api/sparkline': 'charts/sparkline',
 };
+
+/** Charts demo → its series API page, the reverse of {@link CHART_API_TO_DEMO}. */
+export const CHART_DEMO_TO_API: Partial<Record<Route, Route>> = {};
+
+for (const [api, demo] of Object.entries(CHART_API_TO_DEMO)) {
+  if (isRoute(api)) CHART_DEMO_TO_API[demo] = api;
+}
+
+/** Guides linked from each chart page's header, most relevant first. */
+export const CHART_GUIDES: Partial<Record<Route, Route[]>> = {
+  'charts/line': [
+    'use-cases/realtime-data',
+    'use-cases/x-axis-types',
+    'use-cases/secondary-scale',
+    'use-cases/custom-intro',
+  ],
+  'charts/band': ['use-cases/secondary-scale', 'use-cases/realtime-data'],
+  'charts/bar': ['use-cases/category-bars', 'use-cases/realtime-data', 'use-cases/custom-intro'],
+  'charts/heatmap': ['use-cases/realtime-data'],
+  'charts/candlestick': [
+    'use-cases/realtime-data',
+    'use-cases/annotations',
+    'use-cases/data-loading',
+    'use-cases/custom-renders',
+  ],
+  'charts/depth': ['use-cases/realtime-data'],
+};
+
+/** The guides before and after `route` in sidebar order, for the Previous / Next links. */
+export function adjacentGuides(route: Route): { prev: RouteEntry | null; next: RouteEntry | null } {
+  const at = GUIDES.findIndex((guide) => guide.route === route);
+  if (at === -1) return { prev: null, next: null };
+
+  return { prev: GUIDES[at - 1] ?? null, next: GUIDES[at + 1] ?? null };
+}
 
 /**
  * Derive the canonical React hook name from a `hooks/<slug>` route — single
