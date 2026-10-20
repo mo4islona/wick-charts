@@ -8,6 +8,7 @@ import {
   type CrosshairPosition,
   type EdgeReachedInfo,
   type FadeConfig,
+  type GridOptions,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -103,8 +104,11 @@ const props = withDefaults(
      * mount is ignored.
      */
     interactive?: boolean;
-    /** Background grid configuration. Live. Default: `{ visible: true }`. */
-    grid?: { visible: boolean };
+    /**
+     * Background grid configuration. Live. Default: `{ visible: true }`.
+     * `{ vertical: false }` keeps only the horizontal lines.
+     */
+    grid?: GridOptions;
     /**
      * Soft fade-out at the top of the plot area, so series content dissolves
      * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
@@ -457,12 +461,9 @@ watch(
   { deep: true },
 );
 
-watch(
-  () => props.grid?.visible,
-  () => {
-    if (chart.value && props.grid !== undefined) chart.value.setGrid(props.grid);
-  },
-);
+watch([() => props.grid?.visible, () => props.grid?.horizontal, () => props.grid?.vertical], () => {
+  if (chart.value && props.grid !== undefined) chart.value.setGrid(props.grid);
+});
 
 // Init-only: a post-mount `animations` VALUE change tears down the instance
 // and rebuilds with the new config. `deepEqual` (not reference equality)

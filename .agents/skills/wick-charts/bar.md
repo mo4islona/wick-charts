@@ -284,7 +284,7 @@ On a category X axis (`axis={{ x: { type: 'category' } }}`) points carry `x: str
 - **Grouped** — a multi-layer series with `stacking: 'off'` puts its layers side by side in each band, colored from `theme.seriesColors`. Two separate `BarSeries` still overlap.
 - **Stacked** — `'normal'` / `'percent'` draw one column per band, as on a time axis.
 - **Order** — `axis.x.categories: string[]` puts the listed names first, in list order, also one no series has data for (an empty band); the rest follow in first-seen order. Live.
-- **Hover** — the hovered category gets a band backdrop behind its bars (`theme.bar.hoverBackground`); the tooltip lists every layer of it.
+- **Hover** — the hovered category gets a band backdrop behind its bars (`theme.bar.hoverBackground`) and no horizontal crosshair line; the tooltip lists every layer of it.
 - **Updates** — bars ease to new values; a category that enters fades in while the later bars slide aside, one that leaves fades out at its own band before the bands close up and the later bars slide over (on the X axis curve and settle).
 
 ```tsx

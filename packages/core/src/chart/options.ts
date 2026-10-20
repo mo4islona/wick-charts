@@ -38,6 +38,21 @@ export interface EdgeReachedInfo {
   boundaryTime: number;
 }
 
+/** Background grid lines. Every field defaults to `true`. */
+export interface GridOptions {
+  /** Show the grid. */
+  visible?: boolean;
+  /** Horizontal lines at the Y-axis ticks. */
+  horizontal?: boolean;
+  /** Vertical lines at the X-axis ticks. A category axis never draws them. */
+  vertical?: boolean;
+}
+
+/** Gridline directions from {@link GridOptions}; an omitted direction stays on. */
+export function resolveGridLines(grid: GridOptions | undefined): { horizontal: boolean; vertical: boolean } {
+  return { horizontal: grid?.horizontal !== false, vertical: grid?.vertical !== false };
+}
+
 /** Options passed when creating a new ChartInstance. */
 export interface ChartOptions {
   theme?: ChartTheme;
@@ -106,7 +121,7 @@ export interface ChartOptions {
    */
   timeZone?: string;
   /** Background grid configuration. Default: `{ visible: true }`. */
-  grid?: { visible: boolean };
+  grid?: GridOptions;
   /**
    * Soft alpha fade applied at the edges of the plot area. Anything the main
    * layer draws inside a zone (series, grid, time-region bands) dissolves to

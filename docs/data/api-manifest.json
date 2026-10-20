@@ -3816,22 +3816,40 @@
         },
         {
           "name": "grid",
-          "type": "{ visible: boolean; }",
+          "type": "GridOptions",
           "optional": true,
           "defaultValue": "{ visible: true }",
           "deprecated": null,
-          "description": "Background grid configuration. Live. Default: `{ visible: true }`.",
+          "description": "Background grid configuration. Live. Default: `{ visible: true }`.\n`{ vertical: false }` keeps only the horizontal lines.",
           "see": [],
           "nested": {
-            "name": "",
+            "name": "GridOptions",
             "props": [
               {
                 "name": "visible",
                 "type": "boolean",
-                "optional": false,
-                "defaultValue": "true",
+                "optional": true,
+                "defaultValue": null,
                 "deprecated": null,
-                "description": "Whether the background grid is rendered. Default: `true`.",
+                "description": "Show the grid.",
+                "see": []
+              },
+              {
+                "name": "horizontal",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Horizontal lines at the Y-axis ticks.",
+                "see": []
+              },
+              {
+                "name": "vertical",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Vertical lines at the X-axis ticks. A category axis never draws them.",
                 "see": []
               }
             ]
@@ -4540,7 +4558,7 @@
           "optional": true,
           "defaultValue": "adaptive precision for ohlc/value",
           "deprecated": null,
-          "description": "Custom formatter for every displayed number in the default UI. Called per\nrow with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.\nIgnored when children is a render-prop.",
+          "description": "Custom formatter for every displayed number in the default UI. Called per\nrow with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value (no decimals when a series is\nall whole numbers), compact (K/M/B/T) for volume.\nIgnored when children is a render-prop.",
           "see": []
         },
         {
@@ -4918,7 +4936,7 @@
           "optional": true,
           "defaultValue": "adaptive precision for ohlc/value",
           "deprecated": null,
-          "description": "Custom formatter for every displayed number in the default UI. Called per\ncell with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.\nIgnored when children is a render-prop.",
+          "description": "Custom formatter for every displayed number in the default UI. Called per\ncell with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).\nDefaults: adaptive precision for ohlc/value (no decimals when a series is\nall whole numbers), compact (K/M/B/T) for volume.\nIgnored when children is a render-prop.",
           "see": []
         },
         {

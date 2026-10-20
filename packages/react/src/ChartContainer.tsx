@@ -20,6 +20,7 @@ import {
   type CrosshairPosition,
   type EdgeReachedInfo,
   type FadeConfig,
+  type GridOptions,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -136,11 +137,11 @@ export interface ChartContainerProps {
    * mount is ignored.
    */
   interactive?: boolean;
-  /** Background grid configuration. Live. Default: `{ visible: true }`. */
-  grid?: {
-    /** Whether the background grid is rendered. Default: `true`. */
-    visible: boolean;
-  };
+  /**
+   * Background grid configuration. Live. Default: `{ visible: true }`.
+   * `{ vertical: false }` keeps only the horizontal lines.
+   */
+  grid?: GridOptions;
   /**
    * Soft fade-out at the top of the plot area, so series content dissolves
    * under a floating `<Title>` / `<InfoBar>` instead of colliding with it —
@@ -577,7 +578,7 @@ export function ChartContainer({
     if (chartRef.current && grid !== undefined) {
       chartRef.current.setGrid(grid);
     }
-  }, [grid?.visible]);
+  }, [grid?.visible, grid?.horizontal, grid?.vertical]);
 
   const chart = chartRef.current;
 

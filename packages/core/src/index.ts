@@ -38,6 +38,7 @@ export type {
   EdgeSide,
   EdgeState,
   FadeConfig,
+  GridOptions,
   PointClickInfo,
   SeriesHoverInfo,
 } from './chart';
