@@ -196,6 +196,12 @@ export interface ChartTheme {
     textColor: string;
     /** Tooltip outer border colour. */
     borderColor: string;
+    /**
+     * Colour of the value text. Default: each row's series colour (up / down
+     * on candlesticks); the swatch keeps the series colour either way. Set it
+     * when a series colour is too faint to read on the tooltip background.
+     */
+    valueColor?: string;
   };
 
   /**

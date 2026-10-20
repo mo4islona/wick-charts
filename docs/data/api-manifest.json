@@ -2123,7 +2123,7 @@
               },
               {
                 "name": "tooltip",
-                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; }",
+                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; valueColor?: string; }",
                 "optional": false,
                 "defaultValue": null,
                 "deprecated": null,
@@ -2166,6 +2166,15 @@
                       "defaultValue": null,
                       "deprecated": null,
                       "description": "Tooltip outer border colour.",
+                      "see": []
+                    },
+                    {
+                      "name": "valueColor",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "each row's series colour",
+                      "deprecated": null,
+                      "description": "Colour of the value text. Default: each row's series colour (up / down\non candlesticks); the swatch keeps the series colour either way. Set it\nwhen a series colour is too faint to read on the tooltip background.",
                       "see": []
                     }
                   ]
@@ -3175,7 +3184,7 @@
               },
               {
                 "name": "tooltip",
-                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; }",
+                "type": "{ fontSize: number; background: string; textColor: string; borderColor: string; valueColor?: string; }",
                 "optional": false,
                 "defaultValue": null,
                 "deprecated": null,
@@ -3218,6 +3227,15 @@
                       "defaultValue": null,
                       "deprecated": null,
                       "description": "Tooltip outer border colour.",
+                      "see": []
+                    },
+                    {
+                      "name": "valueColor",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "each row's series colour",
+                      "deprecated": null,
+                      "description": "Colour of the value text. Default: each row's series colour (up / down\non candlesticks); the swatch keeps the series colour either way. Set it\nwhen a series colour is too faint to read on the tooltip background.",
                       "see": []
                     }
                   ]

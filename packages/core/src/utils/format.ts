@@ -244,6 +244,17 @@ export function formatTooltipValue(v: number, field: TooltipField): string {
 }
 
 /**
+ * {@link formatTooltipValue} for a series whose values are all whole numbers:
+ * `237` rather than `237.00`. Volume and values from 10M up format as before.
+ */
+export function formatWholeTooltipValue(v: number, field: TooltipField): string {
+  const plainWhole = field !== 'volume' && Number.isInteger(v) && Math.abs(v) < 1e7;
+  if (plainWhole) return String(v);
+
+  return formatTooltipValue(v, field);
+}
+
+/**
  * Full-precision display that adapts decimal count to the value's magnitude.
  * No K/M/B compression — callers wanting a short label should use
  * `formatCompact` instead.

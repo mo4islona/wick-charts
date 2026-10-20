@@ -12,8 +12,8 @@ import {
   buildLastSnapshots,
   formatHeaderX,
   formatRowValue,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
@@ -25,7 +25,7 @@ import { portal } from './portal.js';
 /** Sort order for line values (default: 'none'). */
 export let sort: SnapshotSort = 'none';
 /** Custom formatter for every displayed number (OHLC / volume / line value). Ignored when a slot is provided. */
-export let format: TooltipFormatter = formatTooltipValue;
+export let format: TooltipFormatter | undefined = undefined;
 
 const chartStore = getChartContext();
 const themeStore = getThemeContext();
@@ -113,34 +113,35 @@ $: displayTime =
     >
       <span style="color:{theme.axis.textColor};margin-right:2px;">{formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}</span>
       {#each snapshots as s (s.id)}
+        {@const rowFormat = rowFormatter(chart, s, format)}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
           {@const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <span style="display:inline-flex;align-items:center;gap:4px;">
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={format(ohlc.open, 'open')} /></span>
+            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.open, 'open')} /></span>
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">H</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={format(ohlc.high, 'high')} /></span>
+            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.high, 'high')} /></span>
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">L</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={format(ohlc.low, 'low')} /></span>
+            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.low, 'low')} /></span>
             <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">C</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={format(ohlc.close, 'close')} /></span>
+            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.close, 'close')} /></span>
             {#if ohlc.volume != null}
               <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
-              <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;"><NumberText text={format(ohlc.volume, 'volume')} /></span>
+              <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.volume, 'volume')} /></span>
             {/if}
           </span>
         {:else if 'high' in s.data}
           {@const band = /** @type {BandPoint} */ (s.data)}
           <span style="display:inline-flex;align-items:center;gap:3px;">
             <span style="width:6px;height:6px;border-radius:1px;background:{s.color};flex-shrink:0;"></span>
-            <span style="color:{s.color};font-weight:500;"><NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} /></span>
+            <span style="color:{s.color};font-weight:500;"><NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} /></span>
           </span>
         {:else}
           <span style="display:inline-flex;align-items:center;gap:3px;">
             <span style="width:6px;height:6px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
-            <span style="color:{s.color};font-weight:500;"><NumberText text={formatRowValue(s, (v) => format(v, 'value'))} /></span>
+            <span style="color:{s.color};font-weight:500;"><NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} /></span>
           </span>
         {/if}
       {/each}

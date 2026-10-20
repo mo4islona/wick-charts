@@ -278,6 +278,9 @@ export interface BaseSeriesRenderer {
   /** Total data points across all owned stores. Used by Chart for batch-load detection. */
   getTotalLength?(): number;
 
+  /** `true` when the series holds data and all of it is whole numbers. Picks the default tooltip format. */
+  hasOnlyWholeValues?(): boolean;
+
   /**
    * The X the view stays centered on (an order book's mid) and the default
    * half-width around it, or `null` without data. While a visible series

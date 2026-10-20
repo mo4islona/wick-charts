@@ -210,6 +210,7 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       background: config.tooltip?.background ?? defTooltipBg,
       textColor: fg,
       borderColor: config.tooltip?.borderColor ?? defTooltipBorder,
+      ...(config.tooltip?.valueColor ? { valueColor: config.tooltip.valueColor } : {}),
     },
     navigator: resolveNavigatorTheme({
       dark,

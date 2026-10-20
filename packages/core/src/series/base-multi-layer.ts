@@ -962,6 +962,12 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return total;
   }
 
+  hasOnlyWholeValues(): boolean {
+    const filled = this.stores.filter((store) => store.length > 0);
+
+    return filled.length > 0 && filled.every((store) => store.hasOnlyWholeValues());
+  }
+
   // --- TimeSeriesRenderer data queries --------------------------------------
 
   /** Earliest first-sample / latest last-sample across ALL layers, skipping

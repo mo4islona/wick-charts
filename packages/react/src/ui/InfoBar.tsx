@@ -9,8 +9,8 @@ import {
   buildLastSnapshots,
   formatHeaderX,
   formatRowValue,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
@@ -36,7 +36,8 @@ export interface InfoBarProps {
   /**
    * Custom formatter for every displayed number in the default UI. Called per
    * cell with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
-   * Defaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.
+   * Defaults: adaptive precision for ohlc/value (no decimals when a series is
+   * all whole numbers), compact (K/M/B/T) for volume.
    * Ignored when {@link children} is a render-prop.
    */
   format?: TooltipFormatter;
@@ -55,7 +56,7 @@ export interface InfoBarProps {
  * Pass a render-prop child for a custom layout — the built-in UI is used when
  * {@link children} is omitted.
  */
-export function InfoBar({ sort = 'none', format = formatTooltipValue, children }: InfoBarProps) {
+export function InfoBar({ sort = 'none', format, children }: InfoBarProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const crosshair = useCrosshairPosition(chart);
@@ -179,6 +180,7 @@ export function InfoBar({ sort = 'none', format = formatTooltipValue, children }
         {formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval })}
       </span>
       {snapshots.map((s) => {
+        const rowFormat = rowFormatter(chart, s, format);
         const isOHLC = 'open' in s.data;
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
@@ -186,14 +188,14 @@ export function InfoBar({ sort = 'none', format = formatTooltipValue, children }
           const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <LegendItem label="O" display={format(ohlc.open, 'open')} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="H" display={format(ohlc.high, 'high')} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="L" display={format(ohlc.low, 'low')} color={c} dim={theme.axis.textColor} />
-              <LegendItem label="C" display={format(ohlc.close, 'close')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="O" display={rowFormat(ohlc.open, 'open')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="H" display={rowFormat(ohlc.high, 'high')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="L" display={rowFormat(ohlc.low, 'low')} color={c} dim={theme.axis.textColor} />
+              <LegendItem label="C" display={rowFormat(ohlc.close, 'close')} color={c} dim={theme.axis.textColor} />
               {ohlc.volume != null && (
                 <LegendItem
                   label="V"
-                  display={format(ohlc.volume, 'volume')}
+                  display={rowFormat(ohlc.volume, 'volume')}
                   color={theme.axis.textColor}
                   dim={theme.axis.textColor}
                 />
@@ -208,7 +210,7 @@ export function InfoBar({ sort = 'none', format = formatTooltipValue, children }
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 6, height: 6, borderRadius: 1, background: s.color, flexShrink: 0 }} />
               <span style={{ color: s.color, fontWeight: 500 }}>
-                <NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} />
+                <NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} />
               </span>
             </span>
           );
@@ -225,7 +227,7 @@ export function InfoBar({ sort = 'none', format = formatTooltipValue, children }
               }}
             />
             <span style={{ color: s.color, fontWeight: 500 }}>
-              <NumberText text={formatRowValue(s, (v) => format(v, 'value'))} />
+              <NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} />
             </span>
           </span>
         );

@@ -204,4 +204,46 @@ describe('TimeSeriesStore', () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('hasOnlyWholeValues', () => {
+    const at = (time: number, value: number): Point => ({ time, value });
+
+    it('is false while empty and true for whole values', () => {
+      expect(makeStore().hasOnlyWholeValues()).toBe(false);
+      expect(makeStore([at(1, 237), at(2, 120)]).hasOnlyWholeValues()).toBe(true);
+    });
+
+    it('follows appends and last-point updates', () => {
+      const s = makeStore([at(1, 237), at(2, 120)]);
+      s.append(at(3, 73.5));
+      expect(s.hasOnlyWholeValues()).toBe(false);
+
+      s.updateLast(at(3, 74));
+      expect(s.hasOnlyWholeValues()).toBe(true);
+    });
+
+    it('turns true again once a trim drops the last fractional point', () => {
+      const s = makeStore([at(1, 0.5), at(2, 120), at(3, 73)]);
+      expect(s.hasOnlyWholeValues()).toBe(false);
+
+      s.trimStart(1);
+      expect(s.hasOnlyWholeValues()).toBe(true);
+    });
+
+    it('reads OHLC fields and ignores volume', () => {
+      const s = new TimeSeriesStore<{
+        time: number;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume: number;
+      }>();
+      s.setData([{ time: 1, open: 100, high: 110, low: 90, close: 105, volume: 1.25 }]);
+      expect(s.hasOnlyWholeValues()).toBe(true);
+
+      s.prepend([{ time: 0, open: 99.5, high: 101, low: 98, close: 100, volume: 2 }]);
+      expect(s.hasOnlyWholeValues()).toBe(false);
+    });
+  });
 });

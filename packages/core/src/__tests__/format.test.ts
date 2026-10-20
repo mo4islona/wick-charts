@@ -6,6 +6,7 @@ import {
   formatPriceAdaptive,
   formatSignificant,
   formatTooltipValue,
+  formatWholeTooltipValue,
 } from '../utils/format';
 
 describe('formatCompact', () => {
@@ -194,5 +195,18 @@ describe('formatTooltipValue', () => {
     [Number.NaN, 'close', '—'],
   ])('formatTooltipValue(%s, %s) -> %s', (input, field, expected) => {
     expect(formatTooltipValue(input, field as 'close')).toBe(expected);
+  });
+});
+
+describe('formatWholeTooltipValue', () => {
+  it.each<[number, string, string]>([
+    [237, 'value', '237'],
+    [73, 'value', '73'],
+    [-12, 'close', '-12'],
+    [0, 'value', '0'],
+    [26_900, 'volume', '26.90K'],
+    [12_000_000, 'value', '12.00M'],
+  ])('formatWholeTooltipValue(%s, %s) -> %s', (input, field, expected) => {
+    expect(formatWholeTooltipValue(input, field as 'value')).toBe(expected);
   });
 });
