@@ -109,6 +109,8 @@ export type {
 } from './navigator';
 // Navigator
 export { NavigatorController } from './navigator';
+export type { NumberFlowFormat, NumberFlowHandle, NumberFlowOptions } from './number-flow';
+export { mountNumberFlow, resolveNumberFlowFormat } from './number-flow';
 // Performance instrumentation
 export type {
   FrameKind,
@@ -344,7 +346,29 @@ export type {
 // Utils
 export { mixColors, sampleRamp } from './utils/color';
 export { deepEqual } from './utils/deep-equal';
-export type { TooltipField, TooltipFormatter, ValueFormatter } from './utils/format';
-export { formatCompact, formatPriceAdaptive } from './utils/format';
+export type {
+  CollapseZerosOptions,
+  SignificantFormatOptions,
+  TooltipField,
+  TooltipFormatter,
+  ValueFormatter,
+} from './utils/format';
+export {
+  collapseZeros,
+  formatCompact,
+  formatPriceAdaptive,
+  formatSignificant,
+  formatTooltipValue,
+} from './utils/format';
+export type { NumberPart, NumberPartType, ParseNumberOptions } from './utils/number-parts';
+export { parseNumberParts } from './utils/number-parts';
+export type { NumberRun, NumberRunKind, NumberRunOptions } from './utils/number-text';
+export {
+  NUMBER_MUTED_OPACITY,
+  NUMBER_SCRIPT_STYLE,
+  hasScriptDigits,
+  numberRuns,
+  renderNumberText,
+} from './utils/number-text';
 export type { TimeFormatOptions } from './utils/time';
 export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';

@@ -5063,11 +5063,11 @@
         },
         {
           "name": "format",
-          "type": "((value: number) => string) | Intl.NumberFormatOptions",
+          "type": "NumberFlowFormat",
           "optional": true,
-          "defaultValue": "to the current locale's\n`Intl.NumberFormat` when omitted",
+          "defaultValue": "to `formatSignificant`: leading zeros\ncollapse into a count",
           "deprecated": null,
-          "description": "Value-to-string formatter. Defaults to the current locale's\n`Intl.NumberFormat` when omitted. Pass the shared `formatCompact` /\n`formatPriceAdaptive` helpers or your own function to customize.\n\n`Intl.NumberFormatOptions` is also accepted (legacy) — it's routed\nthrough the built-in `Intl.NumberFormat` for back-compat with callers\nfrom before this prop was a function.",
+          "description": "Value-to-string formatter. Defaults to `formatSignificant`: leading zeros\ncollapse into a count (`0.0₅8123`), large values take a suffix (`1.235B`).\nPass `formatCompact` / `formatPriceAdaptive` or your own function to customize.\n\n`Intl.NumberFormatOptions` is also accepted (legacy) — it's routed\nthrough the built-in `Intl.NumberFormat` for back-compat with callers\nfrom before this prop was a function.",
           "see": []
         },
         {
@@ -5076,7 +5076,7 @@
           "optional": true,
           "defaultValue": "to `'en-US'`",
           "deprecated": null,
-          "description": "BCP 47 locale tag used by the default formatter. Defaults to `'en-US'`.",
+          "description": "BCP 47 locale tag. Gives the decimal separator of the formatted text; a\nlocale other than `'en-US'` without `format` formats with\n`Intl.NumberFormat`. Defaults to `'en-US'`.",
           "see": []
         },
         {
@@ -5086,6 +5086,15 @@
           "defaultValue": "to `350`",
           "deprecated": null,
           "description": "Per-digit spin animation duration in milliseconds. A value that arrives\nsooner than this after the previous one snaps instead. Defaults to `350`.",
+          "see": []
+        },
+        {
+          "name": "shrinkDelay",
+          "type": "number",
+          "optional": true,
+          "defaultValue": "to `0`",
+          "deprecated": null,
+          "description": "How long a character that left keeps its width before the number\nshrinks, in milliseconds. A value that moves back and forth across\n`99.99` / `100.01` then holds its width. Defaults to `0`.",
           "see": []
         },
         {
@@ -5103,7 +5112,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Inline style on the root `<span>`. Useful for `fontVariantNumeric: 'tabular-nums'`.",
+          "description": "Inline style on the root `<span>`.",
           "see": []
         }
       ]

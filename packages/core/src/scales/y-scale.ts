@@ -1,5 +1,5 @@
 import type { YRange, YScaleTransform } from '../types';
-import { type ValueFormatter, formatCompact } from '../utils/format';
+import { type ValueFormatter, collapseZeros, formatCompact } from '../utils/format';
 import { crispCenterOffset } from '../utils/pixel-grid';
 import { AxisTickTracker } from './tick-tracker';
 
@@ -318,7 +318,8 @@ export class YScale {
     // (e.g. degenerate range) — unlikely but keeps the call safe.
     const decimals = interval != null && interval > 0 ? Math.max(0, -Math.floor(Math.log10(interval))) : 1;
 
-    return value.toFixed(decimals);
+    // A low-priced token's ticks keep their width: 0.00000815 reads 0.0₅815.
+    return collapseZeros(value.toFixed(decimals));
   }
 
   private resolveTicks(): void {

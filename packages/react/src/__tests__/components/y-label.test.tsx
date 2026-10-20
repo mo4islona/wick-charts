@@ -212,7 +212,7 @@ describe('<YLabel> default precision', () => {
       { width: 400, height: 240 },
     );
 
-    expect(formatted).toBe('0.00000094');
+    expect(formatted).toBe('0.0₆94');
 
     mounted.unmount();
   });

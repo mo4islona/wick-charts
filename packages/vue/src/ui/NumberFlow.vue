@@ -1,118 +1,79 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import {
+  type NumberFlowFormat,
+  type NumberFlowHandle,
+  mountNumberFlow,
+  resolveNumberFlowFormat,
+} from '@wick-charts/core';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = withDefaults(
   defineProps<{
     value: number;
     /**
-     * Value-to-string formatter. Defaults to the current locale's
-     * `Intl.NumberFormat` when omitted. `Intl.NumberFormatOptions` is also
-     * accepted (legacy) — routed through the built-in `Intl.NumberFormat`.
+     * Value-to-string formatter. Defaults to `formatSignificant`: leading
+     * zeros collapse into a count (`0.0₅8123`), large values take a suffix
+     * (`1.235B`). `Intl.NumberFormatOptions` is also accepted (legacy) —
+     * routed through the built-in `Intl.NumberFormat`.
      */
-    format?: ((value: number) => string) | Intl.NumberFormatOptions;
+    format?: NumberFlowFormat;
+    /** BCP 47 locale tag. Gives the decimal separator; a locale other than `'en-US'` without `format` formats with `Intl.NumberFormat`. */
     locale?: string;
     /** Per-digit spin duration in ms. A value that arrives sooner than this after the previous one snaps instead. */
     spinDuration?: number;
+    /** How long a character that left keeps its width before the number shrinks, in ms. */
+    shrinkDelay?: number;
   }>(),
   {
     locale: 'en-US',
     spinDuration: 350,
+    shrinkDelay: 0,
   },
 );
 
-const mounted = ref(false);
+const resolved = computed(() => resolveNumberFlowFormat(props.format, props.locale));
+const text = computed(() => resolved.value.format(props.value));
+
+// The engine owns the root's children; Vue only renders the empty root.
+const root = ref<HTMLSpanElement | null>(null);
+let flow: NumberFlowHandle | null = null;
+
 onMounted(() => {
-  mounted.value = true;
+  if (root.value === null) return;
+
+  flow = mountNumberFlow(root.value, {
+    spinDuration: props.spinDuration,
+    shrinkDelay: props.shrinkDelay,
+    decimal: resolved.value.decimal,
+  });
+  flow.update(text.value, props.value);
 });
 
-const effectiveFormat = computed<(v: number) => string>(() => {
-  const f = props.format;
-  if (typeof f === 'function') return f;
-  const nf = new Intl.NumberFormat(props.locale, typeof f === 'object' ? f : undefined);
-
-  return (v: number) => nf.format(v);
+onBeforeUnmount(() => {
+  flow?.destroy();
+  flow = null;
 });
 
-interface CharPart {
-  type: 'digit' | 'symbol';
-  value: string;
-}
-
-const parts = computed<CharPart[]>(() => {
-  const formatted = effectiveFormat.value(props.value);
-  const result: CharPart[] = [];
-  for (const char of formatted) {
-    if (char >= '0' && char <= '9') {
-      result.push({ type: 'digit', value: char });
-    } else {
-      result.push({ type: 'symbol', value: char });
-    }
-  }
-  return result;
-});
-
-// A spin retargeted mid-turn shows two half digits, so values faster than a spin snap.
-const duration = ref(props.spinDuration);
-let changedAt = Number.NEGATIVE_INFINITY;
 watch(
-  () => effectiveFormat.value(props.value),
-  () => {
-    const now = performance.now();
-    const tooFast = now - changedAt < props.spinDuration;
-    changedAt = now;
-    duration.value = tooFast ? 0 : props.spinDuration;
+  () => [props.spinDuration, props.shrinkDelay, resolved.value.decimal] as const,
+  ([spinDuration, shrinkDelay, decimal]) => {
+    flow?.setOptions({ spinDuration, shrinkDelay, decimal });
   },
 );
 
-const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+watch([text, () => props.value], ([nextText, nextValue]) => {
+  flow?.update(nextText, nextValue);
+});
 </script>
 
 <template>
   <span
+    ref="root"
     :style="{
       display: 'inline-flex',
       fontVariantNumeric: 'tabular-nums',
       lineHeight: 1.2,
+      whiteSpace: 'nowrap',
     }"
-  >
-    <template v-for="(part, i) in parts" :key="i">
-      <!-- Digit slot with spinner -->
-      <span
-        v-if="part.type === 'digit'"
-        :style="{
-          display: 'inline-block',
-          height: '1.2em',
-          overflow: 'hidden',
-          position: 'relative',
-        }"
-      >
-        <span
-          :style="{
-            display: 'flex',
-            flexDirection: 'column',
-            transform: 'translateY(' + (-parseInt(part.value) * 1.2) + 'em)',
-            transition: mounted && duration > 0
-              ? 'transform ' + duration + 'ms cubic-bezier(0.16, 1, 0.3, 1)'
-              : 'none',
-          }"
-        >
-          <span
-            v-for="d in digits"
-            :key="d"
-            :style="{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '1.2em',
-            }"
-          >{{ d }}</span>
-        </span>
-      </span>
-      <!-- Symbol (non-digit) -->
-      <span
-        v-else
-        :style="{ display: 'inline-block' }"
-      >{{ part.value }}</span>
-    </template>
-  </span>
+  />
 </template>

@@ -12,6 +12,7 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     BadgeAnimator,
     type ValueFormatter,
     type YLabelAnimate,
+    collapseZeros,
     firstVisibleValue,
     prefersReducedMotion,
     resolveAnimate,
@@ -208,11 +209,14 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
       useGrouping: false,
     });
 
-    return (v: number) => nf.format(v);
+    return (v: number) => collapseZeros(nf.format(v));
   })();
   // `<YAxis format>` puts its formatter on the scale; the badge follows it.
   $: scaleFormat = yScale && bump >= 0 ? yScale.getFormat() : null;
   $: effectiveFormat = format ?? scaleFormat ?? intlFallback;
+
+  /** A price that moves back and forth across `99.99` / `100.01` keeps the badge width instead of breathing. */
+  const BADGE_SHRINK_DELAY = 1000;
 </script>
 
 {#if last !== null && chart && theme}
@@ -233,7 +237,7 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
     <div
       style="position:absolute;{side}:4px;top:{y}px;transform:translateY(-50%);opacity:{opacity};pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.yLabel.fontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
     >
-      <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} />
+      <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} shrinkDelay={BADGE_SHRINK_DELAY} />
     </div>
   {/if}
 {/if}

@@ -19,6 +19,7 @@ import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { YAxisPosition } from '../types';
 import { clamp } from '../utils/math';
+import { renderNumberText } from '../utils/number-text';
 
 export interface MountAxisLabelsOptions {
   readonly chart: ChartInstance;
@@ -46,6 +47,8 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
   const widths = new WeakMap<HTMLSpanElement, { key: string; width: number }>();
+  // The formatted label per span: `textContent` loses the subscript glyphs once they render as spans.
+  const texts = new WeakMap<HTMLSpanElement, string>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
   // A reference change in `sync` triggers a one-shot restyle of reused spans.
   let appliedTheme: ChartTheme | null = null;
@@ -108,7 +111,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // Measured once per text, font and width cap: reading layout on every animation frame would force a reflow each time.
   function labelWidth(el: HTMLSpanElement): number {
     const { fontSize, fontFamily, maxWidth } = el.style;
-    const key = `${el.textContent ?? ''}|${fontSize}|${fontFamily}|${maxWidth}`;
+    const key = `${texts.get(el) ?? ''}|${fontSize}|${fontFamily}|${maxWidth}`;
     const cached = widths.get(el);
     if (cached !== undefined && cached.key === key) return cached.width;
 
@@ -150,9 +153,16 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     return clamp((labelTop - header + labelHeight) / labelHeight, 0, 1);
   }
 
+  function setText(el: HTMLSpanElement, text: string): void {
+    if (texts.get(el) === text) return;
+
+    texts.set(el, text);
+    renderNumberText(el, text, { mute: false });
+  }
+
   function createSpan(value: number, tickInterval: number, theme: ChartTheme): HTMLSpanElement {
     const el = document.createElement('span');
-    el.textContent = formatLabel(value, tickInterval);
+    setText(el, formatLabel(value, tickInterval));
     el.style.position = 'absolute';
     el.style.userSelect = 'none';
     applyThemeStyles(el, theme);
@@ -209,8 +219,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
         el = createSpan(value, tickInterval, theme);
         spans.set(value, el);
       } else {
-        const next = formatLabel(value, tickInterval);
-        if (el.textContent !== next) el.textContent = next;
+        setText(el, formatLabel(value, tickInterval));
         if (themeChanged) applyThemeStyles(el, theme);
         if (sideChanged) applyYAnchor(el, side);
       }

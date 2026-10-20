@@ -7,16 +7,16 @@ import {
   type TooltipFormatter,
   buildHoverSnapshots,
   buildLastSnapshots,
-  formatCompact,
   formatHeaderX,
-  formatPriceAdaptive,
   formatRowValue,
+  formatTooltipValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
 import { useTheme } from '../ThemeContext';
+import { NumberText } from './NumberText';
 import { markSlot } from './slot';
 import type { TooltipSort } from './Tooltip';
 
@@ -48,10 +48,6 @@ export interface InfoBarProps {
   children?: (ctx: InfoBarRenderContext) => ReactNode;
 }
 
-/** Default InfoBar formatter — adaptive for ohlc/value, compact for volume. */
-const defaultInfoBarFormat: TooltipFormatter = (v, field) =>
-  field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
-
 /**
  * Compact OHLC/series info bar rendered as a flex row above the chart canvas.
  * Pairs with {@link Tooltip} (which then only renders its floating near-cursor part).
@@ -59,7 +55,7 @@ const defaultInfoBarFormat: TooltipFormatter = (v, field) =>
  * Pass a render-prop child for a custom layout — the built-in UI is used when
  * {@link children} is omitted.
  */
-export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children }: InfoBarProps) {
+export function InfoBar({ sort = 'none', format = formatTooltipValue, children }: InfoBarProps) {
   const chart = useChartInstance();
   const theme = useTheme();
   const crosshair = useCrosshairPosition(chart);
@@ -212,7 +208,7 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
               <span style={{ width: 6, height: 6, borderRadius: 1, background: s.color, flexShrink: 0 }} />
               <span style={{ color: s.color, fontWeight: 500 }}>
-                {format(band.low, 'low')} – {format(band.high, 'high')}
+                <NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} />
               </span>
             </span>
           );
@@ -228,7 +224,9 @@ export function InfoBar({ sort = 'none', format = defaultInfoBarFormat, children
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: s.color, fontWeight: 500 }}>{formatRowValue(s, (v) => format(v, 'value'))}</span>
+            <span style={{ color: s.color, fontWeight: 500 }}>
+              <NumberText text={formatRowValue(s, (v) => format(v, 'value'))} />
+            </span>
           </span>
         );
       })}
@@ -240,7 +238,9 @@ function LegendItem({ label, display, color, dim }: { label: string; display: st
   return (
     <>
       <span style={{ color: dim, opacity: 0.5, marginLeft: 5 }}>{label}</span>
-      <span style={{ color, fontWeight: 500, marginLeft: 2 }}>{display}</span>
+      <span style={{ color, fontWeight: 500, marginLeft: 2 }}>
+        <NumberText text={display} />
+      </span>
     </>
   );
 }

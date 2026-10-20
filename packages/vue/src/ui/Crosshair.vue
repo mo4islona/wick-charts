@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
+import NumberText from './NumberText.vue';
 
 const chart = useChartInstance();
 const position = useCrosshairPosition(chart);
@@ -93,7 +94,7 @@ const labelStyle = computed(() => ({
         ...labelStyle,
       }"
     >
-      {{ defaultLabel }}
+      <NumberText :text="defaultLabel" :mute="false" />
     </div>
     <div
       v-for="label in scaleLabels"
@@ -106,7 +107,7 @@ const labelStyle = computed(() => ({
         ...labelStyle,
       }"
     >
-      {{ label.text }}
+      <NumberText :text="label.text" :mute="false" />
     </div>
     <!-- Time label on bottom axis -->
     <div

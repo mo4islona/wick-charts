@@ -54,7 +54,7 @@ interface CandleSettings {
 // detail at once. Generate the full buffers once at module level and slice
 // per-viewport inside the page component.
 const steadyDataFull = generateOHLCData(300, 42000, DEMO_INTERVAL);
-const volatileDataFull = generateOHLCData(300, 100, DEMO_INTERVAL);
+const lowPriceDataFull = generateOHLCData(300, 0.0000081, DEMO_INTERVAL);
 const trendingDataFull = generateOHLCData(300, 1500, DEMO_INTERVAL);
 
 function CandleChart({
@@ -197,14 +197,14 @@ const SERIES_SECTION: SectionSpec = {
 
 export function CandlestickPage({ theme }: { theme: ChartTheme }) {
   const mobile = useIsMobile();
-  const { steadyData, volatileData, trendingData } = useMemo(() => {
+  const { steadyData, lowPriceData, trendingData } = useMemo(() => {
     const steady = mobile ? 20 : 50;
-    const volatile = mobile ? 60 : 120;
+    const lowPrice = mobile ? 60 : 120;
     const trending = mobile ? 150 : 300;
 
     return {
       steadyData: steadyDataFull.slice(-steady),
-      volatileData: volatileDataFull.slice(-volatile),
+      lowPriceData: lowPriceDataFull.slice(-lowPrice),
       trendingData: trendingDataFull.slice(-trending),
     };
   }, [mobile]);
@@ -237,11 +237,11 @@ export function CandlestickPage({ theme }: { theme: ChartTheme }) {
           </Cell>
           <Cell theme={props.theme}>
             <CandleChart
-              key={`v-${props.streaming}-${props.perfHudVisible}-${mobile}`}
+              key={`p-${props.streaming}-${props.perfHudVisible}-${mobile}`}
               {...props}
-              data={volatileData}
-              title="DOGE/USD"
-              sub="High volatility · 1m"
+              data={lowPriceData}
+              title="PEPE/USDT"
+              sub="Low price · 1m"
             />
           </Cell>
           <Cell theme={props.theme}>
