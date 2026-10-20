@@ -5,6 +5,27 @@ interface StoreEvents {
   update: () => void;
 }
 
+/** The fields that carry a point's value; `time`, `x` and `volume` are not values. */
+const VALUE_FIELDS = ['value', 'open', 'high', 'low', 'close'] as const;
+
+function hasFraction(point: object): boolean {
+  for (const field of VALUE_FIELDS) {
+    const value = (point as Record<string, unknown>)[field];
+    if (typeof value === 'number' && Number.isFinite(value) && !Number.isInteger(value)) return true;
+  }
+
+  return false;
+}
+
+function countFractions(points: readonly object[]): number {
+  let count = 0;
+  for (const point of points) {
+    if (hasFraction(point)) count++;
+  }
+
+  return count;
+}
+
 export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<StoreEvents> {
   private data: T[] = [];
   private _visible = true;
@@ -16,6 +37,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   // Leftmost `from` read since the last trim: older exited points are out of every view since then.
   private lowestReadFrom = Number.POSITIVE_INFINITY;
   private appendedSinceTrim = 0;
+  // Stored points with a fractional value, kept in step with every mutation.
+  private fractionalPoints = 0;
   // Dev-only, warn-once-per-instance: these two conditions are almost always
   // a persistent bug in the caller's feed (not a one-off), so a per-call
   // warning would just spam the console on every tick.
@@ -48,6 +71,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     }
 
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
+    this.fractionalPoints = countFractions(this.data);
     this.exited = [];
     this.appendedSinceTrim = 0;
     this.cachedRange = null;
@@ -68,6 +92,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       return;
     }
     this.data.push(point);
+    if (hasFraction(point)) this.fractionalPoints++;
     this.appendedSinceTrim++;
     this.cachedRange = null;
     this.emit('update');
@@ -75,6 +100,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   updateLast(point: T): void {
     if (this.data.length === 0) return;
+    if (hasFraction(this.data[this.data.length - 1])) this.fractionalPoints--;
+    if (hasFraction(point)) this.fractionalPoints++;
     this.data[this.data.length - 1] = point;
     this.cachedRange = null;
     this.emit('update');
@@ -91,6 +118,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     if (points.length === 0) return;
 
     this.data = points.concat(this.data);
+    this.fractionalPoints += countFractions(points);
     this.exited = [];
     this.cachedRange = null;
     this.emit('update');
@@ -105,6 +133,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     const sliding = dropped.slice(Math.max(0, dropped.length - this.appendedSinceTrim));
     const exited = sliding.length === dropped.length ? this.exited.concat(sliding) : sliding;
     this.data = this.data.slice(count);
+    this.fractionalPoints -= countFractions(dropped);
     this.exited = this.reachedByView(exited);
     this.appendedSinceTrim = 0;
     this.lowestReadFrom = Number.POSITIVE_INFINITY;
@@ -167,6 +196,11 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   isEmpty(): boolean {
     return this.data.length === 0;
+  }
+
+  /** `true` when there are points and every value is a whole number. */
+  hasOnlyWholeValues(): boolean {
+    return this.data.length > 0 && this.fractionalPoints === 0;
   }
 
   findNearest(time: number, maxDist: number): T | null {

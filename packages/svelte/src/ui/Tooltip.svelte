@@ -12,8 +12,8 @@ import {
   computeTooltipPosition,
   formatRowValue,
   formatTooltipHeader,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
@@ -28,7 +28,7 @@ export let sort: SnapshotSort = 'none';
  * provided. Called with the field hint
  * (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
  */
-export let format: TooltipFormatter = formatTooltipValue;
+export let format: TooltipFormatter | undefined = undefined;
 
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
@@ -177,22 +177,23 @@ $: floatingPos = (() => {
       </div>
 
       {#each snapshots as s (s.id)}
+        {@const rowFormat = rowFormatter(chart, s, format)}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
-          {@const valColor = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
+          {@const valColor = theme.tooltip.valueColor ?? resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">
             <span style="opacity:0.5;">Open</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={format(ohlc.open, 'open')} /></span>
+            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={rowFormat(ohlc.open, 'open')} /></span>
             <span style="opacity:0.5;">High</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={format(ohlc.high, 'high')} /></span>
+            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={rowFormat(ohlc.high, 'high')} /></span>
             <span style="opacity:0.5;">Low</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={format(ohlc.low, 'low')} /></span>
+            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={rowFormat(ohlc.low, 'low')} /></span>
             <span style="opacity:0.5;">Close</span>
-            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={format(ohlc.close, 'close')} /></span>
+            <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={rowFormat(ohlc.close, 'close')} /></span>
             {#if ohlc.volume != null}
               <span style="opacity:0.5;">Volume</span>
-              <span style="font-weight:600;color:{theme.tooltip.textColor};text-align:right;"><NumberText text={format(ohlc.volume, 'volume')} /></span>
+              <span style="font-weight:600;color:{theme.tooltip.textColor};text-align:right;"><NumberText text={rowFormat(ohlc.volume, 'volume')} /></span>
             {/if}
           </div>
         {:else if 'high' in s.data}
@@ -200,13 +201,13 @@ $: floatingPos = (() => {
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:2px;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Range'}</span>
-            <span style="font-weight:600;color:{s.color};white-space:nowrap;"><NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} /></span>
+            <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};white-space:nowrap;"><NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} /></span>
           </div>
         {:else}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
-            <span style="font-weight:600;color:{s.color};"><NumberText text={formatRowValue(s, (v) => format(v, 'value'))} /></span>
+            <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};"><NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} /></span>
           </div>
         {/if}
       {/each}

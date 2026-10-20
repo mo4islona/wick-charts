@@ -247,6 +247,7 @@ export {
   formatHeaderX,
   formatRowValue,
   formatTooltipHeader,
+  rowFormatter,
 } from './snapshots';
 // Testing — a working canvas 2D context + draw-call recorder for a
 // consumer's own jsdom/happy-dom test suite. Not part of the charting API;
@@ -360,6 +361,7 @@ export {
   formatPriceAdaptive,
   formatSignificant,
   formatTooltipValue,
+  formatWholeTooltipValue,
 } from './utils/format';
 export type { NumberPart, NumberPartType, ParseNumberOptions } from './utils/number-parts';
 export { parseNumberParts } from './utils/number-parts';

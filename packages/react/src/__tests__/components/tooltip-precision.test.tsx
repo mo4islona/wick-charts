@@ -1,4 +1,4 @@
-import { CandlestickSeries, InfoBar, LineSeries, Tooltip } from '@wick-charts/react';
+import { BarSeries, CandlestickSeries, InfoBar, LineSeries, Tooltip, createTheme } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
@@ -118,5 +118,61 @@ describe('Tooltip / InfoBar precision defaults', () => {
     const bar = mounted.container.querySelector('[data-tooltip-legend]');
     expect(bar).not.toBeNull();
     expect(bar!.textContent ?? '').toMatch(/<\d+>/);
+  });
+
+  function hoverTooltipText(m: ReturnType<typeof mountChart>): string {
+    m.dispatchMouse('mousemove', { clientX: 400, clientY: 200 }, m.overlayCanvas);
+    m.flushScheduler();
+    const boxes = Array.from(m.container.querySelectorAll<HTMLElement>('div')).filter(
+      (el) => el.style.position === 'absolute' && el.style.zIndex === '10',
+    );
+
+    return boxes.at(-1)?.textContent ?? '';
+  }
+
+  const counts = (values: number[]) => values.map((value, i) => ({ time: (i + 1) * 60_000, value }));
+
+  it('Tooltip prints a whole-number series without decimals', () => {
+    mounted = mountChart(
+      <>
+        <BarSeries data={counts([237, 120, 73, 186, 305])} />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    const text = hoverTooltipText(mounted);
+    expect(text).toMatch(/(237|120|73|186|305)$/);
+    expect(text).not.toMatch(/\d\.\d/);
+  });
+
+  it('Tooltip keeps fixed decimals once the series holds a fraction', () => {
+    mounted = mountChart(
+      <>
+        <BarSeries data={counts([237, 120.5, 73, 186, 305])} />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    expect(hoverTooltipText(mounted)).toMatch(/\d\.\d{2}/);
+  });
+
+  it('paints values in `theme.tooltip.valueColor`; the swatch keeps the series color', () => {
+    const theme = createTheme({ background: '#ffffff', tooltip: { valueColor: '#123456' } }).theme;
+    mounted = mountChart(
+      <>
+        <LineSeries data={{ color: '#d4d4d4', data: counts([1.5, 2, 3, 4, 5]) }} />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400, theme },
+    );
+    hoverTooltipText(mounted);
+
+    const spans = Array.from(mounted.container.querySelectorAll<HTMLElement>('span'));
+    const value = spans.find((el) => el.style.fontWeight === '600');
+    const swatch = spans.find((el) => el.style.borderRadius === '50%');
+    expect(value?.style.color).toMatch(/#123456|rgb\(18, 52, 86\)/);
+    expect(swatch?.style.background).toMatch(/#d4d4d4|rgb\(212, 212, 212\)/);
   });
 });

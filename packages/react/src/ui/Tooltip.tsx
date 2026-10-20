@@ -11,8 +11,8 @@ import {
   computeTooltipPosition,
   formatRowValue,
   formatTooltipHeader,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 
 export { computeTooltipPosition } from '@wick-charts/core';
@@ -43,7 +43,8 @@ export interface TooltipProps {
   /**
    * Custom formatter for every displayed number in the default UI. Called per
    * row with the field hint (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
-   * Defaults: adaptive precision for ohlc/value, compact (K/M/B/T) for volume.
+   * Defaults: adaptive precision for ohlc/value (no decimals when a series is
+   * all whole numbers), compact (K/M/B/T) for volume.
    * Ignored when {@link children} is a render-prop.
    */
   format?: TooltipFormatter;
@@ -63,7 +64,7 @@ export interface TooltipProps {
  * Hover-only: without a crosshair position, the component renders `null`.
  * The companion {@link InfoBar} shows last-known values when no hover is active.
  */
-export function Tooltip({ sort = 'none', format = formatTooltipValue, children }: TooltipProps) {
+export function Tooltip({ sort = 'none', format, children }: TooltipProps) {
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
@@ -236,7 +237,7 @@ function FloatingTooltip({
   chartHeight: number;
   theme: ChartTheme;
   dataInterval: number;
-  format: TooltipFormatter;
+  format: TooltipFormatter | undefined;
 }) {
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
@@ -306,19 +307,22 @@ function FloatingTooltip({
       </div>
 
       {snapshots.map((s) => {
+        const rowFormat = rowFormatter(chart, s, format);
         const isOHLC = 'open' in s.data;
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
           const isUp = ohlc.close >= ohlc.open;
-          const valColor = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
+          const valColor =
+            theme.tooltip.valueColor ??
+            resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
-              <TooltipRow label="Open" color={valColor} display={format(ohlc.open, 'open')} />
-              <TooltipRow label="High" color={valColor} display={format(ohlc.high, 'high')} />
-              <TooltipRow label="Low" color={valColor} display={format(ohlc.low, 'low')} />
-              <TooltipRow label="Close" color={valColor} display={format(ohlc.close, 'close')} />
+              <TooltipRow label="Open" color={valColor} display={rowFormat(ohlc.open, 'open')} />
+              <TooltipRow label="High" color={valColor} display={rowFormat(ohlc.high, 'high')} />
+              <TooltipRow label="Low" color={valColor} display={rowFormat(ohlc.low, 'low')} />
+              <TooltipRow label="Close" color={valColor} display={rowFormat(ohlc.close, 'close')} />
               {ohlc.volume != null && (
-                <TooltipRow label="Volume" color={theme.tooltip.textColor} display={format(ohlc.volume, 'volume')} />
+                <TooltipRow label="Volume" color={theme.tooltip.textColor} display={rowFormat(ohlc.volume, 'volume')} />
               )}
             </div>
           );
@@ -341,8 +345,8 @@ function FloatingTooltip({
               >
                 {s.label ?? 'Range'}
               </span>
-              <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
-                <NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} />
+              <span style={{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }}>
+                <NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} />
               </span>
             </div>
           );
@@ -370,8 +374,8 @@ function FloatingTooltip({
             >
               {s.label ?? 'Value'}
             </span>
-            <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
-              <NumberText text={formatRowValue(s, (v) => format(v, 'value'))} />
+            <span style={{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }}>
+              <NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} />
             </span>
           </div>
         );

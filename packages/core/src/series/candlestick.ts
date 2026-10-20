@@ -509,6 +509,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     return this.store.last() ?? null;
   }
 
+  hasOnlyWholeValues(): boolean {
+    return this.store.hasOnlyWholeValues();
+  }
+
   getSecondLastDataPoint(): OHLCData | null {
     const all = this.store.getAll();
 

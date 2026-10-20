@@ -9,8 +9,8 @@ import {
   buildLastSnapshots,
   formatHeaderX,
   formatRowValue,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
@@ -29,9 +29,10 @@ defineSlots<{
 
 // Use computed fallbacks — `withDefaults` is inconsistent for function props.
 const effectiveSort = computed<SnapshotSort>(() => props.sort ?? 'none');
-const effectiveFormat = computed<TooltipFormatter>(() => props.format ?? formatTooltipValue);
 
 const chart = useChartInstance();
+// A row's formatter: the `format` prop, or the default that prints a whole-number series without decimals.
+const formatFor = (s: SeriesSnapshot): TooltipFormatter => rowFormatter(chart, s, props.format);
 const crosshair = useCrosshairPosition(chart);
 const theme = inject(ThemeKey);
 const anchor = inject(InfoBarAnchorKey);
@@ -175,13 +176,13 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
                   marginLeft: '2px',
                 }"
               >
-                <NumberText :text="effectiveFormat(cell.val, cell.field)" />
+                <NumberText :text="formatFor(s)(cell.val, cell.field)" />
               </span>
             </template>
             <template v-if="(s.data as OHLCData).volume != null">
               <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
               <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
-                <NumberText :text="effectiveFormat((s.data as OHLCData).volume!, 'volume')" />
+                <NumberText :text="formatFor(s)((s.data as OHLCData).volume!, 'volume')" />
               </span>
             </template>
           </span>
@@ -196,8 +197,8 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               }"
             />
             <span :style="{ color: s.color, fontWeight: 500 }">
-              <NumberText :text="effectiveFormat((s.data as BandPoint).low, 'low')" /> –
-              <NumberText :text="effectiveFormat((s.data as BandPoint).high, 'high')" />
+              <NumberText :text="formatFor(s)((s.data as BandPoint).low, 'low')" /> –
+              <NumberText :text="formatFor(s)((s.data as BandPoint).high, 'high')" />
             </span>
           </span>
           <span v-else :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
@@ -211,7 +212,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               }"
             />
             <span :style="{ color: s.color, fontWeight: 500 }">
-              <NumberText :text="formatRowValue(s, (v) => effectiveFormat(v, 'value'))" />
+              <NumberText :text="formatRowValue(s, (v) => formatFor(s)(v, 'value'))" />
             </span>
           </span>
         </template>

@@ -2460,6 +2460,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return entry.renderer.getLastDataPoint();
   }
 
+  /**
+   * `true` when the series holds data and every value in it is a whole number
+   * (volume aside). The default Tooltip / InfoBar format then prints no decimals.
+   */
+  hasOnlyWholeValues(seriesId: string): boolean {
+    const entry = this.#series.find((s) => s.id === seriesId);
+
+    return entry?.renderer.hasOnlyWholeValues?.() ?? false;
+  }
+
   /** Find the data point closest to the given timestamp within one data interval. */
   getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);

@@ -130,7 +130,7 @@ Placed as children of `ChartContainer`.
 
 - `formatSignificant(v, { digits?, collapseZeros?, compactFrom?, trimZeros? })` keeps the digits that carry the value: `0.00000812` → `0.0₅812`, `1234567890` → `1.235B`, `5.4e15` → `5.4×10¹⁵`, and `68,432.17` in between. The `NumberFlow` default.
 - `collapseZeros(text)` collapses the leading zeros of any formatted string: `0.000008123` → `0.0₅8123`.
-- `formatTooltipValue` is the `Tooltip` / `InfoBar` default: compact volume, prices with fixed digits so a live row keeps its width.
+- `formatTooltipValue` is the `Tooltip` / `InfoBar` default: compact volume, prices with fixed digits so a live row keeps its width. A series whose values are all whole numbers prints them without decimals (`237`, not `237.00`).
 - `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision).
 
 Y-axis ticks, the `YLabel` badge, the crosshair label, `Tooltip` and `InfoBar` collapse leading zeros by default, so a low-priced token (`0.0000081`) needs no custom `format`. The output stays a plain string with Unicode subscript / superscript digits; the built-in overlays draw those digits at a smaller size.
@@ -209,6 +209,8 @@ const custom = createTheme({
 });
 const preset = dracula; // { name, theme, dark, fontUrl: string | null, backgroundImage?, backgroundSize? }
 ```
+
+`theme.tooltip.valueColor` (optional) paints tooltip values in one color instead of each series color — set it when a series color is too faint to read on the tooltip background; the swatch keeps the series color.
 
 React also has `<ThemeProvider value={theme}>` for global theming.
 

@@ -1218,6 +1218,12 @@ export class BandRenderer implements TimeSeriesRenderer {
     return total;
   }
 
+  hasOnlyWholeValues(): boolean {
+    const filled = this.#layers.filter((layer) => layer.store.length > 0);
+
+    return filled.length > 0 && filled.every((layer) => layer.store.hasOnlyWholeValues());
+  }
+
   getTimeBounds(): { first: number; last: number } | null {
     let first = Infinity;
     let last = -Infinity;

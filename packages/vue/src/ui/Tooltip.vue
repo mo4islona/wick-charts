@@ -9,8 +9,8 @@ import {
   computeTooltipPosition,
   formatRowValue,
   formatTooltipHeader,
-  formatTooltipValue,
   resolveCandlestickBodyColor,
+  rowFormatter,
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
 
@@ -31,9 +31,10 @@ defineSlots<{
 // treats the default as a factory, sometimes as the value). Use a computed
 // fallback instead.
 const effectiveSort = computed<SnapshotSort>(() => props.sort ?? 'none');
-const effectiveFormat = computed<TooltipFormatter>(() => props.format ?? formatTooltipValue);
 
 const chart = useChartInstance();
+// A row's formatter: the `format` prop, or the default that prints a whole-number series without decimals.
+const formatFor = (s: SeriesSnapshot): TooltipFormatter => rowFormatter(chart, s, props.format);
 const crosshair = useCrosshairPosition(chart);
 
 // `bump` re-runs computed values on any overlay-relevant chart mutation.
@@ -217,19 +218,21 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
           <span
             :style="{
               fontWeight: 600,
-              color: resolveCandlestickBodyColor(
-                (s.data as OHLCData).close >= (s.data as OHLCData).open
-                  ? theme.candlestick.up.body
-                  : theme.candlestick.down.body,
-              ),
+              color:
+                theme.tooltip.valueColor ??
+                resolveCandlestickBodyColor(
+                  (s.data as OHLCData).close >= (s.data as OHLCData).open
+                    ? theme.candlestick.up.body
+                    : theme.candlestick.down.body,
+                ),
               textAlign: 'right',
             }"
-          ><NumberText :text="effectiveFormat(row.val, row.field)" /></span>
+          ><NumberText :text="formatFor(s)(row.val, row.field)" /></span>
         </template>
         <template v-if="(s.data as OHLCData).volume != null">
           <span :style="{ opacity: 0.5 }">Volume</span>
           <span :style="{ fontWeight: 600, color: theme.tooltip.textColor, textAlign: 'right' }">
-            <NumberText :text="effectiveFormat((s.data as OHLCData).volume!, 'volume')" />
+            <NumberText :text="formatFor(s)((s.data as OHLCData).volume!, 'volume')" />
           </span>
         </template>
       </div>
@@ -256,9 +259,9 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
             whiteSpace: 'nowrap',
           }"
         >{{ s.label ?? 'Range' }}</span>
-        <span :style="{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }">
-          <NumberText :text="effectiveFormat((s.data as BandPoint).low, 'low')" /> –
-          <NumberText :text="effectiveFormat((s.data as BandPoint).high, 'high')" />
+        <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }">
+          <NumberText :text="formatFor(s)((s.data as BandPoint).low, 'low')" /> –
+          <NumberText :text="formatFor(s)((s.data as BandPoint).high, 'high')" />
         </span>
       </div>
       <div v-else :style="{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }">
@@ -272,8 +275,8 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
           }"
         />
         <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
-        <span :style="{ fontWeight: 600, color: s.color }">
-          <NumberText :text="formatRowValue(s, (v) => effectiveFormat(v, 'value'))" />
+        <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color }">
+          <NumberText :text="formatRowValue(s, (v) => formatFor(s)(v, 'value'))" />
         </span>
       </div>
     </template>

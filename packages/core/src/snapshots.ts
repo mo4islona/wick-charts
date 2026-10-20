@@ -1,6 +1,7 @@
 import type { ChartInstance } from './chart';
 import type { LayerSnapshot } from './series/types';
 import type { BandPoint, OHLCData, TimePoint } from './types';
+import { type TooltipFormatter, formatTooltipValue, formatWholeTooltipValue } from './utils/format';
 import { type SeriesPoint, isGapPoint, pointValue } from './utils/point';
 import { formatDate } from './utils/time';
 
@@ -257,6 +258,21 @@ export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): str
   if (repeatsDate) return date;
 
   return `${date} ${x}`;
+}
+
+/**
+ * The formatter for one Tooltip / InfoBar row: `format` when the caller passed
+ * one, else {@link formatTooltipValue} — without decimals when every value of
+ * the row's series is a whole number.
+ */
+export function rowFormatter(
+  chart: ChartInstance,
+  snapshot: SeriesSnapshot,
+  format: TooltipFormatter | undefined,
+): TooltipFormatter {
+  if (format) return format;
+
+  return chart.hasOnlyWholeValues(snapshot.seriesId) ? formatWholeTooltipValue : formatTooltipValue;
 }
 
 /**
