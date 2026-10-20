@@ -270,6 +270,33 @@ describe('ChartInstance X axis types', () => {
       unmount();
     });
 
+    it('re-measures the edge label when a web font finishes loading', () => {
+      const offsetWidth = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      const fonts = new EventTarget();
+      Object.defineProperty(document, 'fonts', { configurable: true, value: fonts });
+      makeChart({ axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 11 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+      const minLeft = () =>
+        Math.min(...[...strip.querySelectorAll('span')].map((span) => Number.parseFloat(span.style.left)));
+
+      expect(minLeft()).toBe(15);
+
+      // The font lands: the labels are wider now.
+      offsetWidth.mockReturnValue(40);
+      fonts.dispatchEvent(new Event('loadingdone'));
+
+      expect(minLeft()).toBe(20);
+      unmount();
+      Reflect.deleteProperty(document, 'fonts');
+    });
+
     it('leaves the labels that fade out after a pan at their own spots', () => {
       vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
       makeChart({ animations: true, axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
@@ -290,6 +317,31 @@ describe('ChartInstance X axis types', () => {
 
       expect(lefts.length).toBeGreaterThan(5);
       expect(new Set(lefts).size).toBe(lefts.length);
+      unmount();
+    });
+
+    it('never shows a label cut by the chart edge while ticks leave after a pan', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(30);
+      makeChart({ animations: true, axis: { x: { type: 'numeric' } }, padding: { left: 0, right: 0 } });
+      chart.setSeriesData(
+        chart.addSeries('line'),
+        Array.from({ length: 21 }, (_, i) => ({ x: i * 10, value: i })),
+      );
+      chart.setVisibleRange({ from: 0, to: 100 });
+      raf.flush(200);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      chart.setVisibleRange({ from: 33, to: 133 });
+      raf.flush(2);
+      const shown = [...strip.querySelectorAll('span')].filter((span) => Number(span.style.opacity) > 0.01);
+      const lefts = shown.map((span) => Number.parseFloat(span.style.left));
+      const plotWidth = chart.timeScale.getMediaWidth();
+
+      expect(shown.length).toBeGreaterThan(3);
+      expect(Math.min(...lefts) - 15).toBeGreaterThanOrEqual(-chart.getAxisColumnWidth('left'));
+      expect(Math.max(...lefts) + 15).toBeLessThanOrEqual(plotWidth + chart.getAxisColumnWidth('right'));
       unmount();
     });
 
