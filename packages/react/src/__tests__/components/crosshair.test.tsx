@@ -13,12 +13,15 @@ const DATA: [Array<{ time: number; value: number }>] = [
   ],
 ];
 
+/** The time pill is centred on the X-axis label row: half down from its bottom anchor. */
+const TIME_PILL_TRANSFORM = 'translate(-50%, 50%)';
+
 function getCrosshairBadges(mounted: ReturnType<typeof mountChart>): HTMLElement[] {
   const overlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement | null;
   if (!overlay) return [];
 
   return Array.from(overlay.querySelectorAll<HTMLElement>('div')).filter(
-    (el) => el.style.transform === 'translateY(-50%)' || el.style.transform === 'translateX(-50%)',
+    (el) => el.style.transform === 'translateY(-50%)' || el.style.transform === TIME_PILL_TRANSFORM,
   );
 }
 
@@ -58,14 +61,16 @@ describe('<Crosshair>', () => {
     expect(badges).toHaveLength(2);
 
     const yLabel = badges.find((el) => el.style.transform === 'translateY(-50%)');
-    const timeLabel = badges.find((el) => el.style.transform === 'translateX(-50%)');
+    const timeLabel = badges.find((el) => el.style.transform === TIME_PILL_TRANSFORM);
     expect(yLabel, 'Y-axis label badge').toBeDefined();
     expect(timeLabel, 'time-axis label badge').toBeDefined();
 
     expect(yLabel!.style.position).toBe('absolute');
     expect(yLabel!.style.right).toBe('0px');
     expect(timeLabel!.style.position).toBe('absolute');
-    expect(timeLabel!.style.bottom).toBe('0px');
+    // Centred on the tick labels, which sit in the middle of the X-axis band (#144).
+    expect(mounted.chart.xAxisHeight).toBeGreaterThan(0);
+    expect(timeLabel!.style.bottom).toBe(`${mounted.chart.xAxisHeight / 2}px`);
   });
 
   it('positions labels at the crosshair coordinates from the chart', () => {
@@ -85,7 +90,7 @@ describe('<Crosshair>', () => {
 
     const badges = getCrosshairBadges(mounted);
     const yLabel = badges.find((el) => el.style.transform === 'translateY(-50%)')!;
-    const timeLabel = badges.find((el) => el.style.transform === 'translateX(-50%)')!;
+    const timeLabel = badges.find((el) => el.style.transform === TIME_PILL_TRANSFORM)!;
 
     expect(Number.parseFloat(yLabel.style.top)).toBeCloseTo(pos!.mediaY, 0);
     expect(Number.parseFloat(timeLabel.style.left)).toBeCloseTo(pos!.mediaX, 0);

@@ -82,6 +82,10 @@ $: scaleLabels = resolveScaleLabels(chart, position, bump);
 $: defaultLabel = chart && position && bump >= 0 ? chart.yScale.formatY(position.y) : '';
 // A named scale can own the default axis's side when the default axis is hidden.
 $: defaultSideTaken = scaleLabels.some((label) => label.position === chart?.yAxisPosition);
+// Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
+// `position` re-reads the axis height on each move, like `tickInterval`.
+$: timeLabelBottom = chart && position ? chart.xAxisHeight / 2 : 0;
+$: timeLabelTransform = timeLabelBottom > 0 ? 'translate(-50%, 50%)' : 'translateX(-50%)';
 
 // `zIndex:2` sits above axis ticks (z:0) but below the YLabel badge
 // (z:3), so the live last-value stays visible when the crosshair crosses
@@ -105,7 +109,7 @@ $: labelStyle = theme
     </div>
   {/each}
   <!-- Time label on bottom axis -->
-  <div style="position:absolute;bottom:0;left:{position.mediaX}px;transform:translateX(-50%);{labelStyle}">
+  <div style="position:absolute;bottom:{timeLabelBottom}px;left:{position.mediaX}px;transform:{timeLabelTransform};{labelStyle}">
     {chart.timeScale.formatX(position.time, tickInterval)}
   </div>
 {/if}
