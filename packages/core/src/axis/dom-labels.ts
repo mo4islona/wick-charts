@@ -38,6 +38,9 @@ export interface MountAxisLabelsOptions {
 /** Below this opacity the span is removed from the DOM (matches React's prior `opacity <= 0.01` cutoff). */
 const VISIBLE_OPACITY_EPS = 0.01;
 
+/** How far past the chart edge (CSS px) an X tick's label takes to fade out, held at the edge. */
+const EDGE_FADE_PX = 8;
+
 /**
  * Append axis-label `<span>` children to `container`, keep them positioned
  * and faded in step with the chart's animation. Returns a cleanup function
@@ -46,7 +49,7 @@ const VISIBLE_OPACITY_EPS = 0.01;
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
-  const widths = new WeakMap<HTMLSpanElement, { key: string; width: number }>();
+  let widths = new WeakMap<HTMLSpanElement, { key: string; width: number }>();
   // The formatted label per span: `textContent` loses the subscript glyphs once they render as spans.
   const texts = new WeakMap<HTMLSpanElement, string>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
@@ -80,32 +83,40 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
 
   // Snapped, not raw: the canvas strokes on a whole device pixel, so an
   // unrounded label sits up to half a CSS pixel off its line.
-  function positionSpan(el: HTMLSpanElement, value: number): void {
+  // Returns the label's opacity factor for the chart edge (always 1 on Y).
+  function positionSpan(el: HTMLSpanElement, value: number): number {
     if (axis === 'x') {
       // A category name longer than its step ends in an ellipsis instead of running into the next one.
       // Capped before `justifiedX` measures it, or the edge clamp uses the uncapped width.
       if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${chart.timeScale.barWidthMedia(1)}px`;
-      el.style.left = `${justifiedX(el, chart.timeScale.timeToSnappedX(value))}px`;
 
-      return;
+      const placement = justifiedX(el, chart.timeScale.timeToSnappedX(value));
+      el.style.left = `${placement.left}px`;
+
+      return placement.opacity;
     }
 
     el.style.top = `${yScale().valueToSnappedY(value)}px`;
+
+    return 1;
   }
 
   // A label on a tick near the chart's edge shifts inward just enough to fit; the
   // gridline still marks the spot, and the label may run under a Y-axis column.
-  // A tick already out of view keeps its spot, or labels leaving after a pan pile onto the edge.
-  function justifiedX(el: HTMLSpanElement, x: number): number {
-    const inView = x >= 0 && x <= chart.timeScale.getMediaWidth();
-    if (!inView) return x;
+  // Once the tick leaves the view the label stays at the edge and fades out within
+  // EDGE_FADE_PX, so it is never cut. Ticks further out keep their own spot, hidden,
+  // or labels leaving after a pan would pile onto the edge.
+  function justifiedX(el: HTMLSpanElement, x: number): { left: number; opacity: number } {
+    const mediaWidth = chart.timeScale.getMediaWidth();
+    const overshoot = Math.max(-x, x - mediaWidth, 0);
+    if (overshoot >= EDGE_FADE_PX) return { left: x, opacity: 0 };
 
     const half = labelWidth(el) / 2;
     const min = half - chart.getAxisColumnWidth('left');
-    const max = chart.timeScale.getMediaWidth() + chart.getAxisColumnWidth('right') - half;
-    if (min > max) return x;
+    const max = mediaWidth + chart.getAxisColumnWidth('right') - half;
+    if (min > max) return { left: x, opacity: 1 };
 
-    return clamp(x, min, max);
+    return { left: clamp(x, min, max), opacity: 1 - overshoot / EDGE_FADE_PX };
   }
 
   // Measured once per text, font and width cap: reading layout on every animation frame would force a reflow each time.
@@ -224,10 +235,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
         if (sideChanged) applyYAnchor(el, side);
       }
 
-      positionSpan(el, value);
+      const edgeOpacity = positionSpan(el, value);
       // A category that just entered fades its name in while the others slide aside.
       const entering = isCategory ? chart.timeScale.bandEnterProgress(value) : 1;
-      el.style.opacity = String(opacity * entering * headerClearance(value, theme));
+      el.style.opacity = String(opacity * entering * edgeOpacity * headerClearance(value, theme));
     }
 
     for (const [value, el] of spans) {
@@ -250,13 +261,23 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     sync();
   }
 
+  // A web font that lands after the first measure widens every label: the cached
+  // widths would let an edge label overrun the chart by the difference.
+  function remeasure(): void {
+    widths = new WeakMap();
+    sync();
+  }
+
   sync();
 
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts;
+  fonts?.addEventListener('loadingdone', remeasure);
   chart.on('tickFrame', sync);
   chart.on('viewportChange', syncWhenIdle);
   chart.on('overlayChange', syncWhenIdle);
 
   return () => {
+    fonts?.removeEventListener('loadingdone', remeasure);
     chart.off('tickFrame', sync);
     chart.off('viewportChange', syncWhenIdle);
     chart.off('overlayChange', syncWhenIdle);
