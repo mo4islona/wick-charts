@@ -71,6 +71,28 @@ describe('BadgeAnimator', () => {
     expect(out.positionValue).toBeCloseTo(110, 6);
   });
 
+  it.each([8.1e-6, 8.1e-9])('append: glides a low-priced move at %s too', (start) => {
+    const badge = new BadgeAnimator(start);
+    badge.frame({ target: start, firstVisible: start, introFront: 1, now: 0 });
+
+    const target = start * 1.003;
+    const move = target - start;
+    let out = badge.frame({ target, firstVisible: start, introFront: 1, now: 16 });
+    let prev = out.positionValue;
+    let maxStep = 0;
+    let frames = 1;
+    for (let t = 32; t < 2000 && out.animating; t += 16) {
+      out = badge.frame({ target, firstVisible: start, introFront: 1, now: t });
+      maxStep = Math.max(maxStep, Math.abs(out.positionValue - prev));
+      prev = out.positionValue;
+      frames++;
+    }
+
+    expect(frames).toBeGreaterThan(10);
+    expect(maxStep / move).toBeLessThan(0.3);
+    expect(out.positionValue).toBe(target);
+  });
+
   it('a value jump that lands mid-glide stays smooth (velocity-continuous, no snap)', () => {
     const badge = new BadgeAnimator(100);
     badge.frame({ target: 100, firstVisible: 100, introFront: 1, now: 0 });

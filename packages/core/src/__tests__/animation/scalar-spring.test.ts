@@ -38,6 +38,32 @@ describe('ScalarSpring', () => {
     expect(s.current).toBe(5); // exact, not just within ε
   });
 
+  it.each([8.1e-9, 8.1e-6, 1, 45_000])('lands with under 0.1%% of the move left at %s', (start) => {
+    const target = start * 1.003;
+    const s = new ScalarSpring(start);
+    s.retarget(target, { now: 0, settleMs: 300 });
+
+    let gap = Number.POSITIVE_INFINITY;
+    let animating = true;
+    let t = 0;
+    while (animating && t < 4000) {
+      gap = Math.abs(s.current - target);
+      t += 16;
+      animating = s.tick(t);
+    }
+
+    expect(t).toBeGreaterThan(300);
+    expect(gap / (target - start)).toBeLessThan(2e-3);
+    expect(s.current).toBe(target);
+  });
+
+  it('settles at once when retargeted to where it already is', () => {
+    const s = new ScalarSpring(5);
+    s.retarget(5, { now: 0, settleMs: 300 });
+
+    expect(s.tick(16)).toBe(false);
+  });
+
   it('carries velocity through a mid-flight retarget (no easing "kick")', () => {
     const s = new ScalarSpring(0);
     s.retarget(100, { now: 0, settleMs: 300 });

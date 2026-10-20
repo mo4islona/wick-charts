@@ -140,7 +140,8 @@ export class BadgeAnimator {
     // real change so a still target settles cleanly; the spring itself carries
     // velocity across a jump that lands mid-glide, so there is no kick and no
     // settle-frame step.
-    if (Math.abs(target - this.#lastTarget) > EPS) {
+    const changed = Math.abs(target - this.#lastTarget) > Math.abs(target) * RETARGET_EPS;
+    if (changed) {
       this.#spring.retarget(target, { now, settleMs });
       this.#lastTarget = target;
     }
@@ -157,8 +158,8 @@ export class BadgeAnimator {
   }
 }
 
-/** Below this value-space delta a retarget is a no-op — avoids per-frame churn on a still target. */
-const EPS = 1e-9;
+/** A change below this part of the value is a no-op retarget, so a still target settles; relative, for 1e-9 prices. */
+const RETARGET_EPS = 1e-12;
 
 function clamp01(value: number): number {
   if (value <= 0) return 0;
