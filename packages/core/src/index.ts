@@ -364,8 +364,10 @@ export type { NumberPart, NumberPartType, ParseNumberOptions } from './utils/num
 export { parseNumberParts } from './utils/number-parts';
 export type { NumberRun, NumberRunKind, NumberRunOptions } from './utils/number-text';
 export {
+  NUMBER_HIDDEN_STYLE,
   NUMBER_MUTED_OPACITY,
   NUMBER_SCRIPT_STYLE,
+  accessibleNumberText,
   hasScriptDigits,
   numberRuns,
   renderNumberText,

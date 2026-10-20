@@ -82,7 +82,7 @@ describe('mountNumberFlow', () => {
     ]);
     expect(slots().map((s) => 'muted' in s.dataset)).toEqual([true, true, true, true, false, false, false, false]);
     expect(text()).toBe('0.058123');
-    expect(root.getAttribute('aria-label')).toBe('0.0₅8123');
+    expect(root.getAttribute('aria-label')).toBe('0.000008123');
     expect(root.getAttribute('role')).toBe('img');
   });
 

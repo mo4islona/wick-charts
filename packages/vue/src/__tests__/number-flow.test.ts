@@ -28,7 +28,7 @@ describe('<NumberFlow> (Vue)', () => {
   it('collapses leading zeros by default', () => {
     const wrapper = mount(NumberFlow, { props: { value: 0.00000812345 } });
 
-    expect(wrapper.element.getAttribute('aria-label')).toBe('0.0₅8123');
+    expect(wrapper.element.getAttribute('aria-label')).toBe('0.000008123');
     expect(slots(wrapper.element).map((s) => s.dataset.part)).toContain('zeros');
     wrapper.unmount();
   });

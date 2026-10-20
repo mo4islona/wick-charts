@@ -28,11 +28,48 @@ export const NUMBER_SCRIPT_STYLE: Readonly<Record<'sub' | 'sup', { fontSize: str
   sup: { fontSize: '0.68em', top: '-0.45em' },
 };
 
+/** Keeps the accessible copy of a number in reading order without painting it or taking space. */
+export const NUMBER_HIDDEN_STYLE = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+} as const;
+
 const SCRIPT_CHARS = /[₀-₉⁰¹²³⁴-⁹⁻]/;
+/** A `0` and its subscript count: `0₅` stands for five zeros. */
+const ZERO_COUNT = /0([₀-₉]+)/g;
+const SUBSCRIPT_ZERO = 0x2080;
+/** No double has more zeros after the point; a longer count is not one `formatSignificant` wrote. */
+const MAX_ZERO_COUNT = 400;
 
 /** `true` when `text` holds a subscript or superscript character. */
 export function hasScriptDigits(text: string): boolean {
   return SCRIPT_CHARS.test(text);
+}
+
+/**
+ * A formatted number as a screen reader should get it: the zero count spelled
+ * out (`0.0₅81` → `0.0000081`). A power keeps its superscript characters.
+ */
+export function accessibleNumberText(text: string): string {
+  return text.replace(ZERO_COUNT, (match: string, count: string) => {
+    const zeros = subscriptValue(count);
+    if (zeros > MAX_ZERO_COUNT) return match;
+
+    return '0'.repeat(zeros);
+  });
+}
+
+function subscriptValue(digits: string): number {
+  let value = 0;
+  for (const char of digits) {
+    value = value * 10 + (char.charCodeAt(0) - SUBSCRIPT_ZERO);
+  }
+
+  return value;
 }
 
 /** Splits a formatted number into runs of one style: plain, a zero count, a power; muted or not. */
@@ -60,8 +97,8 @@ export function numberRuns(text: string, opts: NumberRunOptions = {}): NumberRun
 
 /**
  * Writes a formatted number into `el`: plain text when nothing needs styling,
- * else one `<span>` per styled run. Reads back the same as `textContent`
- * except that script digits come out as plain digits.
+ * else one `<span>` per styled run. With script digits, the runs are hidden
+ * from screen readers, which read {@link accessibleNumberText} instead.
  */
 export function renderNumberText(el: HTMLElement, text: string, opts: NumberRunOptions = {}): void {
   if (opts.mute === false && !hasScriptDigits(text)) {
@@ -95,5 +132,20 @@ export function renderNumberText(el: HTMLElement, text: string, opts: NumberRunO
     return span;
   });
 
-  el.replaceChildren(...nodes);
+  if (!hasScriptDigits(text)) {
+    el.replaceChildren(...nodes);
+
+    return;
+  }
+
+  // Script digits show as plain digits, so a reader gets a hidden copy: `0.0₅81` is not `0.0581`.
+  const hidden = document.createElement('span');
+  Object.assign(hidden.style, NUMBER_HIDDEN_STYLE);
+  hidden.textContent = accessibleNumberText(text);
+
+  const visual = document.createElement('span');
+  visual.setAttribute('aria-hidden', 'true');
+  visual.append(...nodes);
+
+  el.replaceChildren(hidden, visual);
 }

@@ -1,4 +1,11 @@
-import { NUMBER_MUTED_OPACITY, NUMBER_SCRIPT_STYLE, numberRuns } from '@wick-charts/core';
+import {
+  NUMBER_HIDDEN_STYLE,
+  NUMBER_MUTED_OPACITY,
+  NUMBER_SCRIPT_STYLE,
+  accessibleNumberText,
+  hasScriptDigits,
+  numberRuns,
+} from '@wick-charts/core';
 
 export interface NumberTextProps {
   /** A formatted number, e.g. the output of `formatSignificant`. */
@@ -15,26 +22,32 @@ export function NumberText({ text, mute = true }: NumberTextProps) {
   const plain = runs.every((run) => run.kind === 'plain' && !run.muted);
   if (plain) return <>{text}</>;
 
+  // Script digits show as plain digits, so a reader gets a hidden copy: `0.0₅81` is not `0.0581`.
+  const script = hasScriptDigits(text);
+
   return (
     <>
-      {runs.map((run, i) => {
-        const script = run.kind === 'plain' ? null : NUMBER_SCRIPT_STYLE[run.kind];
+      {script && <span style={NUMBER_HIDDEN_STYLE}>{accessibleNumberText(text)}</span>}
+      <span aria-hidden={script || undefined}>
+        {runs.map((run, i) => {
+          const scriptStyle = run.kind === 'plain' ? null : NUMBER_SCRIPT_STYLE[run.kind];
 
-        return (
-          <span
-            key={i}
-            data-part={run.kind === 'plain' ? undefined : SCRIPT_PART[run.kind]}
-            style={{
-              opacity: run.muted ? NUMBER_MUTED_OPACITY : undefined,
-              fontSize: script?.fontSize,
-              position: script === null ? undefined : 'relative',
-              top: script?.top,
-            }}
-          >
-            {run.text}
-          </span>
-        );
-      })}
+          return (
+            <span
+              key={i}
+              data-part={run.kind === 'plain' ? undefined : SCRIPT_PART[run.kind]}
+              style={{
+                opacity: run.muted ? NUMBER_MUTED_OPACITY : undefined,
+                fontSize: scriptStyle?.fontSize,
+                position: scriptStyle === null ? undefined : 'relative',
+                top: scriptStyle?.top,
+              }}
+            >
+              {run.text}
+            </span>
+          );
+        })}
+      </span>
     </>
   );
 }

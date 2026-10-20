@@ -63,7 +63,7 @@ describe('<NumberFlow>', () => {
       'fraction',
       'fraction',
     ]);
-    expect(view.container.firstElementChild?.getAttribute('aria-label')).toBe('0.0₅8123');
+    expect(view.container.firstElementChild?.getAttribute('aria-label')).toBe('0.000008123');
   });
 
   it('keeps an unchanged digit mounted when a digit is added in front', () => {

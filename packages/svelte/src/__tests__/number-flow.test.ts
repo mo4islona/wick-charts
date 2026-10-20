@@ -30,7 +30,7 @@ describe('<NumberFlow> (Svelte)', () => {
     const result = render(NumberFlow, { props: { value: 0.00000812345 } });
     await tick();
 
-    expect(result.container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('0.0₅8123');
+    expect(result.container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('0.000008123');
     expect(slots(result.container).map((s) => s.dataset.part)).toContain('zeros');
     result.unmount();
   });

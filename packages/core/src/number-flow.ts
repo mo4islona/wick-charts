@@ -7,7 +7,7 @@
 import { prefersReducedMotion } from './animation/reduced-motion';
 import { formatSignificant } from './utils/format';
 import { type NumberPart, parseNumberParts } from './utils/number-parts';
-import { NUMBER_MUTED_OPACITY, NUMBER_SCRIPT_STYLE } from './utils/number-text';
+import { NUMBER_MUTED_OPACITY, NUMBER_SCRIPT_STYLE, accessibleNumberText } from './utils/number-text';
 
 export interface NumberFlowOptions {
   /**
@@ -545,7 +545,7 @@ export function mountNumberFlow(root: HTMLElement, options: NumberFlowOptions = 
     value = nextValue;
     parts = nextParts;
     changedAt = now;
-    root.setAttribute('aria-label', nextText);
+    root.setAttribute('aria-label', accessibleNumberText(nextText));
   }
 
   return {
