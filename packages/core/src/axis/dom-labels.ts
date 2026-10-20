@@ -38,7 +38,7 @@ export interface MountAxisLabelsOptions {
 /** Below this opacity the span is removed from the DOM (matches React's prior `opacity <= 0.01` cutoff). */
 const VISIBLE_OPACITY_EPS = 0.01;
 
-/** How far past the chart edge (CSS px) an X tick's label takes to fade out, held at the edge. */
+/** How far past the chart edge (CSS px) a tick's label takes to fade out, held at the edge. */
 const EDGE_FADE_PX = 8;
 
 /**
@@ -49,7 +49,7 @@ const EDGE_FADE_PX = 8;
 export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   const { chart, container, axis, scale } = opts;
   const spans = new Map<number, HTMLSpanElement>();
-  let widths = new WeakMap<HTMLSpanElement, { key: string; width: number }>();
+  let sizes = new WeakMap<HTMLSpanElement, { key: string; width: number; height: number }>();
   // The formatted label per span: `textContent` loses the subscript glyphs once they render as spans.
   const texts = new WeakMap<HTMLSpanElement, string>();
   // Last theme whose colors/fonts were written to the spans' inline styles.
@@ -83,7 +83,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
 
   // Snapped, not raw: the canvas strokes on a whole device pixel, so an
   // unrounded label sits up to half a CSS pixel off its line.
-  // Returns the label's opacity factor for the chart edge (always 1 on Y).
+  // Returns the label's opacity factor for the chart edge.
   function positionSpan(el: HTMLSpanElement, value: number): number {
     if (axis === 'x') {
       // A category name longer than its step ends in an ellipsis instead of running into the next one.
@@ -96,9 +96,10 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       return placement.opacity;
     }
 
-    el.style.top = `${yScale().valueToSnappedY(value)}px`;
+    const placement = justifiedY(el, yScale().valueToSnappedY(value));
+    el.style.top = `${placement.top}px`;
 
-    return 1;
+    return placement.opacity;
   }
 
   // A label on a tick near the chart's edge shifts inward just enough to fit; the
@@ -111,7 +112,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     const overshoot = Math.max(-x, x - mediaWidth, 0);
     if (overshoot >= EDGE_FADE_PX) return { left: x, opacity: 0 };
 
-    const half = labelWidth(el) / 2;
+    const half = labelSize(el).width / 2;
     const min = half - chart.getAxisColumnWidth('left');
     const max = mediaWidth + chart.getAxisColumnWidth('right') - half;
     if (min > max) return { left: x, opacity: 1 };
@@ -119,17 +120,31 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     return { left: clamp(x, min, max), opacity: 1 - overshoot / EDGE_FADE_PX };
   }
 
+  // The Y twin of `justifiedX`: a tick at the top edge would cut its label in half. The
+  // bottom bound is the chart's, so a label on the plot floor still runs into the X axis row.
+  function justifiedY(el: HTMLSpanElement, y: number): { top: number; opacity: number } {
+    const plotHeight = yScale().getMediaHeight();
+    const overshoot = Math.max(-y, y - plotHeight, 0);
+    if (overshoot >= EDGE_FADE_PX) return { top: y, opacity: 0 };
+
+    const half = labelSize(el).height / 2;
+    const max = plotHeight + chart.xAxisHeight - half;
+    if (half > max) return { top: y, opacity: 1 };
+
+    return { top: clamp(y, half, max), opacity: 1 - overshoot / EDGE_FADE_PX };
+  }
+
   // Measured once per text, font and width cap: reading layout on every animation frame would force a reflow each time.
-  function labelWidth(el: HTMLSpanElement): number {
+  function labelSize(el: HTMLSpanElement): { width: number; height: number } {
     const { fontSize, fontFamily, maxWidth } = el.style;
     const key = `${texts.get(el) ?? ''}|${fontSize}|${fontFamily}|${maxWidth}`;
-    const cached = widths.get(el);
-    if (cached !== undefined && cached.key === key) return cached.width;
+    const cached = sizes.get(el);
+    if (cached !== undefined && cached.key === key) return cached;
 
-    const width = el.offsetWidth;
-    widths.set(el, { key, width });
+    const size = { key, width: el.offsetWidth, height: el.offsetHeight };
+    sizes.set(el, size);
 
-    return width;
+    return size;
   }
 
   // Theme-derived styles are written to inline `style`, so they're effectively
@@ -264,7 +279,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // A web font that lands after the first measure widens every label: the cached
   // widths would let an edge label overrun the chart by the difference.
   function remeasure(): void {
-    widths = new WeakMap();
+    sizes = new WeakMap();
     sync();
   }
 
