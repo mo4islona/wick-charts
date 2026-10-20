@@ -6,3 +6,7 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+
+# shadcn registry items: public JSON that tools and previews fetch cross-origin.
+/r/*
+  Access-Control-Allow-Origin: *

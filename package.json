@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm -r build",
-    "build:docs": "vite build --mode docs",
+    "build:docs": "pnpm registry:build && vite build --mode docs",
+    "registry:build": "pnpm dlx shadcn@4.22.1 build --cwd registry/shadcn --output ../../docs/public/r",
     "prerender": "node scripts/prerender.mjs",
     "build:seo": "pnpm build:docs && pnpm prerender",
     "preview": "vite preview",

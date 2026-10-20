@@ -18,8 +18,12 @@
       "@wick-charts/core": ["./packages/core/src/index.ts"],
       "@wick-charts/react": ["./packages/react/src/index.ts"],
       "@wick-charts/vue": ["./packages/vue/src/index.ts"],
-      "@wick-charts/svelte": ["./packages/svelte/src/index.ts"]
+      "@wick-charts/svelte": ["./packages/svelte/src/index.ts"],
+      "@/hooks/*": ["./registry/shadcn/hooks/*"],
+      "@/components/ui/wick-chart": ["./registry/shadcn/ui/wick-chart.tsx"],
+      "@/components/ui/card": ["./registry/shadcn/shims/card.d.ts"],
+      "@/lib/utils": ["./registry/shadcn/shims/utils.d.ts"]
     }
   },
-  "include": ["packages", "docs"]
+  "include": ["packages", "docs", "registry"]
 }

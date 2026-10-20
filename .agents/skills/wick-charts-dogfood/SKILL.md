@@ -37,6 +37,13 @@ reports, compare montages and BUGS.md (working notes; the issues are the record)
 between sessions on purpose: their scenarios are the visual regression baseline. If `test/dogfood/`
 is gone (new machine), the first session rebuilds the apps from the contract — a full session.
 
+`shadcn/` (port 5184) is a `shadcn init -t vite -p nova` app with the `registry/shadcn` blocks
+installed by the shadcn CLI. The root page shows every block under its registry name; `?s=<id>` shows
+one (`sparks`, `line`, `candles`, `bars`, `donut`, `band`, `area`, `heatmap`, `annotations`, `navigator`,
+`book`), `?theme=dark`, `?tokens=blue|emerald|orange|legacy` swaps in the `--chart-*` ramp of that shadcn
+theme (default: the neutral grey ramp). To refresh the blocks: `pnpm registry:build`, serve `docs/public` on port 4319 with
+the registry URLs rewritten to `http://localhost:4319/r/`, then `npx shadcn add -y -o <item URLs>`.
+
 ## Session types — pick the cheapest one that covers `due`
 
 Agents are the expensive part (a framework team is ~0.5M tokens and about an hour).

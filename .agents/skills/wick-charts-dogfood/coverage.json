@@ -5,7 +5,8 @@
     "ports": {
       "react": 5181,
       "vue": 5182,
-      "svelte": 5183
+      "svelte": 5183,
+      "shadcn": 5184
     }
   },
   "sessions": [
@@ -28,6 +29,26 @@
         "Two teams found the same core bug independently: overlap across frameworks is cheap verification.",
         "Teams graded the same bug differently (OK vs BUG); the brief now says any attached finding means BUG.",
         "Svelte 5 blocked the runes probes; they stay unrun until it works."
+      ]
+    },
+    {
+      "id": "2026-10-21",
+      "type": "focused",
+      "commit": "a049e2b",
+      "dirtyTree": false,
+      "libVersion": "0.8.3",
+      "frameworks": {
+        "react": "19.3.1",
+        "vite": "8.3.4",
+        "tailwindcss": "4.3.3",
+        "shadcn": "4.22.1",
+        "typescript": "6.0.3"
+      },
+      "approach": "Focused session, tech lead alone, new angle: the shadcn/ui registry (registry/shadcn). A fresh `shadcn init -t vite -p nova` app (test/dogfood/shadcn, port 5184) installed all six blocks with `npx shadcn add` from a local registry build; @wick-charts/react 0.8.3 from npm. Captured every block idle + hover in light and dark, a runtime `.dark` toggle, colored --chart-N tokens set on <html> at runtime, the full page at 375 px. Compared the crosshair pill with the docs line page.",
+      "notes": [
+        "The Nova preset ships grayscale --chart-1..5 (chart-1 is oklch(0.87 0 0)): anything colored by series color goes near-invisible on a light card. Test light themes with the default palette, not only ?tokens=color.",
+        "Tailwind preflight sets a unitless line-height that DOM overlays inherit; compare overlay geometry against the docs page before calling a misalignment Tailwind-only.",
+        "No agents needed: six registry blocks fit one tech-lead pass (about 25 captures)."
       ]
     }
   ],
@@ -767,6 +788,23 @@
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/src"],
       "runs": ["2026-10-17"]
+    },
+    {
+      "id": "shadcn-registry-blocks",
+      "kind": "framework",
+      "title": "shadcn/ui registry: install the blocks into a fresh shadcn app, light / dark / runtime toggle / colored tokens / 375 px",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": [
+        "registry/shadcn",
+        "packages/react/src/ui/Tooltip.tsx",
+        "packages/react/src/ui/Crosshair.tsx",
+        "packages/react/src/ui/XAxis.tsx",
+        "packages/react/src/ChartContainer.tsx",
+        "packages/core/src/theme/create.ts"
+      ],
+      "runs": ["2026-10-21"]
     }
   ],
   "ideas": [
