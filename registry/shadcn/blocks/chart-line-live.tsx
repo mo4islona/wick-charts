@@ -1,0 +1,66 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+import { Crosshair, LineSeries, NumberFlow, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/react';
+
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { WickChart } from '@/components/ui/wick-chart';
+
+const POINTS = 120;
+const TICK_MS = 1000;
+
+const formatRate = (value: number) => Math.round(value).toLocaleString('en-US');
+
+// Demo feed: replace with your own stream and keep the array immutable.
+function nextPoint(previous: TimePoint): TimePoint {
+  const drift = (1200 - previous.value) * 0.05;
+  const value = Math.max(0, previous.value + drift + (Math.random() - 0.5) * 120);
+
+  return { time: previous.time + TICK_MS, value };
+}
+
+function seedPoints(): TimePoint[] {
+  const points: TimePoint[] = [{ time: Date.now() - POINTS * TICK_MS, value: 1200 }];
+  while (points.length < POINTS) {
+    points.push(nextPoint(points[points.length - 1]));
+  }
+
+  return points;
+}
+
+export function ChartLineLive() {
+  const [data, setData] = useState(seedPoints);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setData((points) => [...points.slice(1), nextPoint(points[points.length - 1])]);
+    }, TICK_MS);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const latest = data[data.length - 1].value;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Live traffic</CardTitle>
+        <CardDescription>Requests per second, last 2 minutes</CardDescription>
+        <CardAction className="text-right">
+          <NumberFlow value={latest} format={formatRate} className="text-2xl font-semibold tabular-nums" />
+          <div className="text-xs text-muted-foreground">req/s</div>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <WickChart className="aspect-auto h-[280px]" viewport={{ maxVisibleBars: POINTS }}>
+          <LineSeries data={{ label: 'Requests', data }} />
+          <YAxis format={formatRate} />
+          <TimeAxis />
+          <Crosshair />
+          <Tooltip format={formatRate} />
+        </WickChart>
+      </CardContent>
+    </Card>
+  );
+}

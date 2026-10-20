@@ -1,6 +1,8 @@
 node_modules
 dist
 docs-dist
+# shadcn registry JSON, built from registry/shadcn by `pnpm registry:build`
+docs/public/r/
 coverage
 .DS_Store
 *.local
