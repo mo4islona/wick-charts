@@ -122,11 +122,18 @@ Placed as children of `ChartContainer`.
 | `TimeRegion` | `from`, `to?`, `fill?`, `label?`, `color?` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
 | `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
-| `NumberFlow` | `value`, `format?`, `spinDuration?` | — | Standalone animated number |
+| `NumberFlow` | `value`, `format?`, `spinDuration?`, `shrinkDelay?` | — | Standalone animated number |
 
 `seriesId` is optional on `YLabel` / `PieTooltip` / `PieLegend` — omit it on single-series charts and the first compatible visible series is picked automatically (time-series for `YLabel` — bands are skipped, a range has no single value; pie for `PieTooltip` / `PieLegend`). `InfoBar` and `Tooltip` are **always multi-series**; there is no `seriesId` prop. Filter inside the slot if you need a subset.
 
-**Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `InfoBar` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Two shared helpers — `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision, keeps sub-cent decimals) — are exported from every framework package and used as defaults.
+**Number formatting**: every overlay that displays a number accepts a `format` prop. On `Tooltip` / `InfoBar` the signature is `(value, field) => string` with `field ∈ {'open','high','low','close','volume','value'}`; elsewhere it's `(value) => string`. Shared helpers, exported from every framework package:
+
+- `formatSignificant(v, { digits?, collapseZeros?, compactFrom?, trimZeros? })` keeps the digits that carry the value: `0.00000812` → `0.0₅812`, `1234567890` → `1.235B`, `5.4e15` → `5.4×10¹⁵`, and `68,432.17` in between. The `NumberFlow` default.
+- `collapseZeros(text)` collapses the leading zeros of any formatted string: `0.000008123` → `0.0₅8123`.
+- `formatTooltipValue` is the `Tooltip` / `InfoBar` default: compact volume, prices with fixed digits so a live row keeps its width.
+- `formatCompact` (K/M/B/T) and `formatPriceAdaptive` (full precision).
+
+Y-axis ticks, the `YLabel` badge, the crosshair label, `Tooltip` and `InfoBar` collapse leading zeros by default, so a low-priced token (`0.0000081`) needs no custom `format`. The output stays a plain string with Unicode subscript / superscript digits; the built-in overlays draw those digits at a smaller size.
 
 **Hoisting**: `Title` + `InfoBar` render as absolute overlays stacked at the top of the canvas block — the canvas (and the background grid) spans the full container height behind them, while their measured height is folded into `padding.top` so series data stays below. Floating `Tooltip` stacks *above* Title / InfoBar so it reads clearly when the cursor hovers near the header. `Legend` sits as a flex sibling below (or beside, with `position="right"`). Clicking an item toggles its series/layer visibility (`mode="toggle"` adds to a hidden set; `mode="isolate"` isolates that item and a second click restores all).
 

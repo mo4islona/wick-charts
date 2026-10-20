@@ -32,9 +32,19 @@ export interface OHLCStrategy {
 
 const round = (n: number): number => Math.round(n * 100) / 100;
 
+/** Cents for prices from 1 up; five significant digits below, so a 0.0000081 token keeps its ticks. */
+function priceRounder(startPrice: number): (n: number) => number {
+  const magnitude = Math.floor(Math.log10(Math.abs(startPrice) || 1));
+  const decimals = Math.max(2, 4 - magnitude);
+
+  return (n) => Number(n.toFixed(decimals));
+}
+
 // ── OHLC strategy ────────────────────────────────────────────
 
 export function ohlcStrategy(startPrice: number): OHLCStrategy {
+  const round = priceRounder(startPrice);
+
   return {
     boundary: ({ index, time, prev }) => {
       const price = prev?.close ?? startPrice;

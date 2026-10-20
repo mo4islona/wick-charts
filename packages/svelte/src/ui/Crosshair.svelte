@@ -4,6 +4,7 @@ import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context.js';
 import { createCrosshairPosition } from '../stores.js';
+import NumberText from './NumberText.svelte';
 
 const chartStore = getChartContext();
 let position: CrosshairPosition | null = null;
@@ -95,12 +96,12 @@ $: labelStyle = theme
   <!-- Y label on the value axis -->
   {#if !defaultSideTaken}
     <div style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
-      {defaultLabel}
+      <NumberText text={defaultLabel} mute={false} />
     </div>
   {/if}
   {#each scaleLabels as label (label.scale)}
     <div style="position:absolute;{label.position}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
-      {label.text}
+      <NumberText text={label.text} mute={false} />
     </div>
   {/each}
   <!-- Time label on bottom axis -->

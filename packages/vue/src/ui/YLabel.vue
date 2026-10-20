@@ -3,6 +3,7 @@ import {
   BadgeAnimator,
   type ValueFormatter,
   type YLabelAnimate,
+  collapseZeros,
   firstVisibleValue,
   prefersReducedMotion,
   resolveAnimate,
@@ -273,8 +274,11 @@ const effectiveFormat = computed<ValueFormatter>(() => {
     useGrouping: false,
   });
 
-  return (v: number) => nf.format(v);
+  return (v: number) => collapseZeros(nf.format(v));
 });
+
+/** A price that moves back and forth across `99.99` / `100.01` keeps the badge width instead of breathing. */
+const BADGE_SHRINK_DELAY = 1000;
 </script>
 
 <template>
@@ -322,7 +326,12 @@ const effectiveFormat = computed<ValueFormatter>(() => {
           transition: 'background-color 0.3s ease',
         }"
       >
-        <NumberFlow :value="textValue" :format="effectiveFormat" :spin-duration="350" />
+        <NumberFlow
+          :value="textValue"
+          :format="effectiveFormat"
+          :spin-duration="350"
+          :shrink-delay="BADGE_SHRINK_DELAY"
+        />
       </div>
     </template>
   </template>

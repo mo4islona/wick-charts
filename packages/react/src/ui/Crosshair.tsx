@@ -1,5 +1,6 @@
 import { useChartInstance } from '../context';
 import { useCrosshairPosition, useOverlayVersion } from '../store-bridge';
+import { NumberText } from './NumberText';
 
 export function Crosshair() {
   const chart = useChartInstance();
@@ -59,7 +60,7 @@ export function Crosshair() {
             ...labelStyle,
           }}
         >
-          {chart.yScale.formatY(position.y)}
+          <NumberText text={chart.yScale.formatY(position.y)} mute={false} />
         </div>
       )}
       {scaleLabels.map((label) => (
@@ -73,7 +74,7 @@ export function Crosshair() {
             ...labelStyle,
           }}
         >
-          {label.text}
+          <NumberText text={label.text} mute={false} />
         </div>
       ))}
       {/* Time label on bottom axis */}

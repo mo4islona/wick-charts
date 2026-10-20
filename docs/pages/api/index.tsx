@@ -7,6 +7,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import { ApiPage } from '../../components/ApiPage';
 import { Markdown } from '../../components/Markdown';
+import { NumberFlowSweep } from '../../components/NumberFlowSweep';
 import { CHART_API_TO_DEMO, type Route } from '../../routes';
 import { INTROS } from './intros';
 
@@ -51,8 +52,9 @@ export function ApiRoutePage({ route, theme }: { route: Route; theme: ChartTheme
   const demoRoute = CHART_API_TO_DEMO[route];
 
   return (
-    <ApiPage component={component} theme={theme} fallbackDescription={intro} demoRoute={demoRoute}>
+    <ApiPage component={component} theme={theme} demoRoute={demoRoute}>
       {intro && <Markdown source={intro} theme={theme} />}
+      {component === 'NumberFlow' && <NumberFlowSweep theme={theme} />}
     </ApiPage>
   );
 }

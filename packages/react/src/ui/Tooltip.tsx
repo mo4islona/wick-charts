@@ -9,10 +9,9 @@ import {
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
-  formatCompact,
-  formatPriceAdaptive,
   formatRowValue,
   formatTooltipHeader,
+  formatTooltipValue,
   resolveCandlestickBodyColor,
 } from '@wick-charts/core';
 
@@ -20,6 +19,7 @@ export { computeTooltipPosition } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useCrosshairPosition } from '../store-bridge';
+import { NumberText } from './NumberText';
 
 /** Sort order for multi-series tooltip values. */
 export type TooltipSort = 'none' | 'asc' | 'desc';
@@ -57,17 +57,13 @@ export interface TooltipProps {
   children?: (ctx: TooltipRenderContext) => ReactNode;
 }
 
-/** Default tooltip formatter — adaptive precision + compact volumes. */
-const defaultTooltipFormat: TooltipFormatter = (v, field) =>
-  field === 'volume' ? formatCompact(v) : formatPriceAdaptive(v);
-
 /**
  * Floating near-cursor glass tooltip that appears while hovering the chart.
  *
  * Hover-only: without a crosshair position, the component renders `null`.
  * The companion {@link InfoBar} shows last-known values when no hover is active.
  */
-export function Tooltip({ sort = 'none', format = defaultTooltipFormat, children }: TooltipProps) {
+export function Tooltip({ sort = 'none', format = formatTooltipValue, children }: TooltipProps) {
   const chart = useChartInstance();
   const crosshair = useCrosshairPosition(chart);
 
@@ -346,7 +342,7 @@ function FloatingTooltip({
                 {s.label ?? 'Range'}
               </span>
               <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
-                {format(band.low, 'low')} – {format(band.high, 'high')}
+                <NumberText text={format(band.low, 'low')} /> – <NumberText text={format(band.high, 'high')} />
               </span>
             </div>
           );
@@ -375,7 +371,7 @@ function FloatingTooltip({
               {s.label ?? 'Value'}
             </span>
             <span style={{ fontWeight: 600, color: s.color, whiteSpace: 'nowrap' }}>
-              {formatRowValue(s, (v) => format(v, 'value'))}
+              <NumberText text={formatRowValue(s, (v) => format(v, 'value'))} />
             </span>
           </div>
         );
@@ -388,7 +384,9 @@ function TooltipRow({ label, color, display }: { label: string; color: string; d
   return (
     <>
       <span style={{ opacity: 0.5 }}>{label}</span>
-      <span style={{ fontWeight: 600, color, textAlign: 'right' }}>{display}</span>
+      <span style={{ fontWeight: 600, color, textAlign: 'right' }}>
+        <NumberText text={display} />
+      </span>
     </>
   );
 }

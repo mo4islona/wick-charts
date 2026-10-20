@@ -330,12 +330,7 @@ describe('Svelte ported props parity', () => {
     const result = render(PortedPropsHarness, { variant: 'numberflow-options' });
     await settle();
 
-    const flat = Array.from(result.container.querySelectorAll('span > span'))
-      .map((s) => (s as HTMLElement).textContent?.trim() ?? '')
-      .filter((t) => t.length === 1)
-      .join('');
-    expect(flat).toContain('$');
-    expect(flat).toContain(',');
+    expect(result.container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('$1,235');
     result.unmount();
   });
 
@@ -343,13 +338,7 @@ describe('Svelte ported props parity', () => {
     const result = render(PortedPropsHarness, { variant: 'numberflow-fn' });
     await settle();
 
-    const flat = Array.from(result.container.querySelectorAll('span > span'))
-      .map((s) => (s as HTMLElement).textContent?.trim() ?? '')
-      .filter((t) => t.length === 1)
-      .join('');
-    expect(flat).toContain('~');
-    expect(flat).toContain('4');
-    expect(flat).toContain('2');
+    expect(result.container.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('~42~');
     result.unmount();
   });
 });

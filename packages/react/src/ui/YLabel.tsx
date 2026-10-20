@@ -5,6 +5,7 @@ import {
   type ResolvedAnimate,
   type ValueFormatter,
   type YLabelAnimate,
+  collapseZeros,
   firstVisibleValue,
   prefersReducedMotion,
   resolveAnimate,
@@ -72,6 +73,9 @@ export interface YLabelProps {
    */
   scale?: string;
 }
+
+/** A price that moves back and forth across `99.99` / `100.01` keeps the badge width instead of breathing. */
+const BADGE_SHRINK_DELAY = 1000;
 
 interface BadgeFrame {
   positionValue: number;
@@ -204,7 +208,7 @@ export function YLabel({ seriesId, color, format, animate, children, scale }: YL
       useGrouping: false,
     });
 
-    return (v: number) => nf.format(v);
+    return (v: number) => collapseZeros(nf.format(v));
   }, [format, scaleFormat, fractionDigits]);
 
   if (!last || resolvedId === null) return null;
@@ -283,7 +287,7 @@ export function YLabel({ seriesId, color, format, animate, children, scale }: YL
           transition: 'background-color 0.3s ease',
         }}
       >
-        <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} />
+        <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} shrinkDelay={BADGE_SHRINK_DELAY} />
       </div>
     </>
   );

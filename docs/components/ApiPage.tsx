@@ -36,8 +36,6 @@ export interface ApiPageProps {
   theme: ChartTheme;
   /** Hand-written prose. Rendered before the props table. */
   children?: ReactNode;
-  /** Lead description fallback when there is no JSDoc on the React function. */
-  fallbackDescription?: string;
   /**
    * When set, renders a "↗ See demos" link at the top of the page pointing
    * at the corresponding entry in the Charts section. Used by the flat
@@ -57,7 +55,7 @@ interface ComponentEntry {
 
 const components = manifest.components as Record<string, ComponentEntry>;
 
-export function ApiPage({ component, theme, children, fallbackDescription, demoRoute }: ApiPageProps) {
+export function ApiPage({ component, theme, children, demoRoute }: ApiPageProps) {
   const entry = components[component];
   const [fw] = useFramework();
 
@@ -69,7 +67,7 @@ export function ApiPage({ component, theme, children, fallbackDescription, demoR
     );
   }
 
-  const description = entry.description || fallbackDescription || '';
+  const description = entry.description;
   const reactOnly = isReactOnly(component);
   const slot = getSlotSpec(component);
   const props = mergeDataShapeIntoProps(component, entry.props);

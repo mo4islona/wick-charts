@@ -411,21 +411,7 @@ describe('Vue overlays — ported props', () => {
     const wrapper = mount(App, { attachTo: host });
     await settle();
 
-    // The decomposed digits and symbols spell out something like "$1,234".
-    // Accumulate the visible text via slot ordering.
-    const textRuns: string[] = [];
-    for (const span of host.querySelectorAll('span > span')) {
-      // Inner-most spans hold either a digit (from the spinner column) or a
-      // single symbol character. Grab the symbol-only ones — symbols are
-      // single characters wrapped in a flat <span style="display:inline-block">.
-      if ((span as HTMLElement).textContent && (span as HTMLElement).textContent!.length === 1) {
-        textRuns.push((span as HTMLElement).textContent!);
-      }
-    }
-    const flat = textRuns.join('');
-    // Currency formatting always inserts the `$` prefix and the thousands separator.
-    expect(flat).toContain('$');
-    expect(flat).toContain(',');
+    expect(host.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('$1,235');
 
     wrapper.unmount();
   });
@@ -443,14 +429,7 @@ describe('Vue overlays — ported props', () => {
     const wrapper = mount(App, { attachTo: host });
     await settle();
 
-    // The custom formatter wraps the value in `~`. Read flat single-character spans.
-    const flat = Array.from(host.querySelectorAll('span > span'))
-      .map((s) => (s as HTMLElement).textContent ?? '')
-      .filter((t) => t.length === 1)
-      .join('');
-    expect(flat).toContain('~');
-    expect(flat).toContain('4');
-    expect(flat).toContain('2');
+    expect(host.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('~42~');
 
     wrapper.unmount();
   });

@@ -47,7 +47,7 @@ export const INTROS: Record<string, string> = {
   PieTooltip:
     'Hover tooltip for `<PieSeries>`. Behaves like `<Tooltip>` but takes a `seriesId` and exposes the active slice in the render-prop.',
   NumberFlow:
-    'Animated number ticker. Spins between values with configurable duration. Used internally by `<YLabel>` and the InfoBar percent-change badge — also exported for custom UI.',
+    'Animated number ticker. Each changed digit spins in the direction of the change, and a digit that comes or goes slides while the width follows. By default leading zeros collapse into a count (`0.0₅8123`) and large values take a suffix (`1.235B`), so very small and very large values stay short. Used internally by `<YLabel>` — also exported for custom UI.',
   YLabel:
     'Floating price badge anchored to the last data point of a series. Pulses with the data and animates value transitions via `NumberFlow`.',
   Marker:
