@@ -6,7 +6,7 @@ import type { ChartTheme } from '../theme/types';
 import type { StackingMode, TimePoint, TimePointInput, ValueColor } from '../types';
 import { resolveColor } from '../utils/color';
 import { normalizeTime, normalizeTimePointArray, sliceSample } from '../utils/time';
-import { renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
+import { type StackTotals, renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
 import type { LayerSnapshot, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 
 /**
@@ -802,7 +802,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     if (!values) return null;
 
     const totals = sumStack(values);
-    const value = stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
+    const value = stacking === 'percent' ? this.percentTop(totals) : renderedStackTop(totals);
 
     return { value, isLive: true };
   }
@@ -888,7 +888,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
     const totals = sumStack(values);
 
-    return stacking === 'percent' ? renderedStackPercentTop(totals) : renderedStackTop(totals);
+    return stacking === 'percent' ? this.percentTop(totals) : renderedStackTop(totals);
   }
 
   getLayerLastSnapshots(): LayerSnapshot[] | null {
@@ -949,6 +949,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
    * when that column is a gap.
    */
   protected abstract percentShares(time: number): Map<number, number> | null;
+
+  /** Where a percent stack draws its head for these totals; a subclass with its own share model overrides it. */
+  protected percentTop(totals: StackTotals): number {
+    return renderedStackPercentTop(totals);
+  }
 
   getTotalLength(): number {
     let total = 0;

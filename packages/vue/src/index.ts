@@ -29,6 +29,7 @@ export type {
   BarPaintArgs,
   BarPainter,
   BarSeriesOptions,
+  BarValueLabelsOptions,
   BaseSeriesRenderer,
   BitmapCoordinateSpace,
   BuildHoverSnapshotsArgs,

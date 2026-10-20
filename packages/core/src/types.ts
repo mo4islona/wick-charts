@@ -692,10 +692,15 @@ export type BarEntryAnimation = 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'
 export interface BarSeriesOptions {
   /**
    * Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot.
-   * Applies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.7.
+   * Applies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.6.
    */
   barWidthRatio: number;
-  /** Stacking mode. Default: 'off'. */
+  /**
+   * Stacking mode. Default: 'off'. With `'off'`, layers overlap on a time or
+   * numeric X axis and stand side by side in each band on a category axis.
+   * `'percent'` draws each layer as its share of the column's absolute sum, so
+   * a column spans 100% across zero: +3 and -1 give +75% up and -25% down.
+   */
   stacking: StackingMode;
   /**
    * Entrance animation style for newly appended bars. Style is specific to
@@ -816,7 +821,7 @@ export interface BarSeriesOptions {
    */
   anchor?: 'center' | 'right';
   /**
-   * Free-end corner radius in CSS pixels. Default: `4`. `0` is byte-identical to
+   * Free-end corner radius in CSS pixels. Default: `2`. `0` is byte-identical to
    * the pre-rounding square output. The radius is clamped to half the smaller
    * bar dimension, so thin bars / sub-radius segments degrade to flat.
    *
@@ -842,6 +847,20 @@ export interface BarSeriesOptions {
    * never double-fades. Omitted: no projected bars.
    */
   projectedFrom?: number;
+  /**
+   * Value text just past each bar's free end: above a positive bar, below a
+   * negative one. A `'normal'` stack gets one label per signed stack, with its
+   * total; `'percent'` stacks and layers overlapping on a time or numeric axis
+   * get none. A label wider than its bar is skipped. `true` uses the default
+   * format. Color: `theme.bar.labelColor`. Default: off.
+   */
+  valueLabels?: boolean | BarValueLabelsOptions;
+}
+
+/** Value labels drawn past the free end of each bar. */
+export interface BarValueLabelsOptions {
+  /** Label text. Default: the Y axis format (`<YAxis format>`), else the axis tick format. */
+  format?: (value: number) => string;
 }
 
 /**
@@ -1242,7 +1261,7 @@ export interface YAxisConfig {
  * - `'time'` — epoch-ms timestamps, points keyed by `time` (default);
  * - `'numeric'` — plain numbers, points keyed by `x: number`, linear spacing;
  * - `'category'` — names, points keyed by `x: string`, one band per category in
- *   first-seen order across the series.
+ *   first-seen order across the series (or the order `categories` fixes).
  */
 export type XAxisType = 'time' | 'numeric' | 'category';
 
@@ -1266,6 +1285,13 @@ export interface XAxisConfig {
   type?: XAxisType;
   /** Band spacing on a category axis. Ignored on other types. Live. */
   padding?: XAxisPadding;
+  /**
+   * Band order on a category axis. Listed names take the first bands in list
+   * order, also a name no series has data for (an empty band); names that are
+   * not listed follow in first-seen order. Default: first-seen order. Ignored
+   * on other types. Live.
+   */
+  categories?: string[];
   /**
    * Whether drag and wheel move the X range. The crosshair works either way.
    * Default: `true`, or `false` on a category axis. Live.

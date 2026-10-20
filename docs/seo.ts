@@ -93,6 +93,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Plot and stream line, bar and band series over plain numbers or named categories instead of time — a load-test curve, users by region, a live elevation profile and a live poll. React, Vue and Svelte.',
   },
+  'use-cases/category-bars': {
+    title: 'Category Bar Charts — Wick Charts',
+    description:
+      'Grouped, stacked and 100% bar charts over named categories, with value labels, a fixed category order, a hovered-band highlight and fades for categories that come and go. React, Vue and Svelte.',
+  },
   'use-cases/secondary-scale': {
     title: 'Secondary Y Scale — Wick Charts',
     description:
