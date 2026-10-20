@@ -8,6 +8,7 @@ import {
   type CrosshairPosition,
   type EdgeReachedInfo,
   type FadeConfig,
+  type GridOptions,
   type PointClickInfo,
   type SeriesHoverInfo,
   type VisibleRange,
@@ -76,8 +77,11 @@ export let gradient: boolean = false;
  * mount is ignored.
  */
 export let interactive: boolean | undefined = undefined;
-/** Background grid configuration. Live. Default: `{ visible: true }`. */
-export let grid: { visible: boolean } | undefined = undefined;
+/**
+ * Background grid configuration. Live. Default: `{ visible: true }`.
+ * `{ vertical: false }` keeps only the horizontal lines.
+ */
+export let grid: GridOptions | undefined = undefined;
 /**
  * Soft fade-out at the top of the plot area, so series content dissolves
  * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.

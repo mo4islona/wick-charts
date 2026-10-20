@@ -15,14 +15,16 @@ export interface CrosshairRenderArgs {
   /** Bitmap px the horizontal line starts left of the pane — a left Y-axis
    *  column's fade intrusion. Default `0`. */
   leftOverhang?: number;
+  /** Draw the horizontal (value) line. Default `true`. */
+  horizontal?: boolean;
 }
 
 export function renderCrosshair(args: CrosshairRenderArgs): void {
-  const { scope, bitmapX, bitmapY, theme, pane, leftOverhang = 0 } = args;
+  const { scope, bitmapX, bitmapY, theme, pane, leftOverhang = 0, horizontal = true } = args;
   const { context, bitmapSize, horizontalPixelRatio, verticalPixelRatio } = scope;
 
   const drawVertical = bitmapX >= 0 && bitmapX <= pane.width;
-  const drawHorizontal = bitmapY <= pane.height;
+  const drawHorizontal = horizontal && bitmapY <= pane.height;
   if (!drawVertical && !drawHorizontal) return;
 
   // Match device-pixel stroke width to the series so the crosshair reads as

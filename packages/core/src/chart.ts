@@ -13,10 +13,12 @@ import {
   type EdgeReachedInfo,
   type EdgeSide,
   type EdgeState,
+  type GridOptions,
   type ResolvedFade,
   type ResolvedPadding,
   isSameHorizontalPadding,
   resolveFade,
+  resolveGridLines,
   resolveMaxVisibleBars,
   resolvePadding,
   resolvePerfOptions,
@@ -113,7 +115,7 @@ import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { isBandPoint, pointValue } from './utils/point';
 import { detectInterval, normalizeTime } from './utils/time';
 
-export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig } from './chart/options';
+export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig, GridOptions } from './chart/options';
 
 /** Exit-fade duration for the edge `loading` indicator — long enough to read
  *  as a hand-off to the arriving data's reveal, short enough not to linger
@@ -479,6 +481,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #theme: ChartTheme;
   /** Whether to render the background grid. */
   #grid: boolean;
+  /** Which gridline directions render while the grid is visible. */
+  #gridLines = { horizontal: true, vertical: true };
   /**
    * Gridline layer opacity, multiplied into every per-tick fade: `0 → 1` on
    * the opening reveal, `1 → 0` when {@link setGrid} hides the grid. The
@@ -732,6 +736,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#xType = this.#axis.x?.type ?? 'time';
     this.#theme = options?.theme ?? catppuccin.theme;
     this.#grid = options?.grid?.visible !== false;
+    this.#gridLines = resolveGridLines(options?.grid);
     this.#fade = resolveFade(options?.fade);
     this.#animationsConfig = AnimationConfig.resolve(options?.animations);
     this.#maxVisibleBars = resolveMaxVisibleBars(options?.viewport?.maxVisibleBars);
@@ -3160,9 +3165,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
   }
 
-  /** Show or hide the background grid. Takes effect on the next render frame. */
-  setGrid(grid: { visible: boolean }): void {
-    this.#grid = grid.visible;
+  /** Show or hide the background grid or one direction of it. Takes effect on the next render frame. */
+  setGrid(grid: GridOptions): void {
+    this.#grid = grid.visible !== false;
+    this.#gridLines = resolveGridLines(grid);
     this.#mainScheduler.markDirty();
   }
 
@@ -4547,14 +4553,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       gridFadeAnimating = this.#gridFade.tick(now);
       const gridAlpha = this.#gridFade.current;
       // Category ticks sit on band centres, where a vertical gridline would cut through the bars.
-      const gridTimeTicks = this.#xType === 'category' ? NO_TICKS : timeTickSnap;
+      const showVertical = this.#gridLines.vertical && this.#xType !== 'category';
+      const gridTimeTicks = showVertical ? timeTickSnap : NO_TICKS;
 
       const grid: RenderGridArgs = {
         scope,
         timeScale: this.timeScale,
         yScale: this.yScale,
         theme: this.#theme,
-        yTicks: yTickSnap,
+        yTicks: this.#gridLines.horizontal ? yTickSnap : NO_TICKS,
         timeTicks: gridTimeTicks,
         alpha: gridAlpha,
       };
@@ -4835,6 +4842,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       theme: this.#theme,
       pane: { width: chartBitmapWidth, height: chartBitmapHeight },
       leftOverhang: overhang,
+      // A category band highlight already marks the hover; a value line across it is noise.
+      horizontal: this.#xType !== 'category',
     });
     context.restore();
 
