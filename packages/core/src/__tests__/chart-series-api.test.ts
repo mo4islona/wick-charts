@@ -590,7 +590,7 @@ describe('ChartInstance percent stack snapshots', () => {
     expect(buildHoverSnapshots(chart, { time: 60_000, cacheKey: 'zero' })).toEqual([]);
   });
 
-  it('scales percent bars like the stack draws them: positives to 100%, negatives to -100%', () => {
+  it("gives percent bars each layer's share of the column's absolute sum, as the stack draws them", () => {
     const id = chart.addSeries('bar', { layers: 3, stacking: 'percent' });
     chart.setSeriesData(id, [{ time: 0, value: 10 }], 0);
     chart.setSeriesData(id, [{ time: 0, value: -5 }], 1);
@@ -598,7 +598,7 @@ describe('ChartInstance percent stack snapshots', () => {
 
     const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'bars' });
 
-    expect(snapshots.map((s) => s.share)).toEqual([100, -25, -75]);
+    expect(snapshots.map((s) => s.share)).toEqual([(10 / 30) * 100, (-5 / 30) * 100, (-15 / 30) * 100]);
   });
 
   it('lists the rows of a percent bar column whose positives and negatives cancel out', () => {
@@ -608,7 +608,7 @@ describe('ChartInstance percent stack snapshots', () => {
 
     const snapshots = buildHoverSnapshots(chart, { time: 0, cacheKey: 'cancel' });
 
-    expect(snapshots.map((s) => s.share)).toEqual([100, -100]);
+    expect(snapshots.map((s) => s.share)).toEqual([50, -50]);
   });
 
   it("takes each last-value share against the row's own column", () => {

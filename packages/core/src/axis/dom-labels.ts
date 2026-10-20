@@ -194,9 +194,14 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     tracker.setCurrentTicks(ticks);
     const { entries } = tracker.snapshot();
 
+    // A tick still fading out past the last band has no category left to name.
+    const isCategory = axis === 'x' && chart.timeScale.getType() === 'category';
+    const bandCount = chart.timeScale.getCategories().length;
+
     const seen = new Set<number>();
     for (const { value, opacity } of entries) {
-      if (opacity <= VISIBLE_OPACITY_EPS) continue;
+      const orphan = isCategory && value >= bandCount;
+      if (opacity <= VISIBLE_OPACITY_EPS || orphan) continue;
 
       seen.add(value);
       let el = spans.get(value);
@@ -211,7 +216,9 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       }
 
       positionSpan(el, value);
-      el.style.opacity = String(opacity * headerClearance(value, theme));
+      // A category that just entered fades its name in while the others slide aside.
+      const entering = isCategory ? chart.timeScale.bandEnterProgress(value) : 1;
+      el.style.opacity = String(opacity * entering * headerClearance(value, theme));
     }
 
     for (const [value, el] of spans) {

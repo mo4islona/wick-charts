@@ -1,5 +1,5 @@
 import type { ValueColor } from '../types';
-import { deriveHeatmapRamp, lighten } from '../utils/color';
+import { deriveBarHoverBackground, deriveHeatmapRamp, lighten } from '../utils/color';
 import { resolveCandlestickBodyColor } from './resolve';
 import type { ChartTheme } from './types';
 
@@ -168,6 +168,8 @@ export function createTheme(config: ThemeConfig): ThemePreset {
     seriesColors: config.seriesColors ?? [lineColor, defUp, defDown],
     bar: {
       color: config.bar?.color ?? defBarColor,
+      hoverBackground: config.bar?.hoverBackground ?? deriveBarHoverBackground(dim),
+      labelColor: config.bar?.labelColor ?? fg,
     },
     pie: {
       // The dim axis tone doubles as the "Other" slice fill — muted enough to

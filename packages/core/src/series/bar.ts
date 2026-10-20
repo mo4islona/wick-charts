@@ -1,5 +1,7 @@
 import { DEFAULT_BAR_ENTRY, DEFAULT_BAR_INTRO, DEFAULT_BAR_SMOOTH, DEFAULT_HISTORY_REVEAL } from '../animation/config';
+import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
+import { resolveAxisFontSize } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { BarSeriesOptions, TimePoint, ValueColor } from '../types';
 import { type BarIntroDirectives, growIntro } from './bar-intro';
@@ -8,6 +10,7 @@ import type { SeriesDefinition } from './definition';
 import { resolveBarPainter } from './painters/resolve';
 import type { BarPaintArgs, BarPainter, CornerMask, PaintEnv } from './painters/types';
 import { ScaleStack } from './scale-stack';
+import type { StackTotals } from './stack-math';
 import type { SeriesRenderContext, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
@@ -84,6 +87,41 @@ interface BarPass {
    *  {@link BarRenderer.drawAnimatedBar} clamps it to each bar's geometry so the
    *  value handed to a painter honors the pre-clamped `radius` contract. */
   radius: number;
+}
+
+/** Inset in CSS px on each side of a grouped bar, so neighbours in a band keep a gap. */
+const GROUP_INSET = 1;
+
+/** Gap in CSS px between a bar's free end and its value label. */
+const LABEL_GAP = 3;
+
+/** A bar that left the data, still fading out at its own time. */
+interface ExitState {
+  value: number;
+  startTime: number;
+}
+
+/** One value label, placed at the free end of the drawn bar. */
+interface ValueLabel {
+  value: number;
+  /** Horizontal centre of the bar, in bitmap px. */
+  x: number;
+  /** The bar's free end, in bitmap px. */
+  y: number;
+  /** A negative bar: the label hangs below its free end. */
+  below: boolean;
+  /** Width of the bar body — a wider text is skipped. */
+  maxWidth: number;
+  alpha: number;
+}
+
+/** Geometry and opacity a bar was painted with, after every transform. */
+interface DrawnBar {
+  x: number;
+  topY: number;
+  barWidth: number;
+  barHeight: number;
+  alpha: number;
 }
 
 /** Per-layer settled value and presence (fade × entrance) of one stacked column. */
@@ -164,23 +202,169 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   #introRange: { from: number; to: number } | null = null;
   /** Per-frame history-reveal directives; `null` when no reveal is in flight. */
   #historyDirectives: BarIntroDirectives | null = null;
+  /** Bars a {@link morphData} removed, per layer and keyed by time, fading out over `entryMs`. */
+  readonly #exits: Array<Map<number, ExitState>>;
+  /** Value labels queued by the in-flight render pass; `null` while labels are off. */
+  #labels: ValueLabel[] | null = null;
 
   constructor(layerCount: number, options?: BarOptionsInput) {
     super(layerCount);
     this.options = normalize({ ...DEFAULT_OPTIONS, ...options });
+    this.#exits = Array.from({ length: layerCount }, () => new Map<number, ExitState>());
   }
 
   updateOptions(options: BarOptionsInput): void {
     this.options = normalize({ ...this.options, ...options });
   }
 
+  /** As the base, and a bar whose time went away fades out where it stood. */
+  morphData(data: unknown, layerIndex = 0): void {
+    const store = this.stores[layerIndex];
+    if (store === undefined) return;
+
+    const left = new Map<number, number>();
+    for (const point of store.getAll()) {
+      left.set(point.time, this.liveValue(layerIndex, point.time, point.value));
+    }
+
+    super.morphData(data, layerIndex);
+
+    const exits = this.#exits[layerIndex];
+    for (const point of store.getAll()) {
+      left.delete(point.time);
+      exits.delete(point.time);
+    }
+
+    const exitOn = this.isEntryEnabled() && this.options.entryMs > 0;
+    if (!exitOn) return;
+
+    const startTime = performance.now();
+    for (const [time, value] of left) {
+      if (!Number.isFinite(value)) continue;
+
+      exits.set(time, { value, startTime });
+    }
+  }
+
+  /** Re-key the layer's fading bars; a re-seed keeps them, the chart moves them with their bands. */
+  moveExits(args: { layerIndex: number; remap: (time: number) => number | undefined }): void {
+    const exits = this.#exits[args.layerIndex];
+    if (exits === undefined || exits.size === 0) return;
+
+    const moved = new Map<number, ExitState>();
+    for (const [time, exit] of exits) {
+      const next = args.remap(time);
+      if (next !== undefined) moved.set(next, exit);
+    }
+
+    this.#exits[args.layerIndex] = moved;
+  }
+
+  /** Whether a bar that left the data is still fading out at `time`. */
+  isExiting(time: number): boolean {
+    for (let li = 0; li < this.#exits.length; li++) {
+      const remaining = this.#exitRemaining(li, time);
+      if (remaining !== null && remaining > 0) return true;
+    }
+
+    return false;
+  }
+
+  get needsAnimation(): boolean {
+    if (super.needsAnimation) return true;
+
+    return this.#exits.some((exits) => exits.size > 0);
+  }
+
+  /** An exiting bar plays its entrance backwards. */
+  protected entranceProgress(layerIndex: number, time: number): number {
+    const remaining = this.#exitRemaining(layerIndex, time);
+    if (remaining !== null) return remaining;
+
+    return super.entranceProgress(layerIndex, time);
+  }
+
+  /** Presence `1 → 0` of a bar fading out at `time`, or `null` when none is. */
+  #exitRemaining(layerIndex: number, time: number): number | null {
+    const exit = this.#exits[layerIndex]?.get(time);
+    if (exit === undefined) return null;
+
+    const entryMs = this.options.entryMs;
+    if (entryMs <= 0) return 0;
+
+    const elapsed = performance.now() - exit.startTime;
+
+    return Math.min(1, Math.max(0, 1 - elapsed / entryMs));
+  }
+
+  #pruneExits(now: number): void {
+    const entryMs = this.options.entryMs;
+    for (const exits of this.#exits) {
+      for (const [time, exit] of exits) {
+        if (now - exit.startTime >= entryMs) exits.delete(time);
+      }
+    }
+  }
+
+  /**
+   * A layer's visible points plus its bars still fading out, which the store no longer holds.
+   * On a category axis every bar: one sliding to a band past the range still draws, and the clip trims it.
+   */
+  #drawnPoints(args: { layerIndex: number; timeScale: XScale }): readonly TimePoint[] {
+    const { layerIndex, timeScale } = args;
+    const store = this.stores[layerIndex];
+    const range = timeScale.getRange();
+    const visible = timeScale.getType() === 'category' ? store.getAll() : store.getVisibleData(range.from, range.to);
+    const exits = this.#exits[layerIndex];
+    if (exits.size === 0) return visible;
+
+    const points = [...visible];
+    for (const [time, exit] of exits) {
+      points.push({ time, value: exit.value });
+    }
+
+    return points;
+  }
+
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
+    if (this.options.stacking === 'percent') return this.#percentRange(from, to);
+
     const range = super.getValueRange(from, to, opts);
     const zeroPlottable = opts?.plottable?.(0) ?? true;
     if (range === null || !zeroPlottable) return range;
 
     // A bar is read by its length from zero, so zero stays on the axis; stacked ranges already hold it.
     return { min: Math.min(0, range.min), max: Math.max(0, range.max) };
+  }
+
+  /** The signed shares a percent stack reaches: 0..100 for positive data, down to -100 for an all-negative column. */
+  #percentRange(from: number, to: number): { min: number; max: number } {
+    const columns = new Map<number, StackTotals>();
+    for (const store of this.stores) {
+      if (!store.isVisible()) continue;
+
+      for (const point of store.getVisibleData(from, to)) {
+        if (!Number.isFinite(point.value)) continue;
+
+        const column = columns.get(point.time) ?? { positive: 0, negative: 0 };
+        if (point.value > 0) column.positive += point.value;
+        else column.negative += point.value;
+        columns.set(point.time, column);
+      }
+    }
+
+    let min = 0;
+    let max = 0;
+    for (const { positive, negative } of columns.values()) {
+      const total = positive - negative;
+      if (total <= 0) continue;
+
+      max = Math.max(max, (positive / total) * 100);
+      min = Math.min(min, (negative / total) * 100);
+    }
+
+    // No column yet: the familiar 0..100 frame.
+    return max === 0 && min === 0 ? { min: 0, max: 100 } : { min, max };
   }
 
   protected isEntryEnabled(): boolean {
@@ -262,9 +446,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   /** True when `time` is at/after the configured `projectedFrom` forecast cut. */
   /**
    * The bar stack's reading of a percent column (see `renderStacked`): each
-   * layer's sample at `time` as drawn — smoothed, faded, growing in, intro applied — with
-   * positives scaled to 100% and negatives to -100% on their own; `null` when
-   * the column draws nothing.
+   * layer's sample at `time` as drawn — smoothed, faded, growing in, intro applied — as a
+   * signed share of the column's absolute sum; `null` when the column draws nothing.
    */
   protected percentShares(time: number): Map<number, number> | null {
     const style = this.options.entryAnimation ?? 'fade-grow';
@@ -289,15 +472,23 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
     if (positive === 0 && negative === 0) return null;
 
+    const total = positive - negative;
     const shares = new Map<number, number>();
     for (const [li, value] of values) {
-      let share = 0;
-      if (value > 0) share = (value / positive) * 100;
-      if (value < 0) share = (value / negative) * -100;
-      shares.set(li, share);
+      shares.set(li, (value / total) * 100);
     }
 
     return shares;
+  }
+
+  /** A percent column's drawn head: its positive share, or its negative one when it has no positives. */
+  protected percentTop(totals: StackTotals): number {
+    const total = totals.positive - totals.negative;
+    if (total <= 0) return 0;
+
+    const side = totals.positive > 0 ? totals.positive : totals.negative;
+
+    return (side / total) * 100;
   }
 
   private isProjectedTime(time: number): boolean {
@@ -350,7 +541,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   }
 
   render(ctx: SeriesRenderContext): void {
-    this.tickAnimations(performance.now());
+    const now = performance.now();
+    this.tickAnimations(now);
+    this.#pruneExits(now);
 
     const { scope, timeScale, yScale } = ctx;
 
@@ -445,6 +638,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       historyClipApplied = true;
     }
 
+    const labelsOn = Boolean(this.options.valueLabels) && this.options.stacking !== 'percent';
+    this.#labels = labelsOn ? [] : null;
+
     switch (this.options.stacking) {
       case 'normal':
         this.renderStacked(ctx, false);
@@ -456,6 +652,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         this.renderOff(ctx);
         break;
     }
+
+    if (this.#labels !== null) this.#drawValueLabels(ctx, this.#labels);
+    this.#labels = null;
 
     if (historyClipApplied) scope.context.restore();
     if (introClip !== undefined) scope.context.restore();
@@ -487,7 +686,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     return Math.max(1, Math.round(barWidth * this.options.barWidthRatio));
   }
 
-  /** Stacking off — each layer drawn independently from zero, overlapping */
+  /** Stacking off — each layer drawn from zero: grouped on a category axis, overlapping elsewhere. */
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
@@ -504,13 +703,12 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     const zeroY = hasNegative ? yScale.valueToBitmapY(0) : scope.bitmapSize.height;
 
     const isSingleLayer = this.stores.length === 1;
+    const grouped = !isSingleLayer && timeScale.getType() === 'category';
 
     if (isSingleLayer) {
       if (!this.stores[0].isVisible()) return;
 
-      const visibleData = this.stores[0].getVisibleData(range.from, range.to);
-
-      for (const d of visibleData) {
+      for (const d of this.#drawnPoints({ layerIndex: 0, timeScale })) {
         // Skip poisoned values (null / NaN / ±Infinity / undefined) — the
         // renderer must not draw a NaN-height bar — and, on a log scale, values ≤ 0.
         if (!yScale.isPlottable(d.value)) continue;
@@ -520,48 +718,25 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         // threshold value-fn doesn't flicker hues while the bar grows.
         const raw = this.effectiveValue(ctx, 0, d.time, d.value);
         const value = this.introValue({ layerIndex: 0, time: d.time, value: raw });
-        const progress = this.entranceProgress(0, d.time);
-        const isProjected = this.isProjectedTime(d.time);
-        const cx = timeScale.timeToBitmapX(d.time);
         // One resolver per layer: a value-fn (the theme default) paints by sign
         // / threshold, a string paints uniform — replaces the old colors[0]=up /
         // colors[1]=down pair.
         const color = this.resolveLayerColor(0, raw);
 
-        if (value >= 0) {
-          const topY = yScale.valueToBitmapY(value);
-          const barHeight = Math.max(1, zeroY - topY);
-          this.drawAnimatedBar({
-            context,
-            time: d.time,
-            progress,
-            baselineY: zeroY,
-            topY,
-            barHeight,
-            x: cx - anchorOffset,
-            barWidth: bodyWidth,
-            color,
-            roundEdge: 'top',
-            isProjected,
-          });
-        } else {
-          const bottomY = yScale.valueToBitmapY(value);
-          const barHeight = Math.max(1, bottomY - zeroY);
-          this.drawAnimatedBar({
-            context,
-            time: d.time,
-            progress,
-            baselineY: zeroY,
-            topY: zeroY,
-            barHeight,
-            x: cx - anchorOffset,
-            barWidth: bodyWidth,
-            color,
-            roundEdge: 'bottom',
-            isProjected,
-          });
-        }
+        const drawn = this.#drawFromZero({
+          ctx,
+          layerIndex: 0,
+          time: d.time,
+          value,
+          zeroY,
+          x: timeScale.timeToBitmapX(d.time) - anchorOffset,
+          barWidth: bodyWidth,
+          color,
+        });
+        this.#queueLabel({ drawn, value: raw, below: value < 0 });
       }
+    } else if (grouped) {
+      this.#renderGrouped(ctx, { zeroY, bandWidth: bodyWidth });
     } else {
       // Multi-layer: collect per-time, draw tallest first so shorter bars appear in front.
       // Drawn value moves from the baseline to effectiveValue by getLayerAlpha —
@@ -665,11 +840,152 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
   }
 
+  /**
+   * Category axis, stacking off: each band splits into one slot per layer, in
+   * layer order. A slot's width follows its layer's alpha, so a legend toggle
+   * reflows the group instead of leaving a hole.
+   */
+  #renderGrouped(ctx: SeriesRenderContext, args: { zeroY: number; bandWidth: number }): void {
+    const { scope, timeScale, yScale } = ctx;
+    const { zeroY, bandWidth } = args;
+    const baseline = yScale.baselineValue();
+
+    const weights = this.stores.map((_, li) => this.getLayerAlpha(li));
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    if (totalWeight <= 0) return;
+
+    const halfBand = Math.floor(bandWidth / 2);
+    const inset = GROUP_INSET * scope.horizontalPixelRatio;
+    let weightBefore = 0;
+    for (let li = 0; li < this.stores.length; li++) {
+      const alpha = weights[li];
+      const slotFrom = (weightBefore / totalWeight) * bandWidth;
+      weightBefore += alpha;
+      const slotTo = (weightBefore / totalWeight) * bandWidth;
+      if (alpha <= 0) continue;
+
+      for (const d of this.#drawnPoints({ layerIndex: li, timeScale })) {
+        if (!yScale.isPlottable(d.value)) continue;
+
+        const bandLeft = timeScale.timeToBitmapX(d.time) - halfBand;
+        const left = Math.round(bandLeft + slotFrom);
+        const right = Math.round(bandLeft + slotTo);
+        // A slot too thin for the gap keeps its full width rather than vanish.
+        const gap = right - left > inset * 4 ? inset : 0;
+
+        // As in the overlap mode, a fading layer's bar shrinks toward the baseline.
+        const settled = this.effectiveValue(ctx, li, d.time, d.value);
+        const scaled = alpha === 1 ? settled : yScale.lerpValue(baseline, settled, alpha);
+        const value = this.introValue({ layerIndex: li, time: d.time, value: scaled });
+
+        const drawn = this.#drawFromZero({
+          ctx,
+          layerIndex: li,
+          time: d.time,
+          value,
+          zeroY,
+          x: left + gap,
+          barWidth: Math.max(1, right - left - 2 * gap),
+          color: this.resolveLayerColor(li, d.value),
+        });
+        this.#queueLabel({ drawn, value: settled, below: value < 0 });
+      }
+    }
+  }
+
+  /** Paint one bar from the zero line to `value`; the free end is the one away from zero. */
+  #drawFromZero(args: {
+    ctx: SeriesRenderContext;
+    layerIndex: number;
+    time: number;
+    value: number;
+    zeroY: number;
+    x: number;
+    barWidth: number;
+    color: string;
+  }): DrawnBar | null {
+    const { ctx, time, value, zeroY } = args;
+
+    const endY = ctx.yScale.valueToBitmapY(value);
+    const positive = value >= 0;
+    const barHeight = Math.max(1, positive ? zeroY - endY : endY - zeroY);
+
+    return this.drawAnimatedBar({
+      context: ctx.scope.context,
+      time,
+      progress: this.entranceProgress(args.layerIndex, time),
+      baselineY: zeroY,
+      topY: positive ? endY : zeroY,
+      barHeight,
+      x: args.x,
+      barWidth: args.barWidth,
+      color: args.color,
+      roundEdge: positive ? 'top' : 'bottom',
+      isProjected: this.isProjectedTime(time),
+    });
+  }
+
+  /** Queue a value label at the free end of a painted bar; a no-op while labels are off. */
+  #queueLabel(args: { drawn: DrawnBar | null; value: number; below: boolean }): void {
+    const labels = this.#labels;
+    const { drawn, below } = args;
+    if (labels === null || drawn === null) return;
+
+    labels.push({
+      value: args.value,
+      x: drawn.x + drawn.barWidth / 2,
+      y: below ? drawn.topY + drawn.barHeight : drawn.topY,
+      below,
+      maxWidth: drawn.barWidth,
+      alpha: drawn.alpha,
+    });
+  }
+
+  /** Label text: the option's format, else the Y scale's (which honors `<YAxis format>`). */
+  #labelFormat(yScale: YScale): (value: number) => string {
+    const option = this.options.valueLabels;
+    const custom = typeof option === 'object' ? option.format : undefined;
+    if (custom !== undefined) return custom;
+
+    return (value) => yScale.formatY(value);
+  }
+
+  /** Drawn after every bar, so a neighbour's body never covers a label. */
+  #drawValueLabels(ctx: SeriesRenderContext, labels: readonly ValueLabel[]): void {
+    if (labels.length === 0) return;
+
+    const { scope, theme } = ctx;
+    const { context } = scope;
+    const format = this.#labelFormat(ctx.yScale);
+    const fontSize = resolveAxisFontSize(theme) * scope.verticalPixelRatio;
+    const gap = LABEL_GAP * scope.verticalPixelRatio;
+
+    context.save();
+    const baseAlpha = context.globalAlpha;
+    context.font = `${fontSize}px ${theme.typography.fontFamily}`;
+    context.fillStyle = theme.bar?.labelColor ?? theme.tooltip.textColor;
+    context.textAlign = 'center';
+
+    for (const label of labels) {
+      if (label.alpha <= 0) continue;
+
+      const text = format(label.value);
+      const fits = context.measureText(text).width <= label.maxWidth;
+      if (!fits) continue;
+
+      context.globalAlpha = baseAlpha * label.alpha;
+      context.textBaseline = label.below ? 'top' : 'bottom';
+      const y = label.below ? label.y + gap : label.y - gap;
+      context.fillText(text, label.x, y);
+    }
+
+    context.restore();
+  }
+
   /** Stacked (normal or percent) rendering */
   private renderStacked(ctx: SeriesRenderContext, percent: boolean): void {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
-    const range = timeScale.getRange();
 
     const bodyWidth = this.#bodyWidth(ctx);
     const halfBody = Math.floor(bodyWidth / 2);
@@ -681,8 +997,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     // a layer mid-fade still contributes shrinking geometry to the stack
     // instead of disappearing the moment `setLayerVisible(false)` flips the
     // store. Alpha=0 layers are pre-filtered to keep the timeMap clean.
-    const layers = this.stores.map((store, li) =>
-      this.getLayerAlpha(li) > 0 ? store.getVisibleData(range.from, range.to) : [],
+    const layers = this.stores.map((_, li) =>
+      this.getLayerAlpha(li) > 0 ? this.#drawnPoints({ layerIndex: li, timeScale }) : [],
     );
     if (layers.every((l) => l.length === 0)) return;
 
@@ -704,6 +1020,8 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
     // the weights go through `ScaleStack`, and the intro moves the drawn edges.
     const scaleStacked = yScale.getTransform() !== null && !percent;
     const shares = new Map<number, ColumnShares>();
+    // Signed column totals the value labels show — settled values, so a label doesn't count up with the entrance.
+    const totals = new Map<number, { positive: number; negative: number }>();
 
     const timeMap = new Map<number, number[]>();
     for (let li = 0; li < layers.length; li++) {
@@ -720,6 +1038,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         const settled = this.effectiveValue(ctx, li, d.time, raw);
         let value = settled * alpha;
         let weight = alpha;
+
+        let total = totals.get(d.time);
+        if (!total) {
+          total = { positive: 0, negative: 0 };
+          totals.set(d.time, total);
+        }
+        if (value > 0) total.positive += value;
+        else total.negative += value;
+
         if (growEntrance && !this.isProjectedTime(d.time)) {
           const entrance = this.entranceProgress(li, d.time);
           value *= entrance;
@@ -804,17 +1131,15 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             else baseNegative += v;
           }
 
-          // Normalize to 0–100%
-          let totalPositive = 0;
-          let totalNegative = 0;
+          // Each segment's share of the column's absolute sum: the column spans 100% across zero.
+          let total = 0;
           for (const v of values) {
-            if (v > 0) totalPositive += v;
-            else totalNegative += v;
+            total += Math.abs(v);
           }
 
-          if (raw > 0 && totalPositive > 0) {
-            const pctBase = (basePositive / totalPositive) * 100;
-            const pctTop = ((basePositive + raw) / totalPositive) * 100;
+          if (raw > 0 && total > 0) {
+            const pctBase = (basePositive / total) * 100;
+            const pctTop = ((basePositive + raw) / total) * 100;
             const topY = yScale.valueToBitmapY(pctTop);
             const bottomY = yScale.valueToBitmapY(pctBase);
             const h = Math.max(1, bottomY - topY);
@@ -832,9 +1157,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               isProjected,
               growBaked: true,
             });
-          } else if (raw < 0 && totalNegative < 0) {
-            const pctBase = (baseNegative / totalNegative) * -100;
-            const pctTop = ((baseNegative + raw) / totalNegative) * -100;
+          } else if (raw < 0 && total > 0) {
+            const pctBase = (baseNegative / total) * 100;
+            const pctTop = ((baseNegative + raw) / total) * 100;
             const topY = yScale.valueToBitmapY(pctBase);
             const bottomY = yScale.valueToBitmapY(pctTop);
             const h = Math.max(1, bottomY - topY);
@@ -859,11 +1184,12 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
 
           const base = column.base[li];
           const end = column.end[li];
+          let drawn: DrawnBar | null;
           if (raw > 0) {
             const topY = yScale.valueToBitmapY(end);
             const bottomY = yScale.valueToBitmapY(base);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar({
+            drawn = this.drawAnimatedBar({
               context,
               time,
               progress,
@@ -881,7 +1207,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
             const topY = yScale.valueToBitmapY(base);
             const bottomY = yScale.valueToBitmapY(end);
             const h = Math.max(1, bottomY - topY);
-            this.drawAnimatedBar({
+            drawn = this.drawAnimatedBar({
               context,
               time,
               progress,
@@ -895,6 +1221,13 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
               isProjected,
               growBaked: true,
             });
+          }
+
+          // The outer segment of each signed stack — the one that rounds — carries the stack's label.
+          const total = totals.get(time);
+          if (roundEdge !== 'none' && total !== undefined) {
+            const below = roundEdge === 'bottom';
+            this.#queueLabel({ drawn, value: below ? total.negative : total.positive, below });
           }
         }
       }
@@ -936,9 +1269,9 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
    * geometry); a projected bar is forced settled so its only alpha source is the
    * painter's translucent fill rather than a `globalAlpha` fade.
    */
-  private drawAnimatedBar(bar: AnimatedBar): void {
+  private drawAnimatedBar(bar: AnimatedBar): DrawnBar | null {
     const pass = this.#pass;
-    if (pass === null) return;
+    if (pass === null) return null;
 
     const { context, baselineY, topY, barHeight, x, barWidth, color, roundEdge } = bar;
     const progress = bar.isProjected ? 1 : bar.progress;
@@ -996,10 +1329,12 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       pass.painter(pass.env, args);
       context.restore();
 
-      return;
+      return t;
     }
 
     pass.painter(pass.env, args);
+
+    return t;
   }
 }
 

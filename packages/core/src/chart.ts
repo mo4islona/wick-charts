@@ -2,6 +2,7 @@ import { Animator } from './animation/animator';
 import { AnimationConfig, DEFAULT_LINE_PULSE } from './animation/config';
 import { easeOutCubic } from './animation/easing';
 import { prefersReducedMotion } from './animation/reduced-motion';
+import type { Transition } from './animation/transition';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
@@ -70,6 +71,7 @@ import {
   type XFocus,
   isTimeSeriesRenderer,
 } from './series/types';
+import { resolveAxisTextColor } from './theme/resolve';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
 import type {
@@ -103,6 +105,7 @@ import type {
   YAxisPosition,
   YRange,
 } from './types';
+import { deriveBarHoverBackground } from './utils/color';
 import { deepEqual } from './utils/deep-equal';
 import type { ValueFormatter } from './utils/format';
 import { clamp } from './utils/math';
@@ -337,6 +340,9 @@ interface SeriesEntry {
   palette: { type: SeriesType; start: number; count: number };
 }
 
+/** One layer of one series on a category axis. */
+type CategoryLayer = { entry: SeriesEntry; layerIndex: number };
+
 /** An ingested point on a numeric / category axis — `x` and `time` as passed in. */
 type XKeyedPoint = { x?: unknown; time?: unknown };
 
@@ -437,6 +443,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   readonly #xType: XAxisType;
   /** Category axis: name → band index, in first-seen order across the series. */
   #categoryIndex = new Map<string, number>();
+  /** Category axis: names gone from the data that keep their band while a series fades their bars out. */
+  #leavingCategories = new Set<string>();
+  /** Category axis: layers changed inside a `batch`, synced once it ends so one layer's half-done update can't reorder the bands. */
+  #pendingCategoryLayers: CategoryLayer[] = [];
+  /** Category axis: bands sliding to a new index after a layout change, on the X curve and settle. */
+  #bandSlide: {
+    transition: Transition<XRange>;
+    from: ReadonlyMap<number, number>;
+    entering: ReadonlySet<number>;
+  } | null = null;
+  /** Category axis: the band under the crosshair, which gets the hover backdrop. */
+  #hoverBand: number | null = null;
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
   /** All registered series (candlestick, line, bar, pie). */
@@ -838,6 +856,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.fitContent();
       this.emit('pointDoubleClick', { ...pos, spatialHit: this.#spatialHitAt(pos) });
     });
+
+    // `axis.x.categories` lays out its bands before any data arrives.
+    if (this.#xType === 'category') this.#syncCategories();
   }
 
   /** A pointer position on a category axis snaps to the nearest band; `x` is the coordinate in the axis domain. */
@@ -1600,7 +1621,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const layerIndex = args.layerIndex ?? 0;
     entry.categoryPoints[layerIndex] = args.mutate(entry.categoryPoints[layerIndex] ?? []);
 
-    this.#syncCategories({ entry, layerIndex });
+    if (this.#batchDepth > 0) {
+      this.#pendingCategoryLayers.push({ entry, layerIndex });
+
+      return;
+    }
+
+    this.#syncCategories([{ entry, layerIndex }]);
   }
 
   /** Whether `entry`'s points go through the numeric / category ingest. */
@@ -1637,18 +1664,116 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return accepted;
   }
 
-  /** Category points with `time` set to their band index. */
-  #toBands(points: readonly XKeyedPoint[]): XKeyedPoint[] {
-    return points.map((point) => ({ ...point, time: this.#categoryIndex.get(point.x as string) }));
+  /** Category points with `time` set to their band index in `index`, in band order. */
+  #toBands(points: readonly XKeyedPoint[], index: ReadonlyMap<string, number> = this.#categoryIndex): XKeyedPoint[] {
+    return points
+      .map((point) => ({ ...point, time: index.get(point.x as string) }))
+      .sort((a, b) => (a.time as number) - (b.time as number));
   }
 
   /**
-   * Re-derive the categories — first-seen order across the series (mount
-   * order, then layers, then points in input order) — and re-set every store
-   * whose band indices moved, plus the `changed` layer.
+   * Re-derive the categories — `axis.x.categories` first, then first-seen
+   * order across the series (mount order, then layers, then points in input
+   * order) — and re-set every store whose band indices moved, plus the
+   * `changed` layers. A category that left keeps its band while a series still
+   * fades its bars out there, so no other bar moves into it meanwhile.
    */
-  #syncCategories(changed?: { entry: SeriesEntry; layerIndex: number }): void {
-    const names = new Set<string>();
+  #syncCategories(changed: readonly CategoryLayer[] = []): void {
+    const ordered = this.#orderedCategories();
+    const current = this.timeScale.getCategories();
+    const previous = this.#categoryIndex;
+    const leaving = current.filter((name) => !ordered.includes(name));
+
+    this.batch(() => {
+      const held = this.#withLeaving({ ordered, leaving, previous });
+      this.#applyCategories({ names: held, previous, known: previous, changed });
+
+      // Only a band a series fades out stays; the rest go now.
+      const exiting = leaving.filter((name) => this.#isCategoryExiting(name));
+      if (exiting.length < leaving.length) {
+        const names = this.#withLeaving({ ordered, leaving: exiting, previous });
+        this.#applyCategories({ names, previous: this.#categoryIndex, known: previous, changed: [] });
+      }
+      this.#leavingCategories = new Set(exiting);
+
+      const next = this.timeScale.getCategories();
+      const categoriesMoved = next.length !== current.length || next.some((name, i) => name !== current[i]);
+      if (categoriesMoved) this.#startBandSlide({ before: current, after: next });
+      // A category dropped off the end moves no point, yet the bands still refit.
+      if (categoriesMoved) this.onDataChanged();
+    });
+  }
+
+  /**
+   * Slide every category that changed band from where it draws now to its new
+   * index, in step with the X refit: same curve, same settle. A new category
+   * has no old band, so it enters in place.
+   */
+  #startBandSlide(args: { before: readonly string[]; after: readonly string[] }): void {
+    const from = new Map<number, number>();
+    const entering = new Set<number>();
+    for (const [band, name] of args.after.entries()) {
+      const oldBand = args.before.indexOf(name);
+      if (oldBand < 0) {
+        entering.add(band);
+
+        continue;
+      }
+
+      const drawnAt = this.timeScale.slidCoord(oldBand);
+      if (drawnAt !== band) from.set(band, drawnAt);
+    }
+
+    this.#bandSlide = null;
+    this.timeScale.setBandSlide(null);
+    if (from.size === 0) return;
+
+    const { curve, settleMs } = this.#animationsConfig.axis.x;
+    const now = performance.now();
+    const transition = curve({ initial: { from: 0, to: 0 } });
+    transition.retarget({ from: 1, to: 1 }, { now, expandMs: settleMs });
+    // A snapping X curve (animations off) lands at once — nothing to slide.
+    if (!transition.animating) return;
+
+    this.#bandSlide = { transition, from, entering };
+    this.timeScale.setBandSlide({ from, entering, progress: transition.current.from });
+    this.#mainScheduler.markDirty();
+  }
+
+  /** Advance the band slide; `true` on every frame it moves, the landing one included. */
+  #tickBandSlide(now: number): boolean {
+    const slide = this.#bandSlide;
+    if (slide === null) return false;
+
+    const moving = slide.transition.tick(now);
+    if (!moving) {
+      this.#bandSlide = null;
+      this.timeScale.setBandSlide(null);
+
+      return true;
+    }
+
+    this.timeScale.setBandSlide({
+      from: slide.from,
+      entering: slide.entering,
+      progress: slide.transition.current.from,
+    });
+
+    return true;
+  }
+
+  /** Sync the category layers a `batch` changed, skipping series removed meanwhile. */
+  #flushCategoryLayers(): void {
+    if (this.#pendingCategoryLayers.length === 0) return;
+
+    const changed = this.#pendingCategoryLayers.filter((item) => this.#series.includes(item.entry));
+    this.#pendingCategoryLayers = [];
+    this.#syncCategories(changed);
+  }
+
+  /** `axis.x.categories` first, then the names the series hold, in first-seen order. */
+  #orderedCategories(): string[] {
+    const names = new Set<string>(this.#axis.x?.categories ?? []);
     for (const entry of this.#series) {
       for (const layer of entry.categoryPoints) {
         for (const point of layer ?? []) {
@@ -1657,51 +1782,135 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
     }
 
-    const next = [...names];
-    const current = this.timeScale.getCategories();
-    const categoriesMoved = next.length !== current.length || next.some((name, i) => name !== current[i]);
-    const previous = this.#categoryIndex;
-    this.#categoryIndex = new Map(next.map((name, i) => [name, i]));
-    this.timeScale.setCategories(next);
-
-    this.batch(() => {
-      for (const entry of this.#series) {
-        this.#resetCategoryStores({ entry, previous, changed });
-      }
-
-      // A category dropped off the end moves no point, yet the bands still refit.
-      if (categoriesMoved) this.onDataChanged();
-    });
+    return [...names];
   }
 
-  /** Re-set `entry`'s layers whose points moved band, or that `changed` names, from their input-order points. */
+  /** `ordered` with each `leaving` name back after the name it followed in `previous`. */
+  #withLeaving(args: {
+    ordered: readonly string[];
+    leaving: readonly string[];
+    previous: ReadonlyMap<string, number>;
+  }): string[] {
+    const names = [...args.ordered];
+    const before = [...args.previous.keys()];
+
+    for (const [i, name] of before.entries()) {
+      if (!args.leaving.includes(name)) continue;
+
+      const anchor = before
+        .slice(0, i)
+        .reverse()
+        .find((other) => names.includes(other));
+      names.splice(anchor === undefined ? 0 : names.indexOf(anchor) + 1, 0, name);
+    }
+
+    return names;
+  }
+
+  /** Lay the bands out as `names` and re-set the stores whose points moved band. */
+  #applyCategories(args: {
+    names: readonly string[];
+    previous: ReadonlyMap<string, number>;
+    known: ReadonlyMap<string, number>;
+    changed: readonly CategoryLayer[];
+  }): void {
+    const { previous, known, changed } = args;
+    this.#categoryIndex = new Map(args.names.map((name, i) => [name, i]));
+    this.timeScale.setCategories(args.names);
+
+    for (const entry of this.#series) {
+      this.#resetCategoryStores({ entry, previous, known, changed });
+    }
+  }
+
+  /** The band now held by the category that sat at `time` in `previous`. */
+  #movedBand(args: { time: number; previous: ReadonlyMap<string, number> }): number | undefined {
+    for (const [name, band] of args.previous) {
+      if (band === args.time) return this.#categoryIndex.get(name);
+    }
+
+    return undefined;
+  }
+
+  /** Whether a series still fades bars out in the band of `name`. */
+  #isCategoryExiting(name: string): boolean {
+    const band = this.#categoryIndex.get(name);
+    if (band === undefined) return false;
+
+    return this.#series.some((entry) => entry.renderer.isExiting?.(band) === true);
+  }
+
+  /** Drop the bands of left categories whose bars finished fading out. */
+  #releaseLeavingCategories(): void {
+    for (const name of this.#leavingCategories) {
+      if (this.#isCategoryExiting(name)) continue;
+
+      this.#syncCategories();
+
+      return;
+    }
+  }
+
+  /**
+   * Re-set `entry`'s layers whose points moved band since `previous`, or that
+   * `changed` lists, from their input-order points. A category not in `known`
+   * enters with its fade.
+   */
   #resetCategoryStores(args: {
     entry: SeriesEntry;
     previous: ReadonlyMap<string, number>;
-    changed: { entry: SeriesEntry; layerIndex: number } | undefined;
+    known: ReadonlyMap<string, number>;
+    changed: readonly CategoryLayer[];
   }): void {
-    const { entry, previous, changed } = args;
+    const { entry, previous, known, changed } = args;
     for (let layer = 0; layer < entry.categoryPoints.length; layer++) {
       const points = entry.categoryPoints[layer] ?? [];
-      const isChanged = changed?.entry === entry && changed.layerIndex === layer;
+      const isChanged = changed.some((item) => item.entry === entry && item.layerIndex === layer);
       const moved = points.some(
         (point) => previous.get(point.x as string) !== this.#categoryIndex.get(point.x as string),
       );
-      if (!isChanged && !moved) continue;
+      // Bars still fading out follow their category's band, whichever way the layer is re-set.
+      const remap = (time: number) => this.#movedBand({ time, previous });
+      if (!isChanged && !moved) {
+        entry.renderer.moveExits?.({ layerIndex: layer, remap });
 
-      const mapped = this.#toBands(points).sort((a, b) => (a.time as number) - (b.time as number));
+        continue;
+      }
+
+      const mapped = this.#toBands(points);
       const shifted = points.some((point) => {
         const before = previous.get(point.x as string);
 
         return before !== undefined && before !== this.#categoryIndex.get(point.x as string);
       });
 
-      // Points that keep their band ease to their new values; a band shift re-seeds.
+      // Points that keep their band ease to their new values.
       if (isChanged && !shifted && entry.renderer.morphData !== undefined) {
+        entry.renderer.moveExits?.({ layerIndex: layer, remap });
         entry.renderer.morphData(mapped, layer);
-      } else {
-        entry.renderer.setData(mapped, layer);
+
+        continue;
       }
+
+      // A band shift re-seeds. A bar leaving now starts its fade in the old layout first,
+      // and every fading bar then moves to its category's new band.
+      const { renderer } = entry;
+      if (renderer.morphData === undefined) {
+        renderer.setData(mapped, layer);
+
+        continue;
+      }
+
+      const isKnown = (point: XKeyedPoint) => known.has(point.x as string);
+      const wasPlaced = (point: XKeyedPoint) => previous.has(point.x as string);
+      if (isChanged) renderer.morphData(this.#toBands(points.filter(wasPlaced), previous), layer);
+
+      renderer.setData(mapped.filter(isKnown), layer);
+      renderer.moveExits?.({ layerIndex: layer, remap });
+
+      // A category new to the axis enters on top of the re-seed.
+      const entering = mapped.some((point) => !isKnown(point));
+      if (entering) renderer.morphData(mapped, layer);
     }
   }
 
@@ -1875,6 +2084,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /**
    * Batch multiple updates: suppress recomputes until `fn` returns. Exceptions
    * inside `fn` still flush the batch so counters don't leak across calls.
+   * On a category axis the bands and stores follow the data once `fn` returns.
    */
   batch(fn: () => void): void {
     this.#batchDepth++;
@@ -1883,6 +2093,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     } finally {
       if (--this.#batchDepth <= 0) {
         this.#batchDepth = 0;
+        this.#flushCategoryLayers();
         if (this.#batchDataDirty) {
           this.#batchDataDirty = false;
           this.#batchVisualDirty = false;
@@ -2191,6 +2402,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#crosshairPos = null;
       this.#overlayScheduler.markDirty();
       this.emit('crosshairMove', null);
+      this.#syncHoverBand();
       return;
     }
 
@@ -2223,6 +2435,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#crosshairPos = { mediaX, mediaY, time, x: this.timeScale.domainValue(time), y };
     this.#overlayScheduler.markDirty();
     this.emit('crosshairMove', this.#crosshairPos);
+    this.#syncHoverBand();
   }
 
   /** Get the last visible value and whether the absolute last point is on screen. */
@@ -2605,8 +2818,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const nextPadding = this.timeScale.getBandPadding();
     const bandsMoved = prevPadding.inner !== nextPadding.inner || prevPadding.outer !== nextPadding.outer;
 
+    const categoriesChanged = !deepEqual(this.#axis.x?.categories, config.x?.categories);
     this.#axis = config;
     this.#defaultSlot.bounds = { min: config.y?.min, max: config.y?.max };
+    if (categoriesChanged && this.#xType === 'category') this.#syncCategories();
     warnUnplottableBounds({ y: config.y, isPlottable: plottableOnNext });
     const now = performance.now();
 
@@ -2823,6 +3038,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.getYScale(params.scale).setFormat(params.format);
     this.#bumpOverlayVersion();
+    // Bar value labels follow the format on the main canvas.
+    this.#mainScheduler.markDirty();
   }
 
   /**
@@ -3122,6 +3339,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#mainScheduler.markDirty();
       this.emit('seriesHover', hovered);
     }
+
+    this.#syncHoverBand();
+  }
+
+  /** Follow the crosshair's band with the hover backdrop. */
+  #syncHoverBand(): void {
+    const pos = this.#crosshairPos;
+    const band = this.#xType === 'category' && pos !== null ? pos.time : null;
+    if (band === this.#hoverBand) return;
+
+    this.#hoverBand = band;
+    this.#mainScheduler.markDirty();
+  }
+
+  /**
+   * The ECharts-style "shadow" pointer: a backdrop one category step wide
+   * behind the hovered band's bars, the full plot height. Bar series only.
+   */
+  #drawHoverBand(scope: BitmapCoordinateSpace, paneBitmapHeight: number): void {
+    const band = this.#hoverBand;
+    if (band === null) return;
+
+    const hasBars = this.#series.some((entry) => entry.renderer.kind === 'bar' && entry.visible);
+    if (!hasBars) return;
+
+    const step = this.timeScale.barWidthMedia(1) * scope.horizontalPixelRatio;
+    const left = Math.round(this.timeScale.timeToBitmapX(band) - step / 2);
+    const theme = this.#theme;
+
+    scope.context.fillStyle = theme.bar?.hoverBackground ?? deriveBarHoverBackground(resolveAxisTextColor(theme));
+    scope.context.fillRect(left, 0, Math.round(step), paneBitmapHeight);
   }
 
   /**
@@ -3521,21 +3769,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    *   from the tail).
    */
   #computeXTarget(): XRange | null {
+    const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
+
+    // Every data change refits a category axis: a new or vanished category moves the
+    // bands. Listed categories have bands before any data does.
+    if (this.#xType === 'category' && this.timeScale.bandRange() !== null) {
+      this.#fitVisibleToData({ firstTime: 0, lastTime: 0, chartWidth });
+
+      return this.#logical;
+    }
+
     if (this.#dataStart === null || this.#dataEnd === null) return null;
 
     const { from, to } = this.#logical;
     const uninitialized = from === 0 && to === 0;
-    const chartWidth = this.#canvasManager.size.media.width - this.#columnsWidth();
 
     const focus = this.#xFocus();
     if (focus !== null) return this.#followFocus({ focus, uninitialized });
-
-    // Every data change refits a category axis: a new or vanished category moves the bands.
-    if (this.#xType === 'category') {
-      this.#fitVisibleToData({ firstTime: this.#dataStart, lastTime: this.#dataEnd, chartWidth });
-
-      return this.#logical;
-    }
 
     // Applied inside the closure so the Y target the engine pulls next
     // reflects the chart's own window rather than the full dataset.
@@ -4163,6 +4413,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // from synthetic frame time instead of the real wall clock.
     const now = typeof timestamp === 'number' ? timestamp : performance.now();
 
+    if (this.#leavingCategories.size > 0) this.#releaseLeavingCategories();
+    const bandsSliding = this.#tickBandSlide(now);
+    if (bandsSliding) this.#mainScheduler.markDirty();
+
     const animationState = this.#engine.tick(now);
     if (animationState.animating) {
       this.#mainScheduler.markDirty();
@@ -4275,7 +4529,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const tickFadeRunning = yTickSnap.isAnimating || timeTickSnap.isAnimating || scaleTickAnimating;
       const tickFadeSettled = this.#tickFadeRunning && !tickFadeRunning;
       this.#tickFadeRunning = tickFadeRunning;
-      if (tickFadeRunning || tickFadeSettled || animationState.animating) {
+      if (tickFadeRunning || tickFadeSettled || animationState.animating || bandsSliding) {
         this.emit('tickFrame');
       }
 
@@ -4310,6 +4564,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // Time-region bands sit between the grid and the series so the data reads
       // on top of the shading.
       this.#drawRegions(scope, chartBitmapWidth, chartBitmapHeight);
+      this.#drawHoverBand(scope, chartBitmapHeight);
 
       const vpad = this.#padding;
       const padding = { top: vpad.top, bottom: vpad.bottom };
@@ -4424,8 +4679,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const trackersStillFading = yTickAnimating || timeTickAnimating || scaleTickAnimating;
 
     // The engine stops calling markDirty on the frame it settles, so a fade
-    // outliving it would freeze mid-way.
-    if (trackersStillFading || gridFadeAnimating) {
+    // outliving it would freeze mid-way. A held category band waits for a frame to go.
+    if (trackersStillFading || gridFadeAnimating || this.#leavingCategories.size > 0) {
       this.#mainScheduler.markDirty();
     }
 

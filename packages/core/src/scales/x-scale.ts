@@ -29,6 +29,13 @@ export type XAxisFormatter = (x: number | string, step: number) => string;
 /** Custom tick-value generator — replaces the built-in `niceTimeIntervals` tier resolution entirely when installed. */
 export type TimeTickGenerator = (range: XRange, dataInterval: number) => number[];
 
+/** A category layout change in flight — see {@link XScale.setBandSlide}. */
+export interface BandSlide {
+  from: ReadonlyMap<number, number>;
+  entering: ReadonlySet<number>;
+  progress: number;
+}
+
 export class XScale {
   /**
    * Shared fade state for time ticks. Grid lines (canvas) and DOM tick labels
@@ -40,6 +47,8 @@ export class XScale {
   private type: XAxisType = 'time';
   /** Category names in band order — category `i` is centred on coordinate `i`. */
   private categories: readonly string[] = [];
+  /** Category axis: bands sliding to a new index — new index → coordinate it slides from — and the bands entering. */
+  private bandSlide: BandSlide | null = null;
   private bandPadding: Required<XAxisPadding> = { inner: DEFAULT_INNER_PADDING, outer: DEFAULT_OUTER_PADDING };
 
   private from = 0;
@@ -144,6 +153,27 @@ export class XScale {
 
   getCategories(): readonly string[] {
     return this.categories;
+  }
+
+  /** Slide the listed bands from their old coordinate to their index as `progress` goes 0 → 1; `null` ends it. */
+  setBandSlide(slide: BandSlide | null): void {
+    this.bandSlide = slide;
+  }
+
+  /** Presence 0 → 1 of a band that entered with the slide; `1` for every other band. */
+  bandEnterProgress(band: number): number {
+    const slide = this.bandSlide;
+    if (slide === null || !slide.entering.has(band)) return 1;
+
+    return slide.progress;
+  }
+
+  /** Where a coordinate draws mid-slide — itself unless its band is sliding. */
+  slidCoord(time: number): number {
+    const from = this.bandSlide?.from.get(time);
+    if (this.bandSlide === null || from === undefined) return time;
+
+    return from + (time - from) * this.bandSlide.progress;
   }
 
   /** Band spacing on a category axis; an omitted or invalid side takes its default. */
@@ -263,7 +293,9 @@ export class XScale {
   timeToX(time: number): number {
     if (this.to <= this.from) return 0;
 
-    return ((time - this.from) / (this.to - this.from)) * this.width;
+    const coord = this.slidCoord(time);
+
+    return ((coord - this.from) / (this.to - this.from)) * this.width;
   }
 
   /** X in physical (bitmap) pixels, snapped to the pixel grid — for
@@ -357,14 +389,12 @@ export class XScale {
     return { ticks, tickInterval: interval };
   }
 
-  /** One tick per category whose band centre is in view. */
+  /** One tick per category whose band centre is in view, where it draws mid-slide. */
   private bandTicks(): { ticks: number[]; tickInterval: number } {
-    const first = Math.max(0, Math.ceil(this.from));
-    const last = Math.min(this.categories.length - 1, Math.floor(this.to));
-
     const ticks: number[] = [];
-    for (let i = first; i <= last; i++) {
-      ticks.push(i);
+    for (let i = 0; i < this.categories.length; i++) {
+      const coord = this.slidCoord(i);
+      if (coord >= this.from && coord <= this.to) ticks.push(i);
     }
 
     return { ticks, tickInterval: 1 };

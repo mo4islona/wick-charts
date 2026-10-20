@@ -55,6 +55,8 @@ interface BarSeriesOptions {
   entryAnimation?: 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'; // default: 'fade-grow'
   entryMs?: number | false;                // entrance duration; false disables — default: 250
   smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 250
+  cornerRadius?: number;                   // free-end corner radius, CSS px — default: 2
+  valueLabels?: boolean | { format?: (value: number) => string }; // value text past each bar end — default: off
 }
 ```
 
@@ -96,9 +98,17 @@ Fraction of the available interval width (0–1). At `0.6` (default), each bar t
 
 | Mode | Behavior |
 |------|----------|
-| `'off'` | Tallest bar drawn first (behind), layers overlap. Supports negative values |
+| `'off'` | Time / numeric axis: tallest bar drawn first (behind), layers overlap. Category axis: layers stand side by side in each band (grouped), in layer order. Supports negative values |
 | `'normal'` | Layers stack cumulatively on top of each other |
-| `'percent'` | Like `'normal'` but normalized to 0–100% of total. Tooltip rows show the share before the value |
+| `'percent'` | Each layer is its share of the column's absolute sum, so a column spans 100% across zero (+3 and −1 → +75% up, −25% down; all-positive data fills 0–100%). Tooltip rows show the share before the value |
+
+### `valueLabels`
+
+Canvas text just past each bar's free end — above a positive bar, below a negative one. A `'normal'` stack gets one label per signed stack with its total; `'percent'` stacks and layers overlapping on a time / numeric axis get none. A label wider than its bar is skipped. Default text: the Y axis format (`<YAxis format>`), else the axis tick format; `{ format }` overrides it. Color: `theme.bar.labelColor`; font: the theme font at `theme.axis.fontSize`.
+
+```tsx
+<BarSeries data={layers} options={{ valueLabels: { format: (v) => `$${v}M` } }} />
+```
 
 ### Zero line
 
@@ -265,6 +275,31 @@ data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layer
 options?: Partial<BarSeriesOptions>
 /** Stable series ID — reuse across overlays that target this series. */
 id?: string
+```
+
+## Category bars
+
+On a category X axis (`axis={{ x: { type: 'category' } }}`) points carry `x: string`, each category gets a band and the bars fill it (`barWidthRatio` is ignored; `axis.x.padding.inner` sets the gap).
+
+- **Grouped** — a multi-layer series with `stacking: 'off'` puts its layers side by side in each band, colored from `theme.seriesColors`. Two separate `BarSeries` still overlap.
+- **Stacked** — `'normal'` / `'percent'` draw one column per band, as on a time axis.
+- **Order** — `axis.x.categories: string[]` puts the listed names first, in list order, also one no series has data for (an empty band); the rest follow in first-seen order. Live.
+- **Hover** — the hovered category gets a band backdrop behind its bars (`theme.bar.hoverBackground`); the tooltip lists every layer of it.
+- **Updates** — bars ease to new values; a category that enters fades in while the later bars slide aside, one that leaves fades out at its own band before the bands close up and the later bars slide over (on the X axis curve and settle).
+
+```tsx
+<ChartContainer axis={{ x: { type: 'category', categories: ['Europe', 'Asia', 'Americas'] } }}>
+  <BarSeries
+    data={[
+      { label: '2024', data: [{ x: 'Europe', value: 46 }, { x: 'Asia', value: 41 }] },
+      { label: '2025', data: [{ x: 'Europe', value: 49 }, { x: 'Asia', value: 47 }] },
+    ]}
+    options={{ valueLabels: true }}
+  />
+  <XAxis />
+  <YAxis />
+  <Tooltip />
+</ChartContainer>
 ```
 
 ## Custom tooltip

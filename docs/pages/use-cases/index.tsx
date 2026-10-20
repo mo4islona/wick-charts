@@ -4,6 +4,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import type { Route } from '../../routes';
 import { AnnotationsPage } from './annotations';
+import { CategoryBarsPage } from './category-bars';
 import { CustomIntroPage } from './custom-intro';
 import { CustomRendersPage } from './custom-renders';
 import { DataLoadingPage } from './data-loading';
@@ -27,6 +28,7 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/data-loading': DataLoadingPage,
   'use-cases/secondary-scale': SecondaryScalePage,
   'use-cases/x-axis-types': XAxisTypesPage,
+  'use-cases/category-bars': CategoryBarsPage,
 };
 
 export function UseCasesRoutePage({ route, theme }: { route: Route; theme: ChartTheme }) {

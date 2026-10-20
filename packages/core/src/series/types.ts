@@ -145,6 +145,19 @@ export interface BaseSeriesRenderer {
    */
   morphData?(data: unknown, layerIndex?: number): void;
 
+  /**
+   * Whether an element that {@link morphData} removed still fades out at
+   * `time`. A category axis keeps that band in place until no series does.
+   * Optional — without it a removed category's band goes at once.
+   */
+  isExiting?(time: number): boolean;
+
+  /**
+   * Move each element still fading out to `remap(time)` — a category axis
+   * calls it when bands shift; one with no new time goes at once. Optional.
+   */
+  moveExits?(args: { layerIndex: number; remap: (time: number) => number | undefined }): void;
+
   /** Append a single point (real-time tick). Optional — not all renderers support streaming. */
   appendPoint?(point: unknown, layerIndex?: number): void;
 

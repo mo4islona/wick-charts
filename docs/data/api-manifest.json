@@ -321,9 +321,9 @@
                 "name": "barWidthRatio",
                 "type": "number",
                 "optional": false,
-                "defaultValue": "0.7",
+                "defaultValue": "0.6",
                 "deprecated": null,
-                "description": "Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot.\nApplies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.7.",
+                "description": "Width of each bar as a fraction of the available bar slot (0–1). `1` = bars touch; `0.6` = roughly 60 % of the slot.\nApplies on a time or numeric X axis only — on a category axis a bar fills its band (see `axis.x.padding`). Default: 0.6.",
                 "see": []
               },
               {
@@ -332,7 +332,7 @@
                 "optional": false,
                 "defaultValue": "'off'",
                 "deprecated": null,
-                "description": "Stacking mode. Default: 'off'.",
+                "description": "Stacking mode. Default: 'off'. With `'off'`, layers overlap on a time or\nnumeric X axis and stand side by side in each band on a category axis.\n`'percent'` draws each layer as its share of the column's absolute sum, so\na column spans 100% across zero: +3 and -1 give +75% up and -25% down.",
                 "see": []
               },
               {
@@ -421,9 +421,9 @@
                 "name": "cornerRadius",
                 "type": "number",
                 "optional": true,
-                "defaultValue": "4",
+                "defaultValue": "2",
                 "deprecated": null,
-                "description": "Free-end corner radius in CSS pixels. Default: `4`. `0` is byte-identical to\nthe pre-rounding square output. The radius is clamped to half the smaller\nbar dimension, so thin bars / sub-radius segments degrade to flat.\n\nThe renderer decides which edge is \"free\" per draw mode — a positive bar\nrounds its top, a negative bar its bottom, and in a stack only the topmost\n(or bottommost) segment per column rounds, interior segments stay square.\n`anchor` is orthogonal: rounding operates on the already-offset rect.",
+                "description": "Free-end corner radius in CSS pixels. Default: `2`. `0` is byte-identical to\nthe pre-rounding square output. The radius is clamped to half the smaller\nbar dimension, so thin bars / sub-radius segments degrade to flat.\n\nThe renderer decides which edge is \"free\" per draw mode — a positive bar\nrounds its top, a negative bar its bottom, and in a stack only the topmost\n(or bottommost) segment per column rounds, interior segments stay square.\n`anchor` is orthogonal: rounding operates on the already-offset rect.",
                 "see": []
               },
               {
@@ -443,6 +443,29 @@
                 "deprecated": null,
                 "description": "Time (epoch ms) at/after which bars are flagged as projected / forecast\n\"ghost\" bars. The default painter fills those with a translucent derivative\nof their color; projected bars also skip the entrance transform so the ghost\nnever double-fades. Omitted: no projected bars.",
                 "see": []
+              },
+              {
+                "name": "valueLabels",
+                "type": "boolean | BarValueLabelsOptions",
+                "optional": true,
+                "defaultValue": "off",
+                "deprecated": null,
+                "description": "Value text just past each bar's free end: above a positive bar, below a\nnegative one. A `'normal'` stack gets one label per signed stack, with its\ntotal; `'percent'` stacks and layers overlapping on a time or numeric axis\nget none. A label wider than its bar is skipped. `true` uses the default\nformat. Color: `theme.bar.labelColor`. Default: off.",
+                "see": [],
+                "nested": {
+                  "name": "BarValueLabelsOptions",
+                  "props": [
+                    {
+                      "name": "format",
+                      "type": "(value: number) => string",
+                      "optional": true,
+                      "defaultValue": "the Y axis format",
+                      "deprecated": null,
+                      "description": "Label text. Default: the Y axis format (`<YAxis format>`), else the axis tick format.",
+                      "see": []
+                    }
+                  ]
+                }
               }
             ]
           }
@@ -1785,7 +1808,7 @@
               },
               {
                 "name": "bar",
-                "type": "{ color: ValueColor; }",
+                "type": "{ color: ValueColor; hoverBackground?: string; labelColor?: string; }",
                 "optional": true,
                 "defaultValue": "single-layer bar color",
                 "deprecated": null,
@@ -1801,6 +1824,24 @@
                       "defaultValue": "fill — a string",
                       "deprecated": null,
                       "description": "Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down).",
+                      "see": []
+                    },
+                    {
+                      "name": "hoverBackground",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Backdrop behind the hovered category's bars on a category axis.\n{@link createTheme } derives it from the axis text color; without it the\nchart uses the same derivation.",
+                      "see": []
+                    },
+                    {
+                      "name": "labelColor",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Value label text (`BarSeriesOptions.valueLabels`). {@link createTheme }\nderives it from the tooltip text color; without it the renderer uses\n{@link ChartTheme.tooltip} `textColor`. The font is the theme font at\nthe axis font size.",
                       "see": []
                     }
                   ]
@@ -2819,7 +2860,7 @@
               },
               {
                 "name": "bar",
-                "type": "{ color: ValueColor; }",
+                "type": "{ color: ValueColor; hoverBackground?: string; labelColor?: string; }",
                 "optional": true,
                 "defaultValue": "single-layer bar color",
                 "deprecated": null,
@@ -2835,6 +2876,24 @@
                       "defaultValue": "fill — a string",
                       "deprecated": null,
                       "description": "Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down).",
+                      "see": []
+                    },
+                    {
+                      "name": "hoverBackground",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Backdrop behind the hovered category's bars on a category axis.\n{@link createTheme } derives it from the axis text color; without it the\nchart uses the same derivation.",
+                      "see": []
+                    },
+                    {
+                      "name": "labelColor",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Value label text (`BarSeriesOptions.valueLabels`). {@link createTheme }\nderives it from the tooltip text color; without it the renderer uses\n{@link ChartTheme.tooltip} `textColor`. The font is the theme font at\nthe axis font size.",
                       "see": []
                     }
                   ]
@@ -3566,6 +3625,15 @@
                           }
                         ]
                       }
+                    },
+                    {
+                      "name": "categories",
+                      "type": "string[]",
+                      "optional": true,
+                      "defaultValue": "first-seen order",
+                      "deprecated": null,
+                      "description": "Band order on a category axis. Listed names take the first bands in list\norder, also a name no series has data for (an empty band); names that are\nnot listed follow in first-seen order. Default: first-seen order. Ignored\non other types. Live.",
+                      "see": []
                     },
                     {
                       "name": "panZoom",

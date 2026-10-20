@@ -54,6 +54,46 @@ describe('numeric and category X axes', () => {
     expect(mounted.container.textContent).toContain('40');
   });
 
+  it('groups the layers of a category bar chart side by side and lists both in the tooltip', () => {
+    const sales = [
+      { label: '2023', color: '#ff0000', data: REGIONS },
+      { label: '2024', color: '#0000ff', data: REGIONS.map(({ x, value }) => ({ x, value: value + 5 })) },
+    ];
+    mounted = mountChart(
+      <>
+        <BarSeries data={sales} options={{ cornerRadius: 0, valueLabels: true }} />
+        <Tooltip />
+      </>,
+      { axis: { x: { type: 'category', categories: ['Amer.'] } } },
+    );
+    mounted.flushScheduler();
+
+    expect(mounted.chart.timeScale.getCategories()).toEqual(['Amer.', 'EU', 'Asia']);
+
+    const bars = (color: string) =>
+      mounted?.mainSpy
+        .callsOf('fillRect')
+        .filter((call) => call.fillStyle === color)
+        .map((call) => Number(call.args[0]))
+        .slice(-3) ?? [];
+    const first = bars('#ff0000');
+    const second = bars('#0000ff');
+    expect(first).toHaveLength(3);
+    for (let i = 0; i < 3; i++) {
+      expect(second[i]).toBeGreaterThan(first[i]);
+    }
+    const labels = mounted.mainSpy.callsOf('fillText').map((call) => call.args[0]);
+    expect(labels).toEqual(expect.arrayContaining(['50', '55']));
+
+    hoverAt(1);
+
+    const text = mounted.container.textContent ?? '';
+    expect(text).toContain('2023');
+    expect(text).toContain('2024');
+    expect(text).toContain('50');
+    expect(text).toContain('55');
+  });
+
   it('formats the numeric x with <XAxis format> in the axis, crosshair and tooltip of a line chart', () => {
     mounted = mountChart(
       <>

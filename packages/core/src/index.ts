@@ -297,6 +297,7 @@ export type {
   BandSeriesOptions,
   BarEntryAnimation,
   BarSeriesOptions,
+  BarValueLabelsOptions,
   CandlestickData,
   CandlestickEntryAnimation,
   CandlestickSeriesOptions,

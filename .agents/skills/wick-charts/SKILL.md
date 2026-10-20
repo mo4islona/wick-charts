@@ -24,7 +24,7 @@ Framework-specific gaps to know about:
 
 - [Candlestick](candlestick.md) — OHLCV with volume bars
 - [Line / Area](line.md) — multi-layer, stacking, area, pulse
-- [Bar / Histogram](bar.md) — multi-layer, stacking
+- [Bar / Histogram](bar.md) — multi-layer, stacking, grouped category bars, value labels
 - [Band / Range](#band-series) — fill between a `low` and a `high` edge; percentile bands, Bollinger, fan charts (section below)
 - [Order book](#depth-series) — cumulative bid / ask walls around mid on a numeric price axis (section below)
 - [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation, "Other" grouping (on by default)
@@ -288,7 +288,7 @@ const SCALES = { rsi: { position: 'left', min: 0, max: 100 } }; // stable object
 
 - `type` is read at construction; a later change is ignored with a dev warning — remount (a React `key`) to switch.
 - **Numeric**: linear mapping, 1-2-5 ticks (`labelCount` / `minLabelSpacing` on `<XAxis>`), locale-number labels, pan / zoom like time. The median point spacing sizes bar slots and the hover snap.
-- **Category**: categories come from the data in first-seen order (series in mount order, points in data order) and follow every data change; a category no series holds disappears. Band `i` is centred on coordinate `i`; `axis.x.padding` = `{ inner, outer }` in fractions of a step (default 0.3 / 0.2). Bars fill the band (`barWidthRatio` is ignored), lines and bands run through band centres, long labels end in an ellipsis, the viewport fits every band.
+- **Category**: categories come from the data in first-seen order (series in mount order, points in data order) and follow every data change; a category no series holds disappears (its bars fade out at their band first). `axis.x.categories: string[]` fixes the order: listed names take the first bands, an empty band for a name without data, the rest follow in first-seen order (live). Band `i` is centred on coordinate `i`; `axis.x.padding` = `{ inner, outer }` in fractions of a step (default 0.3 / 0.2). Bars fill the band (`barWidthRatio` is ignored) — the layers of one multi-layer `BarSeries` stand side by side in it with `stacking: 'off'` (see [bar.md](bar.md#category-bars)) — lines and bands run through band centres, long labels end in an ellipsis, the viewport fits every band. Hover shades the hovered band behind bar series (`theme.bar.hoverBackground`).
 - `axis.x.panZoom` (default `true`, `false` on category) turns drag / wheel off; the crosshair still works. Live.
 - `CrosshairPosition.x` / `PointClickInfo.x` hold the domain value (epoch ms / number / category name); `time` is the internal coordinate (the band index on a category axis). Stored points keep their `x`.
 - Line, bar and band work on every type; candlestick is time-only and depth numeric-only — `addSeries` throws for a series whose definition doesn't list the axis type (`SeriesDefinition.xTypes`, default `['time']`). Navigator, EdgeLoader / `onEdgeReached` and TimeRegion are time-only: disabled with a dev warning.

@@ -218,6 +218,18 @@ export function deriveHeatmapRamp(background: string, accent: string): [string, 
 }
 
 /**
+ * Theme-derived backdrop behind a hovered bar category: a faint wash of the
+ * muted axis text tone, which already flips with theme polarity. Single
+ * source for `createTheme` and the chart's no-token fallback.
+ */
+export function deriveBarHoverBackground(axisTextColor: string): string {
+  const channels = parseColorChannels(axisTextColor) ?? [128, 128, 128];
+  const [r, g, b] = channels;
+
+  return `rgba(${r}, ${g}, ${b}, 0.14)`;
+}
+
+/**
  * Sample a multi-stop ramp at `t` in [0, 1] with perceptual interpolation
  * between adjacent stops. A single-stop ramp returns that stop; an empty
  * ramp returns transparent black (defensive — resolved options never allow it).

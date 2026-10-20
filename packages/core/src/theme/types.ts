@@ -82,6 +82,19 @@ export interface ChartTheme {
   bar?: {
     /** Default fill — a string (uniform) or a value-fn (e.g. sign-based up/down). */
     color: ValueColor;
+    /**
+     * Backdrop behind the hovered category's bars on a category axis.
+     * {@link createTheme} derives it from the axis text color; without it the
+     * chart uses the same derivation.
+     */
+    hoverBackground?: string;
+    /**
+     * Value label text (`BarSeriesOptions.valueLabels`). {@link createTheme}
+     * derives it from the tooltip text color; without it the renderer uses
+     * {@link ChartTheme.tooltip} `textColor`. The font is the theme font at
+     * the axis font size.
+     */
+    labelColor?: string;
   };
 
   /**
