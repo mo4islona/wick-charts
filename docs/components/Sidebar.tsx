@@ -81,8 +81,7 @@ export function Sidebar({
   };
 
   return (
-    // <aside> (not a div) — semantic, and the og-image capture in
-    // scripts/prerender.mjs removes it by tag to shoot a menu-free card.
+    // <aside> (not a div): the page's navigation landmark.
     <aside
       style={{
         position: 'relative',
