@@ -8,6 +8,8 @@ export interface ScalarSpringRetargetOptions {
 /** Default ω if `retarget` is ever called without a settle time. */
 const FALLBACK_MS = 250;
 const FALLBACK_OMEGA = 4.6 / (FALLBACK_MS / 1000);
+/** Part of a move left when the spring lands on the target: 0.1% keeps the landing sub-pixel. */
+const SETTLE_FRACTION = 1e-3;
 
 /**
  * Critically-damped scalar spring — the per-side math of {@link YRangeSpring}
@@ -33,6 +35,8 @@ export class ScalarSpring {
   #omega = FALLBACK_OMEGA;
   #t0 = -1;
   #cached: number;
+  /** Size of the current move, the scale of the settle ε. */
+  #span = 0;
 
   constructor(initial: number) {
     this.#x0 = initial;
@@ -62,6 +66,7 @@ export class ScalarSpring {
       this.#target = value;
       this.#omega = omega;
       this.#t0 = now;
+      this.#span = Math.abs(this.#x0 - value);
 
       return;
     }
@@ -73,6 +78,7 @@ export class ScalarSpring {
     this.#target = value;
     this.#t0 = now;
     this.#cached = x;
+    this.#span = Math.max(Math.abs(x - value), Math.abs(v) / omega);
   }
 
   /** Land at `value` immediately; velocity resets to zero. */
@@ -83,6 +89,7 @@ export class ScalarSpring {
     this.#v0 = 0;
     this.#t0 = now;
     this.#cached = value;
+    this.#span = 0;
   }
 
   /** Advance the analytic solution to `now`. Returns `true` while still
@@ -97,8 +104,9 @@ export class ScalarSpring {
 
     const { x, v } = this.#sample(now);
     this.#cached = x;
-    const eps = this.#eps();
-    if (Math.abs(x - this.#target) < eps && Math.abs(v) < eps * this.#omega) {
+    const eps = this.#span * SETTLE_FRACTION;
+    const settled = Math.abs(x - this.#target) <= eps && Math.abs(v) <= eps * this.#omega;
+    if (settled) {
       this.#cached = this.#target;
       this.#x0 = this.#target;
       this.#v0 = 0;
@@ -119,9 +127,5 @@ export class ScalarSpring {
     const v = (b - this.#omega * (a + b * t)) * decay;
 
     return { x, v };
-  }
-
-  #eps(): number {
-    return Math.max(Math.abs(this.#target), 1) * 1e-4;
   }
 }
