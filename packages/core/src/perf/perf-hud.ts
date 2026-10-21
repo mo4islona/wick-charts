@@ -183,14 +183,33 @@ function sparkScaleMax(values: number[]): number {
   return Math.max(10, Math.ceil(peak / 10) * 10);
 }
 
+/** Gap under the zero baseline: at 0 the idle line drowns in the panel's bottom border and rounding. */
+const SPARK_BOTTOM_PX = 4;
+
 /**
- * Y-axis `min` reducer: slightly below zero so the idle baseline renders a
- * couple of pixels above the panel edge. With `min: 0` the zero line maps to
- * the last canvas row and drowns in the bottom border (vertical padding
- * doesn't move fixed bounds).
+ * Y bounds that put the window peak `topPx` below the top of a `heightPx`
+ * plot and zero {@link SPARK_BOTTOM_PX} above its bottom. Computed bounds
+ * take no chart padding, so the gaps have to live in the bounds.
  */
-function sparkScaleMin(values: number[]): number {
-  return -sparkScaleMax(values) / 12;
+export function sparkBounds(args: { values: number[]; heightPx: number; topPx: number }): {
+  min: number;
+  max: number;
+} {
+  const peak = sparkScaleMax(args.values);
+  const span = args.heightPx - args.topPx - SPARK_BOTTOM_PX;
+  if (span <= 0) return { min: 0, max: peak };
+
+  const valuePerPx = peak / span;
+
+  return { min: -SPARK_BOTTOM_PX * valuePerPx, max: peak + args.topPx * valuePerPx };
+}
+
+/** The peak {@link sparkBounds} built `range` from: the value the strip's top tick names. */
+export function sparkPeak(args: { range: { min: number; max: number }; heightPx: number; topPx: number }): number {
+  const { range, heightPx, topPx } = args;
+  if (heightPx - topPx - SPARK_BOTTOM_PX <= 0) return range.max;
+
+  return range.max - ((range.max - range.min) * topPx) / heightPx;
 }
 
 const DEFAULT_COLORS: PerfHudColors = {
@@ -436,6 +455,8 @@ export class PerfHud {
   private dragY = 0;
   private lastFrameAt = 0;
   private lastUpdate = 0;
+  /** Shifts the graph's times to epoch ms: after ~28 h of uptime a bare `performance.now()` reads as Unix seconds. */
+  private readonly sparkClockOffset = Date.now() - performance.now();
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(container: HTMLElement, monitor: PerfMonitor, options: PerfHudViewOptions = {}) {
@@ -532,7 +553,7 @@ export class PerfHud {
       color: colorVar('label'),
     } satisfies Partial<CSSStyleDeclaration>);
 
-    // Collapse: a round badge on the panel's top-right corner, half outside it.
+    // Collapse: a round badge ending the header row, inside the panel where no `overflow: hidden` host clips it.
     this.minimizeButton = doc.createElement('button');
     this.minimizeButton.type = 'button';
     this.minimizeButton.title = 'Collapse';
@@ -540,15 +561,13 @@ export class PerfHud {
     this.minimizeButton.innerHTML =
       '<svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M1 1l6 6M7 1L1 7"/></svg>';
     Object.assign(this.minimizeButton.style, {
-      position: 'absolute',
-      top: '-8px',
-      right: '-8px',
-      zIndex: '2',
       display: 'flex',
+      flexShrink: '0',
       alignItems: 'center',
       justifyContent: 'center',
-      width: '18px',
-      height: '18px',
+      width: '16px',
+      height: '16px',
+      marginLeft: '2px',
       padding: '0',
       pointerEvents: 'auto',
       cursor: 'pointer',
@@ -591,7 +610,7 @@ export class PerfHud {
       alignSelf: 'flex-end',
     } satisfies Partial<CSSStyleDeclaration>);
 
-    header.append(this.dragIcon, this.dot, title, this.spacer, this.fpsValue, this.fpsSuffix);
+    header.append(this.dragIcon, this.dot, title, this.spacer, this.fpsValue, this.fpsSuffix, this.minimizeButton);
     if (this.draggable || this.miniDraggable) this.installDrag(container);
     if (this.expandable && !this.miniDraggable) {
       // A draggable mini panel expands on a still press in the drag handler; any other on a click.
@@ -653,8 +672,8 @@ export class PerfHud {
     const memSupported = Boolean((performance as unknown as { memory?: unknown }).memory);
     if (memSupported) this.heapRow.style.display = 'flex';
 
-    // The one Y-axis tick that matters: the window-peak FPS mapped to the top
-    // of the plot. The bottom edge is the axis floor (min: 0). Positioned per
+    // The one Y-axis tick that matters: the window-peak FPS, in the gap above
+    // the peak. The bottom edge is the axis floor (min: 0). Positioned per
     // mode by rebuildSparkChart.
     this.sparkMaxTick = doc.createElement('span');
     this.sparkMaxTick.setAttribute('data-perf', 'spark-max');
@@ -669,7 +688,7 @@ export class PerfHud {
     } satisfies Partial<CSSStyleDeclaration>);
 
     this.body.append(grid, this.seriesSection, this.heapRow);
-    this.element.append(this.sparkHost, header, this.body, this.sparkMaxTick, this.minimizeButton);
+    this.element.append(this.sparkHost, header, this.body, this.sparkMaxTick);
     container.appendChild(this.element);
 
     // After attach, so the nested chart measures a real box on construction.
@@ -885,9 +904,7 @@ export class PerfHud {
       this.body.insertBefore(this.sparkHost, this.body.firstChild);
     }
 
-    if (this.sparkChart) {
-      this.sparkChart.setPadding({ top: this.sparkPaddingTop(), bottom: 4, left: 0, right: 0 });
-    } else {
+    if (this.sparkChart === null) {
       const spark = this.createSparkChart(this.sparkHost);
       this.sparkChart = spark?.chart ?? null;
       this.sparkSeriesId = spark?.seriesId ?? null;
@@ -923,21 +940,24 @@ export class PerfHud {
    */
   private createSparkChart(host: HTMLElement): { chart: ChartInstance; seriesId: string } | null {
     try {
-      const constructedAt = performance.now();
-      const chart = new ChartInstance(host, {
+      const constructedAt = this.sparkNow();
+      let chart: ChartInstance | null = null;
+      // The plot's height follows the panel mode, so each resolve reads it afresh.
+      const bounds = (values: number[]) =>
+        sparkBounds({ values, heightPx: chart?.getLayout().chartArea.height ?? 0, topPx: this.sparkPaddingTop() });
+
+      chart = new ChartInstance(host, {
         theme: createTheme({ background: '#10141c' }).theme,
         axis: {
-          y: { visible: false, width: 0, min: sparkScaleMin, max: sparkScaleMax },
+          y: {
+            visible: false,
+            width: 0,
+            min: (values) => bounds(values).min,
+            max: (values) => bounds(values).max,
+          },
           x: { visible: false, height: 0 },
         },
-        // Bottom padding keeps the zero baseline clearly on canvas — at 0 the
-        // 1px stroke drowns in the panel's bottom border and rounding.
-        padding: {
-          top: this.sparkPaddingTop(),
-          bottom: 4,
-          left: 0,
-          right: 0,
-        },
+        padding: { top: 0, bottom: 0, left: 0, right: 0 },
         grid: { visible: false },
         interactive: false,
         viewport: {
@@ -973,7 +993,7 @@ export class PerfHud {
     }
   }
 
-  /** Keeps the plateau below the FPS number (mini) or the Y tick (strip). */
+  /** Gap above the window peak: keeps the plateau below the FPS number (mini) or the Y tick (strip). */
   private sparkPaddingTop(): number {
     if (this.mode === 'full') return 12;
     // Clear of the frame's top edge.
@@ -987,8 +1007,12 @@ export class PerfHud {
   private appendSpark(value: number): void {
     if (!this.sparkChart || !this.sparkSeriesId) return;
 
-    this.sparkChart.appendData(this.sparkSeriesId, { time: performance.now(), value });
+    this.sparkChart.appendData(this.sparkSeriesId, { time: this.sparkNow(), value });
     this.sparkChart.keepLast(this.sparkSeriesId, SPARK_CAPACITY + SPARK_TRIM_BUFFER);
+  }
+
+  private sparkNow(): number {
+    return performance.now() + this.sparkClockOffset;
   }
 
   /**
@@ -1182,8 +1206,12 @@ export class PerfHud {
     this.renderHeap(stats);
 
     if (this.sparkChart && this.sparkMaxTick) {
-      const { max } = this.sparkChart.getYRange();
-      this.sparkMaxTick.textContent = max > 0 ? `${Math.round(max)}` : '';
+      const peak = sparkPeak({
+        range: this.sparkChart.getYRange(),
+        heightPx: this.sparkChart.getLayout().chartArea.height,
+        topPx: this.sparkPaddingTop(),
+      });
+      this.sparkMaxTick.textContent = peak > 0 ? `${Math.round(peak)}` : '';
     }
   }
 

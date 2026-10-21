@@ -23,17 +23,13 @@ const theme = computed(() => {
 
   return chart.getTheme();
 });
-const dataInterval = computed(() => chart.getDataInterval());
-// Format the time pill at the axis's *resolved* tick granularity, not the raw
-// data interval — otherwise a time-of-day badge floats among date labels when
-// zoomed out. `niceTickValues` reads the live visible range, which Vue can't
-// track reactively, so depend on `position` (a wheel-zoom re-emits the
-// crosshair) to re-resolve on zoom — matching React, which recomputes this on
-// every render. Falls back to dataInterval on a degenerate range.
-const tickInterval = computed(() => {
-  void position.value;
+// The chart reads the live range and data, which Vue can't track: `position` re-runs it
+// on each move (a wheel-zoom re-emits the crosshair), `bump` after a data or formatter change.
+const xLabel = computed(() => {
+  void bump.value;
+  const pos = position.value;
 
-  return chart.timeScale.niceTickValues(dataInterval.value).tickInterval || dataInterval.value;
+  return pos === null ? null : chart.getCrosshairXLabel(pos);
 });
 
 // One value label per named scale's axis column, each read through its own scale.
@@ -61,14 +57,6 @@ const scaleLabels = computed(() => {
 });
 // A named scale can own the default axis's side when the default axis is hidden.
 const defaultSideTaken = computed(() => scaleLabels.value.some((label) => label.position === chart.yAxisPosition));
-// Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
-// `position` re-reads the axis height on each move, like `tickInterval`.
-const timeLabelPlacement = computed(() => {
-  void position.value;
-  const bottom = chart.xAxisHeight / 2;
-
-  return { bottom: `${bottom}px`, transform: bottom > 0 ? 'translate(-50%, 50%)' : 'translateX(-50%)' };
-});
 
 const labelStyle = computed(() => ({
   // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -119,14 +107,16 @@ const labelStyle = computed(() => ({
     </div>
     <!-- Time label on bottom axis -->
     <div
+      v-if="xLabel"
       :style="{
         position: 'absolute',
-        left: position.mediaX + 'px',
-        ...timeLabelPlacement,
+        left: xLabel.left + 'px',
+        bottom: xLabel.bottom + 'px',
+        transform: xLabel.transform,
         ...labelStyle,
       }"
     >
-      {{ chart.timeScale.formatX(position.time, tickInterval) }}
+      {{ xLabel.text }}
     </div>
   </template>
 </template>

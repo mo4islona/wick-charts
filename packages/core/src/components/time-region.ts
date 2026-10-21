@@ -60,11 +60,13 @@ export interface RenderTimeRegionArgs {
   plotWidth: number;
   /** Plot-area height in bitmap pixels — the band spans the full height. */
   plotHeight: number;
+  /** Media px a floating Title / InfoBar covers at the top of the plot; the label chip goes below it. Default `0`. */
+  headerHeight?: number;
 }
 
 /** Draw a single resolved time region onto the main layer, behind the series. */
 export function renderTimeRegion(args: RenderTimeRegionArgs): void {
-  const { scope, timeScale, theme, region, plotWidth, plotHeight } = args;
+  const { scope, timeScale, theme, region, plotWidth, plotHeight, headerHeight = 0 } = args;
   const { context, horizontalPixelRatio: hpr, verticalPixelRatio: vpr } = scope;
 
   const xFrom = timeScale.timeToBitmapX(region.from);
@@ -92,7 +94,7 @@ export function renderTimeRegion(args: RenderTimeRegionArgs): void {
   context.globalAlpha = 1;
 
   if (region.label) {
-    drawRegionLabel({ context, theme, region, left, hpr, vpr });
+    drawRegionLabel({ context, theme, region, left, top: headerHeight, hpr, vpr });
   }
 
   context.restore();
@@ -114,12 +116,14 @@ interface RegionLabelArgs {
   region: ResolvedTimeRegion;
   /** Clamped left edge of the visible band, in bitmap pixels. */
   left: number;
+  /** Media px the header covers at the top; the chip starts below it. */
+  top: number;
   hpr: number;
   vpr: number;
 }
 
 /** An annotation chip at the top-left of the visible band carrying the region's label. */
-function drawRegionLabel({ context, theme, region, left, hpr, vpr }: RegionLabelArgs): void {
+function drawRegionLabel({ context, theme, region, left, top, hpr, vpr }: RegionLabelArgs): void {
   const label = region.label;
   if (label === undefined) return;
 
@@ -131,7 +135,7 @@ function drawRegionLabel({ context, theme, region, left, hpr, vpr }: RegionLabel
     color: region.color,
     label,
     x: left + LABEL_INSET_MEDIA * hpr,
-    y: LABEL_INSET_MEDIA * vpr,
+    y: (top + LABEL_INSET_MEDIA) * vpr,
     width,
     height,
     hpr,

@@ -181,6 +181,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return resolveColor(this.#layerResolver(layerIndex), value);
   }
 
+  /** The color the point at `value` paints in — what a hover dot or tooltip row shows for it. */
+  resolvePointColor(layerIndex: number, value: number): string {
+    return this.resolveLayerColor(layerIndex, value);
+  }
+
   // --- Data ingest ----------------------------------------------------------
 
   setData(data: unknown, layerIndex = 0): void {
@@ -754,7 +759,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
         value: this.snapshotValue(li, closest.time, closest.value),
         // Resolve the layer's color at the hovered datum's value so a value-fn
         // colors the tooltip dot to match the bar / segment under the cursor.
-        color: this.resolveLayerColor(li, closest.value),
+        color: this.resolvePointColor(li, closest.value),
       };
       if (closest.x !== undefined) row.x = closest.x;
 

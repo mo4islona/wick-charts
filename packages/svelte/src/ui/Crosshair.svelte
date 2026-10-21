@@ -16,16 +16,6 @@ let unsubscribe: (() => void) | null = null;
 let bump = 0;
 let overlayUnsub: (() => void) | null = null;
 
-// `_position` is referenced only so the `$:` statement re-runs on crosshair
-// move (a wheel-zoom re-emits it), re-reading the live data interval + range.
-function resolveTickInterval(c: ChartInstance | null, _position: CrosshairPosition | null): number {
-  if (!c) return 86400;
-
-  const di = c.getDataInterval();
-
-  return c.timeScale.niceTickValues(di).tickInterval || di;
-}
-
 $: {
   const chart = $chartStore;
   if (chart && !unsubscribe) {
@@ -50,14 +40,9 @@ onDestroy(() => {
 
 $: chart = $chartStore;
 $: theme = chart && bump >= 0 ? chart.getTheme() : null;
-// Format the time pill at the axis's *resolved* tick granularity, not the raw
-// data interval — otherwise a time-of-day badge floats among date labels when
-// zoomed out. Resolve fresh on each crosshair move: the raw data interval
-// isn't known until data loads (the chart ref doesn't change then, so an eager
-// `$:` would freeze the pre-data default), and `niceTickValues` reads the live
-// visible range (which a wheel-zoom re-emits the crosshair for) — matching
-// React, which recomputes this on every render.
-$: tickInterval = resolveTickInterval(chart, position);
+// Re-resolved on each crosshair move (a wheel-zoom re-emits it) and on `bump`: the chart
+// reads the live range and data, which the chart ref alone doesn't track.
+$: xLabel = chart && position && bump >= 0 ? chart.getCrosshairXLabel(position) : null;
 
 // One value label per named scale's axis column, each read through its own scale.
 // `_bump` re-runs these on `overlayChange`, re-labelling a still crosshair after a formatter or scale change.
@@ -82,10 +67,6 @@ $: scaleLabels = resolveScaleLabels(chart, position, bump);
 $: defaultLabel = chart && position && bump >= 0 ? chart.yScale.formatY(position.y) : '';
 // A named scale can own the default axis's side when the default axis is hidden.
 $: defaultSideTaken = scaleLabels.some((label) => label.position === chart?.yAxisPosition);
-// Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
-// `position` re-reads the axis height on each move, like `tickInterval`.
-$: timeLabelBottom = chart && position ? chart.xAxisHeight / 2 : 0;
-$: timeLabelTransform = timeLabelBottom > 0 ? 'translate(-50%, 50%)' : 'translateX(-50%)';
 
 // `zIndex:2` sits above axis ticks (z:0) but below the YLabel badge
 // (z:3), so the live last-value stays visible when the crosshair crosses
@@ -109,7 +90,9 @@ $: labelStyle = theme
     </div>
   {/each}
   <!-- Time label on bottom axis -->
-  <div style="position:absolute;bottom:{timeLabelBottom}px;left:{position.mediaX}px;transform:{timeLabelTransform};{labelStyle}">
-    {chart.timeScale.formatX(position.time, tickInterval)}
-  </div>
+  {#if xLabel}
+    <div style="position:absolute;bottom:{xLabel.bottom}px;left:{xLabel.left}px;transform:{xLabel.transform};{labelStyle}">
+      {xLabel.text}
+    </div>
+  {/if}
 {/if}

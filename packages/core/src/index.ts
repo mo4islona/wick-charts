@@ -64,6 +64,8 @@ export {
   resolveYLabelSeriesId,
   yLabelFractionDigits,
 } from './chart/badge-animator';
+// The crosshair's X-axis pill, as `chart.getCrosshairXLabel(pos)` returns it for a custom crosshair overlay.
+export type { CrosshairXLabel } from './components/crosshair';
 // Pluggable-function contract for a `chart.setEdgeIndicator(side, fn)` painter
 // — same shape as the series intro animations. Drives the `loading` visual an
 // `EdgeLoader`-style edge-of-data fetch shows in its overshoot zone; `null`

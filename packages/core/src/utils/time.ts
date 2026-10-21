@@ -92,9 +92,12 @@ export function formatTime(timestamp: number, interval: number, opts?: TimeForma
   if (interval >= DAY) {
     return d.toLocaleDateString(locale, { month: 'short', day: 'numeric', timeZone });
   }
-  if (interval >= HOUR) {
+  // Seconds only when the step has them: minute candles read `06:15`, not `06:15:00`.
+  const wholeMinutes = interval >= HOUR || (interval >= MINUTE && interval % MINUTE === 0);
+  if (wholeMinutes) {
     return d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', hour12, timeZone });
   }
+
   return d.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
@@ -114,9 +117,29 @@ export function formatDate(timestamp: number, opts?: TimeFormatOptions): string 
   });
 }
 
+const newYearFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Whether `timestamp` falls on January 1 in `timeZone`, the local zone when omitted. */
+export function isNewYearsDay(timestamp: number, timeZone: string | undefined): boolean {
+  if (timeZone === undefined) {
+    const date = new Date(timestamp);
+
+    return date.getMonth() === 0 && date.getDate() === 1;
+  }
+
+  // Built once per zone: the axis asks on every animation frame.
+  let format = newYearFormats.get(timeZone);
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat('en-US', { timeZone, month: 'numeric', day: 'numeric' });
+    newYearFormats.set(timeZone, format);
+  }
+
+  return format.format(timestamp) === '1/1';
+}
+
 export function niceTimeIntervals(interval: number): number[] {
   const sub_minute = [1_000, 5_000, 10_000, 15_000, 30_000];
-  const sub_hour = [MINUTE, 5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 30 * MINUTE];
+  const sub_hour = [MINUTE, 2 * MINUTE, 5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 30 * MINUTE];
   const sub_day = [HOUR, 2 * HOUR, 4 * HOUR, 6 * HOUR, 12 * HOUR];
   const days = [DAY, 7 * DAY, 30 * DAY, 90 * DAY];
   const years = [YEAR, 2 * YEAR, 5 * YEAR, 10 * YEAR, 25 * YEAR, 50 * YEAR, 100 * YEAR];
