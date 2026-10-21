@@ -105,7 +105,7 @@ describe('docs navigation', () => {
   const guides = getSections().find((s) => s.heading === 'Guides')?.items ?? [];
 
   it('keeps the top-level sections', () => {
-    expect(getSections().map((s) => s.heading)).toEqual([null, 'Charts', 'Guides', 'Resources', 'API']);
+    expect(getSections().map((s) => s.heading)).toEqual([null, 'Charts', 'Guides', 'Integrations', 'Resources', 'API']);
   });
 
   it('links chart pages only to guides that exist', () => {

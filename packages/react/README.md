@@ -86,7 +86,7 @@ To use short names, add the registry to `registries` in `components.json`:
 }
 ```
 
-Then `npx shadcn@latest add @wick-charts/chart-candlestick` works too. The [shadcn/ui page](https://wick-charts.eeff.io/use-cases/shadcn/) lists every block and explains the theme hook and the wrapper.
+Then `npx shadcn@latest add @wick-charts/chart-candlestick` works too. The [shadcn/ui page](https://wick-charts.eeff.io/integrations/shadcn/) lists every block and explains the theme hook and the wrapper.
 
 ## No framework? Use the engine directly
 

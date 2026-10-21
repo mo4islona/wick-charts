@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 
 import manifest from '../data/api-manifest.json';
 import { ROUTE_TO_COMPONENT } from '../pages/api';
+import { INTEGRATION_STEPS } from '../pages/integrations';
 import { GUIDE_STEPS } from '../pages/use-cases';
 import { routeToPath } from '../router';
 import { type Route, getSections, isRoute } from '../routes';
@@ -42,7 +43,7 @@ function docsIndex(): SearchEntry[] {
   cachedIndex = buildSearchIndex({
     sections: getSections(),
     describe: (route) => metaForRoute(route).description,
-    steps: GUIDE_STEPS,
+    steps: { ...GUIDE_STEPS, ...INTEGRATION_STEPS },
     props,
   });
 

@@ -12,7 +12,6 @@ import { STEPS as DATA_LOADING_STEPS, DataLoadingPage } from './data-loading';
 import { STEPS as MULTI_CHART_SYNC_STEPS, MultiChartSyncPage } from './multi-chart-sync';
 import { DECLARATIVE_STEPS, IMPERATIVE_STEPS, RealtimeDataPage } from './realtime-data';
 import { STEPS as SECONDARY_SCALE_STEPS, SecondaryScalePage } from './secondary-scale';
-import { SHADCN_HEADINGS, ShadcnPage } from './shadcn';
 import { XAxisTypesPage, STEPS as X_AXIS_TYPES_STEPS } from './x-axis-types';
 
 // TODO(use-cases): realtime-data and multi-chart-sync are wired up. Sibling
@@ -31,7 +30,6 @@ const USE_CASES: Record<string, FC<{ theme: ChartTheme }>> = {
   'use-cases/secondary-scale': SecondaryScalePage,
   'use-cases/x-axis-types': XAxisTypesPage,
   'use-cases/category-bars': CategoryBarsPage,
-  'use-cases/shadcn': ShadcnPage,
 };
 
 /** Walkthrough step headings per guide, for the docs search index. */
@@ -45,7 +43,6 @@ export const GUIDE_STEPS: Partial<Record<Route, string[]>> = {
   'use-cases/secondary-scale': SECONDARY_SCALE_STEPS.map((step) => step.heading),
   'use-cases/x-axis-types': X_AXIS_TYPES_STEPS.map((step) => step.heading),
   'use-cases/category-bars': CATEGORY_BARS_STEPS.map((step) => step.heading),
-  'use-cases/shadcn': SHADCN_HEADINGS,
 };
 
 export function UseCasesRoutePage({ route, theme }: { route: Route; theme: ChartTheme }) {

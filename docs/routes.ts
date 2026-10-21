@@ -28,7 +28,7 @@ export type Route =
   | 'use-cases/x-axis-types'
   | 'use-cases/category-bars'
   | 'use-cases/theme'
-  | 'use-cases/shadcn'
+  | 'integrations/shadcn'
   | 'api/line-series'
   | 'api/band-series'
   | 'api/bar-series'
@@ -197,8 +197,8 @@ const MIGRATION: RouteEntry = { route: 'migration', label: 'Migration Guide', ti
 // Theme editor lives at the bottom of the menu (a reference, not part of the main
 // learning flow). Route stays `use-cases/theme` — only its menu slot moved.
 const THEME: RouteEntry = { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' };
-// Install notes, not a walkthrough with a demo. Title blank: the markdown page renders its own H1.
-const SHADCN: RouteEntry = { route: 'use-cases/shadcn', label: 'shadcn/ui', title: '' };
+// How Wick Charts fits a framework or a UI kit around it, one page per integration.
+const INTEGRATIONS: RouteEntry[] = [{ route: 'integrations/shadcn', label: 'shadcn/ui', title: 'shadcn/ui' }];
 // Title blank — StressTestPage renders its own header (like Api/Hook/Migration),
 // so a topbar title would double it up.
 const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress Tests', title: '' };
@@ -207,10 +207,11 @@ const BASE_SECTIONS: RouteSection[] = [
   { heading: null, items: [OVERVIEW] },
   { heading: 'Charts', items: CHARTS },
   { heading: 'Guides', items: GUIDES },
-  // Resources — references / tools (theme editor, shadcn/ui registry, migration guide, stress tests).
+  { heading: 'Integrations', items: INTEGRATIONS },
+  // Resources — references / tools (theme editor, migration guide, stress tests).
   // Sits above API and is expanded by default (see Sidebar's DEFAULT_OPEN). Stress
   // is no longer dev-gated.
-  { heading: 'Resources', items: [THEME, SHADCN, MIGRATION, STRESS] },
+  { heading: 'Resources', items: [THEME, MIGRATION, STRESS] },
   {
     heading: 'API',
     subsections: [
@@ -225,7 +226,17 @@ export function getSections(): RouteSection[] {
   return BASE_SECTIONS;
 }
 
-const ALL_ENTRIES: RouteEntry[] = [OVERVIEW, MIGRATION, ...CHARTS, ...GUIDES, ...API, ...HOOKS, THEME, SHADCN, STRESS];
+const ALL_ENTRIES: RouteEntry[] = [
+  OVERVIEW,
+  MIGRATION,
+  ...CHARTS,
+  ...GUIDES,
+  ...INTEGRATIONS,
+  ...API,
+  ...HOOKS,
+  THEME,
+  STRESS,
+];
 
 const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
 
