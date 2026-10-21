@@ -127,4 +127,22 @@ describe('Svelte <DepthSeries>', () => {
 
     unmount();
   });
+
+  it('re-sends the book edited in place with `asks.push(x); asks = asks`', async () => {
+    const asks: DepthLevel[] = ASKS.map(([price, size]): DepthLevel => [price, size]);
+    const { chart, rerender, unmount } = mountDepth(asks);
+    await settle();
+
+    asks.push([105, 4]);
+    await rerender({ asks });
+    await settle();
+    expect(chart().getLayerSnapshots('book', 106)?.[0]).toMatchObject({ time: 105, value: 7 });
+
+    asks[0] = [101, 5];
+    await rerender({ asks });
+    await settle();
+    expect(chart().getLayerSnapshots('book', 104)?.[0]).toMatchObject({ time: 103, value: 7 });
+
+    unmount();
+  });
 });

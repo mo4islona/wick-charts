@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { act, render } from '@testing-library/react';
-import { Sparkline, catppuccin } from '@wick-charts/react';
+import { type ChartTheme, Sparkline, ThemeProvider, catppuccin } from '@wick-charts/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../helpers/raf';
@@ -211,5 +211,38 @@ describe('Sparkline', () => {
     canvas.getContext('2d');
     // The seed line draws regardless of where the flow window anchors it.
     expect(canvas.__spy!.countOf('lineTo')).toBeGreaterThan(0);
+  });
+
+  function strokeColors(container: HTMLElement): string[] {
+    const canvas = container.querySelector('canvas') as HTMLCanvasElement;
+    canvas.getContext('2d');
+    const spy = canvas.__spy;
+    if (!spy) throw new Error('canvas spy missing');
+
+    return spy.callsOf('stroke').map((c) => c.strokeStyle.toLowerCase());
+  }
+
+  it('falls back to the default ChartContainer theme without a `theme` prop', () => {
+    act(() => {
+      render(<Sparkline data={data} />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    expect(strokeColors(host)).toContain(catppuccin.theme.seriesColors[0].toLowerCase());
+  });
+
+  it('takes the ThemeProvider theme without a `theme` prop', () => {
+    const provided: ChartTheme = { ...catppuccin.theme, seriesColors: ['#123456', ...catppuccin.theme.seriesColors] };
+    act(() => {
+      render(
+        <ThemeProvider value={provided}>
+          <Sparkline data={data} />
+        </ThemeProvider>,
+        { container: host },
+      );
+    });
+    act(() => flushAllRaf());
+
+    expect(strokeColors(host)).toContain('#123456');
   });
 });

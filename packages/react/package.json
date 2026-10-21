@@ -47,10 +47,7 @@
   },
   "files": [
     "dist",
-    "src",
-    "LICENSE",
-    "!src/__tests__",
-    "!src/**/*.test.*"
+    "LICENSE"
   ],
   "scripts": {
     "build": "vite build && node ../../scripts/build-umd.mjs",

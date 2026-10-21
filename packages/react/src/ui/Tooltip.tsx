@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   type BandPoint,
@@ -23,6 +23,60 @@ import { NumberText } from './NumberText';
 
 /** Sort order for multi-series tooltip values. */
 export type TooltipSort = 'none' | 'asc' | 'desc';
+
+/** Floor of the default box; it grows with its content up to the plot width. */
+const TOOLTIP_MIN_WIDTH = 140;
+
+interface BoxSize {
+  width: number;
+  height: number;
+}
+
+/** Border-box size of the node, `null` before it has a layout. */
+function measureBox(node: HTMLElement): BoxSize | null {
+  const width = node.offsetWidth;
+  if (width === 0) return null;
+
+  return { width, height: node.offsetHeight };
+}
+
+function sameBox(a: BoxSize | null, b: BoxSize | null): boolean {
+  if (a === null || b === null) return a === b;
+
+  return a.width === b.width && a.height === b.height;
+}
+
+/**
+ * Border-box size of the tooltip box, measured after every render (a new size
+ * re-renders before paint) and when its content resizes between renders.
+ */
+function useBoxSize(nodeRef: RefObject<HTMLElement | null>): BoxSize | null {
+  const [size, setSize] = useState<BoxSize | null>(null);
+
+  useLayoutEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return;
+
+    const next = measureBox(node);
+    setSize((prev) => (sameBox(prev, next) ? prev : next));
+  });
+
+  useEffect(() => {
+    const node = nodeRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+
+    // `contentRect` leaves out the padding and border, so read the border box from the node.
+    const ro = new ResizeObserver(() => {
+      const next = measureBox(node);
+      setSize((prev) => (sameBox(prev, next) ? prev : next));
+    });
+    ro.observe(node);
+
+    return () => ro.disconnect();
+  }, [nodeRef]);
+
+  return size;
+}
 
 /** Context passed to the {@link Tooltip} render-prop. */
 export interface TooltipRenderContext {
@@ -146,29 +200,9 @@ function CustomFloatingTooltip({
   theme: ChartTheme;
   children: ReactNode;
 }) {
-  // Custom content has unknown dimensions until the first paint — measure the
-  // container, then position it. Hide with `visibility: hidden` on the
-  // pre-measured frame so the user never sees an un-clamped paint.
+  // Custom content has no size to estimate, so the box stays hidden until it is measured.
   const nodeRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
-
-  useEffect(() => {
-    const node = nodeRef.current;
-    if (!node || typeof ResizeObserver === 'undefined') return;
-
-    const ro = new ResizeObserver((entries) => {
-      const box = entries[0]?.contentRect;
-      if (!box) return;
-      setSize((prev) =>
-        prev && prev.width === box.width && prev.height === box.height
-          ? prev
-          : { width: box.width, height: box.height },
-      );
-    });
-    ro.observe(node);
-
-    return () => ro.disconnect();
-  }, []);
+  const size = useBoxSize(nodeRef);
 
   const position = size
     ? computeTooltipPosition({
@@ -185,6 +219,7 @@ function CustomFloatingTooltip({
   return (
     <div
       ref={nodeRef}
+      data-chart-tooltip=""
       data-measured={size ? 'true' : 'false'}
       style={{
         position: 'absolute',
@@ -239,16 +274,21 @@ function FloatingTooltip({
   dataInterval: number;
   format: TooltipFormatter | undefined;
 }) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const measured = useBoxSize(boxRef);
+
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
 
-  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
+  // Until the box is measured, estimate it: a band row carries two numbers, a percent-stack row a share and a value.
   const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
   const hasShare = snapshots.some((s) => s.share !== undefined);
-  let tooltipWidth = 160;
-  if (hasBand) tooltipWidth = 220;
-  if (hasShare) tooltipWidth = 240;
-  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  let estimatedWidth = 160;
+  if (hasBand) estimatedWidth = 220;
+  if (hasShare) estimatedWidth = 240;
+  const estimatedHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  const tooltipWidth = measured?.width ?? estimatedWidth;
+  const tooltipHeight = measured?.height ?? estimatedHeight;
 
   const { left, top } = computeTooltipPosition({
     x,
@@ -267,6 +307,8 @@ function FloatingTooltip({
 
   return (
     <div
+      ref={boxRef}
+      data-chart-tooltip=""
       style={{
         position: 'absolute',
         left,
@@ -283,10 +325,10 @@ function FloatingTooltip({
         fontFamily: theme.typography.fontFamily,
         fontVariantNumeric: 'tabular-nums',
         color: theme.tooltip.textColor,
-        // Fix the rendered width to the value `computeTooltipPosition` assumes
-        // so content growth (e.g. long labels) can't push the tooltip past the
-        // clamp and back out of the plot area.
-        width: tooltipWidth,
+        // `max-content` keeps the width independent of `left`, so the measured size is the size at any position.
+        width: 'max-content',
+        minWidth: TOOLTIP_MIN_WIDTH,
+        maxWidth: chartWidth,
         boxSizing: 'border-box',
         zIndex: 10,
         transition: 'opacity 0.15s ease',

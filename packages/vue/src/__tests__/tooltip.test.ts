@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import type { ChartInstance, CrosshairPosition } from '@wick-charts/core';
+import { type ChartInstance, type CrosshairPosition, computeTooltipPosition } from '@wick-charts/core';
 import {
   BandSeries,
   CandlestickSeries,
@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
+import { MockResizeObserver } from '../../../react/test-setup';
 
 /**
  * `<Tooltip>` is gated on a non-null `useCrosshairPosition()`. Synthetic
@@ -100,6 +101,31 @@ function forceCrosshair(chart: ChartInstance, pos: CrosshairPosition | null): vo
   // bracket access skips the access modifier.
   type EmitFn = (event: 'crosshairMove', value: CrosshairPosition | null) => void;
   (chart as unknown as { emit: EmitFn }).emit('crosshairMove', pos);
+}
+
+/** Gives every `[data-chart-tooltip]` box a layout size; happy-dom has no layout. */
+function stubTooltipBox(width: number, height: number): () => void {
+  const proto = HTMLElement.prototype;
+  const widthDesc = Object.getOwnPropertyDescriptor(proto, 'offsetWidth');
+  const heightDesc = Object.getOwnPropertyDescriptor(proto, 'offsetHeight');
+  const sized = (el: HTMLElement, size: number) => (el.hasAttribute('data-chart-tooltip') ? size : 0);
+  Object.defineProperty(proto, 'offsetWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return sized(this, width);
+    },
+  });
+  Object.defineProperty(proto, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return sized(this, height);
+    },
+  });
+
+  return () => {
+    if (widthDesc) Object.defineProperty(proto, 'offsetWidth', widthDesc);
+    if (heightDesc) Object.defineProperty(proto, 'offsetHeight', heightDesc);
+  };
 }
 
 describe('Vue <Tooltip>', () => {
@@ -334,5 +360,110 @@ describe('Vue <Tooltip>', () => {
     }
 
     wrapper.unmount();
+  });
+
+  it('sizes the box to a long label and keeps it inside the plot by its measured size', async () => {
+    const restoreBox = stubTooltipBox(300, 60);
+    const captured: Captured = { chart: null };
+    const Probe = probeFor(captured);
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(LineSeries, { id: 'l', data: [{ label: 'Fri 10 May', data: lineData[0] }] }),
+          h(Tooltip),
+        ]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    try {
+      await settle();
+      const chart = captured.chart;
+      if (!chart) throw new Error('chart not captured');
+
+      const chartWidth = chart.getLayout().chartArea.width;
+      // Room on the right for the 160 px estimate, not for the 300 px box.
+      const pos = { time: 8, x: 8, mediaX: chartWidth - 200, mediaY: 200, y: 75 };
+      forceCrosshair(chart, pos);
+      await settle();
+
+      const tooltip = host.querySelector<HTMLElement>('[data-chart-tooltip]');
+      if (!tooltip) throw new Error('tooltip did not render');
+
+      const expected = computeTooltipPosition({
+        x: pos.mediaX,
+        y: pos.mediaY,
+        chartLeft: chart.plotLeft,
+        chartWidth,
+        chartHeight: chart.getMediaSize().height - chart.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.textContent).toContain('Fri 10 May');
+      expect(tooltip.style.width).toBe('max-content');
+      expect(tooltip.style.maxWidth).toBe(`${chartWidth}px`);
+      expect(Number.parseFloat(tooltip.style.left)).toBe(expected.left);
+      expect(Number.parseFloat(tooltip.style.top)).toBe(expected.top);
+    } finally {
+      wrapper.unmount();
+      restoreBox();
+    }
+  });
+
+  it('keeps a custom slot box inside the plot near the right edge by its border-box size', async () => {
+    const restoreBox = stubTooltipBox(300, 60);
+    const captured: Captured = { chart: null };
+    const Probe = probeFor(captured);
+    const App = defineComponent({
+      setup: () => () =>
+        h(ChartContainer, { theme: catppuccin.theme }, () => [
+          h(Probe),
+          h(LineSeries, { id: 'l', data: lineData }),
+          h(Tooltip, {}, { default: () => h('div', ['custom']) }),
+        ]),
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    try {
+      await settle();
+      const chart = captured.chart;
+      if (!chart) throw new Error('chart not captured');
+
+      const chartWidth = chart.getLayout().chartArea.width;
+      const chartObservers = new Set(MockResizeObserver.callbacks);
+      // Room on the right for the 270 px content box, not for the 300 px border box.
+      const pos = { time: 8, x: 8, mediaX: chartWidth - 300, mediaY: 200, y: 75 };
+      forceCrosshair(chart, pos);
+      await settle();
+
+      const tooltip = host.querySelector<HTMLElement>('[data-chart-tooltip]');
+      if (!tooltip) throw new Error('tooltip did not render');
+
+      // A browser reports the content box: 300 × 60 less the 14/10 px padding and 1 px border.
+      const contentBox = { target: tooltip, contentRect: { width: 270, height: 38 } } as unknown as ResizeObserverEntry;
+      for (const cb of MockResizeObserver.callbacks) {
+        if (!chartObservers.has(cb)) cb([contentBox], {} as ResizeObserver);
+      }
+      await settle();
+
+      const expected = computeTooltipPosition({
+        x: pos.mediaX,
+        y: pos.mediaY,
+        chartLeft: chart.plotLeft,
+        chartWidth,
+        chartHeight: chart.getMediaSize().height - chart.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.style.visibility).toBe('visible');
+      expect(Number.parseFloat(tooltip.style.left) + 300).toBeLessThanOrEqual(chart.plotLeft + chartWidth);
+      expect(Number.parseFloat(tooltip.style.left)).toBe(expected.left);
+      expect(Number.parseFloat(tooltip.style.top)).toBe(expected.top);
+    } finally {
+      wrapper.unmount();
+      restoreBox();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { type CSSProperties, useLayoutEffect, useMemo, useRef } from 'react';
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   type NumberFlowFormat,
@@ -54,13 +54,15 @@ export function NumberFlow({
 }: NumberFlowProps) {
   const { format: effectiveFormat, decimal } = useMemo(() => resolveNumberFlowFormat(format, locale), [format, locale]);
   const text = effectiveFormat(value);
+  // Server HTML and hydration show this text; React never updates it, so it cannot overwrite the slots.
+  const [initialText] = useState(text);
 
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const flowRef = useRef<NumberFlowHandle | null>(null);
   const optionsRef = useRef({ spinDuration, shrinkDelay, decimal });
   optionsRef.current = { spinDuration, shrinkDelay, decimal };
 
-  // The engine owns the root's children; React only renders the empty root.
+  // The engine owns the root's children once mounted.
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
@@ -82,10 +84,12 @@ export function NumberFlow({
     flowRef.current?.update(text, value);
   }, [text, value]);
 
+  // A value that ticked between the server render and hydration must not fail hydration.
   return (
     <span
       ref={rootRef}
       className={className}
+      suppressHydrationWarning
       style={{
         display: 'inline-flex',
         fontVariantNumeric: 'tabular-nums',
@@ -93,6 +97,8 @@ export function NumberFlow({
         whiteSpace: 'nowrap',
         ...style,
       }}
-    />
+    >
+      {initialText}
+    </span>
   );
 }

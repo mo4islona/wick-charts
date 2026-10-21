@@ -86,6 +86,20 @@ describe('mountNumberFlow', () => {
     expect(root.getAttribute('role')).toBe('img');
   });
 
+  it('replaces the server-rendered text of the root with its slots', () => {
+    flow.destroy();
+    root.remove();
+    root = document.createElement('span');
+    root.textContent = '1,234.5';
+    document.body.append(root);
+
+    flow = mountNumberFlow(root, { spinDuration: SPIN });
+    flow.update('1,234.5', 1234.5);
+
+    expect(Array.from(root.childNodes).every((node) => node instanceof HTMLElement)).toBe(true);
+    expect(text()).toBe('1,234.5');
+  });
+
   it('keeps the slots by place when a digit is added in front', () => {
     flow.update('99.50', 99.5);
     const [nine1, nine0, point, five, zero] = slots();

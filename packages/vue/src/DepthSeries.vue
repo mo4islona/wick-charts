@@ -43,12 +43,27 @@ onUnmounted(() => {
   if (seriesId.value) chart.removeSeries(seriesId.value);
 });
 
-watch(
-  () => [props.bids, props.asks],
-  () => {
-    if (seriesId.value) chart.setSeriesData(seriesId.value, rawBook());
-  },
-);
+/**
+ * Watch source for the book. Besides a new array, it re-fires on an in-place
+ * `push` / `splice` or a replaced or edited level of a reactive book: a book
+ * is small, so it reads every level through the Proxy.
+ */
+function bookSource(): unknown[] {
+  const deps: unknown[] = [];
+  for (const side of [props.bids, props.asks]) {
+    deps.push(side, side.length);
+    for (const level of side) {
+      deps.push(level, level[0], level[1]);
+    }
+  }
+
+  return deps;
+}
+
+// The core skips a book with the same levels, so a re-fire without a real change is cheap.
+watch(bookSource, () => {
+  if (seriesId.value) chart.setSeriesData(seriesId.value, rawBook());
+});
 
 watch(
   () => props.options,

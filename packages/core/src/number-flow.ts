@@ -152,6 +152,8 @@ export function mountNumberFlow(root: HTMLElement, options: NumberFlowOptions = 
   let parts: NumberPart[] = [];
   let changedAt = Number.NEGATIVE_INFINITY;
 
+  // The plain text a framework renders for the server HTML; the slots replace it.
+  root.textContent = '';
   root.setAttribute('role', 'img');
 
   function createSlot(part: NumberPart): Slot {

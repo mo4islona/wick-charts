@@ -1,10 +1,11 @@
-import { type ReactNode, isValidElement } from 'react';
+import { type ComponentType, type ReactNode, createElement, isValidElement } from 'react';
 
 import { describe, expect, it } from 'vitest';
 
 import { siftContainerChildren } from '../ChartContainer';
 import { InfoBar } from '../ui/InfoBar';
 import { Legend } from '../ui/Legend';
+import { Navigator } from '../ui/Navigator';
 import { Title } from '../ui/Title';
 
 // `<ChartContainer>` receives `children` as whatever React passes for JSX
@@ -15,6 +16,28 @@ import { Title } from '../ui/Title';
 // real shape by passing arrays.
 function kids(...nodes: ReactNode[]): ReactNode[] {
   return nodes;
+}
+
+interface FlightChunk {
+  status: 'fulfilled' | 'pending';
+  value: unknown;
+}
+
+function readChunk(chunk: FlightChunk): unknown {
+  if (chunk.status === 'fulfilled') return chunk.value;
+
+  throw chunk;
+}
+
+// The shape the Flight client gives a client component that a Server Component created.
+function flightLazy<P>(chunk: FlightChunk): ComponentType<P> {
+  const lazy = { $$typeof: Symbol.for('react.lazy'), _payload: chunk, _init: readChunk };
+
+  return lazy as unknown as ComponentType<P>;
+}
+
+function resolvedChunk(value: unknown): FlightChunk {
+  return { status: 'fulfilled', value };
 }
 
 describe('siftContainerChildren', () => {
@@ -118,5 +141,52 @@ describe('siftContainerChildren', () => {
     const result = siftContainerChildren(kids(<Inner />, <span id="rest" />));
     expect(result.legendEl).toBeNull();
     expect(result.overlay).toHaveLength(2);
+  });
+
+  it('hoists slot components whose element type is a lazy reference from a Server Component', () => {
+    const LazyTitle = flightLazy<{ children?: ReactNode }>(resolvedChunk(Title));
+    const LazyLegend = flightLazy<object>(resolvedChunk(Legend));
+    const LazyInfoBar = flightLazy<object>(resolvedChunk(InfoBar));
+    const LazyNavigator = flightLazy<{ data: { type: 'line'; points: [] } }>(resolvedChunk(Navigator));
+
+    const result = siftContainerChildren(
+      kids(
+        createElement(LazyTitle, null, 'BTC'),
+        createElement(LazyLegend),
+        createElement(LazyInfoBar),
+        createElement(LazyNavigator, { data: { type: 'line', points: [] } }),
+        <span id="rest" />,
+      ),
+    );
+
+    expect(result.titleEl).not.toBeNull();
+    expect(result.legendEl).not.toBeNull();
+    expect(result.tooltipLegendEl).not.toBeNull();
+    expect(result.navigatorEl).not.toBeNull();
+    expect(result.overlay).toHaveLength(1);
+  });
+
+  it('resolves a lazy reference that wraps another lazy reference', () => {
+    const inner = flightLazy<object>(resolvedChunk(Legend));
+    const outer = flightLazy<object>(resolvedChunk(inner));
+
+    const result = siftContainerChildren(kids(createElement(outer)));
+
+    expect(result.legendEl).not.toBeNull();
+    expect(result.overlay).toHaveLength(0);
+  });
+
+  it('throws the pending chunk of an unresolved lazy reference so React suspends', () => {
+    const pending: FlightChunk = { status: 'pending', value: null };
+    const LazyLegend = flightLazy<object>(pending);
+
+    let thrown: unknown = null;
+    try {
+      siftContainerChildren(kids(createElement(LazyLegend)));
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBe(pending);
   });
 });
