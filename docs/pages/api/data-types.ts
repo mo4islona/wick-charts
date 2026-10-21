@@ -179,16 +179,16 @@ const BAND_POINT_INPUT_PROPS: ApiProp[] = [
   TIME_FIELD_INPUT,
   {
     name: 'low',
-    type: 'number',
+    type: 'number | null',
     optional: false,
     defaultValue: null,
     deprecated: null,
     description:
-      'Lower edge at this time. A `low` above `high` draws with the edges swapped; a missing or non-finite edge is a gap that splits the band.',
+      'Lower edge at this time. A `low` above `high` draws with the edges swapped; a `null`, missing or non-finite edge is a gap that splits the band.',
   },
   {
     name: 'high',
-    type: 'number',
+    type: 'number | null',
     optional: false,
     defaultValue: null,
     deprecated: null,

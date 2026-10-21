@@ -7,6 +7,7 @@ import type { ChartTheme } from '../theme/types';
 import type { DepthBook, DepthBookDelta, DepthLevel, DepthSeriesOptions, TimePoint } from '../types';
 import { hexToRgba } from '../utils/color';
 import { clamp, lerp, smoothToward } from '../utils/math';
+import { warnDataOnce } from '../utils/poisoned-data-reporter';
 import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import type { LayerSnapshot, OverlayRenderContext, SeriesRenderContext, TimeSeriesRenderer, XFocus } from './types';
@@ -76,27 +77,86 @@ function toPrice(key: number, side: Side): number {
   return side === BIDS ? -key : key;
 }
 
-function levelMap(levels: readonly DepthLevel[] | undefined): Map<number, number> {
-  const map = new Map<number, number>();
-  for (const [price, size] of levels ?? []) {
-    if (!Number.isFinite(price) || !Number.isFinite(size) || size <= 0) continue;
+/** A `[price, size]` pair of finite numbers; `Number.isFinite` also rejects the decimal strings exchanges send. */
+function isLevel(row: unknown): row is DepthLevel {
+  if (!Array.isArray(row)) return false;
 
-    map.set(price, size);
+  return Number.isFinite(row[0]) && Number.isFinite(row[1]);
+}
+
+/** A rejected row as the warning prints it — strings quoted, so `["83025.91", "1.06"]` reads as text. */
+function describeRow(row: unknown): string {
+  if (Array.isArray(row)) {
+    const items = row.map((item: unknown) => (typeof item === 'string' ? `"${item}"` : String(item)));
+
+    return `[${items.join(', ')}]`;
+  }
+
+  if (typeof row !== 'object' || row === null) return String(row);
+
+  try {
+    return JSON.stringify(row);
+  } catch {
+    return 'an object';
+  }
+}
+
+/** Rows a snapshot or delta carried that aren't levels, for one warning per renderer. */
+interface RejectedRows {
+  count: number;
+  first: unknown;
+}
+
+function reject(rejected: RejectedRows, row: unknown): void {
+  if (rejected.count === 0) rejected.first = row;
+  rejected.count++;
+}
+
+function levelMap(levels: readonly unknown[] | undefined, rejected: RejectedRows): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const row of levels ?? []) {
+    if (!isLevel(row)) {
+      reject(rejected, row);
+      continue;
+    }
+
+    const [price, size] = row;
+    if (size > 0) map.set(price, size);
   }
 
   return map;
 }
 
-function mergeLevels(map: Map<number, number>, levels: readonly DepthLevel[] | undefined): void {
-  for (const [price, size] of levels ?? []) {
-    if (!Number.isFinite(price) || Number.isNaN(size)) continue;
+function mergeLevels(args: {
+  map: Map<number, number>;
+  levels: readonly unknown[] | undefined;
+  rejected: RejectedRows;
+}): void {
+  const { map, rejected } = args;
+  for (const row of args.levels ?? []) {
+    if (!isLevel(row)) {
+      reject(rejected, row);
+      continue;
+    }
 
+    const [price, size] = row;
     if (size > 0) {
       map.set(price, size);
     } else {
       map.delete(price);
     }
   }
+}
+
+/** Same prices with the same sizes; the size check settles most changed books at once. */
+function sameLevels(a: ReadonlyMap<number, number>, b: ReadonlyMap<number, number>): boolean {
+  if (a.size !== b.size) return false;
+
+  for (const [price, size] of a) {
+    if (b.get(price) !== size) return false;
+  }
+
+  return true;
 }
 
 /** Sort one side's levels outward from mid and accumulate their sizes. */
@@ -263,16 +323,42 @@ export class DepthRenderer implements TimeSeriesRenderer {
   /** Replace the book with a `{ bids, asks }` snapshot; the drawn book morphs to it. */
   setData(data: unknown): void {
     const book = (data ?? {}) as Partial<DepthBook>;
-    this.#levels = [levelMap(book.bids), levelMap(book.asks)];
+    const rejected: RejectedRows = { count: 0, first: null };
+    const bids = levelMap(book.bids, rejected);
+    const asks = levelMap(book.asks, rejected);
+    this.#reportRejected(rejected);
+
+    // A wrapper passes a fresh array of the same book on every render; that must not replay the morph.
+    const unchanged = sameLevels(bids, this.#levels[BIDS]) && sameLevels(asks, this.#levels[ASKS]);
+    if (unchanged) return;
+
+    this.#levels = [bids, asks];
     this.#retarget();
   }
 
   /** Merge a `{ bids?, asks? }` delta into the book; a size of 0 removes the level. */
   updateLastPoint(point: unknown): void {
     const delta = (point ?? {}) as DepthBookDelta;
-    mergeLevels(this.#levels[BIDS], delta.bids);
-    mergeLevels(this.#levels[ASKS], delta.asks);
+    const rejected: RejectedRows = { count: 0, first: null };
+    mergeLevels({ map: this.#levels[BIDS], levels: delta.bids, rejected });
+    mergeLevels({ map: this.#levels[ASKS], levels: delta.asks, rejected });
+    this.#reportRejected(rejected);
     this.#retarget();
+  }
+
+  /** Exchange APIs send levels as decimal strings; without a warning such a book draws a blank chart. */
+  #reportRejected(rejected: RejectedRows): void {
+    if (rejected.count === 0) return;
+
+    const rows = rejected.count === 1 ? 'level' : 'levels';
+    warnDataOnce({
+      token: this,
+      topic: 'depth-levels',
+      message:
+        `depth: skipping ${rejected.count} ${rows} that are not [price, size] pairs of finite numbers ` +
+        `(first: ${describeRow(rejected.first)}). Convert string levels first, ` +
+        'e.g. `levels.map(([price, size]) => [Number(price), Number(size)])`.',
+    });
   }
 
   #retarget(): void {

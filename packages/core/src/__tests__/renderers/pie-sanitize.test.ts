@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PieRenderer } from '../../series/pie';
 import { catppuccin } from '../../theme/themes/catppuccin';
@@ -8,6 +8,44 @@ import { buildRenderContext } from '../helpers/render-context';
 const theme = catppuccin.theme;
 
 describe('PieRenderer value sanitization (negative / non-finite slices)', () => {
+  // Every case here feeds undrawable slices on purpose.
+  let warn: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('warns once, naming the first slice that gets no arc and its value', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    const mix: PieSliceData[] = [
+      { label: 'Wind', value: 21_000 },
+      { label: 'Pumped storage', value: -1565 },
+      { label: 'Solar', value: Number.NaN },
+    ];
+    r.setData(mix);
+    r.setData(mix);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain('pie: 2 slices drawn with no arc');
+    expect(message).toContain('"Pumped storage" with value -1565');
+    expect(r.getSliceInfo(theme)?.[1].value).toBe(-1565);
+  });
+
+  it('stays silent for positive and zero slices', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    r.setData([
+      { label: 'A', value: 3 },
+      { label: 'B', value: 0 },
+    ]);
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('a negative slice contributes 0 to layout but keeps its reported value', () => {
     const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
     r.setData([

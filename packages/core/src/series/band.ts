@@ -145,13 +145,14 @@ function clamp01(value: number): number {
 
 /**
  * Normalize one input sample: `Date` time to ms, edges ordered so `low ≤ high`.
- * A missing or non-finite edge makes the whole sample a gap (both edges `NaN`)
- * — `Math.min(null, 5)` is `0`, so finiteness is checked before ordering.
+ * A `null`, missing or non-finite edge makes the whole sample a gap (both edges
+ * `NaN`) — `Math.min(null, 5)` is `0`, so finiteness is checked before ordering.
  */
 function toBandPoint(input: BandPointInput): BandPoint {
   const time = normalizeTime(input.time);
   const { low, high } = input;
-  if (!Number.isFinite(low) || !Number.isFinite(high)) return { ...input, time, low: Number.NaN, high: Number.NaN };
+  const gap = typeof low !== 'number' || typeof high !== 'number' || !Number.isFinite(low) || !Number.isFinite(high);
+  if (gap) return { ...input, time, low: Number.NaN, high: Number.NaN };
 
   return { ...input, time, low: Math.min(low, high), high: Math.max(low, high) };
 }

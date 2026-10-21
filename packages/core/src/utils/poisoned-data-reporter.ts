@@ -10,12 +10,11 @@
  * feed.
  *
  * To keep that filter cheap and side-effect-free for the common
- * everything-finite case, this module exposes a single closure-backed
- * helper. State (which renderers have already warned) lives inside the
- * closure's `WeakSet`, not on the renderer class, so:
+ * everything-finite case, the state (which renderers have already warned)
+ * lives in a module-level `WeakMap`, not on the renderer class, so:
  *
  *  - No renderer needs an extra `#warnedPoisoned` field.
- *  - Disposed renderers get GC'd normally (WeakSet entries clear).
+ *  - Disposed renderers get GC'd normally (WeakMap entries clear).
  *  - The first poisoned render emits one batched warning listing
  *    *every* offending index — subsequent renders against the same
  *    instance stay silent.
@@ -36,6 +35,27 @@ export function isPoisonedNumber(v: number | null | undefined): boolean {
   return typeof v === 'number' && !Number.isFinite(v);
 }
 
+/** Topics each token already warned about. */
+const warned = new WeakMap<object, Set<string>>();
+
+/**
+ * `console.warn` `message` once per `token` and `topic`: a renderer or store
+ * warns about each kind of bad input once, however often that input arrives.
+ */
+export function warnDataOnce(args: { token: object; topic: string; message: string }): void {
+  const { token, topic, message } = args;
+  let topics = warned.get(token);
+  if (topics === undefined) {
+    topics = new Set();
+    warned.set(token, topics);
+  }
+
+  if (topics.has(topic)) return;
+
+  topics.add(topic);
+  console.warn(`[wick-charts] ${message}`);
+}
+
 /**
  * `console.warn` once per `token`, listing every offending index in one
  * message so the integrator can audit the whole dirty feed in a single
@@ -48,22 +68,20 @@ export function isPoisonedNumber(v: number | null | undefined): boolean {
  *                      row — embedded into the warning so the integrator
  *                      can correlate against the upstream feed.
  */
-export const reportPoisonedData: (
+export function reportPoisonedData(
   token: object,
   sourceLabel: string,
   indices: readonly number[],
   firstBadAt: string | number,
-) => void = (() => {
-  const warned = new WeakSet<object>();
+): void {
+  if (indices.length === 0) return;
 
-  return (token, sourceLabel, indices, firstBadAt) => {
-    if (indices.length === 0 || warned.has(token)) return;
-
-    warned.add(token);
-    console.warn(
-      `[wick-charts] ${sourceLabel}: skipping ${indices.length} row${indices.length === 1 ? '' : 's'} ` +
-        `with NaN / Infinity values (indices ${indices.join(', ')}; first offending row: ${firstBadAt}). ` +
-        'Filter upstream data; the renderer drops poisoned rows to keep the rest of the chart alive.',
-    );
-  };
-})();
+  warnDataOnce({
+    token,
+    topic: 'poisoned',
+    message:
+      `${sourceLabel}: skipping ${indices.length} row${indices.length === 1 ? '' : 's'} ` +
+      `with NaN / Infinity values (indices ${indices.join(', ')}; first offending row: ${firstBadAt}). ` +
+      'Filter upstream data; the renderer drops poisoned rows to keep the rest of the chart alive.',
+  });
+}

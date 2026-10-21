@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { isPoisonedNumber, reportPoisonedData } from '../poisoned-data-reporter';
+import { isPoisonedNumber, reportPoisonedData, warnDataOnce } from '../poisoned-data-reporter';
 
 describe('isPoisonedNumber', () => {
   it('flags NaN and ±Infinity', () => {
@@ -87,5 +87,15 @@ describe('reportPoisonedData', () => {
     reportPoisonedData(token, 'bar', [4], 'time 90');
 
     expect(warns).toHaveLength(1);
+  });
+
+  it('warns once per token and topic, so one token can report different problems', () => {
+    const token = {};
+    reportPoisonedData(token, 'line', [1], 'time 30');
+    warnDataOnce({ token, topic: 'epoch-seconds', message: 'line: seconds' });
+    warnDataOnce({ token, topic: 'epoch-seconds', message: 'line: seconds' });
+
+    expect(warns).toHaveLength(2);
+    expect(String(warns[1][0])).toBe('[wick-charts] line: seconds');
   });
 });
