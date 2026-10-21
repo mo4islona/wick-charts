@@ -39,6 +39,13 @@ export default {
 };
 ```
 
+### Types: point values accept `null` (0.8.1)
+
+Since 0.8.1, line and bar point values are typed `number | null`, because the
+chart already drew `null` as a gap. Code that only passes data to the chart
+is unaffected. Strict code that reads `value` back from its own input arrays,
+for example to compute a sparkline's last value, now has to handle `null`.
+
 ## 0.6 → 0.7
 
 Version 0.7 is additive for charts on a time axis — numeric and category X

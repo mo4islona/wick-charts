@@ -31,16 +31,16 @@ interface HookEntry {
 const HOOKS: Record<string, HookEntry> = {
   useChartInstance: {
     description:
-      'Returns the underlying `ChartInstance` for the surrounding `<ChartContainer>`. Use this to call imperative methods (e.g. `addSeries`, `setSeriesData`, `resetZoom`) from inside child components. Must be called from a component rendered inside a `<ChartContainer>` — calling it outside throws.',
+      'Returns the underlying `ChartInstance` for the surrounding `<ChartContainer>`. Use this to call imperative methods (e.g. `addSeries`, `setSeriesData`, `fitContent`) from inside child components. Must be called from a component rendered inside a `<ChartContainer>` — calling it outside throws.',
     react: {
       name: 'useChartInstance',
       signature: '() => ChartInstance',
       example: `import { useChartInstance } from '@wick-charts/react';
 
-function ResetButton() {
+function FitButton() {
   const chart = useChartInstance();
 
-  return <button onClick={() => chart.resetZoom()}>Reset</button>;
+  return <button onClick={() => chart.fitContent()}>Fit</button>;
 }`,
     },
     vue: {
@@ -53,19 +53,19 @@ const chart = useChartInstance();
 </script>
 
 <template>
-  <button @click="chart.resetZoom()">Reset</button>
+  <button @click="chart.fitContent()">Fit</button>
 </template>`,
     },
     svelte: {
       name: 'getChartContext',
-      signature: '() => Readable<ChartInstance>',
+      signature: '() => Readable<ChartInstance | null>',
       example: `<script lang="ts">
   import { getChartContext } from '@wick-charts/svelte';
 
   const chart = getChartContext();
 </script>
 
-<button on:click={() => $chart.resetZoom()}>Reset</button>`,
+<button onclick={() => $chart?.fitContent()}>Fit</button>`,
     },
   },
 
@@ -85,7 +85,7 @@ function MyOverlay() {
     },
     vue: {
       name: 'useTheme',
-      signature: '() => ChartTheme',
+      signature: '() => ShallowRef<ChartTheme>',
       example: `<script setup lang="ts">
 import { useTheme } from '@wick-charts/vue';
 
@@ -111,7 +111,7 @@ const theme = useTheme();
 
   useCrosshairPosition: {
     description:
-      'Subscribes to crosshair updates. Returns `{ time, x, y, distance }` while the user is hovering the chart, or `null` when no hover is active. Re-renders only when the crosshair changes — safe to use in heavy custom overlays.',
+      'Subscribes to crosshair updates. Returns `{ mediaX, mediaY, time, x, y }` while the user is hovering the chart, or `null` when no hover is active. Re-renders only when the crosshair changes — safe to use in heavy custom overlays.',
     react: {
       name: 'useCrosshairPosition',
       signature: '(chart: ChartInstance) => CrosshairPosition | null',
@@ -148,8 +148,9 @@ const pos = useCrosshairPosition(chart);
   import { createCrosshairPosition, getChartContext } from '@wick-charts/svelte';
   import { get } from 'svelte/store';
 
+  // Children render once the chart exists, so the store already holds it.
   const chart = get(getChartContext());
-  const pos = createCrosshairPosition(chart);
+  const pos = chart ? createCrosshairPosition(chart) : null;
 </script>
 
 {#if $pos}
@@ -160,10 +161,10 @@ const pos = useCrosshairPosition(chart);
 
   useLastYValue: {
     description:
-      'Reactive snapshot of the most-recent Y value for a series. Tracks the smoothed value used by `<YLabel>`, so values animate consistently with the price badge.',
+      'Reactive snapshot of the most-recent Y value for a series: `{ value, isLive }`, or `null` before the series has data. Tracks the smoothed value used by `<YLabel>`, so values animate consistently with the price badge.',
     react: {
       name: 'useLastYValue',
-      signature: '(chart: ChartInstance, seriesId: string) => number | null',
+      signature: '(chart: ChartInstance, seriesId: string) => { value: number; isLive: boolean } | null',
       example: `import { useChartInstance, useLastYValue } from '@wick-charts/react';
 
 function PriceBadge({ seriesId }: { seriesId: string }) {
@@ -171,12 +172,12 @@ function PriceBadge({ seriesId }: { seriesId: string }) {
   const last = useLastYValue(chart, seriesId);
   if (last === null) return null;
 
-  return <span className="badge">\${last.toFixed(2)}</span>;
+  return <span className="badge">\${last.value.toFixed(2)}</span>;
 }`,
     },
     vue: {
       name: 'useLastYValue',
-      signature: '(chart: ChartInstance, seriesId: string) => Ref<number | null>',
+      signature: '(chart: ChartInstance, seriesId: string) => Ref<{ value: number; isLive: boolean } | null>',
       example: `<script setup lang="ts">
 import { useChartInstance, useLastYValue } from '@wick-charts/vue';
 
@@ -186,23 +187,24 @@ const last = useLastYValue(chart, props.seriesId);
 </script>
 
 <template>
-  <span v-if="last !== null" class="badge">\${{ last.toFixed(2) }}</span>
+  <span v-if="last !== null" class="badge">\${{ last.value.toFixed(2) }}</span>
 </template>`,
     },
     svelte: {
       name: 'createLastYValue',
-      signature: '(chart: ChartInstance, seriesId: string) => Readable<number | null>',
+      signature: '(chart: ChartInstance, seriesId: string) => Readable<{ value: number; isLive: boolean } | null>',
       example: `<script lang="ts">
   import { createLastYValue, getChartContext } from '@wick-charts/svelte';
   import { get } from 'svelte/store';
 
-  export let seriesId: string;
+  let { seriesId }: { seriesId: string } = $props();
+
   const chart = get(getChartContext());
-  const last = createLastYValue(chart, seriesId);
+  const last = $derived(chart ? createLastYValue(chart, seriesId) : null);
 </script>
 
-{#if $last !== null}
-  <span class="badge">\${$last.toFixed(2)}</span>
+{#if $last}
+  <span class="badge">\${$last.value.toFixed(2)}</span>
 {/if}`,
     },
   },
@@ -221,7 +223,7 @@ function ChangePill({ seriesId }: { seriesId: string }) {
   const prev = usePreviousClose(chart, seriesId);
   if (last === null || prev === null) return null;
 
-  const pct = ((last - prev) / prev) * 100;
+  const pct = ((last.value - prev) / prev) * 100;
 
   return <span style={{ color: pct >= 0 ? 'limegreen' : 'tomato' }}>{pct.toFixed(2)}%</span>;
 }`,
@@ -239,9 +241,10 @@ const last = useLastYValue(chart, props.seriesId);
 const prev = usePreviousClose(chart, props.seriesId);
 
 const pct = computed(() => {
-  if (last.value === null || prev.value === null) return null;
+  const close = last.value?.value;
+  if (close === undefined || prev.value === null) return null;
 
-  return ((last.value - prev.value) / prev.value) * 100;
+  return ((close - prev.value) / prev.value) * 100;
 });
 </script>
 
@@ -256,20 +259,19 @@ const pct = computed(() => {
       signature: '(chart: ChartInstance, seriesId: string) => Readable<number | null>',
       example: `<script lang="ts">
   import { createLastYValue, createPreviousClose, getChartContext } from '@wick-charts/svelte';
-  import { derived, get } from 'svelte/store';
+  import { get } from 'svelte/store';
 
-  export let seriesId: string;
+  let { seriesId }: { seriesId: string } = $props();
+
   const chart = get(getChartContext());
-  const last = createLastYValue(chart, seriesId);
-  const prev = createPreviousClose(chart, seriesId);
-  const pct = derived([last, prev], ([$l, $p]) =>
-    $l === null || $p === null ? null : (($l - $p) / $p) * 100,
-  );
+  const last = $derived(chart ? createLastYValue(chart, seriesId) : null);
+  const prev = $derived(chart ? createPreviousClose(chart, seriesId) : null);
+  const pct = $derived($last && $prev ? (($last.value - $prev) / $prev) * 100 : null);
 </script>
 
-{#if $pct !== null}
-  <span style="color: {$pct >= 0 ? 'limegreen' : 'tomato'}">
-    {$pct.toFixed(2)}%
+{#if pct !== null}
+  <span style="color: {pct >= 0 ? 'limegreen' : 'tomato'}">
+    {pct.toFixed(2)}%
   </span>
 {/if}`,
     },
@@ -277,20 +279,20 @@ const pct = computed(() => {
 
   useVisibleRange: {
     description:
-      "Subscribes to viewport changes. Returns the visible time range `{ start, end }` of the chart. Use this to drive secondary visualisations (mini-maps, range-aware fetchers) that should track the user's pan/zoom.",
+      "Subscribes to viewport changes. Returns the visible time range `{ from, to }` of the chart. Use this to drive secondary visualisations (mini-maps, range-aware fetchers) that should track the user's pan/zoom.",
     react: {
       name: 'useVisibleRange',
       signature: '(chart: ChartInstance) => VisibleRange',
       example: `import { useEffect } from 'react';
 import { useChartInstance, useVisibleRange } from '@wick-charts/react';
 
-function RangeFetcher({ onRangeChange }: { onRangeChange: (start: number, end: number) => void }) {
+function RangeFetcher({ onRangeChange }: { onRangeChange: (from: number, to: number) => void }) {
   const chart = useChartInstance();
-  const { start, end } = useVisibleRange(chart);
+  const { from, to } = useVisibleRange(chart);
 
   useEffect(() => {
-    onRangeChange(start, end);
-  }, [start, end, onRangeChange]);
+    onRangeChange(from, to);
+  }, [from, to, onRangeChange]);
 
   return null;
 }`,
@@ -302,26 +304,28 @@ function RangeFetcher({ onRangeChange }: { onRangeChange: (start: number, end: n
 import { watch } from 'vue';
 import { useChartInstance, useVisibleRange } from '@wick-charts/vue';
 
-const emit = defineEmits<{ rangeChange: [start: number, end: number] }>();
+const emit = defineEmits<{ rangeChange: [from: number, to: number] }>();
 const chart = useChartInstance();
 const range = useVisibleRange(chart);
 
-watch(range, ({ start, end }) => emit('rangeChange', start, end), { immediate: true });
+watch(range, ({ from, to }) => emit('rangeChange', from, to), { immediate: true });
 </script>`,
     },
     svelte: {
       name: 'createVisibleRange',
       signature: '(chart: ChartInstance) => Readable<VisibleRange>',
       example: `<script lang="ts">
-  import { createEventDispatcher } from 'svelte';
   import { createVisibleRange, getChartContext } from '@wick-charts/svelte';
   import { get } from 'svelte/store';
 
-  const dispatch = createEventDispatcher<{ rangeChange: { start: number; end: number } }>();
-  const chart = get(getChartContext());
-  const range = createVisibleRange(chart);
+  let { onRangeChange }: { onRangeChange: (from: number, to: number) => void } = $props();
 
-  $: dispatch('rangeChange', $range);
+  const chart = get(getChartContext());
+  const range = chart ? createVisibleRange(chart) : null;
+
+  $effect(() => {
+    if ($range) onRangeChange($range.from, $range.to);
+  });
 </script>`,
     },
   },
@@ -363,10 +367,12 @@ const range = useYRange(chart);
   import { get } from 'svelte/store';
 
   const chart = get(getChartContext());
-  const range = createYRange(chart);
+  const range = chart ? createYRange(chart) : null;
 </script>
 
-<span>{$range.min.toFixed(2)} – {$range.max.toFixed(2)}</span>`,
+{#if $range}
+  <span>{$range.min.toFixed(2)} – {$range.max.toFixed(2)}</span>
+{/if}`,
     },
   },
 };

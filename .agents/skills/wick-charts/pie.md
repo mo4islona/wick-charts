@@ -166,15 +166,15 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 />
 ```
 
-### Styled donut with borders
+### Styled donut
 
 ```tsx
 <PieSeries
   data={data}
   options={{
     innerRadiusRatio: 0.6,
-    padAngle: 0.03,
-    stroke: { color: '#1a1a2e', width: 2 },
+    padAngle: 2, // degrees
+    cornerRadius: 4,
     colors: ['#e94560', '#0f3460', '#16213e', '#533483'],
   }}
 />
@@ -233,10 +233,10 @@ id?: string
 ### Donut chart
 
 ```svelte
-<script>
-  import { ChartContainer, PieSeries, PieTooltip, PieLegend } from '@wick-charts/svelte';
+<script lang="ts">
+  import { ChartContainer, PieSeries, PieTooltip, PieLegend, type PieSliceData } from '@wick-charts/svelte';
 
-  const data = [
+  const data: PieSliceData[] = [
     { label: 'Sales', value: 4000 },
     { label: 'Marketing', value: 3000 },
     { label: 'Operations', value: 2000 },
@@ -282,7 +282,7 @@ import { PieTooltip, PieLegend } from '@wick-charts/react';
   {({ info, format }) => (
     <div style={{ display: 'grid', gap: 2 }}>
       <strong>{info.label}</strong>
-      <span>{format(info.value)} · {(info.percent * 100).toFixed(1)}%</span>
+      <span>{format(info.value)} · {info.percent.toFixed(1)}%</span>
     </div>
   )}
 </PieTooltip>
@@ -290,9 +290,9 @@ import { PieTooltip, PieLegend } from '@wick-charts/react';
 <PieLegend>
   {({ slices, mode, format }) => (
     <ul style={{ listStyle: 'none', padding: 0 }}>
-      {slices.map((s, i) => (
+      {slices.map((s) => (
         <li key={s.label} style={{ color: s.color }}>
-          {s.label}: {mode === 'percent' ? `${(s.percent * 100).toFixed(1)}%` : format(s.value)}
+          {s.label}: {mode === 'percent' ? `${s.percent.toFixed(1)}%` : format(s.value)}
         </li>
       ))}
     </ul>
@@ -313,7 +313,7 @@ options={{ innerRadiusRatio: 0 }}  // default
 ### Thin ring donut
 
 ```ts
-options={{ innerRadiusRatio: 0.85, padAngle: 0.04 }}
+options={{ innerRadiusRatio: 0.85, padAngle: 2 }}
 ```
 
 ### Custom slice colors in data

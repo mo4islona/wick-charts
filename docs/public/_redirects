@@ -1,0 +1,4 @@
+# Cloudflare Pages redirects. /r/ holds only the shadcn registry JSON (no index
+# page), so a person who opens the folder itself lands on the install guide.
+/r    /use-cases/shadcn/    302
+/r/   /use-cases/shadcn/    302

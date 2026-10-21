@@ -46,8 +46,8 @@ export function rawSeriesData<D>(data: D): D {
  * Watch source for a series `data` prop. Besides a new array, it re-fires on
  * an in-place `push` / `splice` or an edit of a layer's last point on a
  * reactive array — it reads each layer's length and last point through the
- * Proxy instead of deep-watching every point. A `shallowRef` still needs a
- * new array (or `triggerRef`).
+ * Proxy instead of deep-watching every point. A `shallowRef` needs a new
+ * array: `triggerRef` after an in-place edit passes the same array again.
  */
 export function seriesDataSource(getData: () => unknown): () => unknown[] {
   return () => {

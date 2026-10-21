@@ -39,7 +39,7 @@ function FitButton() {
 ```tsx
 import { ThemeProvider, ChartContainer, catppuccin } from '@wick-charts/react';
 
-<ThemeProvider value={catppuccin}>
+<ThemeProvider value={catppuccin.theme}>
   <ChartContainer>...</ChartContainer>
   <ChartContainer>...</ChartContainer>  {/* inherits catppuccin */}
 </ThemeProvider>
@@ -69,10 +69,13 @@ const theme = useTheme();
 ```svelte
 <script lang="ts">
   import { getChartContext, getThemeContext } from '@wick-charts/svelte';
+
   const chart = getChartContext();
   const theme = getThemeContext();
 </script>
-<button on:click={() => $chart?.fitContent()} style="background: {$theme.background}">Fit</button>
+
+<!-- Svelte 5 event attribute; on Svelte 4 write on:click -->
+<button onclick={() => $chart?.fitContent()} style="background: {$theme.background}">Fit</button>
 ```
 
 ## Imperative `ChartInstance` methods
@@ -85,7 +88,7 @@ Useful from custom children:
 - `getStackedLastValue(id)` → `{ value, isLive } | null` — cumulative top of a stacked series. Falls back to `getLastValue` for non-stacked series. Use this to anchor `<YLabel />` on the rendered stack head.
 - `getLayerLastSnapshots(id)` → `{ layerIndex, time, value, color }[] | null` — per-layer last points, each at its own `time`. Returns `null` for single-layer series. Use when rendering last-mode overlays on ragged multi-layer streams.
 - `setSeriesVisible(id, visible)`, `setLayerVisible(id, layer, visible)` — series toggling.
-- `setTheme(theme)`, `setAxis(config)`, `setPadding(padding)`, `setGrid(on)` — post-mount configuration.
+- `setTheme(theme)`, `setAxis(config)`, `setPadding(padding)`, `setGrid({ visible?, horizontal?, vertical? })` — post-mount configuration.
 - `getSeriesIds()`, `getSeriesIdsByType(type, { visibleOnly?, singleLayerOnly? })`, `getSeriesType(id)`, `getSeriesColor(id)`, `getSeriesLabel(id)`, `getSeriesLayers(id)` — introspection. `getSeriesIdsByType` partitions by `'pie'` / `'time'` and is visibility/layer-aware via opts.
 
 For **reactive** reads of common state, prefer the built-in hooks/composables/stores (`useVisibleRange`, `useYRange`, `useLastYValue`, `usePreviousClose`, `useCrosshairPosition` / Svelte `create*` equivalents) — they subscribe to the right chart events and update automatically.

@@ -47,6 +47,19 @@ export const DECLARATIVE_STEPS: Step[] = [
       </>
     ),
   },
+  {
+    heading: '04 — VUE AND SVELTE: NO DEEP PROXIES',
+    body: (
+      <>
+        Assign a new array there too, and keep large data out of deep reactivity. In Vue, hold it in a{' '}
+        <code>shallowRef</code>: a deep <code>ref</code> proxies every point, and <code>triggerRef</code> after an
+        in-place <code>push</code> does not reach the chart. In Svelte 5, hold it in <code>$state.raw</code>: with a
+        deep <code>$state</code> the chart reads every point through a proxy, and 130k candles block the main thread for
+        about two seconds instead of a few dozen milliseconds.
+      </>
+    ),
+    code: `// Vue\nconst data = shallowRef<OHLCData[]>(seed);\ndata.value = [...data.value, bar];\n\n// Svelte 5\nlet data = $state.raw<OHLCData[]>(seed);\ndata = [...data, bar];`,
+  },
 ];
 
 export const IMPERATIVE_STEPS: Step[] = [

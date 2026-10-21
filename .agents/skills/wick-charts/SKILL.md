@@ -17,8 +17,43 @@ Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`,
 
 Framework-specific gaps to know about:
 
-- **React** has the richest surface: `ThemeProvider`, `Sparkline`, and several hooks (`useChartInstance`, `useVisibleRange`, `useYRange`, `useLastYValue`, `usePreviousClose`, `useCrosshairPosition`, `useTheme`). `ChartContainer` accepts `padding`, `gradient`, `grid`, `interactive`, `style`, `className`.
-- **Vue** and **Svelte** `ChartContainer` currently accept only `theme` + `axis` (+ `style` in Svelte); `padding`/`gradient`/`grid`/`interactive` props are React-only for now.
+- **React only**: `ThemeProvider`, `Sparkline` and `EdgeLoader`.
+- `ChartContainer` takes the same props in all three frameworks. React adds `style` / `className`; Vue passes `style` / `class` through to the root element; Svelte takes `style` as a string.
+- The [reactive accessors](#reactive-accessors) are hooks in React, composables with the same names in Vue, and stores in Svelte.
+- **Svelte**: the components work in Svelte 4 and Svelte 5. In a Svelte 5 project (`sv create` turns runes on), write your own components with runes — `let { data }: { data: OHLCInput[] } = $props()`, not `export let` — and keep chart data in `$state.raw` (see [Realtime updates](#realtime-updates)).
+
+## shadcn/ui
+
+In a shadcn/ui project (React), install from the Wick Charts registry instead of wiring a theme by hand. Items install as source files into the project:
+
+- `wick-theme` — `useWickTheme(ref?)` builds a `ChartTheme` from the shadcn CSS variables (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--chart-1` … `--chart-5`) and follows light/dark switches.
+- `wick-chart` — `<WickChart>`: `ChartContainer` themed by that hook, sized with classes (`aspect-video` by default), horizontal grid lines only. `theme` takes a `ChartTheme` or a function that adjusts the generated one.
+- Blocks in a shadcn `Card`: `chart-line-live`, `chart-candlestick`, `chart-order-book`, `chart-sparkline-cards`, `chart-bar-grouped`, `chart-pie-donut`, `chart-band-latency`, `chart-area-stacked`, `chart-heatmap`, `chart-line-annotations`, `chart-line-navigator`.
+
+```bash
+npx shadcn@latest add https://wick-charts.eeff.io/r/wick-chart.json
+# or, with "@wick-charts": "https://wick-charts.eeff.io/r/{name}.json" under "registries" in components.json:
+npx shadcn@latest add @wick-charts/chart-line-live
+```
+
+```tsx
+import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/react';
+
+import { WickChart } from '@/components/ui/wick-chart';
+
+export function Revenue({ data }: { data: TimePoint[] }) {
+  return (
+    <WickChart className="aspect-auto h-[250px]">
+      <LineSeries data={data} />
+      <YAxis />
+      <TimeAxis />
+      <Tooltip />
+    </WickChart>
+  );
+}
+```
+
+The index of all items is `https://wick-charts.eeff.io/r/registry.json`.
 
 ## Chart types (reference pages)
 
@@ -48,9 +83,13 @@ Root component. Requires a defined width + height.
 </ChartContainer>
 ```
 
-Props: `theme`, `axis`, `scales`, `padding`, `viewport`, `gradient`, `grid`, `interactive`, `headerLayout`, `animations`, `onEdgeReached`, `perf`, `style`, `className` — all optional with safe defaults, in parity across React/Vue/Svelte (style is React/Svelte only). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible?, horizontal?, vertical? }` (all default `true`) — `grid={{ visible: false }}` hides it, `grid={{ vertical: false }}` keeps only the horizontal lines. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing; `axis.y.position` is `'right'` (default) or `'left'` — the plot area shifts past a left axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right. `axis.y.scale` takes a value mapping — omit it for linear, `logScale()` (import it; `logScale({ base: 2 })` for powers-of-two ticks) for a log axis, or any `{ forward, inverse, isPlottable?, ticks?, format? }` object (define it outside the component so it stays the same object). Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead. `viewport.maxVisibleBars` (default 200) caps the visible window before tail-scroll kicks in. `viewport.initialRange` matches `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and is applied **before** the first paint — use instead of an after-mount `useEffect(() => chart.setVisibleRange(...))` to avoid a visible re-zoom on the next frame. `animations` is configured at construction time and is **init-only** — there is no `chart.setAnimations` runtime setter; remount the chart (or change the React `key`) to swap curves or durations.
+Props: `theme`, `axis`, `scales`, `padding`, `viewport`, `gradient`, `grid`, `interactive`, `headerLayout`, `animations`, `onEdgeReached`, `perf`, `style`, `className` — all optional with safe defaults, in parity across React/Vue/Svelte (`style` / `className` are React props; Vue passes `style` / `class` through; Svelte `style` is a string). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible?, horizontal?, vertical? }` (all default `true`) — `grid={{ visible: false }}` hides it, `grid={{ vertical: false }}` keeps only the horizontal lines. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing; `axis.y.position` is `'right'` (default) or `'left'` — the plot area shifts past a left axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right. `axis.y.scale` takes a value mapping — omit it for linear, `logScale()` (import it; `logScale({ base: 2 })` for powers-of-two ticks) for a log axis, or any `{ forward, inverse, isPlottable?, ticks?, format? }` object (define it outside the component so it stays the same object). Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead. `viewport.maxVisibleBars` (default 200) caps the visible window before tail-scroll kicks in. `viewport.initialRange` matches `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and is applied **before** the first paint — use instead of an after-mount `useEffect(() => chart.setVisibleRange(...))` to avoid a visible re-zoom on the next frame. `animations` is configured at construction time and is **init-only** — there is no `chart.setAnimations` runtime setter; remount the chart (or change the React `key`) to swap curves or durations.
 
 `AxisBound` = `'auto' | number | "+10%" | ((values: number[]) => number)`.
+
+### Performance HUD
+
+`perf={perfHud()}` (Vue `:perf="hud"` with `const hud = perfHud()`) puts an FPS panel on the chart; a click expands it to frame times, draw calls and the render time of each series. `perf` is read at mount only. Importing `perfHud` is what adds the perf code to the bundle — without it, a chart carries none. For the numbers without the panel, pass a `PerfMonitor` (`new PerfMonitor()`) and subscribe with `monitor.onFrame((stats) => …)`; several charts can share one monitor, and `perfHud(monitor)` shows the panel for a shared one.
 
 ## Animations
 
@@ -208,6 +247,8 @@ const custom = createTheme({
   seriesColors: ['#3b82f6', '#8b5cf6', '#ec4899'],
 });
 const preset = dracula; // { name, theme, dark, fontUrl: string | null, backgroundImage?, backgroundSize? }
+
+// createTheme returns a preset too: pass its `.theme`, e.g. <ChartContainer theme={custom.theme}>
 ```
 
 `theme.tooltip.valueColor` (optional) paints tooltip values in one color instead of each series color — set it when a series color is too faint to read on the tooltip background; the swatch keeps the series color.
@@ -219,14 +260,30 @@ React also has `<ThemeProvider value={theme}>` for global theming.
 Same concepts across frameworks (React hooks → Vue composables → Svelte stores):
 
 - `useChartInstance()` / `getChartContext()` — the `ChartInstance`
-- `useVisibleRange(chart)` — `{ from, to }`
-- `useYRange(chart)` — `{ min, max }`
-- `useLastYValue(chart, seriesId)` — `{ value, isLive } | null`
-- `usePreviousClose(chart, seriesId)` — `number | null`
-- `useCrosshairPosition(chart)` — `{ mediaX, mediaY, time, y } | null`
+- `useVisibleRange(chart)` / `createVisibleRange(chart)` — `{ from, to }`
+- `useYRange(chart)` / `createYRange(chart)` — `{ min, max }`
+- `useLastYValue(chart, seriesId)` / `createLastYValue(chart, seriesId)` — `{ value, isLive } | null`
+- `usePreviousClose(chart, seriesId)` / `createPreviousClose(chart, seriesId)` — `number | null`
+- `useCrosshairPosition(chart)` / `createCrosshairPosition(chart)` — `{ mediaX, mediaY, time, y } | null`
 - `useTheme()` / `getThemeContext()` — `ChartTheme`
 
-React/Vue return plain values / refs; Svelte returns `Readable<T>` — read with `$store`.
+React returns plain values, Vue returns refs, Svelte returns `Readable<T>` stores — read them with `$store`. Svelte's `getChartContext()` is a `Readable<ChartInstance | null>`; children of `ChartContainer` render only once the chart exists, so read it with `get()`:
+
+```svelte
+<script lang="ts">
+  import { createLastYValue, getChartContext } from '@wick-charts/svelte';
+  import { get } from 'svelte/store';
+
+  let { seriesId }: { seriesId: string } = $props();
+
+  const chart = get(getChartContext());
+  const last = $derived(chart ? createLastYValue(chart, seriesId) : null);
+</script>
+
+{#if $last}
+  <span>{$last.value.toFixed(2)}</span>
+{/if}
+```
 
 ## Multi-series overlay
 
@@ -438,7 +495,42 @@ Per-version breaking-change notes and code snippets live in the root [MIGRATION.
 
 Pass a new `data` array reference when data changes (e.g. via immutable state updates in React — the series components compare references in hook deps, so mutating in place won't re-render). The library diffs internally: same-length → updates last, +1..5 → incremental append, otherwise → full replace.
 
-Vue and Svelte also pick up an in-place `push` and an in-place edit of the last point (Vue: on a `ref` / `reactive` array); an in-place edit of an older point is not seen — pass a new array for that. In Vue, hold large datasets in `shallowRef` and assign a new array (or call `triggerRef`): the chart reads the raw array either way, but a deep `ref` makes Vue proxy every point your own code touches.
+**Vue.** On a `ref` / `reactive` array the series also picks up an in-place `push` and an in-place edit of the last point; an in-place edit of an older point is not seen — pass a new array for that. Hold large datasets in a `shallowRef` and assign a new array: a deep `ref` makes Vue proxy every point your own code touches. `triggerRef` after an in-place `push` on a `shallowRef` does **not** reach the chart.
+
+```ts
+import { shallowRef } from 'vue';
+import type { TimePoint } from '@wick-charts/vue';
+
+const data = shallowRef<TimePoint[]>([]);
+
+function onTick(point: TimePoint) {
+  data.value = [...data.value, point]; // not data.value.push(point) + triggerRef(data)
+}
+```
+
+**Svelte 5.** Keep chart data in `$state.raw` (or a store) and assign a new array. A deep `$state` hands the chart a proxy, and reading every point through it is about 70× slower on large data: 130k candles block the main thread for ~2 s instead of ~30 ms, and order-book updates take 20–30 ms instead of 1–3 ms. A `$state.raw` array changed in place is not seen at all.
+
+```svelte
+<script lang="ts">
+  import { ChartContainer, LineSeries, type TimePoint } from '@wick-charts/svelte';
+
+  let data = $state.raw<TimePoint[]>([]);
+
+  $effect(() => {
+    const id = setInterval(() => {
+      data = [...data, { time: Date.now(), value: Math.random() * 100 }].slice(-500);
+    }, 1000);
+
+    return () => clearInterval(id);
+  });
+</script>
+
+<ChartContainer>
+  <LineSeries {data} />
+</ChartContainer>
+```
+
+**Svelte 4.** Assign a new array, or edit in place and then assign the same array (`data = data`).
 
 ## Critical rules
 

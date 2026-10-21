@@ -122,12 +122,12 @@ A horizontal line at y=0 is automatically rendered when the dataset contains neg
 import { ChartContainer, BarSeries, Tooltip, Crosshair, YAxis, TimeAxis } from '@wick-charts/react';
 import type { TimePoint } from '@wick-charts/react';
 
-function Histogram({ data }: { data: TimePoint[] }) {
+export function Histogram({ data }: { data: TimePoint[] }) {
   return (
     <ChartContainer style={{ width: '100%', height: 400 }}>
       <BarSeries
-        data={[data]}
-        options={{ colors: ['#26a69a', '#ef5350'], barWidthRatio: 0.6 }}
+        data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data }}
+        options={{ barWidthRatio: 0.6 }}
       />
       <Tooltip />
       <Crosshair />
@@ -145,12 +145,12 @@ import { ChartContainer, BarSeries, Tooltip, Legend, YAxis, TimeAxis } from '@wi
 
 <ChartContainer style={{ width: '100%', height: 400 }}>
   <BarSeries
-    data={[revenue, costs, profit]}
-    options={{
-      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      barWidthRatio: 0.6,
-      stacking: 'normal',
-    }}
+    data={[
+      { label: 'Revenue', color: '#ff6b6b', data: revenue },
+      { label: 'Costs', color: '#4ecdc4', data: costs },
+      { label: 'Profit', color: '#45b7d1', data: profit },
+    ]}
+    options={{ barWidthRatio: 0.6, stacking: 'normal' }}
   />
   <Tooltip />
   <YAxis />
@@ -176,17 +176,18 @@ interface BarSeriesProps {
 
 ```vue
 <script setup lang="ts">
-import { ChartContainer, BarSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis } from '@wick-charts/vue';
+import { ChartContainer, BarSeries, Tooltip, Crosshair, YAxis, TimeAxis } from '@wick-charts/vue';
 import type { TimePoint } from '@wick-charts/vue';
 
 const props = defineProps<{ data: TimePoint[] }>();
+const signColor = (v: number) => (v >= 0 ? '#26a69a' : '#ef5350');
 </script>
 
 <template>
   <ChartContainer style="width: 100%; height: 400px">
     <BarSeries
-      :data="[props.data]"
-      :options="{ colors: ['#26a69a', '#ef5350'], barWidthRatio: 0.6 }"
+      :data="{ color: signColor, data: props.data }"
+      :options="{ barWidthRatio: 0.6 }"
     />
     <Tooltip />
     <Crosshair />
@@ -202,12 +203,12 @@ const props = defineProps<{ data: TimePoint[] }>();
 <template>
   <ChartContainer style="width: 100%; height: 400px">
     <BarSeries
-      :data="[revenue, costs, profit]"
-      :options="{
-        colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-        barWidthRatio: 0.6,
-        stacking: 'normal',
-      }"
+      :data="[
+        { label: 'Revenue', color: '#ff6b6b', data: revenue },
+        { label: 'Costs', color: '#4ecdc4', data: costs },
+        { label: 'Profit', color: '#45b7d1', data: profit },
+      ]"
+      :options="{ barWidthRatio: 0.6, stacking: 'normal' }"
     />
     <Tooltip />
     <YAxis />
@@ -232,15 +233,16 @@ id?: string
 ### Single layer
 
 ```svelte
-<script>
-  import { ChartContainer, BarSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis } from '@wick-charts/svelte';
-  export let data = [];
+<script lang="ts">
+  import { ChartContainer, BarSeries, Tooltip, Crosshair, YAxis, TimeAxis, type TimePoint } from '@wick-charts/svelte';
+
+  let { data }: { data: TimePoint[] } = $props();
 </script>
 
 <ChartContainer style="width:100%;height:400px">
   <BarSeries
-    data={[data]}
-    options={{ colors: ['#26a69a', '#ef5350'], barWidthRatio: 0.6 }}
+    data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data }}
+    options={{ barWidthRatio: 0.6 }}
   />
   <Tooltip />
   <Crosshair />
@@ -254,12 +256,12 @@ id?: string
 ```svelte
 <ChartContainer style="width:100%;height:400px">
   <BarSeries
-    data={[revenue, costs, profit]}
-    options={{
-      colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-      barWidthRatio: 0.6,
-      stacking: 'normal',
-    }}
+    data={[
+      { label: 'Revenue', color: '#ff6b6b', data: revenue },
+      { label: 'Costs', color: '#4ecdc4', data: costs },
+      { label: 'Profit', color: '#45b7d1', data: profit },
+    ]}
+    options={{ barWidthRatio: 0.6, stacking: 'normal' }}
   />
   <Tooltip />
   <YAxis />
@@ -335,26 +337,23 @@ const volumeData: TimePoint[] = ohlcData.map(d => ({
 }));
 
 <BarSeries
-  data={[volumeData]}
-  options={{ colors: ['#26a69a', '#ef5350'], barWidthRatio: 0.8 }}
+  data={{ label: 'Volume', color: '#4ecdc4', data: volumeData }}
+  options={{ barWidthRatio: 0.8 }}
 />
 ```
 
 ### Percentage stacked bar
 
 ```ts
-options={{
-  colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
-  stacking: 'percent',
-}}
+options={{ stacking: 'percent' }}
 ```
 
 ### MACD-style histogram with positive/negative
 
 ```ts
-// Single layer — colors[0] for positive, colors[1] for negative
-options={{
-  colors: ['#26a69a', '#ef5350'],
-  barWidthRatio: 0.4,
-}}
+// Single layer: the theme's bar.color already paints positive bars up and negative bars down
+options={{ barWidthRatio: 0.4 }}
+
+// Or your own colors, chosen per bar
+data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data: macd }}
 ```
