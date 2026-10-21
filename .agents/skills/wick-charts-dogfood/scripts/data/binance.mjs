@@ -281,6 +281,55 @@ const jobs = {
       rows,
     });
   },
+
+  // Rolling: the REST API has no historical book, so a re-fetch gives a different book.
+  async 'orderbook-snapshots'() {
+    const plan = { BTCUSDT: 20, PEPEUSDT: 5 };
+    const symbols = {};
+    const urls = [];
+    const quirks = [];
+    for (const [symbol, count] of Object.entries(plan)) {
+      const url = `${API}/depth?symbol=${symbol}&limit=1000`;
+      urls.push(url);
+      const snaps = [];
+      for (let i = 0; i < count; i++) {
+        const book = await fetchJson(url);
+        snaps.push({ time: Date.now(), lastUpdateId: book.lastUpdateId, bids: book.bids, asks: book.asks });
+        await sleep(1500);
+      }
+
+      symbols[symbol] = snaps;
+
+      const first = snaps[0];
+      const sizes = [...first.bids, ...first.asks].map((l) => Number(l[1]));
+      const bestBid = Number(first.bids[0][0]);
+      const bestAsk = Number(first.asks[0][0]);
+      const lowBid = Number(first.bids[first.bids.length - 1][0]);
+      const highAsk = Number(first.asks[first.asks.length - 1][0]);
+      quirks.push(
+        `${symbol}: ${count} snapshots ~1.5 s apart, ${first.bids.length} bids + ${first.asks.length} asks each; bids descending, asks ascending (API order)`,
+        `${symbol}: best bid ${bestBid}, best ask ${bestAsk}, spread ${(bestAsk - bestBid).toPrecision(3)}; book spans ${lowBid}..${highAsk}`,
+        `${symbol}: level sizes ${Math.min(...sizes)}..${Math.max(...sizes)}`,
+      );
+    }
+
+    quirks.push(
+      'prices and sizes are STRINGS as the API sends them ("0.00000456"); Number() them for the plain variant',
+    );
+
+    writeDataset({
+      id: 'orderbook-snapshots',
+      title: 'Binance spot order book snapshots: BTCUSDT x20 and PEPEUSDT x5, 1000 levels a side',
+      source: 'Binance spot depth API',
+      url: urls,
+      rowFormat: 'snapshots',
+      layout: 'symbols: { <symbol>: [{ time, lastUpdateId, bids: [[price, size]], asks: [[price, size]] }] }',
+      units: { price: 'quote asset (USDT)', size: 'base asset', time: 'ms UTC, local capture time' },
+      quirks,
+      suggestedCharts: ['depth chart (cumulative bids / asks)', 'live depth replay, one snapshot per second'],
+      symbols,
+    });
+  },
 };
 
 const wanted = process.argv.slice(2);

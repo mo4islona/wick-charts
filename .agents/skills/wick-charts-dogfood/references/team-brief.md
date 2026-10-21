@@ -72,6 +72,9 @@ verdict, dev server command.
 - An inline array literal as `data` on every render; parent re-renders at 60 Hz with unchanged data.
 - SSR: `vite.ssrLoadModule` + `react-dom/server` `renderToString` of a `ChartContainer`, then hydrate.
 - React-only components (`Sparkline`, `EdgeLoader`) are usable from the docs alone.
+- In a Next.js App Router app: compose a chart (Title, Legend, Navigator) inside a Server Component
+  page and compare it with the same tree in a `'use client'` file — server-created children reach the
+  client as lazy types (the 2026-10-21-full P1).
 
 **Vue**
 - `ref` / `reactive` deep proxies of the 130k-candle array vs `shallowRef` / `markRaw` (first paint,

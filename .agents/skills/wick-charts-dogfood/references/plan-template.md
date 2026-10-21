@@ -60,6 +60,8 @@ Ports (`--strictPort`): React **5181**, Vue **5182**, Svelte **5183**. Vite bind
   adapters, and most cross-framework pixel diffs came from them (totals kept as pie slices, three hour
   formats, different sums), not from the wrappers. The first team to reach a scenario writes its shared
   file; the others reuse it and report disagreements instead of forking it.
+  The shared file also owns the **viewport** (explicit full range or the default window): in two
+  sessions every default-render diff above 1% was one app passing `fullRange()` and another not.
 - Import `../tools/frame.css` in the entry file.
 - `/?s=<scenarioId>` renders ONLY that scenario inside `<div id="scenario">`, 960×480 px unless the
   scenario says otherwise (`class="auto-height"` for grids).
@@ -92,6 +94,15 @@ Datasets: read `test/dogfood/data/CATALOG.md` first — the measured quirks are 
 |---|---|---|---|
 | `example-id` | dataset-id | components, exact title | the quirk this scenario exists for |
 
+### Fix re-check
+
+Bug issues closed since the last session (`coverage.mjs due --online`), each with the scenario it
+came from. Every team fills the table for its framework.
+
+| issue | scenario | check |
+|---|---|---|
+| #123 | scenario-id | what the fixed behaviour looks like |
+
 Framework-specific probes: _<from `references/team-brief.md`, per framework>_
 
 Packaging check (each team, its own package): `npm pack --dry-run` in `packages/<fw>` (read-only),
@@ -105,6 +116,8 @@ type-check the app with the framework's checker in strict mode; note every force
 2. **Scenario table** — id | status (`OK` / `BUG` / `MISSING` / `WORKAROUND` / `NOT DONE`) | screenshot | one-line note.
    A scenario with any finding attached is `BUG` (or `WORKAROUND` if you routed around it), never `OK` —
    the tech lead compares these statuses across frameworks.
+   **Fix re-check table** — issue | scenario | fixed / NOT fixed / n/a | evidence. A NOT fixed row needs
+   the same evidence as a BUG.
 3. **Findings** — ranked, linked to `reports/<fw>-findings.json`.
 4. **Missing features / API gaps** hit as a user — these become issues or ideas for the next session.
 5. **New test ideas** — data or probes you would try next time, and why.

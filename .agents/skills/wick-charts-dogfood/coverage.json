@@ -50,6 +50,32 @@
         "Tailwind preflight sets a unitless line-height that DOM overlays inherit; compare overlay geometry against the docs page before calling a misalignment Tailwind-only.",
         "No agents needed: six registry blocks fit one tech-lead pass (about 25 captures)."
       ]
+    },
+    {
+      "id": "2026-10-21-full",
+      "type": "full",
+      "commit": "1c46496",
+      "dirtyTree": false,
+      "libVersion": "0.8.4",
+      "frameworks": {
+        "react": "19.3.1",
+        "vue": "3.5.44",
+        "svelte": "5.57.2",
+        "vite": "8.3.4",
+        "typescript": "6.0.3",
+        "next": "16 (shadcn Next.js template)",
+        "shadcn": "4.22.1"
+      },
+      "approach": "Full session after 62 commits. Tech lead fetched one new dataset (orderbook-snapshots) with a fetcher, wrote shared adapters for 4 new scenarios (depth-btc, depth-pepe, category-mix, pepe-volume), built once. Three framework agents (React, Vue, Svelte 5 runes) re-shot the 26 old scenarios, built the 4 new ones and re-checked 32 closed issues on the same data; a fourth agent installed the shadcn registry from the live URL into a Next.js App Router app (@wick-charts/react 0.8.4 from npm): build, SSR/hydration, theme, 375 px, client navigation, Server Component children. Tech lead: Vite shadcn app sweep vs the 2026-10-21 shots, default / zoom / hover compares, verified both P1s.",
+      "notes": [
+        "The fix re-check table (issue | scenario | fixed / NOT fixed) made re-checks cheap: 84 of 85 framework rows came back fixed; keep it in every session after a fix wave.",
+        "Most default-render diffs were contract drift again: React and Svelte pass an explicit fullRange(), Vue the default viewport. Next session the shared scenario files must own the viewport, not only the data.",
+        "The plan wrongly said \"mount before data, as React does\": the React app mounts after data. Check the reference app before writing a contract line about it.",
+        "The hover compare caught a wrapper split (React tooltip fixed at 160 px, Vue/Svelte content-sized) that every team had filed as core or not at all.",
+        "Shared adapters with .ts import extensions need allowImportingTsExtensions in each app, and must pass noUncheckedIndexedAccess (the Vue app uses it).",
+        "A Next.js team needs experimental.reactDebugChannel: false and short dev runs: the sandbox blocks the dev WebSocket.",
+        "The Server Component children probe found the only P1 in the wrapper layer: test composition from a server page, not only \"use client\" blocks."
+      ]
     }
   ],
   "quirkClasses": {
@@ -102,7 +128,7 @@
       "window": "pinned",
       "quirks": ["time-gap", "zero-volume", "flat-candle"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "pepe-1h",
@@ -114,7 +140,7 @@
       "window": "pinned",
       "quirks": ["tiny-magnitude", "huge-magnitude", "outlier-spike"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "stable-1m-flat",
@@ -126,7 +152,7 @@
       "window": "pinned",
       "quirks": ["flat-range", "flat-candle", "zero-volume"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "btc-1m-big",
@@ -138,7 +164,7 @@
       "window": "pinned",
       "quirks": ["big-n", "time-gap", "zero-volume"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "stock-daily",
@@ -150,7 +176,7 @@
       "window": "pinned",
       "quirks": ["weekend-gap", "nonmidnight-daily", "dst-transition", "float-noise"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "de-power-price",
@@ -162,7 +188,7 @@
       "window": "pinned",
       "quirks": ["interval-change", "dst-transition", "negative-values", "zero-crossing"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "de-power-mix",
@@ -174,7 +200,7 @@
       "window": "pinned",
       "quirks": ["negative-values", "zero-values", "many-categories", "mixed-units"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "weather-hourly",
@@ -186,7 +212,7 @@
       "window": "pinned",
       "quirks": ["null-trailing", "negative-values", "mixed-units", "zero-values"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "weather-daily",
@@ -198,7 +224,7 @@
       "window": "pinned",
       "quirks": ["zero-crossing", "negative-values"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "fred-macro",
@@ -210,7 +236,7 @@
       "window": "pinned",
       "quirks": ["mixed-frequency", "null-inner", "zero-crossing", "long-span"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "wiki-spike",
@@ -222,7 +248,7 @@
       "window": "pinned",
       "quirks": ["outlier-spike"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "npm-downloads",
@@ -234,7 +260,7 @@
       "window": "pinned",
       "quirks": ["zero-as-missing", "scale-gap"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "trades-stream",
@@ -246,7 +272,7 @@
       "window": "pinned",
       "quirks": ["duplicate-time", "burst-stream", "irregular-time"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "earthquakes",
@@ -258,7 +284,7 @@
       "window": "pinned",
       "quirks": ["descending-order", "irregular-time", "negative-values", "irregular-x"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "worldbank-gdp",
@@ -270,7 +296,19 @@
       "window": "pinned",
       "quirks": ["null-inner", "long-labels", "many-categories", "scale-gap"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17"]
+      "usedIn": ["2026-10-17", "2026-10-21-full"]
+    },
+    {
+      "id": "orderbook-snapshots",
+      "title": "Binance spot order book snapshots: BTCUSDT x20 and PEPEUSDT x5, 1000 levels a side",
+      "source": "Binance spot depth API",
+      "fetch": "binance.mjs orderbook-snapshots",
+      "rows": 25,
+      "sizeKB": 1450,
+      "window": "rolling",
+      "quirks": ["tiny-magnitude", "huge-magnitude", "string-numbers", "descending-order", "outlier-spike"],
+      "fetchedAt": "2026-10-21",
+      "usedIn": ["2026-10-21-full"]
     }
   ],
   "probes": [
@@ -286,7 +324,7 @@
         "packages/core/src/scales/x-scale.ts",
         "packages/core/src/axis"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "candles-tiny",
@@ -300,7 +338,7 @@
         "packages/core/src/utils/format.ts",
         "packages/core/src/scales/y-scale.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "candles-flat",
@@ -310,7 +348,7 @@
       "quirks": ["flat-range", "flat-candle"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/candlestick.ts", "packages/core/src/scales/y-scale.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "candles-stock",
@@ -324,7 +362,7 @@
         "packages/core/src/navigator",
         "packages/core/src/scales/x-scale.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "candles-big",
@@ -339,7 +377,7 @@
         "packages/core/src/interactions",
         "packages/core/src/render-scheduler.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "line-negative",
@@ -349,7 +387,7 @@
       "quirks": ["negative-values", "zero-crossing"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/line.ts", "packages/core/src/series/painters"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "line-interval-change",
@@ -363,7 +401,7 @@
         "packages/core/src/utils/time.ts",
         "packages/core/src/scales/x-scale.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "bar-dst",
@@ -373,7 +411,7 @@
       "quirks": ["dst-transition"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/bar.ts", "packages/core/src/utils/time.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "line-weather-nulls",
@@ -387,7 +425,7 @@
         "packages/core/src/series/base-multi-layer.ts",
         "packages/core/src/legend.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "band-weather",
@@ -398,7 +436,7 @@
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/band.ts"],
       "features": ["9773103"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "secondary-y",
@@ -409,7 +447,7 @@
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/scales/y-scale.ts", "packages/core/src/chart.ts"],
       "features": ["4507440"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "line-fred-mixed",
@@ -423,7 +461,7 @@
         "packages/core/src/series/base-multi-layer.ts",
         "packages/core/src/scales/x-scale.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "bar-spike",
@@ -437,7 +475,7 @@
         "packages/core/src/scales/y-scale.ts",
         "packages/core/src/scales/log-scale.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "stacked-npm",
@@ -447,7 +485,7 @@
       "quirks": ["zero-as-missing", "scale-gap"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/bar.ts", "packages/core/src/series/stack-math.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "percent-npm",
@@ -457,7 +495,7 @@
       "quirks": ["zero-as-missing"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/line.ts", "packages/core/src/series/stack-math.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "pie-power-mix",
@@ -467,7 +505,7 @@
       "quirks": ["negative-values", "zero-values", "many-categories"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/pie.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "pie-gdp",
@@ -477,7 +515,7 @@
       "quirks": ["null-inner", "long-labels", "many-categories"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/pie.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "category-gdp",
@@ -488,7 +526,7 @@
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/bar.ts", "packages/core/src/scales/x-scale.ts"],
       "features": ["af6c918"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "numeric-quakes",
@@ -499,7 +537,7 @@
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/bar.ts", "packages/core/src/scales/x-scale.ts"],
       "features": ["af6c918"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "quakes-unsorted",
@@ -509,7 +547,7 @@
       "quirks": ["descending-order", "irregular-time"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/bar.ts", "packages/core/src/data/store.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "heatmap-power",
@@ -519,7 +557,7 @@
       "quirks": ["dst-transition", "negative-values"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/series/heatmap.ts", "packages/core/src/heatmap-tooltip.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "stream-trades",
@@ -534,7 +572,7 @@
         "packages/core/src/animation",
         "packages/core/src/render-scheduler.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "sparklines",
@@ -544,7 +582,7 @@
       "quirks": ["flat-range", "single-point"],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/react/src", "packages/vue/src", "packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "edge-cases",
@@ -567,7 +605,7 @@
         "packages/core/src/utils/poisoned-data-reporter.ts",
         "packages/core/src/utils/time.ts"
       ],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "theme-resize",
@@ -577,7 +615,7 @@
       "quirks": [],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/canvas-manager.ts", "packages/core/src/theme", "packages/core/src/axis"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "lifecycle",
@@ -587,7 +625,7 @@
       "quirks": [],
       "frameworks": ["react", "vue", "svelte"],
       "paths": ["packages/core/src/chart.ts", "packages/react/src", "packages/vue/src", "packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-install-quickstart",
@@ -597,7 +635,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["README.tmpl.md", "packages/react/package.json"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-packaging",
@@ -607,7 +645,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["packages/react/package.json", "packages/react/vite.config.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-typecheck",
@@ -617,7 +655,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["packages/react/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-install-quickstart",
@@ -627,7 +665,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["README.tmpl.md", "packages/vue/package.json"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-packaging",
@@ -637,7 +675,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/package.json", "packages/vue/vite.config.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-typecheck",
@@ -647,7 +685,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte-install-quickstart",
@@ -657,7 +695,7 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["README.tmpl.md", "packages/svelte/package.json"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte-packaging",
@@ -667,7 +705,7 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/package.json", "packages/svelte/vite.config.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte-typecheck",
@@ -677,7 +715,7 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-strictmode",
@@ -687,7 +725,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["packages/react/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-inline-data-churn",
@@ -697,7 +735,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["packages/react/src", "packages/core/src/data/sync.ts"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "react-ssr-import",
@@ -707,7 +745,7 @@
       "quirks": [],
       "frameworks": ["react"],
       "paths": ["packages/react/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-deep-proxy-big",
@@ -717,7 +755,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-inplace-push",
@@ -727,7 +765,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-keepalive",
@@ -737,7 +775,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "vue-ssr-import",
@@ -747,7 +785,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte5-compat",
@@ -757,17 +795,17 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/package.json", "packages/svelte/vite.config.ts", "packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte-state-proxy",
       "kind": "framework",
       "title": "$state deep proxy vs $state.raw as data",
-      "datasets": [],
+      "datasets": ["btc-1m-big", "orderbook-snapshots"],
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/src"],
-      "runs": []
+      "runs": ["2026-10-21-full"]
     },
     {
       "id": "svelte-inplace-push",
@@ -777,7 +815,7 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "svelte-ssr-import",
@@ -787,7 +825,7 @@
       "quirks": [],
       "frameworks": ["svelte"],
       "paths": ["packages/svelte/src"],
-      "runs": ["2026-10-17"]
+      "runs": ["2026-10-17", "2026-10-21-full"]
     },
     {
       "id": "shadcn-registry-blocks",
@@ -804,7 +842,101 @@
         "packages/react/src/ChartContainer.tsx",
         "packages/core/src/theme/create.ts"
       ],
-      "runs": ["2026-10-21"]
+      "runs": ["2026-10-21", "2026-10-21-full"],
+      "features": ["d9dc3f8", "1c46496"]
+    },
+    {
+      "id": "depth-btc",
+      "kind": "scenario",
+      "title": "DepthSeries on a real BTC book: static, live snapshot replay, raw string tuples",
+      "datasets": ["orderbook-snapshots"],
+      "quirks": ["string-numbers", "scale-gap"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/depth.ts",
+        "packages/react/src/DepthSeries.tsx",
+        "packages/vue/src",
+        "packages/svelte/src",
+        "packages/core/src/chart/pan-zoom-math.ts"
+      ],
+      "features": ["039cea2"],
+      "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "depth-pepe",
+      "kind": "scenario",
+      "title": "DepthSeries on PEPE: 1e-8 spread, sizes to 1e12, 388 vs 1000 levels",
+      "datasets": ["orderbook-snapshots"],
+      "quirks": ["tiny-magnitude", "huge-magnitude", "outlier-spike"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/depth.ts",
+        "packages/core/src/utils/format.ts",
+        "packages/core/src/utils/number-parts.ts"
+      ],
+      "features": ["039cea2", "a049e2b"],
+      "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "category-mix",
+      "kind": "scenario",
+      "title": "Grouped category bars with negative values, horizontal-only grid, percent and category swap views",
+      "datasets": ["de-power-mix"],
+      "quirks": ["negative-values", "zero-crossing", "long-labels"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/series/bar.ts",
+        "packages/core/src/series/stack-math.ts",
+        "packages/core/src/scales/x-scale.ts",
+        "packages/core/src/components/crosshair.ts",
+        "packages/core/src/chart/options.ts"
+      ],
+      "features": ["bc90022", "d39bb7e"],
+      "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "pepe-volume",
+      "kind": "scenario",
+      "title": "Tiny price (left) and huge volume (right) in one chart, NumberFlow header, stream view",
+      "datasets": ["pepe-1h"],
+      "quirks": ["tiny-magnitude", "huge-magnitude", "mixed-units"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/core/src/number-flow.ts",
+        "packages/core/src/utils/format.ts",
+        "packages/core/src/utils/number-parts.ts",
+        "packages/core/src/axis/dom-labels.ts",
+        "packages/core/src/scales/y-scale.ts"
+      ],
+      "features": ["a049e2b"],
+      "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "perf-hud",
+      "kind": "scenario",
+      "title": "perf HUD on candles-big (&view=perf, &view=perf-light): themed, readable, all wrappers",
+      "datasets": ["btc-1m-big"],
+      "quirks": ["big-n"],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": ["packages/core/src/perf"],
+      "features": ["3467c03", "5d91403"],
+      "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "shadcn-next-registry",
+      "kind": "framework",
+      "title": "shadcn registry from the live URL in a Next.js App Router app: install, build, SSR/hydration, theme, navigation, Server Component children",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react"],
+      "paths": [
+        "registry/shadcn",
+        "packages/react/src/ChartContainer.tsx",
+        "packages/react/src/ui/slot.ts",
+        "packages/react/src/ui/NumberFlow.tsx"
+      ],
+      "features": ["d9dc3f8", "1c46496"],
+      "runs": ["2026-10-21-full"]
     }
   ],
   "ideas": [
@@ -874,7 +1006,7 @@
     {
       "id": "meta-frameworks-ssr",
       "kind": "angle",
-      "idea": "Next.js App Router (RSC + use client), Nuxt 3, SvelteKit, Astro islands",
+      "idea": "Nuxt 3, SvelteKit (SSR + hydrate), Astro islands — Next.js App Router done in 2026-10-21-full",
       "why": "Where real users install it; SSR import safety beyond a bare renderToString",
       "priority": "high",
       "quirks": [],
@@ -884,7 +1016,7 @@
       "id": "string-numbers",
       "kind": "dataset",
       "idea": "Pass CSV-parsed numeric strings (\"1.23\") without Number()",
-      "why": "The most common user mistake; must fail loudly or coerce",
+      "why": "The most common user mistake; must fail loudly or coerce (DepthSeries with raw string tuples draws a blank chart: 2026-10-21-full)",
       "priority": "medium",
       "quirks": ["string-numbers"],
       "addedIn": "2026-10-17"
@@ -1007,15 +1139,6 @@
       "addedIn": "2026-10-17"
     },
     {
-      "id": "svelte5-runes",
-      "kind": "angle",
-      "idea": "Re-run the Svelte app on Svelte 5 with $state / $state.raw data, in-place push, and svelte/server SSR",
-      "why": "Blocked in 2026-10-17: the Svelte package did not run on Svelte 5, so the probe svelte-state-proxy never ran",
-      "priority": "high",
-      "quirks": ["big-n"],
-      "addedIn": "2026-10-17"
-    },
-    {
       "id": "y-range-mount-order",
       "kind": "angle",
       "idea": "Same data, two mounts: series created with data vs created empty and fed after mount. Compare the initial Y range and visible window (engine-only probe + all three wrappers)",
@@ -1050,6 +1173,60 @@
       "priority": "medium",
       "quirks": [],
       "addedIn": "2026-10-17"
+    },
+    {
+      "id": "mixed-frequency-order",
+      "kind": "angle",
+      "idea": "line-fred-mixed with the daily series first, then the monthly one; then three frequencies (DGS10 daily, UNRATE monthly, GDPC1 quarterly)",
+      "why": "The zoom floor follows the first series (2026-10-21-full P1): check the other order and a third step",
+      "priority": "high",
+      "quirks": ["mixed-frequency"],
+      "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "websocket-empty-start",
+      "kind": "angle",
+      "idea": "Mount empty, first message brings 1 candle, then 1/s — plus viewport.initialRange: 60 on an empty start, in all three frameworks",
+      "why": "The most common live case opens on a 200-bar window with the data squeezed right",
+      "priority": "high",
+      "quirks": ["empty", "single-point"],
+      "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "depth-deltas-ws",
+      "kind": "dataset",
+      "idea": "Record a Binance depthUpdate WebSocket stream (60 s, ~10 msg/s) with size-0 removals and string sizes; replay as updateData deltas",
+      "why": "Only 20 full snapshots were tested; deltas, removals and high rates are the real order-book path",
+      "priority": "medium",
+      "quirks": ["string-numbers", "burst-stream"],
+      "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "edge-fetch-count",
+      "kind": "angle",
+      "idea": "Count fetches per user drag with a naive onEdgeReached handler in all three frameworks vs React EdgeLoader, paging over btc-1m-big",
+      "why": "onEdgeReached fires several times per drag and only with one bar left",
+      "priority": "medium",
+      "quirks": ["big-n"],
+      "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "registry-real-data",
+      "kind": "angle",
+      "idea": "Swap shadcn blocks to real data: chart-order-book on orderbook-snapshots, chart-candlestick on pepe-1h; a translucent bg-card/50 card; a Tailwind 3 HSL-token project; output: export",
+      "why": "The blocks only ever ran on their own synthetic seeds",
+      "priority": "medium",
+      "quirks": ["tiny-magnitude"],
+      "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "shared-viewport-contract",
+      "kind": "angle",
+      "idea": "Move the viewport (fullRange or default) into the shared scenario files and align all 26 old scenarios to them",
+      "why": "Default-render diffs above 1% were all viewport drift between the apps in two sessions running",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-21-full"
     }
   ]
 }
