@@ -64,6 +64,23 @@ describe('ChartInstance — onEdgeReached', () => {
     expect(onEdgeReached).toHaveBeenCalledTimes(2);
   });
 
+  it('stays quiet when a gesture does not move the view, even past an edge', () => {
+    drag(0.9);
+    chart.endGesture();
+    onEdgeReached.mockClear();
+
+    // A vertical drag pans by 0; a zoom past the floor keeps the range.
+    chart.pan(0);
+    chart.endGesture();
+    for (let i = 0; i < 40; i++) chart.zoomAt(T0, 0.5);
+    chart.endGesture();
+    onEdgeReached.mockClear();
+    chart.zoomAt(T0, 0.5);
+    chart.endGesture();
+
+    expect(onEdgeReached).not.toHaveBeenCalled();
+  });
+
   it('stays quiet for an overhang of up to 10% of the view and for a release with no move', () => {
     const range = chart.getVisibleRange();
     const width = range.to - range.from;

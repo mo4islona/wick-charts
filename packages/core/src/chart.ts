@@ -2430,6 +2430,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#warnOnce(`narrow-range:${source}:${from}:${to}`, () => warnRangeTooNarrow({ from, to, interval, source }));
   }
 
+  /** Apply a `{ from, … }` `initialRange`; `false` while it spans less than two steps of the data. */
+  #placeInitialRange(spec: Exclude<VisibleRangeSpec, number>): boolean {
+    const placed = this.#resolveVisibleRange(spec) !== null;
+    this.#initialRangeWaiting = !placed;
+    if (!placed) return false;
+
+    this.#autoFitFilling = false;
+    this.#rearmDriveIn();
+
+    return true;
+  }
+
   #warnPendingInitialRange(): void {
     const spec = this.#initialVisibleRange;
     if (spec === undefined) return;
@@ -2440,6 +2452,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** The user or the app took over the view: drop `initialRange` and stop growing the chart's own fit. */
   #releaseAutoWindow(): void {
     this.#initialVisibleRange = undefined;
+    this.#initialRangeWaiting = false;
     this.#autoFitFilling = false;
   }
 
@@ -3835,6 +3848,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #initialVisibleRange: VisibleRangeSpec | undefined;
   /** The chart's own fit holds fewer bars than it asks for, so appends widen it until it is full. */
   #autoFitFilling = false;
+  /** A `{ from, … }` `initialRange` spans less than two steps of the data so far and waits for a finer one. */
+  #initialRangeWaiting = false;
   /** The data step the chart's own fit was sized with. A lone seed point only guesses it. */
   #autoFitInterval: number | null = null;
   /** Half-width the user zoomed an X focus to; `null` keeps the series' default. */
@@ -3958,6 +3973,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return this.#logical;
     }
 
+    // The step a lone seed point guessed can be far coarser than the stream's.
+    const waitingRange = this.#initialRangeWaiting ? this.#initialVisibleRange : undefined;
+    if (typeof waitingRange === 'object' && this.#placeInitialRange(waitingRange)) return this.#logical;
+
     if (this.#autoFitFilling) {
       const auto = this.#autoWindow(chartWidth);
       if (auto !== null) return this.#growAutoFit(auto);
@@ -3978,7 +3997,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (result.newLogical === null) return null;
 
     // Streaming moved an explicit window, so re-applying it would jump back in time.
-    if (typeof this.#initialVisibleRange === 'object') this.#initialVisibleRange = undefined;
+    if (typeof this.#initialVisibleRange === 'object') {
+      this.#initialVisibleRange = undefined;
+      this.#initialRangeWaiting = false;
+    }
 
     return this.#commitStreamingTarget(result.newLogical);
   }
@@ -4064,14 +4086,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #autoFit(chartWidth: number): void {
     const spec = this.#initialVisibleRange;
     if (typeof spec === 'object') {
-      this.#autoFitFilling = false;
-
-      const placed = this.#resolveVisibleRange(spec) !== null;
-      if (placed) {
-        this.#rearmDriveIn();
-
-        return;
-      }
+      if (this.#placeInitialRange(spec)) return;
 
       // Narrower than two steps of the data so far: the default fit shows until a finer series lands.
       // Series a framework mounts together set their data in one task, so judge it after that.
@@ -4372,8 +4387,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (result.newLogical === null) return;
 
     this.#autoScroll = !result.autoScrollOff;
-    this.#commitLogical(result.newLogical, { emitChange: true });
-    this.#gestureMoved = true;
+    if (this.#commitLogical(result.newLogical, { emitChange: true })) this.#gestureMoved = true;
 
     this.#cadence.pause();
     this.#emitGestureToEngine();
@@ -4426,7 +4440,6 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
     this.#releaseAutoWindow();
-    this.#gestureMoved = true;
 
     const focus = this.#xFocus();
     if (focus !== null) {
@@ -4457,7 +4470,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#prevDataEnd = this.#dataEnd;
     }
 
-    this.#commitLogical(newLogical, { emitChange: true });
+    if (this.#commitLogical(newLogical, { emitChange: true })) this.#gestureMoved = true;
     this.#cadence.pause();
     this.#emitGestureToEngine();
   }
@@ -4483,7 +4496,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const maxHalfWidth = Math.max(minHalfWidth, bookReach, focus.halfWidth);
 
     this.#focusHalfWidth = clamp(current * factor, minHalfWidth, maxHalfWidth);
-    this.#commitLogical(this.#focusRange(focus), { emitChange: true, skipValidation: true });
+    if (this.#commitLogical(this.#focusRange(focus), { emitChange: true, skipValidation: true })) {
+      this.#gestureMoved = true;
+    }
     this.#cadence.pause();
     this.#emitGestureToEngine();
   }
