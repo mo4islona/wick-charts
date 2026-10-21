@@ -5,11 +5,12 @@
  * data-anchor state (dataStart / dataEnd / padding / dataInterval) onto
  * the chart without dragging the class along.
  *
- * Inputs are explicit (no class fields). Outputs include flags (`autoScrollOff`,
- * `edgeReached`) the caller applies as side effects.
+ * Inputs are explicit (no class fields). Outputs include flags (`autoScrollOff`)
+ * the caller applies as side effects.
  */
 
 import type { HorizontalPadding, XRange } from '../types';
+import type { EdgeReachedInfo } from './options';
 import { resolvePaddingTime } from './viewport-padding';
 
 /** Default maximum visible bars before fitToData caps and tail-scroll takes over. */
@@ -109,19 +110,11 @@ export interface PanInput {
   dataEnd: number | null;
 }
 
-export interface EdgeReachedInfo {
-  side: 'left' | 'right';
-  overshoot: number;
-  boundaryTime: number;
-}
-
 export interface PanResult {
   /** New logical X range to commit, or `null` if the input range is invalid. */
   newLogical: XRange | null;
   /** When `true`, the viewport is no longer at the live-tail position — caller should disable autoScroll. */
   autoScrollOff: boolean;
-  /** When set, caller should fire its `edgeReached` event with this payload. */
-  edgeReached: EdgeReachedInfo | null;
 }
 
 /**
@@ -134,38 +127,28 @@ export interface PanResult {
  * A pan that lands the viewport off the live-tail position (newTo no
  * longer ≈ dataEnd + paddingRight) flips autoscroll off; staying
  * within tolerance keeps it on.
- *
- * `edgeReached` fires whenever the clamp actually trims the gesture —
- * i.e., the user tried to push past the boundary. Consumers wire this
- * to history-load triggers.
  */
 export function computePan(input: PanInput): PanResult {
   const { currentLogical, timeDelta, chartWidth, dataInterval, padding, dataStart, dataEnd } = input;
   const { from, to } = currentLogical;
   const range = to - from;
   if (range <= 0) {
-    return { newLogical: null, autoScrollOff: false, edgeReached: null };
+    return { newLogical: null, autoScrollOff: false };
   }
 
   let newFrom = from + timeDelta;
   let newTo = to + timeDelta;
-
-  let edgeReached: EdgeReachedInfo | null = null;
 
   // Hard clamp: keep at least one data point on screen.
   if (dataEnd !== null && newFrom > dataEnd) {
     const excess = newFrom - dataEnd;
     newFrom -= excess;
     newTo -= excess;
-    edgeReached = { side: 'right', overshoot: excess, boundaryTime: dataEnd };
   }
   if (dataStart !== null && newTo < dataStart) {
     const excess = dataStart - newTo;
     newFrom += excess;
     newTo += excess;
-    // Left clamp overrides a same-frame right clamp (range > data span):
-    // honour the more recent collision so consumers fire one event per pan.
-    edgeReached = { side: 'left', overshoot: excess, boundaryTime: dataStart };
   }
 
   // AutoScroll stays on only while the viewport sits at the live-tail
@@ -181,8 +164,45 @@ export function computePan(input: PanInput): PanResult {
   return {
     newLogical: { from: newFrom, to: newTo },
     autoScrollOff: !atLiveTail,
-    edgeReached,
   };
+}
+
+/** How far past a padded data edge, as a share of the visible range, a released gesture must leave the view. */
+export const EDGE_REACHED_SHARE = 0.1;
+
+export interface EdgeOvershootInput {
+  logical: XRange;
+  chartWidth: number;
+  dataInterval: number;
+  padding: { left: HorizontalPadding; right: HorizontalPadding };
+  dataStart: number | null;
+  dataEnd: number | null;
+}
+
+/**
+ * The data edge the view sits past by more than {@link EDGE_REACHED_SHARE} of
+ * its range, measured from the padded edge, or `null`. The left (history) side
+ * wins when the view hangs past both.
+ */
+export function computeEdgeOvershoot(input: EdgeOvershootInput): EdgeReachedInfo | null {
+  const { logical, chartWidth, dataInterval, padding, dataStart, dataEnd } = input;
+  const range = logical.to - logical.from;
+  if (range <= 0) return null;
+
+  const soft = computeSoftBounds({ range, chartWidth, dataInterval, padding, dataStart, dataEnd });
+  const threshold = range * EDGE_REACHED_SHARE;
+
+  const leftOvershoot = soft.left === null ? 0 : soft.left - logical.from;
+  if (dataStart !== null && leftOvershoot > threshold) {
+    return { side: 'left', overshoot: leftOvershoot, boundaryTime: dataStart };
+  }
+
+  const rightOvershoot = soft.right === null ? 0 : logical.to - soft.right;
+  if (dataEnd !== null && rightOvershoot > threshold) {
+    return { side: 'right', overshoot: rightOvershoot, boundaryTime: dataEnd };
+  }
+
+  return null;
 }
 
 export interface ZoomInput {

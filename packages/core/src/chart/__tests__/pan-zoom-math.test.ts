@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { computePan, computeZoom } from '../pan-zoom-math';
+import { computeEdgeOvershoot, computePan, computeZoom } from '../pan-zoom-math';
 
 const INTERVAL = 60_000;
 
@@ -184,7 +184,7 @@ describe('computePan — hard clamp', () => {
     dataEnd: 100 * INTERVAL,
   };
 
-  it('pan right past dataEnd clamps newFrom to dataEnd (one point visible) and fires edgeReached', () => {
+  it('pan right past dataEnd clamps newFrom to dataEnd (one point visible)', () => {
     const currentLogical = { from: 80 * INTERVAL, to: 110 * INTERVAL };
     const result = computePan({
       ...PAN_INPUT,
@@ -197,12 +197,9 @@ describe('computePan — hard clamp', () => {
     expect(from).toBeCloseTo(100 * INTERVAL, -1);
     // Range preserved.
     expect(to - from).toBeCloseTo(30 * INTERVAL, -1);
-    expect(result.edgeReached).not.toBeNull();
-    expect(result.edgeReached?.side).toBe('right');
-    expect(result.edgeReached?.boundaryTime).toBe(100 * INTERVAL);
   });
 
-  it('pan left past dataStart clamps newTo to dataStart and fires edgeReached', () => {
+  it('pan left past dataStart clamps newTo to dataStart', () => {
     const currentLogical = { from: 10 * INTERVAL, to: 40 * INTERVAL };
     const result = computePan({
       ...PAN_INPUT,
@@ -214,12 +211,9 @@ describe('computePan — hard clamp', () => {
     const { from, to } = result.newLogical ?? { from: 0, to: 0 };
     expect(to).toBeCloseTo(0, -1);
     expect(to - from).toBeCloseTo(30 * INTERVAL, -1);
-    expect(result.edgeReached).not.toBeNull();
-    expect(result.edgeReached?.side).toBe('left');
-    expect(result.edgeReached?.boundaryTime).toBe(0);
   });
 
-  it('pan inside bounds preserves the gesture and reports no edge reached', () => {
+  it('pan inside bounds preserves the gesture', () => {
     const currentLogical = { from: 30 * INTERVAL, to: 60 * INTERVAL };
     const result = computePan({
       ...PAN_INPUT,
@@ -231,7 +225,6 @@ describe('computePan — hard clamp', () => {
     const { from, to } = result.newLogical ?? { from: 0, to: 0 };
     expect(from).toBeCloseTo(35 * INTERVAL, -1);
     expect(to).toBeCloseTo(65 * INTERVAL, -1);
-    expect(result.edgeReached).toBeNull();
   });
 
   it('pan that leaves the viewport at the live-tail position keeps autoScroll on', () => {
@@ -284,5 +277,33 @@ describe('computePan — hard clamp', () => {
     });
 
     expect(result.newLogical).toBeNull();
+  });
+});
+
+describe('computeEdgeOvershoot', () => {
+  const BOUNDS = {
+    chartWidth: 800,
+    dataInterval: INTERVAL,
+    padding: { left: { intervals: 0 }, right: { intervals: 3 } } as const,
+    dataStart: 0,
+    dataEnd: 100 * INTERVAL,
+  };
+
+  it('reports the left data edge once the view sits more than 10% of its range before it', () => {
+    const edge = computeEdgeOvershoot({ ...BOUNDS, logical: { from: -46 * INTERVAL, to: 154 * INTERVAL } });
+
+    expect(edge).toEqual({ side: 'left', overshoot: 46 * INTERVAL, boundaryTime: 0 });
+  });
+
+  it('ignores an overhang of up to 10% of the range', () => {
+    expect(computeEdgeOvershoot({ ...BOUNDS, logical: { from: -3 * INTERVAL, to: 27 * INTERVAL } })).toBeNull();
+  });
+
+  it('measures the right side from the padded edge', () => {
+    // The live tail: the right padding alone is no overshoot.
+    expect(computeEdgeOvershoot({ ...BOUNDS, logical: { from: 73 * INTERVAL, to: 103 * INTERVAL } })).toBeNull();
+
+    const edge = computeEdgeOvershoot({ ...BOUNDS, logical: { from: 80 * INTERVAL, to: 110 * INTERVAL } });
+    expect(edge).toEqual({ side: 'right', overshoot: 7 * INTERVAL, boundaryTime: 100 * INTERVAL });
   });
 });

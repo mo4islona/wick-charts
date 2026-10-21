@@ -15,6 +15,8 @@ export interface PanZoomTarget {
    * `chartWidth` participates in soft-bound math the same way as in `pan`.
    */
   zoomAt(centerTime: number, factor: number, chartWidth?: number): void;
+  /** The user released a drag or a pinch, or the wheel went idle. */
+  endGesture?(): void;
   /**
    * Whether pan/zoom gestures currently apply to this target. A spatial-only
    * chart (pie, heatmap) has no time axis to gesture on, so the interaction

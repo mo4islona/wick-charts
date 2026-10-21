@@ -60,8 +60,14 @@ describe('YScale — extreme ranges', () => {
   });
 
   it('formatY switches to compact notation when range exceeds 1e6', () => {
+    // Range 0..5M @ 400px → resolved interval is 1M.
     const s = makeScale(0, 5_000_000, 400);
-    expect(s.formatY(2_500_000)).toBe('2.50M');
+    expect(s.formatY(2_000_000)).toBe('2M');
+  });
+
+  it('formatY gives a compact label only the decimals its tick step needs', () => {
+    const s = makeScale(0, 20e12, 400);
+    expect(s.formatY(12e12)).toBe('12T');
   });
 
   it('formatY keeps raw notation for a 50K-range axis (readable)', () => {
@@ -80,7 +86,7 @@ describe('YScale — extreme ranges', () => {
     s.setFormat((v) => `$${v}`);
     expect(s.formatY(250_000)).toBe('$250000');
     s.setFormat(null);
-    expect(s.formatY(250_000)).toBe('250.00K');
+    expect(s.formatY(250_000)).toBe('250K');
   });
 
   it('tick intervals follow a 1-2-5 pattern at any magnitude', () => {

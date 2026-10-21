@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import type { HeatmapCellData, HeatmapSeriesOptions } from '@wick-charts/core';
+import type { HeatmapCellInput, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
@@ -8,7 +8,7 @@ import { useStableOptions } from './use-stable-options';
 
 export interface HeatmapSeriesProps {
   /** Cells to render. A flat array of `{ x, y, value, color? }` entries. */
-  data: HeatmapCellData[];
+  data: HeatmapCellInput[];
   /** Visual options override — ramp colors, gaps, labels, animation durations. */
   options?: Partial<HeatmapSeriesOptions>;
   /** Stable series ID — same value across remounts. */

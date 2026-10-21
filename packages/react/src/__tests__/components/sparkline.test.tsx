@@ -104,6 +104,47 @@ describe('Sparkline', () => {
     expect(spy.countOf('fill') + spy.countOf('fillRect')).toBeGreaterThanOrEqual(data.length);
   });
 
+  it('draws a lone point as a dot', () => {
+    act(() => {
+      render(<Sparkline data={[{ time: Date.UTC(2026, 0, 1), value: 10 }]} theme={catppuccin.theme} />, {
+        container: host,
+      });
+    });
+    act(() => flushAllRaf());
+
+    const canvas = host.querySelector('canvas') as HTMLCanvasElement;
+    canvas.getContext('2d');
+
+    expect(canvas.__spy?.countOf('arc')).toBeGreaterThan(0);
+  });
+
+  it('draws two points as a line, and as two bars inside the plot', () => {
+    const two = [
+      { time: Date.UTC(2026, 0, 1), value: 10 },
+      { time: Date.UTC(2026, 0, 2), value: 12 },
+    ];
+    act(() => {
+      render(<Sparkline data={two} theme={catppuccin.theme} />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    const line = host.querySelector('canvas') as HTMLCanvasElement;
+    line.getContext('2d');
+    expect(line.__spy?.countOf('lineTo')).toBeGreaterThan(0);
+
+    act(() => {
+      render(<Sparkline data={two} theme={catppuccin.theme} variant="bar" />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    const bars = host.querySelector('canvas') as HTMLCanvasElement;
+    bars.getContext('2d');
+    const rects = bars.__spy?.callsOf('fillRect').filter((call) => Number(call.args[2]) > 1) ?? [];
+    const paths = bars.__spy?.countOf('fill') ?? 0;
+    expect(rects.length + paths).toBeGreaterThanOrEqual(2);
+    for (const call of rects) expect(Number(call.args[0])).toBeGreaterThanOrEqual(0);
+  });
+
   it('applies custom color to the stroked line', () => {
     act(() => {
       render(<Sparkline data={data} theme={catppuccin.theme} color="#ff00aa" />, { container: host });

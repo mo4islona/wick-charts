@@ -887,6 +887,9 @@ export interface PieSliceData {
   color?: string;
 }
 
+/** {@link PieSliceData} as a pie series takes it: a `null` value is no reading, a slice of zero. */
+export type PieSliceInput = Omit<PieSliceData, 'value'> & { value: number | null };
+
 /**
  * How per-slice labels are drawn on a pie/donut.
  *
@@ -1072,6 +1075,9 @@ export interface HeatmapCellData {
   /** Explicit fill override for this cell. Skips the ramp entirely. */
   color?: string;
 }
+
+/** {@link HeatmapCellData} as a heatmap series takes it: a `null` value leaves the cell empty. */
+export type HeatmapCellInput = Omit<HeatmapCellData, 'value'> & { value: number | null };
 
 /** Per-cell value labels drawn inside heatmap cells. */
 export interface HeatmapCellLabelsOptions {

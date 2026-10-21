@@ -169,6 +169,18 @@ describe('HeatmapRenderer.hitTest', () => {
     expect(r.hitTest(100, 500, 800, 400)).toBe(-1);
   });
 
+  it('leaves a null cell empty: no fill, no hit, no hover value', () => {
+    const { ctx, spy } = buildRenderContext();
+    const r = new HeatmapRenderer(FLAT);
+    r.setData([...GRID.slice(0, 3), { x: 'c2', y: 'r2', value: null }]);
+    r.render(ctx);
+
+    // The null keeps its column and row: the grid stays 2×2.
+    expect(spy.countOf('fillRect')).toBe(3);
+    expect(r.hitTest(100, 100, 800, 400)).toBe(0);
+    expect(r.hitTest(700, 300, 800, 400)).toBe(-1);
+  });
+
   it('returns -1 on empty data', () => {
     const r = new HeatmapRenderer(FLAT);
     r.setData([]);

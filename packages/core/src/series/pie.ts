@@ -1,7 +1,7 @@
 import { DEFAULT_PIE_ENTRY } from '../animation/config';
 import { IntroWave } from '../animation/intro-wave';
 import type { ChartTheme } from '../theme/types';
-import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData } from '../types';
+import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData, PieSliceInput } from '../types';
 import { isLightColor, lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
 import { warnDataOnce } from '../utils/poisoned-data-reporter';
@@ -68,6 +68,13 @@ function resolveOther(other: PieSeriesOptions['other']): ResolvedOtherOptions | 
 }
 
 const DEG_TO_RAD = Math.PI / 180;
+
+/** A `null` value is no reading: a slice of zero, which the legend and tooltip report as 0. */
+function withoutNulls(slices: readonly PieSliceInput[]): PieSliceData[] {
+  if (!slices.some((slice) => slice.value === null)) return slices as PieSliceData[];
+
+  return slices.map((slice) => ({ ...slice, value: slice.value ?? 0 }));
+}
 
 function mergeLabelOpts(existing: PieLabelsOptions | undefined, incoming: PieLabelsOptions): PieLabelsOptions {
   return { ...(existing ?? {}), ...incoming };
@@ -489,7 +496,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
   setData(data: unknown): void {
     const hadData = this.#data.length > 0;
-    const slices = (data ?? []) as PieSliceData[];
+    const slices = withoutNulls((data ?? []) as PieSliceInput[]);
     this.#reportUndrawable(slices);
     this.#data = slices;
     this.#display = this.#computeDisplayData();

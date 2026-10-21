@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 
-import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
+import type { PieSeriesOptions, PieSliceInput } from '@wick-charts/core';
 import { PieSeriesDef } from '@wick-charts/core';
 
 import { useChartInstance } from './context';
@@ -8,7 +8,7 @@ import { useStableOptions } from './use-stable-options';
 
 export interface PieSeriesProps {
   /** Slices to render. A flat array of `{ label, value, color? }` entries. */
-  data: PieSliceData[];
+  data: PieSliceInput[];
   /** Visual options override — palette, donut hole, slice gap, label rendering, hover/entrance animations. */
   options?: Partial<PieSeriesOptions>;
   /** Stable series ID — same value across remounts. */

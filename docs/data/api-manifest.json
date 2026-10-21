@@ -729,7 +729,7 @@
       "props": [
         {
           "name": "data",
-          "type": "PieSliceData[]",
+          "type": "PieSliceInput[]",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
@@ -1068,7 +1068,7 @@
       "props": [
         {
           "name": "data",
-          "type": "HeatmapCellData[]",
+          "type": "HeatmapCellInput[]",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
@@ -1579,10 +1579,10 @@
         {
           "name": "theme",
           "type": "ChartTheme",
-          "optional": false,
-          "defaultValue": null,
+          "optional": true,
+          "defaultValue": "to the `ThemeProvider` theme",
           "deprecated": null,
-          "description": "Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block.",
+          "description": "Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block.\nDefaults to the `ThemeProvider` theme, else the default theme of `ChartContainer`.",
           "see": [],
           "nested": {
             "name": "ChartTheme",

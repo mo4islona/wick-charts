@@ -10,7 +10,7 @@ import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import type { PlaceholderBar } from '../components/loading-indicator';
 import { decimateOHLCData } from '../data/decimation';
-import { TimeSeriesStore } from '../data/store';
+import { TimeSeriesStore, type ValueStats } from '../data/store';
 import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
@@ -28,7 +28,7 @@ import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
 import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
-import type { SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
+import type { HoverLookupOptions, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` are concrete numbers
@@ -491,8 +491,8 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     return last ? last.close : null;
   }
 
-  getDataAtTime(time: number, interval: number): OHLCData | null {
-    return this.store.findNearest(time, interval);
+  getDataAtTime(time: number, interval: number, opts?: HoverLookupOptions): OHLCData | null {
+    return this.store.findHovered(time, { maxDist: interval, bridgeGaps: opts?.bridgeGaps });
   }
 
   // --- TimeSeriesRenderer data queries --------------------------------------
@@ -511,6 +511,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
   hasOnlyWholeValues(): boolean {
     return this.store.hasOnlyWholeValues();
+  }
+
+  getValueStats(): ValueStats | null {
+    return this.store.valueStats();
   }
 
   getSecondLastDataPoint(): OHLCData | null {

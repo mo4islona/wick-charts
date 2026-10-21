@@ -76,6 +76,21 @@ describe('YScale', () => {
       }
     });
 
+    it('settle() gives a range at rest the ticks a fresh scale picks, however it got there', () => {
+      // The PEPE stream of #157: a wider range escalates the step to 1e-7, the
+      // final one sits inside the band yet wants 5e-8.
+      const height = 430;
+      const streamed = new YScale();
+      streamed.update({ min: 8.0e-7, max: 8.0e-7 + 4.33e-7 }, height, 1);
+      streamed.update({ min: 8.24e-7, max: 8.24e-7 + 3.935e-7 }, height, 1);
+      const fresh = makeScale(8.24e-7, 8.24e-7 + 3.935e-7, height);
+      expect(streamed.niceTickValues()).not.toEqual(fresh.niceTickValues());
+
+      expect(streamed.settle()).toBe(true);
+      expect(streamed.niceTickValues()).toEqual(fresh.niceTickValues());
+      expect(streamed.settle()).toBe(false);
+    });
+
     it('pixel spacing floor is strict at default spacing', () => {
       // Range sweep: every result must satisfy interval*height/range >= 50px.
       const height = 400;

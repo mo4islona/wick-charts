@@ -27,6 +27,9 @@ export interface FitToDataInput {
   };
 }
 
+/** The narrowest window a fit returns, in data steps — the chart rejects a narrower one. */
+const MIN_FIT_INTERVALS = 2;
+
 /** Compute the new logical range for a fit-to-data call. Always returns a non-empty range. */
 export function computeFitToData(input: FitToDataInput): VisibleRange {
   const { firstTime, lastTime, dataInterval, maxVisibleBars, chartWidth, padding } = input;
@@ -45,6 +48,13 @@ export function computeFitToData(input: FitToDataInput): VisibleRange {
     // Overflow — anchor the right edge, trim the left.
     targetTo = lastTime + pr;
     targetFrom = targetTo - maxRange;
+  }
+
+  // One or two points with no side padding (a sparkline) span less than that: widen around them.
+  const shortfall = MIN_FIT_INTERVALS * dataInterval - (targetTo - targetFrom);
+  if (shortfall > 0) {
+    targetFrom -= shortfall / 2;
+    targetTo += shortfall / 2;
   }
 
   return { from: targetFrom, to: targetTo };

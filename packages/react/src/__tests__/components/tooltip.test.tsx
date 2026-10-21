@@ -299,3 +299,47 @@ describe('Tooltip (floating) overlay positioning', () => {
     expect(parsePx(tooltip!.style.top)).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('Tooltip rows on a monthly and a daily series', () => {
+  let mounted: ReturnType<typeof mountChart> | null = null;
+
+  afterEach(() => {
+    mounted?.unmount();
+    mounted = null;
+  });
+
+  const DAY = 86_400_000;
+  const monthly = Array.from({ length: 12 }, (_, month) => ({ time: Date.UTC(2020, month, 1), value: 4 + month }));
+  const daily = Array.from({ length: 366 }, (_, day) => ({
+    time: Date.UTC(2020, 0, 1) + day * DAY,
+    value: 1 + (day % 3),
+  }));
+
+  it('names the date of a row whose point is not the header date', () => {
+    mounted = mountChart(
+      <>
+        <LineSeries
+          data={[
+            { label: 'Monthly', data: monthly },
+            { label: 'Daily', data: daily },
+          ]}
+        />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    const chart = mounted.chart;
+    act(() => {
+      chart.setCrosshair({ time: Date.UTC(2020, 2, 20), y: 5 });
+    });
+    mounted.flushScheduler();
+
+    const tooltip = Array.from(mounted.container.querySelectorAll<HTMLElement>('[data-chart-tooltip]')).at(-1);
+    const rows = Array.from(tooltip?.children ?? []).map((row) => row.textContent ?? '');
+
+    expect(rows[0]).toMatch(/Mar 20/);
+    expect(rows.find((row) => row.startsWith('Monthly'))).toMatch(/Apr 1/);
+    expect(rows.find((row) => row.startsWith('Daily'))).not.toMatch(/Mar|Apr/);
+  });
+});

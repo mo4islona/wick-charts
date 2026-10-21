@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   collapseZeros,
   formatCompact,
+  formatCompactTick,
   formatPriceAdaptive,
   formatSignificant,
+  formatTooltipNumber,
   formatTooltipValue,
   formatWholeTooltipValue,
 } from '../utils/format';
@@ -208,5 +210,55 @@ describe('formatWholeTooltipValue', () => {
     [12_000_000, 'value', '12.00M'],
   ])('formatWholeTooltipValue(%s, %s) -> %s', (input, field, expected) => {
     expect(formatWholeTooltipValue(input, field as 'value')).toBe(expected);
+  });
+});
+
+describe('formatTooltipNumber', () => {
+  const raw = (decimals: number) => ({ decimals, compact: false });
+
+  it.each<[number, number, string]>([
+    // A price above 10,000 keeps its cents.
+    [56145.88, 2, '56145.88'],
+    [56145.8, 2, '56145.80'],
+    // No zeros the data does not have.
+    [28.2, 1, '28.2'],
+    [67.94, 2, '67.94'],
+    [14006.8, 1, '14006.8'],
+    [237, 0, '237'],
+    // At most four decimals below 100, two from there up.
+    [89.376712, 6, '89.3767'],
+    [1234.5678, 4, '1234.57'],
+    // Below 1: the significant digits the series has, the leading zeros collapsed.
+    [0.02, 2, '0.02'],
+    [0.00000812, 8, '0.0₅812'],
+    [0.0000082, 10, '0.0₅8200'],
+  ])('formatTooltipNumber(%s) at %s decimals -> %s', (value, decimals, expected) => {
+    expect(formatTooltipNumber(value, 'value', raw(decimals))).toBe(expected);
+  });
+
+  it('prints every value from a thousand up in K / M / B / T in a compact style', () => {
+    const style = { decimals: 0, compact: true };
+
+    expect(formatTooltipNumber(27_460_000, 'value', style)).toBe('27.46M');
+    expect(formatTooltipNumber(2_434_010, 'value', style)).toBe('2.434M');
+    expect(formatTooltipNumber(950, 'value', style)).toBe('950');
+  });
+
+  it('compacts ten million and up whatever the style, and volume always', () => {
+    expect(formatTooltipNumber(5.6e12, 'value', raw(0))).toBe('5.6T');
+    expect(formatTooltipNumber(12_000_000, 'volume', raw(2))).toBe('12M');
+    expect(formatTooltipNumber(950, 'volume', raw(2))).toBe('950');
+  });
+});
+
+describe('formatCompactTick', () => {
+  it.each<[number, number, string]>([
+    [12e12, 2e12, '12T'],
+    [12.5e12, 5e11, '12.5T'],
+    [1_200_000, 200_000, '1.2M'],
+    [800_000, 200_000, '800K'],
+    [0, 200_000, '0'],
+  ])('formatCompactTick(%s, step %s) -> %s', (value, step, expected) => {
+    expect(formatCompactTick(value, step)).toBe(expected);
   });
 });

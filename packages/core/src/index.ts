@@ -89,6 +89,7 @@ export type {
 // maintenance windows), drawn on the main layer behind the series. Kept out of
 // the series model. Add via `chart.addRegion(config)`.
 export type { TimeRegionConfig, TimeRegionEnd } from './components/time-region';
+export type { ValueStats } from './data/store';
 // Series data reconciliation — shared by the React / Vue / Svelte wrappers so
 // every framework picks the same cheapest-correct mutation (append / keepLast /
 // update / replace) and streams without Y-snapping.
@@ -216,6 +217,7 @@ export type {
   CustomSpatialSeriesRenderer,
   HeatmapSeriesRenderer,
   HoverInfo,
+  HoverLookupOptions,
   LayerSnapshot,
   OverlayRenderContext,
   PieSeriesRenderer,
@@ -247,6 +249,7 @@ export {
   buildHoverSnapshots,
   buildLastSnapshots,
   formatHeaderX,
+  formatRowTime,
   formatRowValue,
   formatTooltipHeader,
   rowFormatter,
@@ -314,6 +317,7 @@ export type {
   DepthLevel,
   DepthSeriesOptions,
   HeatmapCellData,
+  HeatmapCellInput,
   HeatmapCellLabelsOptions,
   HeatmapSeriesOptions,
   HorizontalPadding,
@@ -326,6 +330,7 @@ export type {
   PieOtherOptions,
   PieSeriesOptions,
   PieSliceData,
+  PieSliceInput,
   ScaleTickArgs,
   SeriesLayer,
   SeriesType,
@@ -356,12 +361,15 @@ export type {
   TooltipField,
   TooltipFormatter,
   ValueFormatter,
+  ValueStyle,
 } from './utils/format';
 export {
   collapseZeros,
   formatCompact,
+  formatCompactTick,
   formatPriceAdaptive,
   formatSignificant,
+  formatTooltipNumber,
   formatTooltipValue,
   formatWholeTooltipValue,
 } from './utils/format';

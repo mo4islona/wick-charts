@@ -1,12 +1,12 @@
 <script lang="ts">
-import type { HeatmapCellData, HeatmapSeriesOptions } from '@wick-charts/core';
+import type { HeatmapCellInput, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 import { onDestroy, onMount } from 'svelte';
 import { get } from 'svelte/store';
 
 import { getChartContext } from './context.js';
 
-export let data: HeatmapCellData[];
+export let data: HeatmapCellInput[];
 export let options: Partial<HeatmapSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;

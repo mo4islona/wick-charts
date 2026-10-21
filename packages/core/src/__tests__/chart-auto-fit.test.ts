@@ -208,6 +208,28 @@ describe('ChartInstance — the chart’s own window', () => {
       expect(range.to).toBeGreaterThanOrEqual(T0 + (seed + 119) * INTERVAL);
     });
 
+    it.each([0, 1])('grows bar by bar from a seed of %i when the step is finer than a minute', (seed) => {
+      makeChart();
+      const step = 1000;
+      const id = chart.addSeries('candlestick');
+      chart.setSeriesData(id, candles(seed, { step }));
+      raf.flush();
+
+      const widths: number[] = [];
+      let count = seed;
+      for (const candle of candles(10, { start: seed, step })) {
+        chart.appendData(id, candle);
+        raf.flush(60);
+        count++;
+        // A lone candle has no step yet; from the second one on the window follows the data.
+        if (count >= 2) widths.push(visibleBars(step));
+      }
+
+      // Never the ~210-bar window the one-minute guess of a lone point sized.
+      expect(Math.max(...widths)).toBeLessThan(15);
+      expect(widths.at(-1)).toBeGreaterThan(widths[0]);
+    });
+
     it('holds the width at maxVisibleBars once the data fills it, then slides', () => {
       makeChart({ viewport: { maxVisibleBars: 60 } });
       streamFrom(2, 150);

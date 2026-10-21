@@ -231,10 +231,71 @@ export function formatSignificant(v: number, opts: SignificantFormatOptions = {}
   return sign + formatCompactUnit(abs, notation);
 }
 
+/** How a series' values print in a Tooltip / InfoBar row — see `ChartInstance.getValueStyle`. */
+export interface ValueStyle {
+  /** Most decimals any value of the series has; a row never pads past them. */
+  decimals: number;
+  /** Print values from a thousand up as K / M / B / T. */
+  compact: boolean;
+}
+
+/** From this magnitude up a value is always compact: the raw digits stop being readable. */
+export const COMPACT_VALUES_FROM = 1e7;
+
+/** Decimals a row keeps at most: four below 100, two from there up. */
+function maxRowDecimals(abs: number): number {
+  return abs < 100 ? 4 : 2;
+}
+
 /**
- * Default `Tooltip` / `InfoBar` formatter: compact volume, and prices with
- * fixed digits so a live row keeps its width. Below 1 the leading zeros
+ * The default `Tooltip` / `InfoBar` number: each value with the decimals its
+ * series is written with (`28.2`, `56145.88`), up to four below 100 and two
+ * above; below 1 with the significant digits the series has, its leading
+ * zeros collapsed (`0.0₅8120`). A compact style (and volume) prints from a
+ * thousand up with a K / M / B / T suffix (`27.46M`).
+ */
+export function formatTooltipNumber(v: number, field: TooltipField, style: ValueStyle): string {
+  const edge = handleEdge(v);
+  if (edge !== null) return edge;
+
+  // Volume carries none of the series' decimals.
+  if (field === 'volume') return formatSignificant(v, { compactFrom: 1e3 });
+
+  const abs = Math.abs(v);
+  const compact = style.compact || abs >= COMPACT_VALUES_FROM;
+  if (compact && abs >= 1e3) return formatSignificant(v, { compactFrom: 1e3 });
+  if (abs >= 1 || abs === 0) return v.toFixed(Math.min(style.decimals, maxRowDecimals(abs)));
+
+  // The digits the series carries after the leading zeros, one to four.
+  const leadingZeros = -Math.floor(Math.log10(abs)) - 1;
+  const digits = Math.min(4, Math.max(1, style.decimals - leadingZeros));
+
+  return formatSignificant(v, { digits, trimZeros: false });
+}
+
+/**
+ * A K / M / B / T axis label with the decimals the tick step needs in its
+ * unit: `12T` and `12.5T` rather than `12.00T`.
+ */
+export function formatCompactTick(v: number, step: number): string {
+  const edge = handleEdge(v);
+  if (edge !== null) return edge;
+
+  const abs = Math.abs(v);
+  if (abs >= 1e15) return v.toExponential(2);
+
+  const unit = COMPACT_UNITS.find(([size]) => abs >= size);
+  const [size, suffix] = unit ?? [1, ''];
+  const decimals = Math.max(0, -Math.floor(Math.log10(step / size)));
+
+  return `${(v / size).toFixed(decimals)}${suffix}`;
+}
+
+/**
+ * A fixed-width `Tooltip` / `InfoBar` formatter: compact volume, and prices
+ * with fixed digits so a live row keeps its width. Below 1 the leading zeros
  * collapse (`0.0₅8120`); from 1 up it matches {@link formatPriceAdaptive}.
+ * The default rows use {@link formatTooltipNumber}.
  */
 export function formatTooltipValue(v: number, field: TooltipField): string {
   if (field === 'volume') return formatCompact(v);

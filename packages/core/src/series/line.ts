@@ -1195,7 +1195,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (data.length > pixelWidth * 2) {
         data = decimateLineData(data, Math.round(pixelWidth * 1.5));
       }
-      if (data.length < 2) continue;
+      // A lone point still draws, as an orphan dot.
+      if (data.length === 0) continue;
 
       // A value-fn color is resolved once per line, at the layer's last value —
       // the whole stroke / area takes that one color (per-segment coloring is a
@@ -1907,12 +1908,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     if (crosshair) {
       const stacking = this.options.stacking;
       const r = 4 * size.horizontalPixelRatio;
+      // The same lookup as the tooltip row, so the dot sits on the point the row names.
+      const lookup = { maxDist: dataInterval, bridgeGaps: timeScale.getType() === 'time' };
 
       for (let li = 0; li < this.stores.length; li++) {
         const layerAlpha = this.getLayerAlpha(li);
         if (layerAlpha <= 0) continue;
 
-        const closest = this.stores[li].findNearest(crosshair.time, dataInterval);
+        const closest = this.stores[li].findHovered(crosshair.time, lookup);
         if (!closest) continue;
         if (stacking === 'off' && !yScale.isPlottable(closest.value)) continue;
 

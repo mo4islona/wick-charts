@@ -1,7 +1,12 @@
 import type { ChartInstance } from './chart';
 import type { LayerSnapshot } from './series/types';
 import type { BandPoint, OHLCData, TimePoint } from './types';
-import { type TooltipFormatter, formatTooltipValue, formatWholeTooltipValue } from './utils/format';
+import {
+  type TooltipFormatter,
+  formatTooltipNumber,
+  formatTooltipValue,
+  formatWholeTooltipValue,
+} from './utils/format';
 import { type SeriesPoint, isGapPoint, pointValue } from './utils/point';
 import { formatDate } from './utils/time';
 
@@ -243,16 +248,12 @@ export function formatHeaderX(chart: ChartInstance, args: HeaderArgs): string {
   return chart.timeScale.formatPointX(nearest, args.interval);
 }
 
-/**
- * The full tooltip header: on a time axis the point's date, plus its time of
- * day when the data is intraday; elsewhere {@link formatHeaderX}.
- */
-export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): string {
-  const x = formatHeaderX(chart, args);
+/** A point's date, plus its time of day when the data is intraday; off a time axis its X. */
+function formatPointLabel(chart: ChartInstance, args: { time: number; interval: number }): string {
+  const x = chart.timeScale.formatPointX(args.time, args.interval);
   if (chart.timeScale.getType() !== 'time') return x;
 
-  const nearest = nearestPointTime(args.time, args.snapshots);
-  const date = formatDate(nearest, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() });
+  const date = formatDate(args.time, { locale: chart.timeScale.getLocale(), timeZone: chart.timeScale.getTimeZone() });
 
   // The built-in label of daily or coarser data is the date again.
   const repeatsDate = args.interval >= DAY && chart.timeScale.getFormat() === null;
@@ -262,9 +263,36 @@ export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): str
 }
 
 /**
+ * The full tooltip header: on a time axis the point's date, plus its time of
+ * day when the data is intraday; elsewhere {@link formatHeaderX}.
+ */
+export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): string {
+  return formatPointLabel(chart, { time: nearestPointTime(args.time, args.snapshots), interval: args.interval });
+}
+
+/**
+ * The date a Tooltip row names when its point is not the one the header names
+ * — a monthly series hovered between two of its points next to a daily one —
+ * else `null`. Off a time and a numeric axis always `null`.
+ */
+export function formatRowTime(chart: ChartInstance, args: HeaderArgs & { snapshot: SeriesSnapshot }): string | null {
+  if (chart.timeScale.getType() === 'category') return null;
+
+  const rowTime = args.snapshot.data.time;
+  const headerTime = nearestPointTime(args.time, args.snapshots);
+  if (rowTime === headerTime) return null;
+
+  // Points a few milliseconds apart print as the header does.
+  const label = formatPointLabel(chart, { time: rowTime, interval: args.interval });
+  const headerLabel = formatPointLabel(chart, { time: headerTime, interval: args.interval });
+
+  return label === headerLabel ? null : label;
+}
+
+/**
  * The formatter for one Tooltip / InfoBar row: `format` when the caller passed
- * one, else {@link formatTooltipValue} — without decimals when every value of
- * the row's series is a whole number.
+ * one, else {@link formatTooltipNumber} in the series' own style (see
+ * `ChartInstance.getValueStyle`).
  */
 export function rowFormatter(
   chart: ChartInstance,
@@ -273,7 +301,12 @@ export function rowFormatter(
 ): TooltipFormatter {
   if (format) return format;
 
-  return chart.hasOnlyWholeValues(snapshot.seriesId) ? formatWholeTooltipValue : formatTooltipValue;
+  const style = chart.getValueStyle(snapshot.seriesId);
+  if (style === null) {
+    return chart.hasOnlyWholeValues(snapshot.seriesId) ? formatWholeTooltipValue : formatTooltipValue;
+  }
+
+  return (value, field) => formatTooltipNumber(value, field, style);
 }
 
 /**

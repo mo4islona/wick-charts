@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PieSeriesOptions, PieSliceData } from '@wick-charts/core';
+import type { PieSeriesOptions, PieSliceInput } from '@wick-charts/core';
 import { PieSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -8,7 +8,7 @@ import { useChartInstance } from './context';
 
 const props = withDefaults(
   defineProps<{
-    data: PieSliceData[];
+    data: PieSliceInput[];
     options?: Partial<PieSeriesOptions>;
     /** Stable series ID — same value across remounts. */
     id?: string;

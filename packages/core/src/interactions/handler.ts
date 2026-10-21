@@ -90,10 +90,8 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private onMouseDown = (e: MouseEvent): void => {
-    // A drag takes over from any pending wheel-idle rebound — otherwise the
-    // timer would fire mid-drag and snap the viewport back (potentially
-    // emitting a bogus edgeReached along the way).
-    this.zoom.cancelPendingRebound();
+    // A drag takes over from a pending wheel-idle end; its own release ends the gesture.
+    this.zoom.cancelPendingEnd();
 
     // Spatial-only charts have nothing to pan; skipping the drag also keeps
     // the cursor from flipping to 'grabbing'. `downClient` is still recorded
@@ -113,13 +111,19 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private onMouseUp = (): void => {
-    this.pan.handleMouseUp();
+    this.releaseDrag();
   };
 
   private onMouseLeave = (): void => {
-    this.pan.handleMouseUp();
+    this.releaseDrag();
     this.emit('crosshairMove', null);
   };
+
+  private releaseDrag(): void {
+    const wasDragging = this.pan.isDragging();
+    this.pan.handleMouseUp();
+    if (wasDragging) this.target.endGesture?.();
+  }
 
   // Pointer-down origin (mouse or the single touch that started a tap),
   // used to tell a click/tap from a drag that happened to end over the canvas.
@@ -164,9 +168,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
     if (!this.panZoomEnabled()) return;
 
     e.preventDefault();
-    // Touch gesture takes over from any pending wheel-idle rebound — see
-    // onMouseDown for the same reasoning.
-    this.zoom.cancelPendingRebound();
+    this.zoom.cancelPendingEnd();
     this.touchCount = e.touches.length;
     if (e.touches.length === 1) {
       this.pan.handleMouseDown({
@@ -230,7 +232,10 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
         }
       }
 
+      const gestured = this.pan.isDragging() || this.gestureHadTwoFingers;
       this.pan.handleMouseUp();
+      if (gestured) this.target.endGesture?.();
+
       this.touchCount = 0;
       this.lastTouchDist = 0;
       this.downClient = null;
@@ -262,7 +267,10 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   };
 
   private onTouchCancel = (): void => {
+    const gestured = this.pan.isDragging() || this.gestureHadTwoFingers;
     this.pan.handleMouseUp();
+    if (gestured) this.target.endGesture?.();
+
     this.touchCount = 0;
     this.lastTouchDist = 0;
     this.downClient = null;
@@ -286,7 +294,7 @@ export class InteractionHandler extends EventEmitter<InteractionEvents> {
   }
 
   destroy(): void {
-    this.zoom.cancelPendingRebound();
+    this.zoom.cancelPendingEnd();
     this.canvas.removeEventListener('wheel', this.onWheel);
     this.canvas.removeEventListener('mousedown', this.onMouseDown);
     this.canvas.removeEventListener('mousemove', this.onMouseMove);

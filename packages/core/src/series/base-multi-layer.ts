@@ -1,13 +1,19 @@
 import { Animator } from '../animation/animator';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
-import { TimeSeriesStore } from '../data/store';
+import { TimeSeriesStore, type ValueStats, mergeValueStats } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { StackingMode, TimePoint, TimePointInput, ValueColor } from '../types';
 import { resolveColor } from '../utils/color';
 import { normalizeTime, normalizeTimePointArray, sliceSample } from '../utils/time';
 import { type StackTotals, renderedStackPercentTop, renderedStackTop, sumStack } from './stack-math';
-import type { LayerSnapshot, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
+import type {
+  HoverLookupOptions,
+  LayerSnapshot,
+  SeriesRenderContext,
+  TimeSeriesRenderer,
+  ValueRangeOptions,
+} from './types';
 
 /**
  * Shape of the options that {@link BaseMultiLayerSeries} reads directly.
@@ -735,11 +741,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return null;
   }
 
-  getDataAtTime(time: number, interval: number): TData | null {
-    return this.stores[0]?.findNearest(time, interval) ?? null;
+  getDataAtTime(time: number, interval: number, opts?: HoverLookupOptions): TData | null {
+    return this.stores[0]?.findHovered(time, { maxDist: interval, bridgeGaps: opts?.bridgeGaps }) ?? null;
   }
 
-  getLayerSnapshots(time: number, interval: number): LayerSnapshot[] | null {
+  getLayerSnapshots(time: number, interval: number, opts?: HoverLookupOptions): LayerSnapshot[] | null {
     if (this.stores.length <= 1) return null;
 
     const results: LayerSnapshot[] = [];
@@ -747,7 +753,7 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       if (!this.stores[li].isVisible()) continue;
 
       // Same lookup as single-layer `getDataAtTime`: within the tolerance, a tie to the later point.
-      const closest = this.stores[li].findNearest(time, interval);
+      const closest = this.stores[li].findHovered(time, { maxDist: interval, bridgeGaps: opts?.bridgeGaps });
       if (closest === null) continue;
 
       const row: LayerSnapshot = {
@@ -973,6 +979,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return filled.length > 0 && filled.every((store) => store.hasOnlyWholeValues());
   }
 
+  getValueStats(): ValueStats | null {
+    return mergeValueStats(this.stores);
+  }
+
   // --- TimeSeriesRenderer data queries --------------------------------------
 
   /** Earliest first-sample / latest last-sample across ALL layers, skipping
@@ -1010,8 +1020,14 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.lastFinitePoint(0, 1);
   }
 
-  /** First (or with `'end'`, last) `maxCount` sample times from the first populated layer. */
-  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start'): number[] {
+  /** First (or with `'end'`, last) `maxCount` sample times from `layer`, else from the first populated layer. */
+  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start', layer?: number): number[] {
+    if (layer !== undefined) {
+      const all = this.stores[layer]?.getAll() ?? [];
+
+      return sliceSample(all, { maxCount, from }).map((d) => d.time);
+    }
+
     for (const store of this.stores) {
       const all = store.getAll();
       if (all.length === 0) continue;

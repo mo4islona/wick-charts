@@ -32,9 +32,9 @@ export type EdgeState = 'idle' | 'loading' | 'no-data' | 'has-more';
 /** Payload for {@link ChartOptions.onEdgeReached}. */
 export interface EdgeReachedInfo {
   side: EdgeSide;
-  /** Time units the user pulled past the soft bound. */
+  /** Time units the view sits past the padded data edge. */
   overshoot: number;
-  /** Soft-bound timestamp that was crossed (dataStart - leftPad or dataEnd + rightPad). */
+  /** The data edge that was crossed: the first point's time on the left, the last point's on the right. */
   boundaryTime: number;
 }
 

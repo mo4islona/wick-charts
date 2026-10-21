@@ -90,4 +90,27 @@ describe('computeFitToData', () => {
     expect(range.from).toBe(0);
     expect(range.to).toBe(100 * INTERVAL);
   });
+
+  it('widens a fit narrower than two steps around the data (one or two points, no padding)', () => {
+    const noPadding = { left: { intervals: 0 }, right: { intervals: 0 } };
+    const lone = computeFitToData({
+      firstTime: 6_000_000,
+      lastTime: 6_000_000,
+      dataInterval: INTERVAL,
+      maxVisibleBars: 200,
+      chartWidth: 140,
+      padding: noPadding,
+    });
+    expect(lone).toEqual({ from: 6_000_000 - INTERVAL, to: 6_000_000 + INTERVAL });
+
+    const pair = computeFitToData({
+      firstTime: 0,
+      lastTime: INTERVAL,
+      dataInterval: INTERVAL,
+      maxVisibleBars: 200,
+      chartWidth: 140,
+      padding: noPadding,
+    });
+    expect(pair).toEqual({ from: -INTERVAL / 2, to: INTERVAL * 1.5 });
+  });
 });

@@ -9,6 +9,7 @@ import {
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
+  formatRowTime,
   formatRowValue,
   formatTooltipHeader,
   resolveCandlestickBodyColor,
@@ -350,6 +351,7 @@ function FloatingTooltip({
 
       {snapshots.map((s) => {
         const rowFormat = rowFormatter(chart, s, format);
+        const rowTime = formatRowTime(chart, { time: displayTime, snapshots, interval: dataInterval, snapshot: s });
         const isOHLC = 'open' in s.data;
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
@@ -387,6 +389,7 @@ function FloatingTooltip({
               >
                 {s.label ?? 'Range'}
               </span>
+              {rowTime !== null && <RowTime text={rowTime} />}
               <span style={{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }}>
                 <NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} />
               </span>
@@ -416,6 +419,7 @@ function FloatingTooltip({
             >
               {s.label ?? 'Value'}
             </span>
+            {rowTime !== null && <RowTime text={rowTime} />}
             <span style={{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }}>
               <NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} />
             </span>
@@ -424,6 +428,11 @@ function FloatingTooltip({
       })}
     </div>
   );
+}
+
+/** The date of a row whose point is not the header's. */
+function RowTime({ text }: { text: string }) {
+  return <span style={{ opacity: 0.45, whiteSpace: 'nowrap' }}>{text}</span>;
 }
 
 function TooltipRow({ label, color, display }: { label: string; color: string; display: string }) {

@@ -9,7 +9,7 @@ import { easeOutCubic } from '../animation/easing';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { decimateBandData } from '../data/decimation';
-import { TimeSeriesStore } from '../data/store';
+import { TimeSeriesStore, type ValueStats, mergeValueStats } from '../data/store';
 import type { ChartTheme } from '../theme/types';
 import type { BandEntryAnimation, BandPoint, BandPointInput, BandSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba, resolveColor } from '../utils/color';
@@ -33,6 +33,7 @@ import {
 } from './painters/canvas-path';
 import type { LinePoint } from './painters/types';
 import type {
+  HoverLookupOptions,
   LayerSnapshot,
   OverlayRenderContext,
   SeriesRenderContext,
@@ -1116,7 +1117,10 @@ export class BandRenderer implements TimeSeriesRenderer {
       const layerAlpha = layer.alpha.current;
       if (layerAlpha <= 0) continue;
 
-      const nearest = layer.store.findNearest(crosshair.time, ctx.dataInterval);
+      const nearest = layer.store.findHovered(crosshair.time, {
+        maxDist: ctx.dataInterval,
+        bridgeGaps: ctx.timeScale.getType() === 'time',
+      });
       if (nearest === null) continue;
 
       const vertex = this.#hoverVertex(ctx, li, nearest);
@@ -1165,17 +1169,19 @@ export class BandRenderer implements TimeSeriesRenderer {
     return { ...point, low: Math.min(live.low, live.high), high: Math.max(live.low, live.high) };
   }
 
-  getDataAtTime(time: number, interval: number): BandPoint | null {
+  getDataAtTime(time: number, interval: number, opts?: HoverLookupOptions): BandPoint | null {
     const layer = this.#layers[0];
-    const point = layer.store.findNearest(time, interval);
+    const point = layer.store.findHovered(time, { maxDist: interval, bridgeGaps: opts?.bridgeGaps });
 
     return point === null ? null : this.#snapshot(layer, point);
   }
 
-  getLayerSnapshots(time: number, interval: number): LayerSnapshot[] | null {
+  getLayerSnapshots(time: number, interval: number, opts?: HoverLookupOptions): LayerSnapshot[] | null {
     if (this.#layers.length <= 1) return null;
 
-    return this.#collectLayerSnapshots((layer) => layer.store.findNearest(time, interval));
+    return this.#collectLayerSnapshots((layer) =>
+      layer.store.findHovered(time, { maxDist: interval, bridgeGaps: opts?.bridgeGaps }),
+    );
   }
 
   getLayerLastSnapshots(): LayerSnapshot[] | null {
@@ -1225,6 +1231,10 @@ export class BandRenderer implements TimeSeriesRenderer {
     return filled.length > 0 && filled.every((layer) => layer.store.hasOnlyWholeValues());
   }
 
+  getValueStats(): ValueStats | null {
+    return mergeValueStats(this.#layers.map((layer) => layer.store));
+  }
+
   getTimeBounds(): { first: number; last: number } | null {
     let first = Infinity;
     let last = -Infinity;
@@ -1251,7 +1261,13 @@ export class BandRenderer implements TimeSeriesRenderer {
     return all.length < 2 ? null : all[all.length - 2];
   }
 
-  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start'): number[] {
+  sampleTimes(maxCount: number, from: 'start' | 'end' = 'start', layerIndex?: number): number[] {
+    if (layerIndex !== undefined) {
+      const all = this.#layers[layerIndex]?.store.getAll() ?? [];
+
+      return sliceSample(all, { maxCount, from }).map((p) => p.time);
+    }
+
     for (const layer of this.#layers) {
       const all = layer.store.getAll();
       if (all.length === 0) continue;

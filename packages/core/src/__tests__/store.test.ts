@@ -264,6 +264,30 @@ describe('TimeSeriesStore', () => {
     });
   });
 
+  describe('valueStats', () => {
+    const at = (time: number, value: number): Point => ({ time, value });
+
+    it('is null while empty', () => {
+      expect(makeStore().valueStats()).toBeNull();
+    });
+
+    it('reads the decimals the values are written with, not float noise', () => {
+      expect(makeStore([at(1, 28.2), at(2, 30)]).valueStats()).toEqual({ decimals: 1, maxAbs: 30 });
+      expect(makeStore([at(1, 0.1 + 0.2)]).valueStats()?.decimals).toBe(1);
+      expect(makeStore([at(1, 0.0000012342)]).valueStats()?.decimals).toBe(10);
+      expect(makeStore([at(1, -56145.88)]).valueStats()).toEqual({ decimals: 2, maxAbs: 56145.88 });
+    });
+
+    it('widens with appends, prepends and last-point updates', () => {
+      const s = makeStore([at(2, 10)]);
+      s.append(at(3, 10.5));
+      s.prepend([at(1, -200)]);
+      s.updateLast(at(3, 10.25));
+
+      expect(s.valueStats()).toEqual({ decimals: 2, maxAbs: 200 });
+    });
+  });
+
   describe('hasOnlyWholeValues', () => {
     const at = (time: number, value: number): Point => ({ time, value });
 

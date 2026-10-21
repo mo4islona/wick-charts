@@ -23,7 +23,7 @@ import {
   resolvePadding,
   resolvePerfOptions,
 } from './chart/options';
-import { computePan, computeZoom } from './chart/pan-zoom-math';
+import { computeEdgeOvershoot, computePan, computeZoom } from './chart/pan-zoom-math';
 import {
   assertStackingFitsScale,
   warnScaleSideTaken,
@@ -37,6 +37,7 @@ import { computeStreamingTarget } from './chart/streaming-target';
 import { resolvePaddingTime } from './chart/viewport-padding';
 import {
   assertSeriesFitsXAxis,
+  warnRangeTooNarrow,
   warnTimeOnlyFeature,
   warnXMisfit,
   warnXTimeMixed,
@@ -65,6 +66,7 @@ import { YScale, isPlottableOn } from './scales/y-scale';
 import { type SeriesDefinition, resolveSeriesDefinition } from './series/definition';
 import {
   type HoverInfo,
+  type HoverLookupOptions,
   type LayerSnapshot,
   type SeriesKind,
   type SeriesRenderer,
@@ -109,7 +111,7 @@ import type {
 } from './types';
 import { deriveBarHoverBackground } from './utils/color';
 import { deepEqual } from './utils/deep-equal';
-import type { ValueFormatter } from './utils/format';
+import { COMPACT_VALUES_FROM, type ValueFormatter, type ValueStyle } from './utils/format';
 import { clamp } from './utils/math';
 import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { isBandPoint, pointValue } from './utils/point';
@@ -340,6 +342,8 @@ interface SeriesEntry {
   categoryPoints: XKeyedPoint[][];
   /** The `theme.seriesColors` slots the series' default colours start from — see `SeriesCreateEnv.paletteIndex`. */
   palette: { type: SeriesType; start: number; count: number };
+  /** Each layer's detected time step; `undefined` while the layer has fewer than two points. */
+  intervals: (number | undefined)[];
 }
 
 /** One layer of one series on a category axis. */
@@ -390,6 +394,37 @@ let seriesIdCounter = 0;
 let markerIdCounter = 0;
 let regionIdCounter = 0;
 let lineIdCounter = 0;
+
+/** The finest step among a series' layers, or `null` before any layer has two points. */
+function seriesInterval(entry: SeriesEntry): number | null {
+  let finest: number | null = null;
+  for (const interval of entry.intervals) {
+    if (interval !== undefined && (finest === null || interval < finest)) finest = interval;
+  }
+
+  return finest;
+}
+
+/** The step of one layer. Past {@link FULL_INTERVAL_SCAN_POINTS}, an append can only refine it from the tail. */
+function layerInterval(args: {
+  renderer: TimeSeriesRenderer;
+  layer: number;
+  head: number[];
+  full: boolean;
+  previous: number | undefined;
+}): number {
+  const { renderer, layer, head, full, previous } = args;
+  if (head.length <= FULL_INTERVAL_SCAN_POINTS) return detectInterval(head);
+
+  const readWhole = full || previous === undefined;
+  if (readWhole) return detectInterval(renderer.sampleTimes(Number.POSITIVE_INFINITY, 'start', layer));
+
+  // A full window is there unless the renderer cannot read its tail.
+  const tail = renderer.sampleTimes(INTERVAL_TAIL_POINTS, 'end', layer);
+  if (tail.length < INTERVAL_TAIL_POINTS) return previous;
+
+  return Math.min(previous, detectInterval(tail));
+}
 
 /** Shallow equality for per-layer label arrays (handles the `undefined` holes). */
 function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefined)[] | undefined): boolean {
@@ -550,6 +585,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #edgeHandoff: Record<EdgeSide, boolean> = { left: false, right: false };
   /** Host-supplied callback fired when the user releases a pan/zoom past a data edge. */
   #onEdgeReached?: (info: EdgeReachedInfo) => void;
+  /** A pan or zoom moved the view since the last {@link endGesture}. */
+  #gestureMoved = false;
   /** Per-side custom painter for the edge `loading` spinner. `null` falls back to the built-in dots. */
   #edgeIndicatorFns: Record<EdgeSide, LoadingIndicatorFn | null> = { left: null, right: null };
 
@@ -1062,6 +1099,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       xKeys: { x: false, time: false },
       categoryPoints: [],
       palette: { type: def.type, start: paletteIndex, count: layerCount },
+      intervals: [],
     });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
@@ -2289,7 +2327,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   setVisibleRange(spec: VisibleRangeSpec, opts?: { gesture?: boolean }): void {
     const changed = this.#resolveVisibleRange(spec);
-    if (changed === null) return;
+    if (changed === null) {
+      this.#warnNarrowRange({ spec, source: 'setVisibleRange' });
+
+      return;
+    }
 
     this.#releaseAutoWindow();
 
@@ -2349,10 +2391,39 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const from = normalizeTime(spec.from);
     const to = normalizeTime(spec.to);
+    if (this.#tooNarrow({ from, to })) return null;
+
     this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
     this.#holdUntilFilled = false;
 
     return this.#commitLogical({ from, to }, { emitChange: true });
+  }
+
+  /** Spans less than the two data steps a visible range needs. */
+  #tooNarrow(range: XRange): boolean {
+    const span = range.to - range.from;
+
+    return span > 0 && span / this.#dataInterval < 2;
+  }
+
+  /** Warn once that a `{ from, to }` window is narrower than two data steps. */
+  #warnNarrowRange(args: { spec: VisibleRangeSpec; source: 'setVisibleRange' | 'initialRange' }): void {
+    const { spec, source } = args;
+    if (!isTimeWindow(spec)) return;
+
+    const from = normalizeTime(spec.from);
+    const to = normalizeTime(spec.to);
+    if (!this.#tooNarrow({ from, to })) return;
+
+    const interval = this.#dataInterval;
+    this.#warnOnce(`narrow-range:${source}:${from}:${to}`, () => warnRangeTooNarrow({ from, to, interval, source }));
+  }
+
+  #warnPendingInitialRange(): void {
+    const spec = this.#initialVisibleRange;
+    if (spec === undefined) return;
+
+    this.#warnNarrowRange({ spec, source: 'initialRange' });
   }
 
   /** The user or the app took over the view: drop `initialRange` and stop growing the chart's own fit. */
@@ -2479,11 +2550,38 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return entry?.renderer.hasOnlyWholeValues?.() ?? false;
   }
 
-  /** Find the data point closest to the given timestamp within one data interval. */
+  /**
+   * How the default Tooltip / InfoBar format writes the series' values: with
+   * the most decimals any of them has, and compact from a thousand up when a
+   * series on its Y scale reaches ten million, so a scale reads in one style.
+   * `null` without data.
+   */
+  getValueStyle(seriesId: string): ValueStyle | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    const stats = entry?.renderer.getValueStats?.() ?? null;
+    if (entry === undefined || stats === null) return null;
+
+    const scaleId = this.#scaleIdOf(entry);
+    let maxAbs = 0;
+    for (const other of this.#series) {
+      if (this.#scaleIdOf(other) !== scaleId) continue;
+
+      maxAbs = Math.max(maxAbs, other.renderer.getValueStats?.()?.maxAbs ?? 0);
+    }
+
+    return { decimals: stats.decimals, compact: maxAbs >= COMPACT_VALUES_FROM };
+  }
+
+  /**
+   * Find the data point nearest the given timestamp: on a time axis anywhere
+   * between the series' first and last points (a line spans a gap in the
+   * timestamps), and within one data interval past either end.
+   */
   getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
-    return entry.renderer.getDataAtTime?.(time, this.#snapInterval()) ?? null;
+
+    return entry.renderer.getDataAtTime?.(time, this.#snapInterval(), this.#hoverLookup()) ?? null;
   }
 
   /**
@@ -2496,7 +2594,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry?.visible) return null;
 
-    return entry.renderer.getLayerSnapshots?.(time, this.#snapInterval()) ?? null;
+    return entry.renderer.getLayerSnapshots?.(time, this.#snapInterval(), this.#hoverLookup()) ?? null;
+  }
+
+  /** On a time axis a hover bridges a gap in a layer's timestamps; a category's band finds only its own point. */
+  #hoverLookup(): HoverLookupOptions {
+    return { bridgeGaps: this.#xType === 'time' };
   }
 
   /**
@@ -3670,30 +3773,34 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       return;
     }
 
+    // The finest series sets the limits, so a monthly series next to a daily one still zooms to days.
+    let finest: number | null = null;
     for (const entry of this.#series) {
       if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
-      // `>= 2` guard preserved: `detectInterval` on a lone timestamp lies.
-      const head = entry.renderer.sampleTimes(FULL_INTERVAL_SCAN_POINTS + 1);
-      if (head.length < 2) continue;
-
-      this.#dataInterval = this.#seriesInterval({ renderer: entry.renderer, head, full: opts.full });
-
-      return;
+      this.#updateLayerIntervals({ entry, renderer: entry.renderer, full: opts.full });
+      const interval = seriesInterval(entry);
+      if (interval !== null && (finest === null || interval < finest)) finest = interval;
     }
+
+    if (finest !== null) this.#dataInterval = finest;
   }
 
-  /** The step of one series. Past {@link FULL_INTERVAL_SCAN_POINTS}, an append can only refine it from the tail. */
-  #seriesInterval(args: { renderer: TimeSeriesRenderer; head: number[]; full: boolean }): number {
-    const { renderer, head, full } = args;
-    if (head.length <= FULL_INTERVAL_SCAN_POINTS) return detectInterval(head);
-    if (full) return detectInterval(renderer.sampleTimes(Number.POSITIVE_INFINITY));
+  #updateLayerIntervals(args: { entry: SeriesEntry; renderer: TimeSeriesRenderer; full: boolean }): void {
+    const { entry, renderer, full } = args;
+    const layerCount = Math.max(1, renderer.getLayerCount());
+    entry.intervals.length = layerCount;
 
-    // The same layer as `head`, so a full window is there unless the renderer cannot read its tail.
-    const tail = renderer.sampleTimes(INTERVAL_TAIL_POINTS, 'end');
-    if (tail.length < INTERVAL_TAIL_POINTS) return this.#dataInterval;
+    for (let layer = 0; layer < layerCount; layer++) {
+      // `>= 2` guard preserved: `detectInterval` on a lone timestamp lies.
+      const head = renderer.sampleTimes(FULL_INTERVAL_SCAN_POINTS + 1, 'start', layer);
+      if (head.length < 2) {
+        entry.intervals[layer] = undefined;
+        continue;
+      }
 
-    return Math.min(this.#dataInterval, detectInterval(tail));
+      entry.intervals[layer] = layerInterval({ renderer, layer, head, full, previous: entry.intervals[layer] });
+    }
   }
 
   /** Whether the Y range has been initialized (first snap vs smooth lerp).
@@ -3717,6 +3824,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #initialVisibleRange: VisibleRangeSpec | undefined;
   /** The chart's own fit holds fewer bars than it asks for, so appends widen it until it is full. */
   #autoFitFilling = false;
+  /** The data step the chart's own fit was sized with. A lone seed point only guesses it. */
+  #autoFitInterval: number | null = null;
   /** Half-width the user zoomed an X focus to; `null` keeps the series' default. */
   #focusHalfWidth: number | null = null;
 
@@ -3945,17 +4054,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const spec = this.#initialVisibleRange;
     if (typeof spec === 'object') {
       this.#autoFitFilling = false;
-      this.#resolveVisibleRange(spec);
 
-      const placed = this.#logical.from !== 0 || this.#logical.to !== 0;
+      const placed = this.#resolveVisibleRange(spec) !== null;
       if (placed) {
         this.#rearmDriveIn();
 
         return;
       }
 
-      // Narrower than two steps of the data, so it never placed: the default fit takes over.
-      this.#initialVisibleRange = undefined;
+      // Narrower than two steps of the data so far: the default fit shows until a finer series lands.
+      // Series a framework mounts together set their data in one task, so judge it after that.
+      queueMicrotask(() => this.#warnPendingInitialRange());
     }
 
     const auto = this.#autoWindow(chartWidth);
@@ -3964,28 +4073,31 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#holdUntilFilled = false;
     this.#autoScroll = true;
     this.#autoFitFilling = auto.filling;
+    this.#autoFitInterval = this.#dataInterval;
     this.#commitLogical(auto.range, { emitChange: true });
   }
 
   /**
    * The chart's own window over the current data: the last `initialRange`
-   * bars, else every bar up to `maxVisibleBars`. `filling` while the data holds
-   * fewer bars than that. `null` before data, or for a `{ from, … }` window.
+   * bars, else every bar up to `maxVisibleBars` — also while a `{ from, … }`
+   * window waits for data it fits. `filling` while the data holds fewer bars
+   * than that. `null` before data.
    */
   #autoWindow(chartWidth: number): { range: XRange; filling: boolean } | null {
     const spec = this.#initialVisibleRange;
     const first = this.#dataStart;
     const last = this.#dataEnd;
-    if (first === null || last === null || typeof spec === 'object') return null;
+    if (first === null || last === null) return null;
 
-    const bars = spec ?? this.#maxVisibleBars;
+    const barCount = typeof spec === 'number' ? spec : null;
+    const bars = barCount ?? this.#maxVisibleBars;
     const firstTime = Math.max(first, last - (bars - 1) * this.#dataInterval);
     const range = computeFitToData({
-      firstTime: spec === undefined ? first : firstTime,
+      firstTime: barCount === null ? first : firstTime,
       lastTime: last,
       dataInterval: this.#dataInterval,
       // An explicit bar count is shown whole; only the default fit is capped.
-      maxVisibleBars: spec === undefined ? this.#maxVisibleBars : Number.POSITIVE_INFINITY,
+      maxVisibleBars: barCount === null ? this.#maxVisibleBars : Number.POSITIVE_INFINITY,
       chartWidth,
       padding: { left: this.#padding.left, right: this.#padding.right },
     });
@@ -3993,16 +4105,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return { range, filling: firstTime === first };
   }
 
-  /** Widen the chart's own fit to the data tail. A trimmed head never narrows it (`keepLast`). */
+  /**
+   * Widen the chart's own fit to the data tail. A trimmed head never narrows it
+   * (`keepLast`), but a new data step does: the step a lone seed point guessed
+   * can be far coarser than the stream's.
+   */
   #growAutoFit(auto: { range: XRange; filling: boolean }): XRange | null {
     this.#autoFitFilling = auto.filling;
+
+    const stepChanged = this.#autoFitInterval !== this.#dataInterval;
+    this.#autoFitInterval = this.#dataInterval;
 
     const current = this.#logical;
     const currentWidth = current.to - current.from;
     const fitWidth = auto.range.to - auto.range.from;
-    if (auto.range.to === current.to && fitWidth <= currentWidth) return null;
+    const covered = auto.range.to === current.to && fitWidth <= currentWidth;
+    if (covered && !stepChanged) return null;
 
-    const width = Math.max(fitWidth, currentWidth);
+    const width = stepChanged ? fitWidth : Math.max(fitWidth, currentWidth);
 
     return this.#commitStreamingTarget({ from: auto.range.to - width, to: auto.range.to });
   }
@@ -4217,11 +4337,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * Shift the visible time range by `timeDelta` ms. Hard-clamped so at
    * least one data point stays on screen — no rubber-band, no overshoot.
    * A pan that moves the viewport off the live-tail position flips
-   * autoscroll off. Fires `edgeReached` whenever the clamp trims the
-   * gesture (i.e., the user pushed past the boundary), so consumers can
-   * trigger history loads. Forwards the committed target to the engine
+   * autoscroll off. Forwards the committed target to the engine
    * as a gesture for visual easing. Public so consumers can drive pan
-   * programmatically. A no-op while {@link canDragPan} is `false`.
+   * programmatically; {@link endGesture} then reports a data edge the
+   * view was left past. A no-op while {@link canDragPan} is `false`.
    */
   pan(timeDelta: number, chartWidth = this.#lastChartWidth): void {
     if (!this.canDragPan()) return;
@@ -4243,14 +4362,35 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#autoScroll = !result.autoScrollOff;
     this.#commitLogical(result.newLogical, { emitChange: true });
-
-    if (result.edgeReached !== null) {
-      this.#edgeBoundaries[result.edgeReached.side] = result.edgeReached.boundaryTime;
-      this.#onEdgeReached?.(result.edgeReached);
-    }
+    this.#gestureMoved = true;
 
     this.#cadence.pause();
     this.#emitGestureToEngine();
+  }
+
+  /**
+   * End a pan / zoom gesture: the user released a drag or a pinch, or stopped
+   * the wheel. When the gesture left the view more than 10% of its range past
+   * a data edge, fires {@link ChartOptions.onEdgeReached} once. Call it after
+   * driving {@link pan} / {@link zoomAt} yourself to get the same callback.
+   */
+  endGesture(): void {
+    if (!this.#gestureMoved) return;
+
+    this.#gestureMoved = false;
+
+    const edge = computeEdgeOvershoot({
+      logical: this.#logical,
+      chartWidth: this.#lastChartWidth,
+      dataInterval: this.#dataInterval,
+      padding: { left: this.#padding.left, right: this.#padding.right },
+      dataStart: this.#dataStart,
+      dataEnd: this.#dataEnd,
+    });
+    if (edge === null) return;
+
+    this.#edgeBoundaries[edge.side] = edge.boundaryTime;
+    this.#onEdgeReached?.(edge);
   }
 
   /**
@@ -4275,6 +4415,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (chartWidth > 0) this.#lastChartWidth = chartWidth;
     this.#holdUntilFilled = false;
     this.#releaseAutoWindow();
+    this.#gestureMoved = true;
 
     const focus = this.#xFocus();
     if (focus !== null) {
@@ -4625,7 +4766,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           timeScale: this.timeScale,
           yScale,
           theme: this.#theme,
-          dataInterval: this.#dataInterval,
+          // Its own step, so monthly bars keep their width next to a daily line.
+          dataInterval: seriesInterval(entry) ?? this.#dataInterval,
           padding,
           state: scaleId === undefined ? seriesState : this.#scaleAnimationState(animationState, scaleId),
           seriesId: entry.id,
@@ -4723,6 +4865,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Engine `animating` covers both X (engine X slot) and Y (transition);
     // viewport no longer has its own X animator since Phase 2 step 2.
     if (!animationState.animating && !seriesNeedsAnim && !trackersStillFading) {
+      // The hysteresis only steadies ticks while the range moves; a new step fades in on the next frame.
+      let stepChanged = this.yScale.settle();
+      for (const slot of this.#scales.values()) {
+        if (slot.yScale.settle()) stepChanged = true;
+      }
+      if (stepChanged) this.#mainScheduler.markDirty();
+
       this.yScale.tickTracker.markArmed();
       this.timeScale.tickTracker.markArmed();
       for (const slot of this.#scales.values()) {

@@ -3,6 +3,7 @@ import type { BitmapCoordinateSpace } from '../canvas-manager';
 // Type-only — the runtime dependency points the other way (loading-indicator
 // reads SeriesKind from here), so this does not create an import cycle.
 import type { PlaceholderBar } from '../components/loading-indicator';
+import type { ValueStats } from '../data/store';
 import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
@@ -239,7 +240,7 @@ export interface BaseSeriesRenderer {
   /** Last data value for the series, or null if empty. Optional. */
   getLastValue?(): number | null;
   /** Nearest data point to a given time, or null. Optional. */
-  getDataAtTime?(time: number, interval: number): TimePoint | OHLCData | BandPoint | null;
+  getDataAtTime?(time: number, interval: number, opts?: HoverLookupOptions): TimePoint | OHLCData | BandPoint | null;
 
   /**
    * For multi-layer renderers: nearest data point per visible layer at `time`.
@@ -249,7 +250,7 @@ export interface BaseSeriesRenderer {
    * tooltips/legends.
    * Returns null for single-layer renderers or when no visible layer has data.
    */
-  getLayerSnapshots?(time: number, interval: number): LayerSnapshot[] | null;
+  getLayerSnapshots?(time: number, interval: number, opts?: HoverLookupOptions): LayerSnapshot[] | null;
 
   /**
    * Stacked last value — cumulative top of the rendered stack for multi-layer
@@ -282,6 +283,9 @@ export interface BaseSeriesRenderer {
 
   /** `true` when the series holds data and all of it is whole numbers. Picks the default tooltip format. */
   hasOnlyWholeValues?(): boolean;
+
+  /** How the series' values are written, `null` without data. The default tooltip format reads it. */
+  getValueStats?(): ValueStats | null;
 
   /**
    * The X the view stays centered on (an order book's mid) and the default
@@ -381,8 +385,9 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   /**
    * First `maxCount` sample times from the first populated layer — feeds
    * interval detection. With `'end'`, the last `maxCount` of that same layer.
+   * With `layer`, that layer's times instead (empty when it holds none).
    */
-  sampleTimes(maxCount: number, from?: 'start' | 'end'): number[];
+  sampleTimes(maxCount: number, from?: 'start' | 'end', layer?: number): number[];
   /** Visible points in `[from, to]` (layer 0 for multi-layer). */
   getVisibleDataPoints(from: number, to: number): readonly (OHLCData | TimePoint | BandPoint)[];
   /**
@@ -394,6 +399,16 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
   /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a Y scale with no 0. */
   readonly stacking?: StackingMode;
+}
+
+/** Options for the hover lookups ({@link BaseSeriesRenderer.getDataAtTime}, {@link BaseSeriesRenderer.getLayerSnapshots}). */
+export interface HoverLookupOptions {
+  /**
+   * Find a layer's nearest point anywhere between its first and last points,
+   * however far — a time axis draws a line across a gap in the timestamps.
+   * `interval` still limits the reach past either end.
+   */
+  bridgeGaps?: boolean;
 }
 
 /** Options for {@link TimeSeriesRenderer.getValueRange}. */
