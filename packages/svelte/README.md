@@ -31,13 +31,13 @@ npm install @wick-charts/svelte
 ## Quick start
 
 ```svelte
-<script>
+<script lang="ts">
   import {
     ChartContainer, CandlestickSeries, Tooltip,
-    Crosshair, YAxis, TimeAxis
+    Crosshair, YAxis, TimeAxis, type OHLCInput
   } from '@wick-charts/svelte';
 
-  export let data = [];
+  let { data }: { data: OHLCInput[] } = $props();
 </script>
 
 <ChartContainer>
@@ -49,9 +49,17 @@ npm install @wick-charts/svelte
 </ChartContainer>
 ```
 
+This is Svelte 5 with runes. On Svelte 4, declare the prop with `export let data: OHLCInput[];` instead.
+
 `ChartContainer` fills its parent (`width` and `height` are `100%`), so give the parent a height. The container also has a 240px `min-height`, so a parent with no height still shows a chart. For a smaller chart, such as a sparkline in a table row, set `min-height: 0` (`minHeight: 0` in React) in the container's `style`.
 
 Each chart page listed below has a Code tab next to its controls: copy, paste, ship.
+
+## Live data
+
+When the data changes, pass a new array to `data`. The series compares it with the previous array: a changed last point eases to its new value, a few new points are appended, anything else replaces the data. The [Realtime Data guide](https://wick-charts.eeff.io/use-cases/realtime-data/) shows both this and the imperative `appendData` / `updateData` calls.
+
+- **Svelte 5:** keep chart data in `$state.raw` (or a store) and assign a new array: `data = [...data, point]`. With a deep `$state`, the chart reads every point through a proxy, and a large dataset (100k+ points) blocks the main thread for seconds instead of milliseconds. On Svelte 4, assign a new array the same way.
 
 ## Chart types
 
@@ -67,10 +75,17 @@ Put them on [numeric](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [c
 `ChartInstance` and every series/theme/painter has no framework dependency — it's a plain canvas engine that each of `@wick-charts/react`, `@wick-charts/vue`, and `@wick-charts/svelte` bundles and re-exports in full. Any one of them is a supported vanilla entry point; you don't need React/Vue/Svelte installed to use it this way (`sideEffects: false` + per-module ESM means the framework-specific components tree-shake out when unused):
 
 ```ts
-import { CandlestickSeriesDef, ChartInstance, registerBuiltinSeries } from '@wick-charts/react';
+import { CandlestickSeriesDef, ChartInstance, type OHLCInput } from '@wick-charts/react';
 
-registerBuiltinSeries();
-const chart = new ChartInstance(document.getElementById('chart')!);
+const el = document.getElementById('chart');
+if (!el) throw new Error('No #chart element');
+
+const data: OHLCInput[] = [
+  { time: Date.now() - 60_000, open: 100, high: 104, low: 98, close: 103 },
+  { time: Date.now(), open: 103, high: 107, low: 101, close: 102 },
+];
+
+const chart = new ChartInstance(el);
 const seriesId = chart.addSeries(CandlestickSeriesDef, {});
 chart.setSeriesData(seriesId, data);
 ```
@@ -112,6 +127,22 @@ Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, 
 | Candlestick only | 146.3 kB | 45.9 kB | 40.2 kB |
 | Line only        | 170.1 kB | 53.0 kB | 46.1 kB |
 | Full React       | 331.8 kB | 103.0 kB | 86.2 kB |
+
+## Measure performance
+
+Pass `perfHud()` to the `perf` prop to put a small FPS panel on the chart. Click the panel to see frame times, draw calls and the render time of each series.
+
+```svelte
+<script lang="ts">
+  import { ChartContainer, perfHud } from '@wick-charts/svelte';
+</script>
+
+<ChartContainer perf={perfHud()}>
+  <!-- series and overlays -->
+</ChartContainer>
+```
+
+The chart reads `perf` once, when it mounts. The perf code is in your bundle only if you import `perfHud`. To collect the numbers without the panel, pass a `PerfMonitor` instead and read them with `monitor.onFrame((stats) => …)`.
 
 ## Documentation
 

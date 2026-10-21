@@ -80,18 +80,6 @@ All options are optional — pass `Partial<LineSeriesOptions>`.
 
 ## Options explained
 
-### `colors`
-
-One hex color per layer. If fewer colors than layers, layers cycle through the palette.
-
-```ts
-// Single line
-options={{ colors: ['#00d4aa'] }}
-
-// Three layers
-options={{ colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'] }}
-```
-
 ### `strokeWidth`
 
 Stroke width in CSS pixels (scaled by device pixel ratio internally, min 1). Defaults to `1`. Same value applied to every layer.
@@ -165,12 +153,12 @@ Automatic decimation kicks in when visible data points exceed 2x pixel width. Da
 import { ChartContainer, LineSeries, Tooltip, Crosshair, YAxis, TimeAxis, dracula } from '@wick-charts/react';
 import type { TimePoint } from '@wick-charts/react';
 
-function LineChart({ data }: { data: TimePoint[] }) {
+export function LineChart({ data }: { data: TimePoint[] }) {
   return (
-    <ChartContainer theme={dracula} style={{ width: '100%', height: 400 }}>
+    <ChartContainer theme={dracula.theme} style={{ width: '100%', height: 400 }}>
       <LineSeries
-        data={[data]}
-        options={{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }}
+        data={{ color: '#00d4aa', data }}
+        options={{ strokeWidth: 1, area: { visible: true }, pulse: true }}
       />
       <Tooltip />
       <Crosshair />
@@ -217,17 +205,17 @@ interface LineSeriesProps {
 
 ```vue
 <script setup lang="ts">
-import { ChartContainer, LineSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis, dracula } from '@wick-charts/vue';
+import { ChartContainer, LineSeries, Tooltip, Crosshair, YAxis, TimeAxis, dracula } from '@wick-charts/vue';
 import type { TimePoint } from '@wick-charts/vue';
 
 const props = defineProps<{ data: TimePoint[] }>();
 </script>
 
 <template>
-  <ChartContainer :theme="dracula" style="width: 100%; height: 400px">
+  <ChartContainer :theme="dracula.theme" style="width: 100%; height: 400px">
     <LineSeries
-      :data="[props.data]"
-      :options="{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }"
+      :data="{ color: '#00d4aa', data: props.data }"
+      :options="{ strokeWidth: 1, area: { visible: true }, pulse: true }"
     />
     <Tooltip />
     <Crosshair />
@@ -271,15 +259,16 @@ id?: string
 ### Single line
 
 ```svelte
-<script>
-  import { ChartContainer, LineSeries, Tooltip, Crosshair, Legend, YAxis, TimeAxis, dracula } from '@wick-charts/svelte';
-  export let data = [];
+<script lang="ts">
+  import { ChartContainer, LineSeries, Tooltip, Crosshair, YAxis, TimeAxis, dracula, type TimePoint } from '@wick-charts/svelte';
+
+  let { data }: { data: TimePoint[] } = $props();
 </script>
 
-<ChartContainer theme={dracula} style="width:100%;height:400px">
+<ChartContainer theme={dracula.theme} style="width:100%;height:400px">
   <LineSeries
-    data={[data]}
-    options={{ colors: ['#00d4aa'], strokeWidth: 1, area: { visible: true }, pulse: true }}
+    data={{ color: '#00d4aa', data }}
+    options={{ strokeWidth: 1, area: { visible: true }, pulse: true }}
   />
   <Tooltip />
   <Crosshair />
@@ -362,7 +351,6 @@ options={{ area: { visible: false }, pulse: false }}
 
 ```ts
 options={{
-  colors: ['#ff6b6b', '#4ecdc4', '#45b7d1'],
   area: { visible: true },
   stacking: 'percent',
 }}

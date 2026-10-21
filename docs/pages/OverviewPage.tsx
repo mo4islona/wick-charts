@@ -606,10 +606,10 @@ const INSTALL_COMMANDS: Record<Framework, string> = {
 const CODE_EXAMPLES: Record<Framework, string> = {
   react: `import {
   ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis
+  Crosshair, YAxis, TimeAxis, type OHLCInput
 } from '@wick-charts/react';
 
-function Chart({ data }) {
+export function Chart({ data }: { data: OHLCInput[] }) {
   return (
     <ChartContainer>
       <CandlestickSeries data={data} />
@@ -620,31 +620,32 @@ function Chart({ data }) {
     </ChartContainer>
   );
 }`,
-  vue: `<script setup>
+  vue: `<script setup lang="ts">
 import {
   ChartContainer, CandlestickSeries, Tooltip,
-  Crosshair, YAxis, TimeAxis
+  Crosshair, YAxis, TimeAxis, type OHLCInput
 } from '@wick-charts/vue';
 
-const props = defineProps(['data']);
+defineProps<{ data: OHLCInput[] }>();
 </script>
 
 <template>
   <ChartContainer>
-    <CandlestickSeries :data="props.data" />
+    <CandlestickSeries :data="data" />
     <Tooltip />
     <Crosshair />
     <YAxis />
     <TimeAxis />
   </ChartContainer>
 </template>`,
-  svelte: `<script>
+  svelte: `<script lang="ts">
   import {
     ChartContainer, CandlestickSeries, Tooltip,
-    Crosshair, YAxis, TimeAxis
+    Crosshair, YAxis, TimeAxis, type OHLCInput
   } from '@wick-charts/svelte';
 
-  export let data = [];
+  // Svelte 4: export let data: OHLCInput[];
+  let { data }: { data: OHLCInput[] } = $props();
 </script>
 
 <ChartContainer>

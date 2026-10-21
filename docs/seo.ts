@@ -33,6 +33,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Upgrade to Wick Charts: breaking changes, renamed props and step-by-step notes for moving from earlier versions or other charting libraries.',
   },
+  'use-cases/shadcn': {
+    title: 'shadcn/ui Charts — Wick Charts',
+    description:
+      'Add Wick Charts to a shadcn/ui project with the shadcn CLI: a theme hook that reads your CSS variables, a WickChart wrapper and ready-made chart blocks.',
+  },
   'use-cases/theme': {
     title: 'Theming & Custom Themes — Wick Charts',
     description:

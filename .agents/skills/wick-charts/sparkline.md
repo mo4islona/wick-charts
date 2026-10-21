@@ -29,11 +29,13 @@ Unlike `LineSeries` / `BarSeries`, `Sparkline` takes a single `TimePoint[]` — 
 
 ```ts
 interface SparklineProps {
-  data: TimePoint[];
+  data: TimePointInput[];                 // time in ms or a Date
   theme: ChartTheme;
   variant?: 'line' | 'bar';              // default: 'line'
   valuePosition?: 'left' | 'right' | 'none'; // default: 'right'
-  formatValue?: (value: number) => string;   // default: compact K/M formatter
+  format?: (value: number) => string;     // value label formatter — default: compact K/M formatter
+  flow?: { capacity: number; align?: 'left' | 'right' | 'offscreen' }; // fixed window of `capacity` bars for streaming
+  yRange?: { min?: AxisBound; max?: AxisBound }; // pin Y bounds, e.g. { min: 0 }
   label?: string;                         // text above the value
   sublabel?: string;                      // text below the value (overrides change %)
   color?: string;                         // line/bar color override
@@ -49,7 +51,7 @@ interface SparklineProps {
 
 ## Default behavior
 
-- **Value label**: last point's value, formatted via `formatValue` (compact K / M / decimal).
+- **Value label**: last point's value, formatted via `format` (compact K / M / decimal).
 - **Change %**: computed from first vs last point. Green if non-negative, red otherwise, using the theme's candlestick up/down colors. Overridden by `sublabel`.
 - **Non-interactive**: zoom/pan/crosshair disabled; grid and axes hidden.
 - **Container**: inline-flex row with rounded tooltip-style background from the theme.
@@ -72,7 +74,7 @@ import { Sparkline, catppuccin } from '@wick-charts/react';
   theme={catppuccin.theme}
   variant="bar"
   label="Volume"
-  formatValue={(v) => `$${v.toFixed(0)}`}
+  format={(v) => `$${v.toFixed(0)}`}
   color="#4ecdc4"
   negativeColor="#ff6b6b"
 />

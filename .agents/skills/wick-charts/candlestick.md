@@ -195,8 +195,12 @@ id?: string
 ### Real-time updates
 
 ```vue
-<script setup>
+<script setup lang="ts">
+import { shallowRef } from 'vue';
+import type { OHLCData } from '@wick-charts/vue';
+
 // shallowRef: no per-point reactivity to pay for; each update assigns a new array.
+// An in-place push followed by triggerRef(data) does not reach the chart.
 const data = shallowRef<OHLCData[]>([]);
 
 function onPriceUpdate(candle: OHLCData) {
@@ -211,7 +215,7 @@ function onNewCandle(candle: OHLCData) {
 ## Svelte
 
 ```svelte
-<script>
+<script lang="ts">
   import {
     ChartContainer,
     CandlestickSeries,
@@ -222,9 +226,10 @@ function onNewCandle(candle: OHLCData) {
     YLabel,
     autoGradient,
     catppuccin,
-} from '@wick-charts/svelte';
+    type OHLCData,
+  } from '@wick-charts/svelte';
 
-  export let data = [];
+  let { data }: { data: OHLCData[] } = $props();
   const seriesId = 'btc-ohlc';
   const options = {
     up:   { body: autoGradient('#26a69a'), wick: '#26a69a' },
@@ -254,13 +259,16 @@ id?: string
 ### Real-time updates
 
 ```svelte
-<script>
-  let data = [];
+<script lang="ts">
+  import type { OHLCData } from '@wick-charts/svelte';
 
-  function onPriceUpdate(candle) {
+  // $state.raw, not $state: a deep proxy makes the chart read every candle through it.
+  let data = $state.raw<OHLCData[]>([]);
+
+  function onPriceUpdate(candle: OHLCData) {
     data = [...data.slice(0, -1), candle];
   }
-  function onNewCandle(candle) {
+  function onNewCandle(candle: OHLCData) {
     data = [...data, candle];
   }
 </script>
@@ -283,31 +291,37 @@ Candlestick charts commonly use this overlay combination:
 Replace the default OHLCV layout — e.g. highlight the open→close delta directly:
 
 ```tsx
-import { Tooltip, resolveCandlestickBodyColor } from '@wick-charts/react';
+import { Tooltip, resolveCandlestickBodyColor, useTheme } from '@wick-charts/react';
 
-<Tooltip>
-  {({ snapshots, time, theme }) => {
-    const candle = snapshots[0]?.data; // OHLCData for a candlestick row
-    if (!candle || !('open' in candle)) return null;
-    const delta = candle.close - candle.open;
-    const pct = (delta / candle.open) * 100;
-    const up = delta >= 0;
-    // Pick a flat color even when the theme's body is a gradient tuple.
-    const color = resolveCandlestickBodyColor(
-      up ? theme.candlestick.up.body : theme.candlestick.down.body,
-    );
+// Render inside <ChartContainer>; the slot context has no theme, so read it with useTheme().
+export function DeltaTooltip() {
+  const theme = useTheme();
 
-    return (
-      <div style={{ display: 'grid', gap: 4 }}>
-        <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleString()}</small>
-        <strong>{candle.close.toFixed(2)}</strong>
-        <span style={{ color }}>
-          {up ? '▲' : '▼'} {delta.toFixed(2)} ({pct.toFixed(2)}%)
-        </span>
-      </div>
-    );
-  }}
-</Tooltip>
+  return (
+    <Tooltip>
+      {({ snapshots, time }) => {
+        const candle = snapshots[0]?.data; // OHLCData for a candlestick row
+        if (!candle || !('open' in candle)) return null;
+
+        const delta = candle.close - candle.open;
+        const pct = (delta / candle.open) * 100;
+        const up = delta >= 0;
+        // Pick a flat color even when the theme's body is a gradient tuple.
+        const color = resolveCandlestickBodyColor(up ? theme.candlestick.up.body : theme.candlestick.down.body);
+
+        return (
+          <div style={{ display: 'grid', gap: 4 }}>
+            <small style={{ opacity: 0.6 }}>{new Date(time).toLocaleString()}</small>
+            <strong>{candle.close.toFixed(2)}</strong>
+            <span style={{ color }}>
+              {up ? '▲' : '▼'} {delta.toFixed(2)} ({pct.toFixed(2)}%)
+            </span>
+          </div>
+        );
+      }}
+    </Tooltip>
+  );
+}
 ```
 
 Same shape in Vue (`v-slot="{ snapshots, time }"`) and Svelte (`let:snapshots let:time`). The built-in floating container (flip + clamp) stays in place — only the contents change. See [SKILL.md → Custom render](SKILL.md) for the full slot catalog.
