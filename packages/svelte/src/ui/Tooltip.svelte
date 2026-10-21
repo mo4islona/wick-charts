@@ -10,6 +10,7 @@ import type {
 import {
   buildHoverSnapshots,
   computeTooltipPosition,
+  formatRowTime,
   formatRowValue,
   formatTooltipHeader,
   resolveCandlestickBodyColor,
@@ -205,6 +206,7 @@ $: floatingPos = (() => {
 
       {#each snapshots as s (s.id)}
         {@const rowFormat = rowFormatter(chart, s, format)}
+        {@const rowTime = formatRowTime(chart, { time: displayTime, snapshots, interval: dataInterval, snapshot: s })}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
@@ -228,12 +230,14 @@ $: floatingPos = (() => {
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:2px;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Range'}</span>
+            {#if rowTime !== null}<span style="opacity:0.45;white-space:nowrap;">{rowTime}</span>{/if}
             <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};white-space:nowrap;"><NumberText text={rowFormat(band.low, 'low')} /> – <NumberText text={rowFormat(band.high, 'high')} /></span>
           </div>
         {:else}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
             <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Value'}</span>
+            {#if rowTime !== null}<span style="opacity:0.45;white-space:nowrap;">{rowTime}</span>{/if}
             <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};white-space:nowrap;"><NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} /></span>
           </div>
         {/if}

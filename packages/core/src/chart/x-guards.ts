@@ -63,3 +63,24 @@ export function warnXTypeChange(args: { from: XAxisType; to: XAxisType }): void 
       'the change is ignored. Remount the chart (e.g. a React `key`) to switch the X axis type.',
   );
 }
+
+/** Dev-only: a requested visible range spans less than two data steps, so the chart can't show it. */
+export function warnRangeTooNarrow(args: {
+  from: number;
+  to: number;
+  interval: number;
+  source: 'setVisibleRange' | 'initialRange';
+}): void {
+  if (process.env.NODE_ENV === 'production') return;
+
+  const { from, to, interval, source } = args;
+  const outcome =
+    source === 'setVisibleRange'
+      ? 'so the chart keeps its current range'
+      : 'so the chart shows its default window until a series with a finer step lands';
+
+  console.warn(
+    `[wick-charts] ${source === 'setVisibleRange' ? 'setVisibleRange' : 'viewport.initialRange'}: the range ` +
+      `${from} .. ${to} spans less than two data steps (a step is ${interval}), ${outcome}.`,
+  );
+}

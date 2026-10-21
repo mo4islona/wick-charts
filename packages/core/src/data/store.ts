@@ -31,6 +31,62 @@ function countFractions(points: readonly object[]): number {
   return count;
 }
 
+/** Most decimals a value is read with: a float sum such as 0.1 + 0.2 carries noise past them. */
+export const MAX_VALUE_DECIMALS = 12;
+
+/** How a series' values are written — the default Tooltip / InfoBar format reads it. */
+export interface ValueStats {
+  /** Most decimals any value is written with (28.2 → 1), up to {@link MAX_VALUE_DECIMALS}. */
+  decimals: number;
+  /** Largest absolute value. */
+  maxAbs: number;
+}
+
+/** The decimals `value` is written with, counted from `known` up: only more of them matter. */
+function decimalsFrom(value: number, known: number): number {
+  const abs = Math.abs(value);
+  for (let d = known; d < MAX_VALUE_DECIMALS; d++) {
+    const scaled = abs * 10 ** d;
+    if (Math.abs(scaled - Math.round(scaled)) <= scaled * 1e-9) return d;
+  }
+
+  return MAX_VALUE_DECIMALS;
+}
+
+/** `stats` widened to cover every value field of `points`. */
+function widenStats(stats: ValueStats, points: readonly object[]): ValueStats {
+  let { decimals, maxAbs } = stats;
+  for (const point of points) {
+    for (const field of VALUE_FIELDS) {
+      const value = (point as Record<string, unknown>)[field];
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+
+      maxAbs = Math.max(maxAbs, Math.abs(value));
+      if (!Number.isInteger(value) && decimals < MAX_VALUE_DECIMALS) decimals = decimalsFrom(value, decimals);
+    }
+  }
+
+  return { decimals, maxAbs };
+}
+
+const NO_STATS: ValueStats = { decimals: 0, maxAbs: 0 };
+
+/** The stats of several stores together, `null` when none holds points. */
+export function mergeValueStats(stores: readonly { valueStats(): ValueStats | null }[]): ValueStats | null {
+  let merged: ValueStats | null = null;
+  for (const store of stores) {
+    const stats = store.valueStats();
+    if (stats === null) continue;
+
+    merged =
+      merged === null
+        ? stats
+        : { decimals: Math.max(merged.decimals, stats.decimals), maxAbs: Math.max(merged.maxAbs, stats.maxAbs) };
+  }
+
+  return merged;
+}
+
 export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<StoreEvents> {
   private data: T[] = [];
   private _visible = true;
@@ -46,6 +102,8 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   private fractionalPoints = 0;
   // The caller may edit the last point in place before updateLast reads it.
   private lastHasFraction = false;
+  // Widened by every point since the last setData; a trim or an edit never narrows it.
+  private stats: ValueStats = NO_STATS;
   // Dev-only, warn-once-per-instance: these two conditions are almost always
   // a persistent bug in the caller's feed (not a one-off), so a per-call
   // warning would just spam the console on every tick.
@@ -80,6 +138,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
     this.warnIfSeconds();
     this.fractionalPoints = countFractions(this.data);
+    this.stats = widenStats(NO_STATS, this.data);
     this.lastHasFraction = this.data.length > 0 && hasFraction(this.data[this.data.length - 1]);
     this.exited = [];
     this.appendedSinceTrim = 0;
@@ -104,6 +163,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     this.warnIfSeconds();
     this.lastHasFraction = hasFraction(point);
     if (this.lastHasFraction) this.fractionalPoints++;
+    this.stats = widenStats(this.stats, [point]);
     this.appendedSinceTrim++;
     this.cachedRange = null;
     this.emit('update');
@@ -114,6 +174,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     if (this.lastHasFraction) this.fractionalPoints--;
     this.lastHasFraction = hasFraction(point);
     if (this.lastHasFraction) this.fractionalPoints++;
+    this.stats = widenStats(this.stats, [point]);
     this.data[this.data.length - 1] = point;
     this.cachedRange = null;
     this.emit('update');
@@ -133,6 +194,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     this.data = points.concat(this.data);
     this.warnIfSeconds();
     this.fractionalPoints += countFractions(points);
+    this.stats = widenStats(this.stats, points);
     this.exited = [];
     this.cachedRange = null;
     this.emit('update');
@@ -237,6 +299,24 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
   /** `true` when there are points and every value is a whole number. */
   hasOnlyWholeValues(): boolean {
     return this.data.length > 0 && this.fractionalPoints === 0;
+  }
+
+  /** How the stored values are written, `null` without points. */
+  valueStats(): ValueStats | null {
+    return this.data.length > 0 ? this.stats : null;
+  }
+
+  /**
+   * The point a hover at `time` reads: the nearest within `maxDist`, or with
+   * `bridgeGaps` the nearest anywhere between the first and last points too.
+   */
+  findHovered(time: number, opts: { maxDist: number; bridgeGaps?: boolean }): T | null {
+    const first = this.data[0];
+    const last = this.data[this.data.length - 1];
+    const inSpan = first !== undefined && last !== undefined && time >= first.time && time <= last.time;
+    const bridged = opts.bridgeGaps === true && inSpan;
+
+    return this.findNearest(time, bridged ? Number.POSITIVE_INFINITY : opts.maxDist);
   }
 
   findNearest(time: number, maxDist: number): T | null {

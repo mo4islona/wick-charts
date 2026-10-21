@@ -2,7 +2,12 @@ import type { XScale } from '../scales/x-scale';
 import { clamp } from '../utils/math';
 import type { PanZoomTarget } from './pan-zoom-target';
 
+/** A wheel has no release, so this long without a wheel event ends its gesture. */
+export const WHEEL_IDLE_MS = 250;
+
 export class ZoomHandler {
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
+
   constructor(
     private target: PanZoomTarget,
     private timeScale: XScale,
@@ -23,12 +28,24 @@ export class ZoomHandler {
     const cursorTime = this.timeScale.xToTime(x);
 
     this.target.zoomAt(cursorTime, factor, chartWidth);
+    this.scheduleGestureEnd();
   }
 
-  /** Kept for API parity with InteractionHandler.destroy. Phase 2 step 2
-   *  removed the wheel-idle rebound timer alongside the rest of the
-   *  rebound feature; this is now a no-op. */
-  cancelPendingRebound(): void {}
+  /** Drop a pending wheel-idle gesture end — a drag that starts now ends the gesture itself. */
+  cancelPendingEnd(): void {
+    if (this.idleTimer === null) return;
+
+    clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+  }
+
+  private scheduleGestureEnd(): void {
+    this.cancelPendingEnd();
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      this.target.endGesture?.();
+    }, WHEEL_IDLE_MS);
+  }
 }
 
 function normalizeWheelDelta(deltaY: number, deltaMode: number): number {

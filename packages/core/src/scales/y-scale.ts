@@ -1,5 +1,5 @@
 import type { YRange, YScaleTransform } from '../types';
-import { type ValueFormatter, collapseZeros, formatCompact } from '../utils/format';
+import { type ValueFormatter, collapseZeros, formatCompact, formatCompactTick } from '../utils/format';
 import { crispCenterOffset } from '../utils/pixel-grid';
 import { AxisTickTracker } from './tick-tracker';
 
@@ -141,6 +141,18 @@ export class YScale {
     this.minSpacingValue = normalizeSpacing(px);
     this.resetHysteresis();
     this.resolveTicks();
+  }
+
+  /**
+   * Re-pick the tick step without the hysteresis band, so a range at rest
+   * gets the same ticks however it got there. `true` when the step changed.
+   */
+  settle(): boolean {
+    const before = this.resolvedInterval;
+    this.resetHysteresis();
+    this.resolveTicks();
+
+    return this.resolvedInterval !== before;
   }
 
   private resetHysteresis(): void {
@@ -307,12 +319,15 @@ export class YScale {
     const ownFormat = this.ownTicks !== null ? this.transform?.format : undefined;
     if (ownFormat) return ownFormat(value);
 
+    const interval = this.resolvedInterval;
+
     // Kick into K/M/B/T suffixes once labels would otherwise balloon past ~7
     // characters. Keeping the threshold at ≥ 1e6 preserves readable raw
     // numbers up through "50000" / "99999" tick labels.
-    if (this.max - this.min >= 1e6) return formatCompact(value);
+    if (this.max - this.min >= 1e6) {
+      return interval != null && interval > 0 ? formatCompactTick(value, interval) : formatCompact(value);
+    }
 
-    const interval = this.resolvedInterval;
     // Interval is always {1,2,5}×10^k, so decimals needed = max(0, -floor(log10(interval))).
     // Fall back to a single decimal only if interval isn't resolved yet
     // (e.g. degenerate range) — unlikely but keeps the call safe.

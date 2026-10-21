@@ -63,9 +63,9 @@ describe('Tooltip / InfoBar precision defaults', () => {
     const bar = mounted.container.querySelector('[data-tooltip-legend]');
     expect(bar).not.toBeNull();
     // The default line-value formatter compacts above 1e7 so trillion-scale
-    // values render as `5.60T` rather than a 13-digit raw integer.
+    // values render as `5.6T` rather than a 13-digit raw integer.
     const text = bar!.textContent ?? '';
-    expect(text).toMatch(/5\.60T/);
+    expect(text).toMatch(/5\.6T/);
     expect(text.length).toBeLessThan(80);
   });
 
@@ -146,7 +146,7 @@ describe('Tooltip / InfoBar precision defaults', () => {
     expect(text).not.toMatch(/\d\.\d/);
   });
 
-  it('Tooltip keeps fixed decimals once the series holds a fraction', () => {
+  it('Tooltip prints every value of a series with the decimals the series has', () => {
     mounted = mountChart(
       <>
         <BarSeries data={counts([237, 120.5, 73, 186, 305])} />
@@ -155,7 +155,9 @@ describe('Tooltip / InfoBar precision defaults', () => {
       { width: 800, height: 400 },
     );
 
-    expect(hoverTooltipText(mounted)).toMatch(/\d\.\d{2}/);
+    const text = hoverTooltipText(mounted);
+    expect(text).toMatch(/\d\.\d$/);
+    expect(text).not.toMatch(/\d\.\d{2}/);
   });
 
   it('paints values in `theme.tooltip.valueColor`; the swatch keeps the series color', () => {

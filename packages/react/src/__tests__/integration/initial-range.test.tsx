@@ -55,4 +55,23 @@ describe('viewport.initialRange', () => {
     expect(visibleBars(mounted)).toBeGreaterThanOrEqual(50);
     expect(visibleBars(mounted)).toBeLessThan(55);
   });
+
+  it('shows a range of days on a monthly and a daily series, the monthly one declared first', () => {
+    const DAY = 86_400_000;
+    const monthly = Array.from({ length: 36 }, (_, i) => ({ time: Date.UTC(2020, i, 1), value: 4 + (i % 6) }));
+    const daily = Array.from({ length: 3 * 365 }, (_, i) => ({ time: Date.UTC(2020, 0, 1) + i * DAY, value: 1 }));
+    const from = Date.UTC(2021, 5, 25);
+    const to = Date.UTC(2021, 6, 12);
+
+    mounted = mountChart(
+      <>
+        <LineSeries data={monthly} />
+        <LineSeries data={daily} />
+      </>,
+      { viewport: { initialRange: { from, to } } },
+    );
+    mounted.flushScheduler();
+
+    expect(mounted.chart.getVisibleRange()).toEqual({ from, to });
+  });
 });

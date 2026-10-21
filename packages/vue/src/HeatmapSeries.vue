@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HeatmapCellData, HeatmapSeriesOptions } from '@wick-charts/core';
+import type { HeatmapCellInput, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -8,7 +8,7 @@ import { useChartInstance } from './context';
 
 const props = withDefaults(
   defineProps<{
-    data: HeatmapCellData[];
+    data: HeatmapCellInput[];
     options?: Partial<HeatmapSeriesOptions>;
     /** Stable series ID — same value across remounts. */
     id?: string;

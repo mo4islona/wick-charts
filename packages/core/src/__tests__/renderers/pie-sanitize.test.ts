@@ -36,6 +36,19 @@ describe('PieRenderer value sanitization (negative / non-finite slices)', () => 
     expect(r.getSliceInfo(theme)?.[1].value).toBe(-1565);
   });
 
+  it('reads a null value as a zero slice, silently', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    r.setData([
+      { label: 'A', value: 3 },
+      { label: 'B', value: null },
+    ]);
+
+    const info = r.getSliceInfo(theme);
+    expect(info?.[1]).toMatchObject({ label: 'B', value: 0, percent: 0 });
+    expect(info?.[0].percent).toBeCloseTo(100, 5);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('stays silent for positive and zero slices', () => {
     const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
     r.setData([

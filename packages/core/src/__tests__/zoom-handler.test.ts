@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { PanZoomTarget } from '../interactions/pan-zoom-target';
-import { ZoomHandler } from '../interactions/zoom';
+import { WHEEL_IDLE_MS, ZoomHandler } from '../interactions/zoom';
 import type { XScale } from '../scales/x-scale';
 
 /**
@@ -142,11 +142,9 @@ describe('ZoomHandler.handleWheel', () => {
   });
 });
 
-describe('ZoomHandler rebound removal', () => {
-  // The wheel-idle rebound timer was removed in Phase 2 step 2 alongside
-  // the rest of the rebound feature. The viewport stays where the user
-  // left it; the engine eases the visual via the chart-side gesture emit.
-  it('handleWheel does not schedule any side effect beyond target.zoomAt', () => {
+describe('ZoomHandler wheel idle', () => {
+  // The viewport stays where the user left it — no rebound; the idle timer only ends the gesture.
+  it('handleWheel moves the view only through target.zoomAt', () => {
     vi.useFakeTimers();
     try {
       const target = { pan: vi.fn(), zoomAt: vi.fn() } as unknown as PanZoomTarget & {
@@ -172,14 +170,50 @@ describe('ZoomHandler rebound removal', () => {
     }
   });
 
-  it('cancelPendingRebound is a no-op (kept for InteractionHandler.destroy API parity)', () => {
-    const target = { pan: vi.fn(), zoomAt: vi.fn() } as unknown as PanZoomTarget;
-    const timeScale = {
-      getMediaWidth: vi.fn(() => 800),
-      xToTime: vi.fn((x: number) => x * 100),
-    } as unknown as XScale;
-    const handler = new ZoomHandler(target, timeScale);
+  it('ends the gesture once, after the wheel goes idle', () => {
+    vi.useFakeTimers();
+    try {
+      const endGesture = vi.fn();
+      const target = { pan: vi.fn(), zoomAt: vi.fn(), endGesture } as unknown as PanZoomTarget;
+      const timeScale = {
+        getMediaWidth: vi.fn(() => 800),
+        xToTime: vi.fn((x: number) => x * 100),
+      } as unknown as XScale;
+      const handler = new ZoomHandler(target, timeScale);
+      const wheel = () =>
+        ({ deltaY: 10, deltaMode: 0, offsetX: 400, preventDefault: vi.fn() }) as unknown as WheelEvent;
 
-    expect(() => handler.cancelPendingRebound()).not.toThrow();
+      handler.handleWheel(wheel());
+      vi.advanceTimersByTime(WHEEL_IDLE_MS - 50);
+      handler.handleWheel(wheel());
+      vi.advanceTimersByTime(WHEEL_IDLE_MS - 50);
+      expect(endGesture).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(100);
+      expect(endGesture).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('drops a pending gesture end on cancelPendingEnd', () => {
+    vi.useFakeTimers();
+    try {
+      const endGesture = vi.fn();
+      const target = { pan: vi.fn(), zoomAt: vi.fn(), endGesture } as unknown as PanZoomTarget;
+      const timeScale = {
+        getMediaWidth: vi.fn(() => 800),
+        xToTime: vi.fn((x: number) => x * 100),
+      } as unknown as XScale;
+      const handler = new ZoomHandler(target, timeScale);
+
+      handler.handleWheel({ deltaY: 10, deltaMode: 0, offsetX: 400, preventDefault: vi.fn() } as unknown as WheelEvent);
+      handler.cancelPendingEnd();
+      vi.advanceTimersByTime(1_000);
+
+      expect(endGesture).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

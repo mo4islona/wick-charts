@@ -2,7 +2,7 @@ import { DEFAULT_HEATMAP_ENTRY, DEFAULT_HEATMAP_UPDATE } from '../animation/conf
 import { easeOutCubic } from '../animation/easing';
 import { resolveAxisFontSize, resolveAxisTextColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
-import type { HeatmapCellData, HeatmapCellLabelsOptions, HeatmapSeriesOptions } from '../types';
+import type { HeatmapCellInput, HeatmapCellLabelsOptions, HeatmapSeriesOptions } from '../types';
 import { deriveHeatmapRamp, isLightColor, mixColors, sampleRamp } from '../utils/color';
 import { formatCompact } from '../utils/format';
 import { clamp, smoothToward } from '../utils/math';
@@ -153,7 +153,7 @@ function cellKey(x: string, y: string): string {
 export class HeatmapRenderer implements HeatmapSeriesRenderer {
   readonly kind = 'heatmap' as const;
 
-  #data: HeatmapCellData[] = [];
+  #data: HeatmapCellInput[] = [];
   #options: ResolvedHeatmapOptions;
 
   /** Column keys in display order (left → right). */
@@ -220,7 +220,7 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
     const prevShape = this.#shapeKey();
     const hadData = this.#cells.length > 0;
 
-    this.#data = (data ?? []) as HeatmapCellData[];
+    this.#data = (data ?? []) as HeatmapCellInput[];
     this.#rebuildGrid();
 
     const sameShape = hadData && this.#shapeKey() === prevShape;
@@ -245,7 +245,7 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
     }
   }
 
-  getData(): HeatmapCellData[] {
+  getData(): HeatmapCellInput[] {
     return this.#data;
   }
 
@@ -446,12 +446,16 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
       const row = rowIndex.get(datum.y);
       if (col === undefined || row === undefined) continue;
 
+      // A missing reading keeps its column and row but leaves the cell empty: no fill, no tooltip.
+      const { value } = datum;
+      if (value === null || !Number.isFinite(value)) continue;
+
       const position = row * cols.length + col;
       const existing = this.#cellAt[position];
       const placed: PlacedCell = {
         x: datum.x,
         y: datum.y,
-        value: datum.value,
+        value,
         color: datum.color,
         col,
         row,

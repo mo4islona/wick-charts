@@ -7,6 +7,7 @@ import {
   type TooltipFormatter,
   buildHoverSnapshots,
   computeTooltipPosition,
+  formatRowTime,
   formatRowValue,
   formatTooltipHeader,
   resolveCandlestickBodyColor,
@@ -80,6 +81,15 @@ const snapshots = computed<readonly SeriesSnapshot[]>(() => {
 // shift with `sort` and, for ragged multi-layer data, disagree with the
 // actual hover moment.
 const displayTime = computed(() => crosshair.value?.time ?? 0);
+
+// The date of a row whose point is not the header's, else `null`.
+const rowTimeFor = (s: SeriesSnapshot): string | null =>
+  formatRowTime(chart, {
+    time: displayTime.value,
+    snapshots: snapshots.value,
+    interval: dataInterval.value,
+    snapshot: s,
+  });
 
 const slots = useSlots();
 const hasCustomSlot = computed(() => typeof slots.default === 'function');
@@ -286,6 +296,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
             whiteSpace: 'nowrap',
           }"
         >{{ s.label ?? 'Range' }}</span>
+        <span v-if="rowTimeFor(s) !== null" :style="{ opacity: 0.45, whiteSpace: 'nowrap' }">{{ rowTimeFor(s) }}</span>
         <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }">
           <NumberText :text="formatFor(s)((s.data as BandPoint).low, 'low')" /> –
           <NumberText :text="formatFor(s)((s.data as BandPoint).high, 'high')" />
@@ -311,6 +322,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
             whiteSpace: 'nowrap',
           }"
         >{{ s.label ?? 'Value' }}</span>
+        <span v-if="rowTimeFor(s) !== null" :style="{ opacity: 0.45, whiteSpace: 'nowrap' }">{{ rowTimeFor(s) }}</span>
         <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }">
           <NumberText :text="formatRowValue(s, (v) => formatFor(s)(v, 'value'))" />
         </span>
