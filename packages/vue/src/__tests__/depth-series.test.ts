@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import type { ChartInstance, DepthLevel } from '@wick-charts/core';
 import { ChartContainer, DepthSeries, catppuccin } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { type Ref, defineComponent, h, nextTick, ref } from 'vue';
+import { type Ref, defineComponent, h, nextTick, reactive, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
@@ -151,5 +151,49 @@ describe('Vue <DepthSeries>', () => {
     expect(view.chart().getSeriesIds()).not.toContain('book');
 
     view.unmount();
+  });
+
+  it('re-sends the book after an in-place push or a level replaced on a reactive book', async () => {
+    // `DepthLevel` is read-only; the app's own book is a plain mutable array.
+    type Level = [price: number, size: number];
+    const book = reactive<{ bids: Level[]; asks: Level[] }>({
+      bids: BIDS.map(([price, size]): Level => [price, size]),
+      asks: ASKS.map(([price, size]): Level => [price, size]),
+    });
+    let captured: ChartInstance | null = null;
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(
+            ChartContainer,
+            {
+              theme: catppuccin.theme,
+              axis: { x: { type: 'numeric' } },
+              onReady: (c: ChartInstance) => {
+                captured = c;
+              },
+            },
+            () => [h(DepthSeries, { id: 'book', bids: book.bids, asks: book.asks })],
+          );
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+    const chart = captured as ChartInstance | null;
+    if (!chart) throw new Error('chart not captured');
+
+    book.asks.push([105, 4]);
+    await settle();
+    expect(chart.getLayerSnapshots('book', 106)?.[0]).toMatchObject({ time: 105, value: 7 });
+
+    book.asks[0] = [101, 5];
+    await settle();
+    expect(chart.getLayerSnapshots('book', 104)?.[0]).toMatchObject({ time: 103, value: 7 });
+
+    book.bids[0][1] = 3;
+    await settle();
+    expect(chart.getLayerSnapshots('book', 98)?.[0]).toMatchObject({ time: 99, value: 3 });
+
+    wrapper.unmount();
   });
 });

@@ -22,15 +22,19 @@ export let spinDuration: number = 350;
 /** How long a character that left keeps its width before the number shrinks, in ms. */
 export let shrinkDelay: number = 0;
 
-// The engine owns the root's children; Svelte only renders the empty root.
+// The engine owns the root's children once mounted.
 let root: HTMLSpanElement;
 let flow: NumberFlowHandle | null = null;
 
 $: resolved = resolveNumberFlowFormat(format, locale);
 $: text = resolved.format(value);
 
+// Server HTML and hydration show this text; it is never reassigned, so Svelte never overwrites the slots.
+const initialText = resolveNumberFlowFormat(format, locale).format(value);
+
 onMount(() => {
   flow = mountNumberFlow(root, { spinDuration, shrinkDelay, decimal: resolved.decimal });
+  flow.update(text, value);
 });
 
 onDestroy(() => {
@@ -42,4 +46,4 @@ $: flow?.setOptions({ spinDuration, shrinkDelay, decimal: resolved.decimal });
 $: flow?.update(text, value);
 </script>
 
-<span bind:this={root} style="display:inline-flex;font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap;"></span>
+<span bind:this={root} style="display:inline-flex;font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap;">{initialText}</span>

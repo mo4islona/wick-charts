@@ -1,8 +1,9 @@
 import { render } from '@testing-library/svelte';
-import type { ChartInstance } from '@wick-charts/core';
+import { type ChartInstance, computeTooltipPosition } from '@wick-charts/core';
 import { tick } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { MockResizeObserver } from '../../../react/test-setup';
 import TooltipParityHarness from './TooltipParityHarness.svelte';
 
 /**
@@ -70,6 +71,31 @@ function installSizePatch(width = 800, height = 400): () => void {
     } else {
       delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientHeight;
     }
+  };
+}
+
+/** Gives every `[data-chart-tooltip]` box a layout size; jsdom has no layout. */
+function stubTooltipBox(width: number, height: number): () => void {
+  const proto = HTMLElement.prototype;
+  const widthDesc = Object.getOwnPropertyDescriptor(proto, 'offsetWidth');
+  const heightDesc = Object.getOwnPropertyDescriptor(proto, 'offsetHeight');
+  const sized = (el: HTMLElement, size: number) => (el.hasAttribute('data-chart-tooltip') ? size : 0);
+  Object.defineProperty(proto, 'offsetWidth', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return sized(this, width);
+    },
+  });
+  Object.defineProperty(proto, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) {
+      return sized(this, height);
+    },
+  });
+
+  return () => {
+    if (widthDesc) Object.defineProperty(proto, 'offsetWidth', widthDesc);
+    if (heightDesc) Object.defineProperty(proto, 'offsetHeight', heightDesc);
   };
 }
 
@@ -233,5 +259,109 @@ describe('Svelte <Tooltip> / <InfoBar> parity', () => {
     const header = Array.from(container.querySelectorAll('div')).find((el) => el.textContent?.trim() === 'Sep 8, 2022');
     expect(header).toBeDefined();
     unmount();
+  });
+
+  it('<Tooltip> sizes the box to its content and keeps it inside the plot by its measured size', async () => {
+    const restoreBox = stubTooltipBox(300, 60);
+    const lineData = [Array.from({ length: 20 }, (_, i) => ({ time: i + 1, value: 10 + i }))];
+    let chart: ChartInstance | null = null;
+    const { container, unmount } = render(TooltipParityHarness, {
+      props: {
+        variant: 'line-tooltip',
+        lineData,
+        onChart: (c: ChartInstance) => {
+          chart = c;
+        },
+      },
+    });
+
+    try {
+      await settle();
+      const c = chart as ChartInstance | null;
+      if (!c) throw new Error('probe did not run');
+
+      const chartWidth = c.getLayout().chartArea.width;
+      // Room on the right for the 160 px estimate, not for the 300 px box.
+      c.setCrosshair({ time: c.timeScale.xToTime(chartWidth - 200), y: 15 });
+      await settle();
+
+      const tooltip = container.querySelector<HTMLElement>('[data-chart-tooltip]');
+      const crosshair = c.getCrosshairPosition();
+      if (!tooltip || !crosshair) throw new Error('tooltip did not render');
+
+      const expected = computeTooltipPosition({
+        x: crosshair.mediaX,
+        y: crosshair.mediaY,
+        chartLeft: c.plotLeft,
+        chartWidth,
+        chartHeight: c.getMediaSize().height - c.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.style.width).toBe('max-content');
+      expect(tooltip.style.maxWidth).toBe(`${chartWidth}px`);
+      expect(Number.parseFloat(tooltip.style.left)).toBe(expected.left);
+      expect(Number.parseFloat(tooltip.style.top)).toBe(expected.top);
+    } finally {
+      unmount();
+      restoreBox();
+    }
+  });
+
+  it('<Tooltip> keeps a custom slot box inside the plot near the right edge by its border-box size', async () => {
+    const restoreBox = stubTooltipBox(300, 60);
+    const lineData = [Array.from({ length: 20 }, (_, i) => ({ time: i + 1, value: 10 + i }))];
+    let chart: ChartInstance | null = null;
+    const { container, unmount } = render(TooltipParityHarness, {
+      props: {
+        variant: 'slot-tooltip',
+        lineData,
+        onChart: (c: ChartInstance) => {
+          chart = c;
+        },
+      },
+    });
+
+    try {
+      await settle();
+      const c = chart as ChartInstance | null;
+      if (!c) throw new Error('probe did not run');
+
+      const chartWidth = c.getLayout().chartArea.width;
+      const chartObservers = new Set(MockResizeObserver.callbacks);
+      // Room on the right for the 270 px content box, not for the 300 px border box.
+      c.setCrosshair({ time: c.timeScale.xToTime(chartWidth - 300), y: 15 });
+      await settle();
+
+      const tooltip = container.querySelector<HTMLElement>('[data-chart-tooltip]');
+      const crosshair = c.getCrosshairPosition();
+      if (!tooltip || !crosshair) throw new Error('tooltip did not render');
+
+      // A browser reports the content box: 300 × 60 less the 14/10 px padding and 1 px border.
+      const contentBox = { target: tooltip, contentRect: { width: 270, height: 38 } } as unknown as ResizeObserverEntry;
+      for (const cb of MockResizeObserver.callbacks) {
+        if (!chartObservers.has(cb)) cb([contentBox], {} as ResizeObserver);
+      }
+      await settle();
+
+      const expected = computeTooltipPosition({
+        x: crosshair.mediaX,
+        y: crosshair.mediaY,
+        chartLeft: c.plotLeft,
+        chartWidth,
+        chartHeight: c.getMediaSize().height - c.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.style.visibility).toBe('visible');
+      expect(Number.parseFloat(tooltip.style.left) + 300).toBeLessThanOrEqual(c.plotLeft + chartWidth);
+      expect(Number.parseFloat(tooltip.style.left)).toBe(expected.left);
+      expect(Number.parseFloat(tooltip.style.top)).toBe(expected.top);
+    } finally {
+      unmount();
+      restoreBox();
+    }
   });
 });

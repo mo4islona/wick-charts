@@ -12,7 +12,7 @@ import {
   resolveCandlestickBodyColor,
   rowFormatter,
 } from '@wick-charts/core';
-import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vue';
+import { computed, onMounted, onUnmounted, onUpdated, ref, useSlots, watchEffect } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
@@ -84,32 +84,51 @@ const displayTime = computed(() => crosshair.value?.time ?? 0);
 const slots = useSlots();
 const hasCustomSlot = computed(() => typeof slots.default === 'function');
 
-const containerRef = ref<HTMLDivElement | null>(null);
-const measuredSize = ref<{ width: number; height: number } | null>(null);
+interface BoxSize {
+  width: number;
+  height: number;
+}
 
-// `ResizeObserver` on the custom-render container — unknown content dimensions
-// mean we can't pre-compute `tooltipWidth/Height` for `computeTooltipPosition`.
-// Measure on mount + any content change, then flip `visibility` to visible.
-let observer: ResizeObserver | null = null;
+/** Border-box size of the node, `null` before it has a layout. */
+function readBox(node: HTMLElement | null): BoxSize | null {
+  if (node === null) return null;
+
+  const width = node.offsetWidth;
+  if (width === 0) return null;
+
+  return { width, height: node.offsetHeight };
+}
+
+function sameBox(a: BoxSize | null, b: BoxSize | null): boolean {
+  if (a === null || b === null) return a === b;
+
+  return a.width === b.width && a.height === b.height;
+}
+
+// Both boxes size to their content. Rows and labels change with the hover,
+// so measure after every render; a new size re-renders in the same flush, before paint.
+const boxRef = ref<HTMLDivElement | null>(null);
+const boxSize = ref<BoxSize | null>(null);
+
+function measureBox(): void {
+  const next = readBox(boxRef.value);
+  if (!sameBox(boxSize.value, next)) boxSize.value = next;
+}
+
+onMounted(measureBox);
+onUpdated(measureBox);
+
+// Custom slot content can also resize between renders (an image that loads).
+// `contentRect` leaves out the padding and border, so the callback reads the border box.
 watchEffect((onCleanup) => {
   if (!hasCustomSlot.value) return;
-  const node = containerRef.value;
+  const node = boxRef.value;
   if (!node || typeof ResizeObserver === 'undefined') return;
 
-  observer = new ResizeObserver((entries) => {
-    const box = entries[0]?.contentRect;
-    if (!box) return;
-    const prev = measuredSize.value;
-    if (!prev || prev.width !== box.width || prev.height !== box.height) {
-      measuredSize.value = { width: box.width, height: box.height };
-    }
-  });
+  const observer = new ResizeObserver(measureBox);
   observer.observe(node);
 
-  onCleanup(() => {
-    observer?.disconnect();
-    observer = null;
-  });
+  onCleanup(() => observer.disconnect());
 });
 
 const floatingPos = computed<{ left: number; top: number } | null>(() => {
@@ -120,7 +139,8 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if (hasCustomSlot.value) {
-    const size = measuredSize.value;
+    // Custom slot content has no size to estimate, so the box stays hidden until it is measured.
+    const size = boxSize.value;
     if (!size) return { left: chartLeft, top: 0 };
 
     return computeTooltipPosition({
@@ -136,13 +156,15 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
 
   const hasOHLC = snapshots.value.some((s) => 'open' in s.data);
   const lineCount = snapshots.value.filter((s) => !('open' in s.data)).length;
-  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
+  // Until the box is measured, estimate it: a band row carries two numbers, a percent-stack row a share and a value.
   const hasBand = snapshots.value.some((s) => 'high' in s.data && !('open' in s.data));
   const hasShare = snapshots.value.some((s) => s.share !== undefined);
-  let tooltipWidth = 160;
-  if (hasBand) tooltipWidth = 220;
-  if (hasShare) tooltipWidth = 240;
-  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  let estimatedWidth = 160;
+  if (hasBand) estimatedWidth = 220;
+  if (hasShare) estimatedWidth = 240;
+  const estimatedHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  const tooltipWidth = boxSize.value?.width ?? estimatedWidth;
+  const tooltipHeight = boxSize.value?.height ?? estimatedHeight;
 
   return computeTooltipPosition({
     x: crosshair.value.mediaX,
@@ -155,7 +177,7 @@ const floatingPos = computed<{ left: number; top: number } | null>(() => {
   });
 });
 
-const measured = computed(() => !hasCustomSlot.value || measuredSize.value !== null);
+const measured = computed(() => !hasCustomSlot.value || boxSize.value !== null);
 
 function isOHLC(data: SeriesSnapshot['data']): data is OHLCData {
   return 'open' in data;
@@ -169,6 +191,8 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
 <template>
   <div
     v-if="crosshair && snapshots.length > 0 && floatingPos && !hasCustomSlot"
+    ref="boxRef"
+    data-chart-tooltip=""
     :style="{
       position: 'absolute',
       left: floatingPos.left + 'px',
@@ -185,7 +209,10 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
       fontFamily: theme.typography.fontFamily,
       fontVariantNumeric: 'tabular-nums',
       color: theme.tooltip.textColor,
+      width: 'max-content',
       minWidth: '140px',
+      maxWidth: chart.getLayout().chartArea.width + 'px',
+      boxSizing: 'border-box',
       zIndex: 10,
       transition: 'opacity 0.15s ease',
     }"
@@ -274,8 +301,17 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
             flexShrink: 0,
           }"
         />
-        <span :style="{ opacity: 0.6, flex: '1' }">{{ s.label ?? 'Value' }}</span>
-        <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color }">
+        <span
+          :style="{
+            opacity: 0.6,
+            flex: '1',
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }"
+        >{{ s.label ?? 'Value' }}</span>
+        <span :style="{ fontWeight: 600, color: theme.tooltip.valueColor ?? s.color, whiteSpace: 'nowrap' }">
           <NumberText :text="formatRowValue(s, (v) => formatFor(s)(v, 'value'))" />
         </span>
       </div>
@@ -284,7 +320,8 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
 
   <div
     v-if="crosshair && snapshots.length > 0 && floatingPos && hasCustomSlot"
-    ref="containerRef"
+    ref="boxRef"
+    data-chart-tooltip=""
     :data-measured="measured ? 'true' : 'false'"
     :style="{
       position: 'absolute',
@@ -306,7 +343,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
       maxWidth: chart.getLayout().chartArea.width + 'px',
       boxSizing: 'border-box',
       zIndex: 10,
-      visibility: measuredSize !== null ? 'visible' : 'hidden',
+      visibility: boxSize !== null ? 'visible' : 'hidden',
     }"
   >
     <slot :snapshots="snapshots" :time="displayTime" />

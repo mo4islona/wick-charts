@@ -33,8 +33,11 @@ const props = withDefaults(
 
 const resolved = computed(() => resolveNumberFlowFormat(props.format, props.locale));
 const text = computed(() => resolved.value.format(props.value));
+// Server HTML and hydration show this text; it is not reactive, so Vue never overwrites the slots.
+// `data-allow-mismatch` keeps a value that ticked before hydration from warning.
+const initialText = text.value;
 
-// The engine owns the root's children; Vue only renders the empty root.
+// The engine owns the root's children once mounted.
 const root = ref<HTMLSpanElement | null>(null);
 let flow: NumberFlowHandle | null = null;
 
@@ -69,11 +72,12 @@ watch([text, () => props.value], ([nextText, nextValue]) => {
 <template>
   <span
     ref="root"
+    data-allow-mismatch="text"
     :style="{
       display: 'inline-flex',
       fontVariantNumeric: 'tabular-nums',
       lineHeight: 1.2,
       whiteSpace: 'nowrap',
     }"
-  />
+  >{{ initialText }}</span>
 </template>

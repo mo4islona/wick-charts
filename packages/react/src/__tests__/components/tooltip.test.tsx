@@ -1,6 +1,8 @@
+import { act } from '@testing-library/react';
 import { CandlestickSeries, LineSeries, Tooltip } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { MockResizeObserver } from '../../../test-setup';
 import { computeTooltipPosition } from '../../ui/Tooltip';
 import { mountChart } from '../helpers/mount-chart';
 
@@ -86,7 +88,121 @@ describe('Tooltip (floating) overlay positioning', () => {
     return Number.parseFloat(value.replace('px', '')) || 0;
   }
 
-  it('widens the box for percent-stack rows, which carry a share and a value', () => {
+  /** Gives every `[data-chart-tooltip]` box a layout size; happy-dom has no layout. */
+  function stubTooltipBox(width: number, height: number): () => void {
+    const proto = HTMLElement.prototype;
+    const widthDesc = Object.getOwnPropertyDescriptor(proto, 'offsetWidth');
+    const heightDesc = Object.getOwnPropertyDescriptor(proto, 'offsetHeight');
+    const sized = (el: HTMLElement, size: number) => (el.hasAttribute('data-chart-tooltip') ? size : 0);
+    Object.defineProperty(proto, 'offsetWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return sized(this, width);
+      },
+    });
+    Object.defineProperty(proto, 'offsetHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return sized(this, height);
+      },
+    });
+
+    return () => {
+      if (widthDesc) Object.defineProperty(proto, 'offsetWidth', widthDesc);
+      if (heightDesc) Object.defineProperty(proto, 'offsetHeight', heightDesc);
+    };
+  }
+
+  it('sizes the box to a long label and keeps it inside the plot by its measured size', () => {
+    const restore = stubTooltipBox(300, 60);
+    try {
+      const layer = Array.from({ length: 20 }, (_, i) => ({ time: i + 1, value: 10 + i }));
+      mounted = mountChart(
+        <>
+          <LineSeries data={[{ label: 'Fri 10 May', data: layer }]} />
+          <Tooltip />
+        </>,
+        { width: 800, height: 400 },
+      );
+      const chartWidth = mounted.chart.getLayout().chartArea.width;
+      // Room on the right for the 160 px estimate, not for the 300 px box.
+      mounted.dispatchMouse('mousemove', { clientX: chartWidth - 200, clientY: 200 }, mounted.overlayCanvas);
+      mounted.flushScheduler();
+
+      const tooltip = mounted.container.querySelector<HTMLElement>('[data-chart-tooltip]');
+      const crosshair = mounted.chart.getCrosshairPosition();
+      if (!tooltip || !crosshair) throw new Error('tooltip did not render');
+
+      const expected = computeTooltipPosition({
+        x: crosshair.mediaX,
+        y: crosshair.mediaY,
+        chartLeft: mounted.chart.plotLeft,
+        chartWidth,
+        chartHeight: mounted.chart.getMediaSize().height - mounted.chart.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.style.width).toBe('max-content');
+      expect(tooltip.style.maxWidth).toBe(`${chartWidth}px`);
+      expect(parsePx(tooltip.style.left)).toBe(expected.left);
+      expect(parsePx(tooltip.style.top)).toBe(expected.top);
+      expect(parsePx(tooltip.style.left) + 300).toBeLessThanOrEqual(mounted.chart.plotLeft + chartWidth);
+    } finally {
+      restore();
+    }
+  });
+
+  it('keeps a custom render-prop box inside the plot near the right edge by its border-box size', () => {
+    const restore = stubTooltipBox(300, 60);
+    try {
+      const layer = Array.from({ length: 20 }, (_, i) => ({ time: i + 1, value: 10 + i }));
+      mounted = mountChart(
+        <>
+          <LineSeries data={[layer]} />
+          <Tooltip>{() => <div>custom</div>}</Tooltip>
+        </>,
+        { width: 800, height: 400 },
+      );
+      const chartWidth = mounted.chart.getLayout().chartArea.width;
+      const chartObservers = new Set(MockResizeObserver.callbacks);
+      // Room on the right for the 270 px content box, not for the 300 px border box.
+      mounted.dispatchMouse('mousemove', { clientX: chartWidth - 300, clientY: 200 }, mounted.overlayCanvas);
+      mounted.flushScheduler();
+
+      const tooltip = mounted.container.querySelector<HTMLElement>('[data-chart-tooltip]');
+      const crosshair = mounted.chart.getCrosshairPosition();
+      if (!tooltip || !crosshair) throw new Error('tooltip did not render');
+
+      // A browser reports the content box: 300 × 60 less the 14/10 px padding and 1 px border.
+      const contentBox = { target: tooltip, contentRect: { width: 270, height: 38 } } as unknown as ResizeObserverEntry;
+      const observers = Array.from(MockResizeObserver.callbacks).filter((cb) => !chartObservers.has(cb));
+      act(() => {
+        for (const cb of observers) {
+          cb([contentBox], {} as ResizeObserver);
+        }
+      });
+
+      const expected = computeTooltipPosition({
+        x: crosshair.mediaX,
+        y: crosshair.mediaY,
+        chartLeft: mounted.chart.plotLeft,
+        chartWidth,
+        chartHeight: mounted.chart.getMediaSize().height - mounted.chart.xAxisHeight,
+        tooltipWidth: 300,
+        tooltipHeight: 60,
+      });
+
+      expect(tooltip.style.visibility).toBe('visible');
+      expect(parsePx(tooltip.style.left) + 300).toBeLessThanOrEqual(mounted.chart.plotLeft + chartWidth);
+      expect(parsePx(tooltip.style.left)).toBe(expected.left);
+      expect(parsePx(tooltip.style.top)).toBe(expected.top);
+    } finally {
+      restore();
+    }
+  });
+
+  it('sizes the box to its content for percent-stack rows, which carry a share and a value', () => {
     const layer = (values: number[]) => values.map((value, i) => ({ time: (i + 1) * 60_000, value }));
     mounted = mountChart(
       <>
@@ -108,7 +224,7 @@ describe('Tooltip (floating) overlay positioning', () => {
     const boxes = Array.from(mounted.container.querySelectorAll<HTMLElement>('div')).filter(
       (el) => el.style.position === 'absolute' && (el.textContent ?? '').includes('% ·'),
     );
-    expect(boxes.at(-1)?.style.width).toBe('240px');
+    expect(boxes.at(-1)?.style.width).toBe('max-content');
   });
 
   it('keeps the floating tooltip inside the plot area when hovering near the top-left', () => {

@@ -20,10 +20,36 @@ export function markSlot(component: object, slot: WickSlot): void {
   (component as Record<string, WickSlot>)[SLOT_KEY] = slot;
 }
 
-/** Read the slot marker off a React element's `type`, if any. */
+const REACT_LAZY = Symbol.for('react.lazy');
+
+interface LazyType {
+  $$typeof: symbol;
+  _payload: unknown;
+  _init: (payload: unknown) => unknown;
+}
+
+function isLazyType(type: unknown): type is LazyType {
+  if (typeof type !== 'object' || type === null) return false;
+
+  const candidate = type as Partial<LazyType>;
+
+  return candidate.$$typeof === REACT_LAZY && typeof candidate._init === 'function';
+}
+
+/**
+ * Read the slot marker off a React element's `type`, if any. A lazy type
+ * (how the Flight client delivers a client component created by a Server
+ * Component) is resolved first; a pending one throws its thenable, which
+ * suspends the render exactly like React's own lazy handling.
+ */
 export function slotOf(type: unknown): WickSlot | undefined {
-  const taggable = typeof type === 'function' || (typeof type === 'object' && type !== null);
+  let resolved = type;
+  while (isLazyType(resolved)) {
+    resolved = resolved._init(resolved._payload);
+  }
+
+  const taggable = typeof resolved === 'function' || (typeof resolved === 'object' && resolved !== null);
   if (!taggable) return undefined;
 
-  return (type as Record<string, WickSlot | undefined>)[SLOT_KEY];
+  return (resolved as Record<string, WickSlot | undefined>)[SLOT_KEY];
 }

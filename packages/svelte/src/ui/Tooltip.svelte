@@ -15,7 +15,7 @@ import {
   resolveCandlestickBodyColor,
   rowFormatter,
 } from '@wick-charts/core';
-import { onDestroy } from 'svelte';
+import { afterUpdate, onDestroy } from 'svelte';
 
 import { getChartContext } from '../context.js';
 import { createCrosshairPosition } from '../stores.js';
@@ -86,31 +86,51 @@ $: snapshots =
 $: displayTime = crosshair?.time ?? 0;
 $: mediaSize = chart?.getMediaSize();
 
-let measuredSize: { width: number; height: number } | null = null;
+interface BoxSize {
+  width: number;
+  height: number;
+}
 
-// A Svelte action so the observer's lifecycle is tied to the slot container:
-// when the `{#if}` block unmounts the node (hover ends) the action's
-// `destroy()` disconnects, and on the next mount a fresh observer attaches
-// to the new node. Without this the observer stays attached to a detached
-// node and `measuredSize` goes stale on the second hover.
-function measureOnResize(node: HTMLDivElement) {
+/** Border-box size of the node, `null` before it has a layout. */
+function readBox(node: HTMLElement | null): BoxSize | null {
+  if (node === null) return null;
+
+  const width = node.offsetWidth;
+  if (width === 0) return null;
+
+  return { width, height: node.offsetHeight };
+}
+
+function sameBox(a: BoxSize | null, b: BoxSize | null): boolean {
+  if (a === null || b === null) return a === b;
+
+  return a.width === b.width && a.height === b.height;
+}
+
+// Both boxes size to their content. Rows and labels change with the hover,
+// so measure after every update; a new size updates again in the same flush, before paint.
+let box: HTMLDivElement | null = null;
+let boxSize: BoxSize | null = null;
+
+function measureBox(): void {
+  const next = readBox(box);
+  // Svelte invalidates on every object assignment, so assign only a real change.
+  if (!sameBox(boxSize, next)) boxSize = next;
+}
+
+afterUpdate(measureBox);
+
+// Custom slot content can also resize between updates (an image that loads).
+// `contentRect` leaves out the padding and border, so the callback reads the border box.
+function observeResize(node: HTMLDivElement) {
   if (typeof ResizeObserver === 'undefined') return { destroy() {} };
 
-  const ro = new ResizeObserver((entries) => {
-    const box = entries[0]?.contentRect;
-    if (!box) return;
-    if (!measuredSize || measuredSize.width !== box.width || measuredSize.height !== box.height) {
-      measuredSize = { width: box.width, height: box.height };
-    }
-  });
+  const ro = new ResizeObserver(measureBox);
   ro.observe(node);
 
   return {
     destroy() {
       ro.disconnect();
-      // Reset so the next hover starts hidden-until-measured rather than
-      // reusing the previous tooltip's size for one frame.
-      measuredSize = null;
     },
   };
 }
@@ -122,7 +142,8 @@ $: floatingPos = (() => {
   const chartHeight = mediaSize.height - chart.xAxisHeight;
 
   if ($$slots.default) {
-    if (!measuredSize) return { left: chartLeft, top: 0 };
+    // Custom slot content has no size to estimate, so the box stays hidden until it is measured.
+    if (!boxSize) return { left: chartLeft, top: 0 };
 
     return computeTooltipPosition({
       x: crosshair.mediaX,
@@ -130,20 +151,22 @@ $: floatingPos = (() => {
       chartLeft,
       chartWidth,
       chartHeight,
-      tooltipWidth: measuredSize.width,
-      tooltipHeight: measuredSize.height,
+      tooltipWidth: boxSize.width,
+      tooltipHeight: boxSize.height,
     });
   }
 
   const hasOHLC = snapshots.some((s) => 'open' in s.data);
   const lineCount = snapshots.filter((s) => !('open' in s.data)).length;
-  // A band row carries two numbers, and a percent-stack row a share and a value, so both need a wider box.
+  // Until the box is measured, estimate it: a band row carries two numbers, a percent-stack row a share and a value.
   const hasBand = snapshots.some((s) => 'high' in s.data && !('open' in s.data));
   const hasShare = snapshots.some((s) => s.share !== undefined);
-  let tooltipWidth = 160;
-  if (hasBand) tooltipWidth = 220;
-  if (hasShare) tooltipWidth = 240;
-  const tooltipHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  let estimatedWidth = 160;
+  if (hasBand) estimatedWidth = 220;
+  if (hasShare) estimatedWidth = 240;
+  const estimatedHeight = hasOHLC ? 140 : 40 + lineCount * 22;
+  const tooltipWidth = boxSize?.width ?? estimatedWidth;
+  const tooltipHeight = boxSize?.height ?? estimatedHeight;
 
   return computeTooltipPosition({
     x: crosshair.mediaX,
@@ -160,15 +183,19 @@ $: floatingPos = (() => {
 {#if crosshair && snapshots.length > 0 && chart && theme && floatingPos}
   {#if $$slots.default}
     <div
-      use:measureOnResize
-      data-measured={measuredSize ? 'true' : 'false'}
-      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? chart.getLayout().chartArea.width : 0}px;box-sizing:border-box;z-index:10;visibility:{measuredSize ? 'visible' : 'hidden'};"
+      bind:this={box}
+      use:observeResize
+      data-chart-tooltip=""
+      data-measured={boxSize ? 'true' : 'false'}
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? chart.getLayout().chartArea.width : 0}px;box-sizing:border-box;z-index:10;visibility:{boxSize ? 'visible' : 'hidden'};"
     >
       <slot {snapshots} time={displayTime} />
     </div>
   {:else}
     <div
-      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.tooltip.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};min-width:140px;z-index:10;transition:opacity 0.15s ease;"
+      bind:this={box}
+      data-chart-tooltip=""
+      style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-size:{theme.tooltip.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;min-width:140px;max-width:{chart.getLayout().chartArea.width}px;box-sizing:border-box;z-index:10;transition:opacity 0.15s ease;"
     >
       <div
         style="font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid {theme.tooltip.borderColor};letter-spacing:0.02em;"
@@ -206,8 +233,8 @@ $: floatingPos = (() => {
         {:else}
           <div style="display:flex;align-items:center;gap:8px;padding:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:{s.color};flex-shrink:0;"></span>
-            <span style="opacity:0.6;flex:1;">{s.label ?? 'Value'}</span>
-            <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};"><NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} /></span>
+            <span style="opacity:0.6;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{s.label ?? 'Value'}</span>
+            <span style="font-weight:600;color:{theme.tooltip.valueColor ?? s.color};white-space:nowrap;"><NumberText text={formatRowValue(s, (v) => rowFormat(v, 'value'))} /></span>
           </div>
         {/if}
       {/each}

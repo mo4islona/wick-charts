@@ -5,6 +5,7 @@ import {
   type ChartTheme,
   type TimePointInput,
   type ValueFormatter,
+  catppuccin,
   formatCompact,
   normalizeTime,
   resolveCandlestickBodyColor,
@@ -13,6 +14,7 @@ import {
 import { BarSeries } from '../BarSeries';
 import { ChartContainer } from '../ChartContainer';
 import { LineSeries } from '../LineSeries';
+import { useThemeOptional } from '../ThemeContext';
 
 export type SparklineVariant = 'line' | 'bar';
 export type SparklineValuePosition = 'left' | 'right' | 'none';
@@ -37,8 +39,11 @@ export interface SparklineProps {
    *   effect).
    */
   flow?: { capacity: number; align?: 'left' | 'right' | 'offscreen' };
-  /** Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block. */
-  theme: ChartTheme;
+  /**
+   * Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block.
+   * Defaults to the `ThemeProvider` theme, else the default theme of `ChartContainer`.
+   */
+  theme?: ChartTheme;
   /** 'line' (default) or 'bar' */
   variant?: SparklineVariant;
   /** Where to show the value label */
@@ -113,7 +118,7 @@ function computeChange(values: number[]): { value: number; pct: number; positive
 
 export function Sparkline({
   data,
-  theme,
+  theme: themeProp,
   variant = 'line',
   valuePosition = 'right',
   format = formatCompact,
@@ -131,6 +136,9 @@ export function Sparkline({
   gradient = false,
   style,
 }: SparklineProps) {
+  const contextTheme = useThemeOptional();
+  const theme = themeProp ?? contextTheme ?? catppuccin.theme;
+
   // Default area-visible = true. `area` wins if caller passes it; otherwise
   // fall back to the deprecated flat `areaFill` flag for backward compatibility.
   const areaVisible = area?.visible ?? areaFill ?? true;

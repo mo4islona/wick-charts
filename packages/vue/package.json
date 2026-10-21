@@ -29,6 +29,7 @@
     "visualization"
   ],
   "type": "module",
+  "sideEffects": false,
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -39,10 +40,7 @@
   },
   "files": [
     "dist",
-    "src",
-    "LICENSE",
-    "!src/__tests__",
-    "!src/**/*.test.*"
+    "LICENSE"
   ],
   "scripts": {
     "build": "vite build",
