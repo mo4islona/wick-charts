@@ -19,6 +19,7 @@ import { EMPTY_SYNC_STATE, type SeriesSyncState, syncLayers, syncSeriesLayer } f
 import type { OHLCData } from '../types';
 
 const INTERVAL = 60_000 * 60; // 1-hour candles, matching the load-on-scroll demo.
+const BASE = Date.UTC(2024, 0, 1);
 
 function makeChart(): { chart: ChartInstance; container: HTMLElement } {
   const container = document.createElement('div');
@@ -67,7 +68,7 @@ describe('ChartInstance — history prepend keeps the viewport stable', () => {
 
   it('a 100-candle prepend leaves the visible window and data tail put (no re-fit snap)', () => {
     const id = chart.addSeries('candlestick');
-    const base = 2_000_000_000;
+    const base = BASE;
     const initial = candlesBefore(200, base + 200 * INTERVAL);
     let sync: SeriesSyncState = syncSeriesLayer({ chart, id, data: initial, prev: EMPTY_SYNC_STATE });
 
@@ -96,7 +97,7 @@ describe('ChartInstance — history prepend keeps the viewport stable', () => {
 
   it('prepend keeps the window put even after the user pans away from the tail (autoscroll off)', () => {
     const id = chart.addSeries('candlestick');
-    const base = 2_000_000_000;
+    const base = BASE;
     const initial = candlesBefore(200, base + 200 * INTERVAL);
     let sync: SeriesSyncState = syncSeriesLayer({ chart, id, data: initial, prev: EMPTY_SYNC_STATE });
 
@@ -122,7 +123,7 @@ describe('ChartInstance — history prepend keeps the viewport stable', () => {
   for (const kind of ['line', 'bar'] as const) {
     it(`a ${kind} history prepend leaves the visible window and data tail put`, () => {
       const id = kind === 'line' ? chart.addSeries('line') : chart.addSeries('bar');
-      const base = 2_000_000_000;
+      const base = BASE;
       const initial = pointsBefore(200, base + 200 * INTERVAL);
       let sync: SeriesSyncState[] = syncLayers({ chart, id, data: initial, prev: [] });
 

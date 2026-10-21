@@ -1,5 +1,6 @@
 import { EventEmitter } from '../events';
 import { binarySearch } from '../utils/math';
+import { warnDataOnce } from '../utils/poisoned-data-reporter';
 
 interface StoreEvents {
   update: () => void;
@@ -16,6 +17,10 @@ function hasFraction(point: object): boolean {
 
   return false;
 }
+
+/** As ms, [1e8, 1e10) is 1970-01-02 to 1970-04-26; as Unix seconds it is 1973 to 2286. */
+const SECONDS_LIKE_MIN = 1e8;
+const SECONDS_LIKE_MAX = 1e10;
 
 function countFractions(points: readonly object[]): number {
   let count = 0;
@@ -73,6 +78,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     }
 
     this.data = sorted ? data.slice() : [...data].sort((a, b) => a.time - b.time);
+    this.warnIfSeconds();
     this.fractionalPoints = countFractions(this.data);
     this.lastHasFraction = this.data.length > 0 && hasFraction(this.data[this.data.length - 1]);
     this.exited = [];
@@ -95,6 +101,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       return;
     }
     this.data.push(point);
+    this.warnIfSeconds();
     this.lastHasFraction = hasFraction(point);
     if (this.lastHasFraction) this.fractionalPoints++;
     this.appendedSinceTrim++;
@@ -124,6 +131,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
     if (this.data.length === 0) this.lastHasFraction = hasFraction(points[points.length - 1]);
     this.data = points.concat(this.data);
+    this.warnIfSeconds();
     this.fractionalPoints += countFractions(points);
     this.exited = [];
     this.cachedRange = null;
@@ -146,6 +154,27 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     this.lowestReadFrom = Number.POSITIVE_INFINITY;
     this.cachedRange = null;
     this.emit('update');
+  }
+
+  /** A series wholly inside early 1970 as ms almost surely holds Unix seconds; negative (pre-1970) times never match. */
+  private warnIfSeconds(): void {
+    const first = this.data[0];
+    const last = this.data[this.data.length - 1];
+    if (first === undefined || last === undefined) return;
+
+    // A numeric axis keys its points by `x`, where any number is a fine X.
+    if ('x' in first) return;
+
+    const secondsLike = first.time >= SECONDS_LIKE_MIN && last.time < SECONDS_LIKE_MAX;
+    if (!secondsLike) return;
+
+    warnDataOnce({
+      token: this,
+      topic: 'epoch-seconds',
+      message:
+        `series times look like Unix seconds: time ${first.time} is ${new Date(first.time).toISOString()} ` +
+        'read as milliseconds. Times are epoch milliseconds: multiply seconds by 1000, or pass `Date` objects.',
+    });
   }
 
   /**

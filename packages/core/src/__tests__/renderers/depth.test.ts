@@ -229,6 +229,10 @@ describe('DepthRenderer queries', () => {
 });
 
 describe('DepthRenderer level deltas', () => {
+  afterEach(() => {
+    globalThis.matchMedia = reducedMotionStub;
+  });
+
   it('merges levels and removes one whose size is 0', () => {
     const renderer = makeRenderer();
     renderer.setData(BOOK);
@@ -246,6 +250,24 @@ describe('DepthRenderer level deltas', () => {
     expect(spy.callsOf('fillText')[0].args[0]).toBe('mid 50.5 · spread 3');
   });
 
+  it('ignores a fresh snapshot of the same book, so a re-render replays no morph', () => {
+    allowMotion();
+    const renderer = makeRenderer({ introMs: 0, updateMs: 300 });
+    const listener = vi.fn();
+    renderer.onDataChanged(listener);
+
+    renderer.setData(BOOK);
+    renderer.setData({ bids: BOOK.bids.map((level) => [...level]), asks: [...BOOK.asks].reverse() });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(renderer.needsAnimation).toBe(false);
+
+    renderer.setData({ bids: BOOK.bids, asks: [...BOOK.asks, [60, 1]] });
+
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(renderer.needsAnimation).toBe(true);
+  });
+
   it('notifies its data listeners on a snapshot and on a delta', () => {
     const renderer = makeRenderer();
     const listener = vi.fn();
@@ -255,6 +277,68 @@ describe('DepthRenderer level deltas', () => {
     renderer.updateLastPoint({ bids: [[47, 1]] });
 
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('DepthRenderer input validation', () => {
+  // The raw Binance `/api/v3/depth` payload: levels are decimal strings.
+  const STRING_BOOK = {
+    lastUpdateId: 1,
+    bids: [
+      ['83025.91000000', '1.06184000'],
+      ['83025.90000000', '0.00012000'],
+    ],
+    asks: [['83025.92000000', '2.50000000']],
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('warns once, naming the first rejected level, when a book carries string levels', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const renderer = makeRenderer();
+
+    renderer.setData(STRING_BOOK);
+    renderer.setData(STRING_BOOK);
+    renderer.updateLastPoint({ asks: [['83026', '1']] });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = String(warn.mock.calls[0][0]);
+    expect(message).toContain('depth: skipping 3 levels');
+    expect(message).toContain('["83025.91000000", "1.06184000"]');
+    expect(message).toContain('Number(price)');
+    expect(renderer.getTotalLength()).toBe(0);
+  });
+
+  it('keeps the valid levels of a book and a delta, warning about the rest', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const renderer = makeRenderer();
+
+    renderer.setData({ bids: [[49, 2], [48, Number.NaN], { price: 47, size: 1 }], asks: [[51, 1]] });
+    renderer.updateLastPoint({
+      asks: [
+        [52, Number.POSITIVE_INFINITY],
+        [53, 4],
+      ],
+    });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('skipping 2 levels');
+    expect(renderer.getTotalLength()).toBe(3);
+    expect(renderer.getTimeBounds()).toEqual({ first: 49, last: 53 });
+  });
+
+  it('stays silent for a numeric book, an empty book and zero-size levels', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const renderer = makeRenderer();
+
+    renderer.setData(BOOK);
+    renderer.setData({ bids: [], asks: [] });
+    renderer.setData(null);
+    renderer.updateLastPoint({ bids: [[49, 0]] });
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

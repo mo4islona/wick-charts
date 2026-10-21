@@ -5,13 +5,13 @@ import { logScale } from '../../scales/log-scale';
 import { BandRenderer, BandSeriesDef } from '../../series/band';
 import type { RecordedCall } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
-import type { BandPointInput } from '../../types';
+import type { BandPoint, BandPointInput } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
 // With the default context (yRange 0..100 over 400px), value v lands at y = 400 - 4v.
 const yOf = (value: number): number => 400 - value * 4;
 
-function band(points: Array<[number, number, number]>): BandPointInput[] {
+function band(points: Array<[number, number, number]>): BandPoint[] {
   return points.map(([time, low, high]) => ({ time, low, high }));
 }
 
@@ -186,22 +186,33 @@ describe('BandRenderer — geometry', () => {
     expect(bottom).toBeCloseTo(yOf(20));
   });
 
-  it('a non-finite or missing edge splits the band into separate polygons', () => {
+  it('a non-finite or null edge splits the band into separate polygons', () => {
     const r = new BandRenderer(1);
-    r.setData([
+    const samples: BandPointInput[] = [
       { time: 10, low: 20, high: 60 },
       { time: 20, low: 25, high: 65 },
       { time: 30, low: Number.NaN, high: 70 },
       { time: 40, low: 25, high: 60 },
-      { time: 50, low: null as unknown as number, high: 60 },
+      { time: 50, low: null, high: 60 },
       { time: 60, low: 30, high: 50 },
       { time: 70, low: 30, high: 55 },
-    ]);
+    ];
+    r.setData(samples);
     const { spy } = render(r);
 
     // Two polygons; the lone sample at t=40 between two gaps draws as a tick.
     expect(fillPolygons(spy.calls)).toHaveLength(2);
     expect(spy.countOf('stroke')).toBe(2);
+  });
+
+  it('a null edge streamed in is a gap with no tooltip row', () => {
+    const r = new BandRenderer(1);
+    r.setData(STEADY);
+    const gap: BandPointInput = { time: 50, low: 30, high: null };
+    r.appendPoint(gap);
+
+    expect(r.getDataAtTime(50, 5)).toBeNull();
+    expect(r.getDataAtTime(40, 5)).toMatchObject({ low: 25, high: 60 });
   });
 
   it('normalizes low > high instead of crossing the edges', () => {

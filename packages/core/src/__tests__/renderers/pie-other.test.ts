@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { PieRenderer } from '../../series/pie';
 import { catppuccin } from '../../theme/themes/catppuccin';
@@ -101,6 +101,7 @@ describe('PieRenderer — "other" grouping (default on)', () => {
   });
 
   it('ranks by sanitized value: negative / non-finite slices can never outrank a real one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const r = new PieRenderer({ other: { maxSlices: 3 } });
     r.setData([
       { label: 'broken', value: Number.NaN },
@@ -111,6 +112,8 @@ describe('PieRenderer — "other" grouping (default on)', () => {
 
     const labels = r.getSliceInfo(catppuccin.theme)?.map((s) => s.label);
     expect(labels).toEqual(['real-1', 'real-2', 'Other']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });
 

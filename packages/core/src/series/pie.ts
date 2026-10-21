@@ -4,6 +4,7 @@ import type { ChartTheme } from '../theme/types';
 import type { PieLabelsOptions, PieOtherOptions, PieSeriesOptions, PieSliceData } from '../types';
 import { isLightColor, lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
+import { warnDataOnce } from '../utils/poisoned-data-reporter';
 import type { SeriesDefinition } from './definition';
 import type { HoverInfo, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
 
@@ -489,6 +490,7 @@ export class PieRenderer implements PieSeriesRenderer {
   setData(data: unknown): void {
     const hadData = this.#data.length > 0;
     const slices = (data ?? []) as PieSliceData[];
+    this.#reportUndrawable(slices);
     this.#data = slices;
     this.#display = this.#computeDisplayData();
     this.#sliceOffsets = new Array(this.#display.length).fill(0);
@@ -507,6 +509,26 @@ export class PieRenderer implements PieSeriesRenderer {
     for (const listener of this.#dataListeners) {
       listener();
     }
+  }
+
+  /** The layout gives a negative or non-finite slice no arc; without a warning it just vanishes. */
+  #reportUndrawable(slices: readonly PieSliceData[]): void {
+    const undrawable = slices.filter((slice) => {
+      const drawable = Number.isFinite(slice.value) && slice.value >= 0;
+
+      return !drawable;
+    });
+    if (undrawable.length === 0) return;
+
+    const first = undrawable[0];
+    const count = undrawable.length === 1 ? '1 slice' : `${undrawable.length} slices`;
+    warnDataOnce({
+      token: this,
+      topic: 'pie-undrawable',
+      message:
+        `pie: ${count} drawn with no arc, first "${first.label}" with value ${first.value}. ` +
+        'A pie shows shares of a positive total; negative and non-finite values take no arc.',
+    });
   }
 
   onDataChanged(listener: () => void): () => void {

@@ -205,6 +205,65 @@ describe('TimeSeriesStore', () => {
     });
   });
 
+  describe('epoch-seconds warning', () => {
+    const DAY_S = 86_400;
+    const JUNE_2024_S = 1_717_200_000;
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('warns once when the times are Unix seconds, showing where they land as ms', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const s = makeStore([
+        { time: JUNE_2024_S, value: 1 },
+        { time: JUNE_2024_S + DAY_S, value: 2 },
+      ]);
+      s.append({ time: JUNE_2024_S + 2 * DAY_S, value: 3 });
+      s.setData([{ time: JUNE_2024_S, value: 1 }]);
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const message = String(warnSpy.mock.calls[0][0]);
+      expect(message).toContain('look like Unix seconds');
+      expect(message).toContain('1970-01-20');
+    });
+
+    it('catches seconds that stream into an empty store and history from before 2001', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      makeStore().append({ time: JUNE_2024_S, value: 1 });
+      makeStore([
+        { time: 631_152_000, value: 1 }, // 1990-01-01 in seconds
+        { time: JUNE_2024_S, value: 2 },
+      ]);
+
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('stays silent for ms times, pre-1970 times, small synthetic times and numeric-axis X', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      makeStore([
+        { time: JUNE_2024_S * 1000, value: 1 },
+        { time: (JUNE_2024_S + DAY_S) * 1000, value: 2 },
+      ]);
+      makeStore([
+        { time: -JUNE_2024_S, value: 1 },
+        { time: -DAY_S, value: 2 },
+      ]);
+      makeStore([
+        { time: 0, value: 1 },
+        { time: 5e8, value: 2 },
+      ]);
+      // A numeric axis copies `x` into `time`: a byte count is not a timestamp.
+      const numeric = new TimeSeriesStore<Point & { x: number }>();
+      numeric.setData([
+        { time: 2e9, value: 1, x: 2e9 },
+        { time: 4e9, value: 2, x: 4e9 },
+      ]);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('hasOnlyWholeValues', () => {
     const at = (time: number, value: number): Point => ({ time, value });
 

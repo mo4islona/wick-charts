@@ -63,14 +63,19 @@ export interface BandPoint {
   x?: number | string;
 }
 
-/** {@link BandPoint} that also accepts `Date` for the time field. */
-export type BandPointInput = Omit<BandPoint, 'time' | 'x'> & { time: TimeValue };
+/** {@link BandPoint} that also accepts `Date` for the time field, and a `null` edge for a gap. */
+export type BandPointInput = Omit<BandPoint, 'time' | 'x' | 'low' | 'high'> & {
+  time: TimeValue;
+  low: number | null;
+  high: number | null;
+};
 
 /** A band sample on a numeric or category X axis — {@link XPointInput} with edges in place of a value. */
 export interface XBandPointInput {
   x: number | string;
-  low: number;
-  high: number;
+  /** `null` (or any non-finite edge) is a gap. */
+  low: number | null;
+  high: number | null;
 }
 
 /**
