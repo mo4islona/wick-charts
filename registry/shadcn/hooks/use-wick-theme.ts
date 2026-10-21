@@ -78,7 +78,10 @@ export function themeFromTokens(tokens: WickThemeTokens): ChartTheme {
   // --chart-1 is the light end: it fades on a light card but stands out on a dark one.
   const strongIndex = strongerEnd(chartColors, surface);
   const strong = palette[strongIndex] ?? text;
-  const soft = palette[strongIndex === 1 ? 0 : 1] ?? dim;
+  const softIndex = strongIndex === 1 ? 0 : 1;
+  const soft = palette[softIndex] ?? dim;
+  // The ramp is the same in both modes, so the card colour alone can sink into a mid-tone badge.
+  const badgeText = readableOn(chartColors[softIndex] ?? muted, surface, foreground);
 
   return createTheme({
     name: 'shadcn',
@@ -92,7 +95,7 @@ export function themeFromTokens(tokens: WickThemeTokens): ChartTheme {
       upBackground: soft,
       downBackground: soft,
       neutralBackground: soft,
-      textColor: background,
+      textColor: badgeText,
     },
     grid: { color: cssColor(border, 0.5) },
     // shadcn chart ticks are `text-xs`.
@@ -226,6 +229,16 @@ function strongerEnd(colors: Rgba[], surface: Rgba): number {
   const lastContrast = contrast(colors[last], surface);
 
   return firstContrast >= lastContrast ? 0 : last;
+}
+
+/** `surface` or `foreground`, whichever contrasts more with `fill`. */
+function readableOn(fill: Rgba | null, surface: Rgba, foreground: Rgba | null): string {
+  if (!fill || !foreground) return formatColor(surface);
+
+  const surfaceContrast = contrast(surface, fill);
+  const foregroundContrast = contrast(foreground, fill);
+
+  return formatColor(surfaceContrast >= foregroundContrast ? surface : foreground);
 }
 
 /** WCAG contrast ratio, 1 to 21. */

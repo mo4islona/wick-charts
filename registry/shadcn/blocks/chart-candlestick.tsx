@@ -23,6 +23,9 @@ const HISTORY = 80;
 const formatPrice = (value: number) =>
   value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Inside the chart: the same grouping without cents, so the axis column and the OHLC row fit a phone.
+const formatChartPrice = (value: number) => value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
 const candleOptions = { bodyWidthRatio: 0.7 };
 
 // Seeded, so the server render and the browser start from the same candles.
@@ -108,9 +111,9 @@ export function ChartCandlestick() {
       </CardHeader>
       <CardContent>
         <WickChart className="aspect-auto h-[280px]" viewport={{ initialRange: 48 }}>
-          <InfoBar />
+          <InfoBar format={formatChartPrice} />
           <CandlestickSeries data={{ label: 'BTC', data: candles }} options={candleOptions} />
-          <YAxis />
+          <YAxis format={formatChartPrice} />
           <TimeAxis />
           <Crosshair />
           <YLabel />
