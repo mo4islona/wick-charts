@@ -131,6 +131,26 @@ describe('ChartInstance — the chart’s own window', () => {
       expect(range.to).toBeGreaterThanOrEqual(T0 + 29 * INTERVAL);
     });
 
+    it('applies a window narrower than the step a lone seed guessed once the stream shows the real step', () => {
+      const SECOND = 1000;
+      const from = T0;
+      const to = T0 + 17 * SECOND;
+      makeChart({ viewport: { initialRange: { from, to } } });
+      const id = chart.addSeries('candlestick');
+
+      const [first, second, third] = candles(3, { step: SECOND });
+      chart.appendData(id, first);
+      raf.flush(60);
+      chart.appendData(id, second);
+      raf.flush(60);
+      expect(chart.getVisibleRange()).toEqual({ from, to });
+
+      // From here the stream slides the window, as it does any window that holds the live tail.
+      chart.appendData(id, third);
+      raf.flush(60);
+      expect(visibleBars(SECOND)).toBeCloseTo(17, 5);
+    });
+
     it('falls back to the default fit for a reversed window', () => {
       makeChart({ viewport: { initialRange: { from: T0 + 20 * INTERVAL, to: T0 } } });
       const id = chart.addSeries('candlestick');
