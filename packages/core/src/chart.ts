@@ -43,7 +43,7 @@ import {
   warnXTypeChange,
 } from './chart/x-guards';
 import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget, widenFlatRange } from './chart/y-target';
-import { renderCrosshair } from './components/crosshair';
+import { type CrosshairXLabel, crosshairXLabel, renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
@@ -1315,6 +1315,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         region: { from: region.from, to: region.to, fill, color, label: region.label },
         plotWidth,
         plotHeight,
+        headerHeight: this.#headerHeight,
       });
     }
   }
@@ -2369,6 +2370,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * The crosshair's X-axis pill at `pos`, as `<Crosshair>` renders it: it names
+   * the point the tooltip snaps to and stays inside the chart at an edge.
+   */
+  getCrosshairXLabel(pos: CrosshairPosition): CrosshairXLabel {
+    return crosshairXLabel(this, pos);
+  }
+
+  /**
    * Programmatically set or clear the crosshair. Same effect as the user
    * hovering over `(timeToX(time), valueToY(y))` — emits `crosshairMove`,
    * marks the overlay layer dirty, and lets `<Crosshair>` / `<Tooltip>`
@@ -2707,6 +2716,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (!entry) return null;
     const colors = entry.renderer.getLayerColors();
     return colors[0] ?? this.#theme.line.color;
+  }
+
+  /** The color a point at `value` of the series paints in — a value-fn or threshold color resolved for it. */
+  getSeriesColorAt(seriesId: string, value: number): string | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    const pointColor = entry?.renderer.resolvePointColor?.(0, value);
+
+    return pointColor ?? this.getSeriesColor(seriesId);
   }
 
   /** The series' primary name (first layer). Used for single-layer overlays. */
@@ -3206,6 +3223,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#headerHeight = next;
     this.#bumpOverlayVersion();
+    // Region label chips on the main layer sit below the header.
+    if (this.#regions.length > 0) this.#mainScheduler.markDirty();
   }
 
   /**
@@ -5021,6 +5040,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const intrusion = onLeft ? 0 : Math.min(endGap, column);
     const autoWidth = onLeft ? endGap + leadIn : intrusion + leadIn;
     const configured = onLeft ? this.#fade.left : this.#fade.right;
+    // The auto ramp melts data scrolling out under the column; category bands cannot scroll.
+    if (configured === null && this.#xType === 'category') return null;
+
     const total = configured === null ? autoWidth : Math.round(configured * hpr);
     if (total < 1) return null;
 

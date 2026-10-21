@@ -23,6 +23,9 @@ import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__test
 
 const lineData = [Array.from({ length: 30 }, (_, i) => ({ time: i + 1, value: i * 10 + 5 }))];
 
+const DAY = 86_400_000;
+const dailyData = [Array.from({ length: 30 }, (_, i) => ({ time: Date.UTC(2026, 8, 1) + i * DAY, value: i }))];
+
 async function settle(): Promise<void> {
   for (let i = 0; i < 6; i++) {
     await nextTick();
@@ -62,7 +65,10 @@ function sizeDescendants(host: HTMLElement, width = 800, height = 400): () => vo
   };
 }
 
-function mountCrosshair(host: HTMLElement): {
+function mountCrosshair(
+  host: HTMLElement,
+  data = lineData,
+): {
   getChart: () => ChartInstance;
   wrapper: ReturnType<typeof mount>;
 } {
@@ -81,7 +87,7 @@ function mountCrosshair(host: HTMLElement): {
     setup: () => () =>
       h(ChartContainer, { theme: catppuccin.theme }, () => [
         h(Probe),
-        h(LineSeries, { id: 'line-id', data: lineData }),
+        h(LineSeries, { id: 'line-id', data }),
         h(Crosshair),
       ]),
   });
@@ -155,6 +161,21 @@ describe('Vue <Crosshair>', () => {
     wrapper.unmount();
   });
 
+  it('names the point the tooltip snaps to, not the day under the pointer (matches React)', async () => {
+    const { getChart, wrapper } = mountCrosshair(host, dailyData);
+    await settle();
+    const chart = getChart();
+    chart.setTimeZone('UTC');
+
+    // Sep 19, 18:00 is nearer to the Sep 20 point.
+    chart.setCrosshair({ time: Date.UTC(2026, 8, 19, 18), y: 10 });
+    await settle();
+
+    expect(wrapper.find('[style*="translate(clamp("]').text()).toBe('Sep 20');
+
+    wrapper.unmount();
+  });
+
   it('updates label colors when the theme is swapped at runtime', async () => {
     const { getChart, wrapper } = mountCrosshair(host);
     await settle();
@@ -167,7 +188,7 @@ describe('Vue <Crosshair>', () => {
     // (happy-dom drops the `color-mix(...)` background as an unknown value, so
     // the assertion targets the plain `color` = `labelTextColor`, which survives
     // and differs between presets.)
-    const pill = () => wrapper.find('[style*="translate(-50%, 50%)"]');
+    const pill = () => wrapper.find('[style*="translate(clamp("]');
     expect(pill().exists()).toBe(true);
     const before = pill().attributes('style') ?? '';
     expect(before).toContain(`color: ${catppuccin.theme.crosshair.labelTextColor}`);

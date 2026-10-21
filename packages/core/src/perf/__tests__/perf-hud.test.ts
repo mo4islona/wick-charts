@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTheme } from '../../theme/palettes';
 import { resolveCandlestickBodyColor } from '../../theme/resolve';
-import { PerfHud, perfHud } from '../perf-hud';
+import { PerfHud, perfHud, sparkBounds, sparkPeak } from '../perf-hud';
 import { PerfMonitor } from '../perf-monitor';
 
 function perfCell(container: HTMLElement, id: string): string {
@@ -50,6 +50,7 @@ describe('PerfHud', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     container?.remove();
   });
 
@@ -450,11 +451,28 @@ describe('PerfHud', () => {
     expect(spark?.style.display).toBe('');
     // Not draggable: no move icon in the open panel.
     expect(container.querySelector<HTMLElement>('[data-perf="drag"]')?.style.display).toBe('none');
-    // Collapse is a badge on the panel's top-right corner.
+    // Collapse ends the header row, inside the panel, so an `overflow: hidden` host can't clip it.
     const collapse = panel?.querySelector('button');
-    expect(collapse?.parentElement).toBe(panel);
+    expect(collapse?.parentElement?.lastElementChild).toBe(collapse);
+    expect(collapse?.parentElement?.textContent).toContain('PERF');
     expect(collapse?.style.display).toBe('flex');
-    expect(collapse?.style.right).toBe('-8px');
+    expect(collapse?.style.position).toBe('');
+
+    hud.destroy();
+    monitor.destroy();
+  });
+
+  it('gives its graph epoch times, so a page open for days reads no Unix seconds', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // ~55 h of uptime: a bare `performance.now()` is now 1970-01-03 as ms.
+    vi.spyOn(performance, 'now').mockReturnValue(2e8);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const monitor = new PerfMonitor();
+    const hud = new PerfHud(container, monitor);
+
+    const warnings = warn.mock.calls.map((call) => String(call[0]));
+    expect(warnings.filter((message) => message.includes('Unix seconds'))).toEqual([]);
 
     hud.destroy();
     monitor.destroy();
@@ -497,6 +515,26 @@ describe('PerfHud', () => {
 
     hud.destroy();
     monitor.destroy();
+  });
+});
+
+describe('sparkBounds', () => {
+  it('puts the rounded peak topPx below the plot top and zero 4px above its bottom', () => {
+    const heightPx = 62;
+    const topPx = 24;
+    const range = sparkBounds({ values: [0, 57, 60.4], heightPx, topPx });
+    const yOf = (value: number) => ((range.max - value) / (range.max - range.min)) * heightPx;
+
+    expect(yOf(70)).toBeCloseTo(topPx);
+    expect(yOf(0)).toBeCloseTo(heightPx - 4);
+    expect(sparkPeak({ range, heightPx, topPx })).toBeCloseTo(70);
+  });
+
+  it('falls back to the bare peak before layout', () => {
+    const range = sparkBounds({ values: [42], heightPx: 0, topPx: 24 });
+
+    expect(range).toEqual({ min: 0, max: 50 });
+    expect(sparkPeak({ range, heightPx: 0, topPx: 24 })).toBe(50);
   });
 });
 

@@ -4,6 +4,7 @@ import {
   detectInterval,
   formatDate,
   formatTime,
+  isNewYearsDay,
   niceTimeIntervals,
   normalizeOHLCArray,
   normalizeTime,
@@ -134,6 +135,13 @@ describe('niceTimeIntervals', () => {
     expect(intervals[0]).toBe(DAY);
   });
 
+  it('steps from 1 to 2 minutes before 5, so a narrow window of seconds keeps a few labels', () => {
+    const intervals = niceTimeIntervals(5_000);
+
+    expect(intervals).toContain(2 * MINUTE);
+    expect(intervals.indexOf(2 * MINUTE)).toBe(intervals.indexOf(MINUTE) + 1);
+  });
+
   it('exposes multi-year tiers so 150-year spans can decimate to readable tick counts', () => {
     // 5y candles spanning 150y => 30 candles. With only 1y as the largest
     // tick interval, the axis paints ~30 labels and they collide.
@@ -168,6 +176,15 @@ describe('formatTime', () => {
   it('still formats month/day for sub-year day-scale intervals', () => {
     const out = formatTime(ts, DAY);
     expect(out).toMatch(/^[A-Z][a-z]{2} \d+$/);
+  });
+
+  it('drops the seconds when the step is a whole number of minutes', () => {
+    const quarterPast = Date.UTC(2018, 5, 15, 6, 15);
+
+    expect(formatTime(quarterPast, 15 * MINUTE, { timeZone: 'UTC' })).toBe('06:15');
+    expect(formatTime(quarterPast, 30 * MINUTE, { timeZone: 'UTC' })).toBe('06:15');
+    expect(formatTime(quarterPast + 5_000, 5_000, { timeZone: 'UTC' })).toBe('06:15:05');
+    expect(formatTime(quarterPast + 30_000, 90_000, { timeZone: 'UTC' })).toBe('06:15:30');
   });
 
   it('applies a custom locale', () => {
@@ -207,5 +224,22 @@ describe('formatDate', () => {
     const tokyo = formatDate(nearMidnight, { timeZone: 'Asia/Tokyo' });
     // Tokyo is UTC+9 — 23:30 UTC on the 15th is already the 16th in Tokyo.
     expect(utc).not.toBe(tokyo);
+  });
+});
+
+describe('isNewYearsDay', () => {
+  it('reads the date in the given zone', () => {
+    const newYearUtc = Date.UTC(2020, 0, 1);
+
+    expect(isNewYearsDay(newYearUtc, 'UTC')).toBe(true);
+    expect(isNewYearsDay(newYearUtc + DAY, 'UTC')).toBe(false);
+    // Still Dec 31 in New York, already Jan 1 in Tokyo.
+    expect(isNewYearsDay(newYearUtc + 2 * HOUR, 'America/New_York')).toBe(false);
+    expect(isNewYearsDay(Date.UTC(2019, 11, 31, 20), 'Asia/Tokyo')).toBe(true);
+  });
+
+  it('reads the local date without a zone', () => {
+    expect(isNewYearsDay(new Date(2021, 0, 1, 12).getTime(), undefined)).toBe(true);
+    expect(isNewYearsDay(new Date(2021, 1, 1).getTime(), undefined)).toBe(false);
   });
 });

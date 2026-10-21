@@ -17,6 +17,9 @@ import CrosshairHarness from './CrosshairHarness.svelte';
 
 const lineData = [Array.from({ length: 30 }, (_, i) => ({ time: i + 1, value: i * 10 + 5 }))];
 
+const DAY = 86_400_000;
+const dailyData = [Array.from({ length: 30 }, (_, i) => ({ time: Date.UTC(2026, 8, 1) + i * DAY, value: i }))];
+
 async function settle(): Promise<void> {
   for (let i = 0; i < 8; i++) {
     await tick();
@@ -55,14 +58,14 @@ function installSizePatch(width = 800, height = 400): () => void {
 /** The time pill is the absolutely-positioned label centred on the X-axis label row.
  *  Scoped to this render's container so a sibling test can't leak a stale pill. */
 function timePill(container: HTMLElement): HTMLElement | null {
-  return container.querySelector('[style*="translate(-50%, 50%)"]');
+  return container.querySelector('[style*="translate(clamp("]');
 }
 
-function mountHarness(): { chart: () => ChartInstance; container: HTMLElement } {
+function mountHarness(data = lineData): { chart: () => ChartInstance; container: HTMLElement } {
   let captured: ChartInstance | undefined;
   const { container } = render(CrosshairHarness, {
     props: {
-      lineData,
+      lineData: data,
       onChart: (c: ChartInstance) => {
         captured = c;
       },
@@ -123,6 +126,19 @@ describe('Svelte <Crosshair>', () => {
     c.setCrosshair({ time: 20, y: 100 });
     await settle();
     expect(niceSpy.mock.calls.length).toBeGreaterThan(afterFirst);
+  });
+
+  it('names the point the tooltip snaps to, not the day under the pointer (matches React)', async () => {
+    const { chart, container } = mountHarness(dailyData);
+    await settle();
+    const c = chart();
+    c.setTimeZone('UTC');
+
+    // Sep 19, 18:00 is nearer to the Sep 20 point.
+    c.setCrosshair({ time: Date.UTC(2026, 8, 19, 18), y: 10 });
+    await settle();
+
+    expect(timePill(container)?.textContent?.trim()).toBe('Sep 20');
   });
 
   it('updates label colors when the theme is swapped at runtime (V2)', async () => {

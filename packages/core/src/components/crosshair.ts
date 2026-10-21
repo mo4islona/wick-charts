@@ -1,5 +1,10 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
+import type { ChartInstance } from '../chart';
+import { buildHoverSnapshots, formatHeaderX } from '../snapshots';
 import type { ChartTheme } from '../theme/types';
+import type { CrosshairPosition } from '../types';
+
+const DAY = 86_400_000;
 
 export interface CrosshairRenderArgs {
   scope: BitmapCoordinateSpace;
@@ -53,4 +58,45 @@ export function renderCrosshair(args: CrosshairRenderArgs): void {
   context.stroke();
 
   context.setLineDash([]);
+}
+
+/** The crosshair's X-axis pill, placed in container CSS px. */
+export interface CrosshairXLabel {
+  text: string;
+  /** The pointer's X, which the pill centres on unless the chart edge would cut it. */
+  left: number;
+  bottom: number;
+  transform: string;
+}
+
+export function crosshairXLabel(chart: ChartInstance, pos: CrosshairPosition): CrosshairXLabel {
+  const left = pos.mediaX;
+  const right = chart.getMediaSize().width - left;
+  // Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
+  const bottom = chart.xAxisHeight / 2;
+
+  // CSS clamps in the pill's own width: shifted inward near an edge instead of cut.
+  const shiftX = `clamp(${-left}px, -50%, calc(${right}px - 100%))`;
+  const shiftY = bottom > 0 ? '50%' : '0px';
+
+  return { text: crosshairXText(chart, pos), left, bottom, transform: `translate(${shiftX}, ${shiftY})` };
+}
+
+function crosshairXText(chart: ChartInstance, pos: CrosshairPosition): string {
+  const scale = chart.timeScale;
+  const dataInterval = chart.getDataInterval();
+  // The axis's tick granularity: a time-of-day pill would float among date labels when zoomed out.
+  const tickInterval = scale.niceTickValues(dataInterval).tickInterval || dataInterval;
+  // Within a day, the data's own precision: 5-second candles keep their seconds under minute ticks.
+  const intraday = scale.getType() === 'time' && scale.getFormat() === null && tickInterval < DAY;
+  const interval = intraday ? Math.min(tickInterval, dataInterval) : tickInterval;
+
+  // The point the tooltip names, not the pointer, so the two agree.
+  const snapshots = buildHoverSnapshots(chart, { time: pos.time, cacheKey: 'crosshair' });
+  if (snapshots.length > 0) return formatHeaderX(chart, { time: pos.time, snapshots, interval });
+
+  // No point near: a numeric pointer position to the precision of one pixel, not of the tick step.
+  const step = scale.getType() === 'numeric' ? scale.pixelDeltaToTimeDelta(1) : interval;
+
+  return scale.formatX(pos.time, step);
 }

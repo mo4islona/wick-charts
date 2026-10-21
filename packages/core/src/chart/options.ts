@@ -189,7 +189,8 @@ export interface FadeConfig {
    * the pane edge, before the label glyphs start — so content melts on
    * approach (pan / tail-scroll exit) and is fully gone before it can cross
    * any axis text; the rest of the width runs backward into the pane as a
-   * soft lead-in. **Defaults to a 60px ramp** there — on out of the box;
+   * soft lead-in. **Defaults to a 60px ramp** there — on out of the box,
+   * except on a category axis, whose bands cannot scroll under the column;
    * `0` disables. A no-op while the Y axis is hidden.
    *
    * On the side opposite the axis it's a plain zone at the pane edge —
@@ -211,8 +212,8 @@ export interface FadeConfig {
 
 export interface ResolvedFade {
   top: number;
-  /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other
-   *  and on both sides of a spatial-only chart. */
+  /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other;
+   *  off on both sides of a spatial-only chart or a category axis. */
   right: number | null;
   left: number | null;
 }

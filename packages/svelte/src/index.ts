@@ -49,6 +49,7 @@ export type {
   CollapseZerosOptions,
   CornerMask,
   CrosshairPosition,
+  CrosshairXLabel,
   CurveKind,
   CustomSpatialSeriesRenderer,
   DepthBook,

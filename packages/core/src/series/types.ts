@@ -198,6 +198,8 @@ export interface BaseSeriesRenderer {
   isLayerVisible(index: number): boolean;
   /** Per-layer colors. Single-layer renderers return `[primary]`. */
   getLayerColors(): string[];
+  /** The color one point at `value` paints in, for its tooltip row. Optional. */
+  resolvePointColor?(layerIndex: number, value: number): string;
   /**
    * Set per-layer color overrides carried in `data` (sparse — `undefined` keeps
    * the theme base). Only multi-layer (line / bar) renderers implement it.

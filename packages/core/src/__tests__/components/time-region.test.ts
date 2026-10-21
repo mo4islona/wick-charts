@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ChartInstance } from '../../chart';
 import { type ResolvedTimeRegion, renderTimeRegion } from '../../components/time-region';
 import { catppuccin } from '../../theme/themes/catppuccin';
+import { installRaf, makeChartContainer } from '../helpers/fake-raf';
 import { buildRenderContext } from '../helpers/render-context';
 
 const RED = '#ff0000';
@@ -11,7 +12,7 @@ const FILL = 'rgba(255, 0, 0, 0.1)';
 
 // timeRange [0,100] over 800px (pr=1) makes timeToBitmapX(t) = t * 8; the plot
 // is 800×400 bitmap pixels.
-function renderRegion(region: Partial<ResolvedTimeRegion> = {}) {
+function renderRegion(region: Partial<ResolvedTimeRegion> = {}, headerHeight?: number) {
   const built = buildRenderContext({ timeRange: { from: 0, to: 100 }, yRange: { min: 0, max: 100 } });
   const resolved: ResolvedTimeRegion = {
     from: 20,
@@ -27,6 +28,7 @@ function renderRegion(region: Partial<ResolvedTimeRegion> = {}) {
     region: resolved,
     plotWidth: 800,
     plotHeight: 400,
+    headerHeight,
   });
 
   return built.spy;
@@ -84,6 +86,13 @@ describe('renderTimeRegion', () => {
 
     // The chip plate (a fill) precedes the text.
     expect(spy.matchesSequence(['fill', 'fillText'])).toBe(true);
+  });
+
+  it('draws the label chip below a floating header', () => {
+    const labelY = (headerHeight?: number) =>
+      Number(renderRegion({ from: -20, to: 60, label: 'anomaly window' }, headerHeight).callsOf('fillText')[0].args[2]);
+
+    expect(labelY(40)).toBe(labelY() + 40);
   });
 
   it('draws nothing when the band is entirely off-screen', () => {
@@ -173,5 +182,39 @@ describe('ChartInstance regions', () => {
     chart.addRegion({ from, to });
 
     expect(chart.getRegions()[0]).toMatchObject({ from: 1_700_000_000_000, to: 1_700_000_600_000 });
+  });
+});
+
+describe('ChartInstance region label under a header', () => {
+  it('moves the chip below the header once the header is measured', () => {
+    const raf = installRaf();
+    const container = makeChartContainer();
+    const chart = new ChartInstance(container, { animations: false, interactive: false });
+    const spy = container.querySelector('canvas')?.__spy;
+    if (!spy) throw new Error('recording canvas not installed');
+
+    const id = chart.addSeries('line');
+    chart.setSeriesData(
+      id,
+      [0, 1, 2, 3].map((i) => ({ time: i * 60_000, value: i })),
+    );
+    chart.addRegion({ from: -60_000, to: 120_000, label: 'anomaly window' });
+    raf.flush();
+    const labelY = () => {
+      const labels = spy.callsOf('fillText').filter((call) => call.args[0] === 'anomaly window');
+
+      return Number(labels[labels.length - 1]?.args[2]);
+    };
+    const before = labelY();
+
+    chart.setHeaderHeight(40);
+    raf.flush();
+    const after = labelY();
+
+    chart.destroy();
+    container.remove();
+    raf.uninstall();
+
+    expect(after).toBe(before + 40);
   });
 });

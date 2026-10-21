@@ -194,7 +194,8 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
         seriesId: id,
         label: chart.getSeriesLabel(id),
         data: d,
-        color: chart.getSeriesColor(id) ?? '#888',
+        // At the hovered value: a sign- or threshold-colored series names this point's color.
+        color: chart.getSeriesColorAt(id, pointValue(d)) ?? '#888',
       }),
     );
   }

@@ -1075,6 +1075,19 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return chained?.get(last.time) ?? { x: lastRawX, y: lastRawY };
   }
 
+  /** The color the stroke paints a point in: `above` / `below` across a threshold, else the line's own color. */
+  override resolvePointColor(layerIndex: number, value: number): string {
+    const threshold = this.options.threshold;
+    const thresholdPainted = threshold !== undefined && this.options.stacking === 'off';
+    if (thresholdPainted && value > threshold.value) return threshold.above;
+    if (thresholdPainted && threshold.below !== undefined) return threshold.below;
+
+    // A value-fn color resolves once per line, at its last value, so the hovered value must not pick it.
+    const lastValue = this.lastFinitePoint(layerIndex)?.value ?? value;
+
+    return this.resolveLayerColor(layerIndex, lastValue);
+  }
+
   /**
    * Vertical stroke + area gradients for `options.threshold`, pinned to the
    * threshold value's pixel row so the series reads calm below the level and hot
@@ -1903,9 +1916,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         if (!closest) continue;
         if (stacking === 'off' && !yScale.isPlottable(closest.value)) continue;
 
-        // Resolve the dot at the layer's raw value under the cursor so a
-        // value-fn color matches the segment the crosshair is on.
-        const color = this.resolveLayerColor(li, closest.value);
+        // The color the stroke paints this point in, so the dot matches the line under it.
+        const color = this.resolvePointColor(li, closest.value);
 
         // Routes through `effectiveValue` / the entrance chain (via
         // `stackedPositionAt`) so the dot lands exactly where the

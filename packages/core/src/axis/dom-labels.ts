@@ -20,6 +20,7 @@ import type { ChartTheme } from '../theme/types';
 import type { YAxisPosition } from '../types';
 import { clamp } from '../utils/math';
 import { renderNumberText } from '../utils/number-text';
+import { isNewYearsDay } from '../utils/time';
 
 export interface MountAxisLabelsOptions {
   readonly chart: ChartInstance;
@@ -40,6 +41,9 @@ const VISIBLE_OPACITY_EPS = 0.01;
 
 /** How far past the chart edge (CSS px) a tick's label takes to fade out, held at the edge. */
 const EDGE_FADE_PX = 8;
+
+const DAY = 86_400_000;
+const YEAR = 365 * DAY;
 
 /**
  * Append axis-label `<span>` children to `container`, keep them positioned
@@ -76,9 +80,14 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   }
 
   function formatLabel(value: number, tickInterval: number): string {
-    if (axis === 'x') return chart.timeScale.formatX(value, tickInterval);
+    if (axis === 'y') return yScale().formatY(value);
 
-    return yScale().formatY(value);
+    const scale = chart.timeScale;
+    const builtInDates = scale.getType() === 'time' && scale.getFormat() === null && tickInterval >= DAY;
+    // Date labels carry no year, so the tick on January 1 names it instead.
+    const yearStart = builtInDates && tickInterval < YEAR && isNewYearsDay(value, scale.getTimeZone());
+
+    return scale.formatX(value, yearStart ? YEAR : tickInterval);
   }
 
   // Snapped, not raw: the canvas strokes on a whole device pixel, so an

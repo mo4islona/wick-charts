@@ -11,11 +11,7 @@ export function Crosshair() {
   if (!position) return null;
 
   const theme = chart.getTheme();
-  const dataInterval = chart.getDataInterval();
-  // Format the time pill at the axis's *resolved* tick granularity, not the raw
-  // data interval — otherwise a time-of-day badge floats among date labels when
-  // zoomed out. Falls back to dataInterval on a degenerate range.
-  const tickInterval = chart.timeScale.niceTickValues(dataInterval).tickInterval || dataInterval;
+  const xLabel = chart.getCrosshairXLabel(position);
 
   // One value label per named scale's axis column, each read through its own scale.
   const scaleLabels = chart.getYScaleIds().flatMap((scale) => {
@@ -28,9 +24,6 @@ export function Crosshair() {
   });
   // A named scale can own the default axis's side when the default axis is hidden.
   const defaultSideTaken = scaleLabels.some((label) => label.position === chart.yAxisPosition);
-  // Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
-  const timeLabelBottom = chart.xAxisHeight / 2;
-  const timeLabelTransform = timeLabelBottom > 0 ? 'translate(-50%, 50%)' : 'translateX(-50%)';
 
   const labelStyle = {
     // Blend the theme's labelBackground at 80% opacity so the axis grid
@@ -84,13 +77,13 @@ export function Crosshair() {
       <div
         style={{
           position: 'absolute',
-          bottom: timeLabelBottom,
-          left: position.mediaX,
-          transform: timeLabelTransform,
+          bottom: xLabel.bottom,
+          left: xLabel.left,
+          transform: xLabel.transform,
           ...labelStyle,
         }}
       >
-        {chart.timeScale.formatX(position.time, tickInterval)}
+        {xLabel.text}
       </div>
     </>
   );

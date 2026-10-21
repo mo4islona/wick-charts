@@ -1,3 +1,4 @@
+import { act } from '@testing-library/react';
 import { Crosshair, LineSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -13,15 +14,17 @@ const DATA: [Array<{ time: number; value: number }>] = [
   ],
 ];
 
-/** The time pill is centred on the X-axis label row: half down from its bottom anchor. */
-const TIME_PILL_TRANSFORM = 'translate(-50%, 50%)';
+/** The time pill is centred on the pointer, clamped inside the chart, and half down from its bottom anchor. */
+function isTimePill(el: HTMLElement): boolean {
+  return el.style.transform.startsWith('translate(clamp(') && el.style.transform.endsWith(', 50%)');
+}
 
 function getCrosshairBadges(mounted: ReturnType<typeof mountChart>): HTMLElement[] {
   const overlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement | null;
   if (!overlay) return [];
 
   return Array.from(overlay.querySelectorAll<HTMLElement>('div')).filter(
-    (el) => el.style.transform === 'translateY(-50%)' || el.style.transform === TIME_PILL_TRANSFORM,
+    (el) => el.style.transform === 'translateY(-50%)' || isTimePill(el),
   );
 }
 
@@ -61,7 +64,7 @@ describe('<Crosshair>', () => {
     expect(badges).toHaveLength(2);
 
     const yLabel = badges.find((el) => el.style.transform === 'translateY(-50%)');
-    const timeLabel = badges.find((el) => el.style.transform === TIME_PILL_TRANSFORM);
+    const timeLabel = badges.find(isTimePill);
     expect(yLabel, 'Y-axis label badge').toBeDefined();
     expect(timeLabel, 'time-axis label badge').toBeDefined();
 
@@ -90,10 +93,32 @@ describe('<Crosshair>', () => {
 
     const badges = getCrosshairBadges(mounted);
     const yLabel = badges.find((el) => el.style.transform === 'translateY(-50%)')!;
-    const timeLabel = badges.find((el) => el.style.transform === TIME_PILL_TRANSFORM)!;
+    const timeLabel = badges.find(isTimePill)!;
 
     expect(Number.parseFloat(yLabel.style.top)).toBeCloseTo(pos!.mediaY, 0);
     expect(Number.parseFloat(timeLabel.style.left)).toBeCloseTo(pos!.mediaX, 0);
+  });
+
+  it('names the point the tooltip snaps to, not the day under the pointer', () => {
+    const day = 86_400_000;
+    const start = Date.UTC(2026, 8, 1);
+    const daily = [Array.from({ length: 30 }, (_, i) => ({ time: start + i * day, value: i }))];
+    mounted = mountChart(
+      <>
+        <LineSeries data={daily} />
+        <Crosshair />
+      </>,
+      { width: 400, height: 240 },
+    );
+    const m = mounted;
+    m.chart.setTimeZone('UTC');
+
+    // Sep 19, 18:00 is nearer to the Sep 20 point.
+    act(() => m.chart.setCrosshair({ time: Date.UTC(2026, 8, 19, 18) }));
+    m.flushScheduler();
+
+    const timeLabel = getCrosshairBadges(m).find(isTimePill);
+    expect(timeLabel?.textContent).toBe('Sep 20');
   });
 
   it('inherits typography + theme tokens for label styling', () => {
@@ -114,7 +139,10 @@ describe('<Crosshair>', () => {
     expect(yLabel.style.color).toBe(theme.crosshair.labelTextColor);
     // happy-dom re-quotes font-family tokens — assert presence of the first
     // family name rather than comparing whole strings byte-for-byte.
-    const firstFamily = theme.typography.fontFamily.split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+    const firstFamily = theme.typography.fontFamily
+      .split(',')[0]
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
     expect(yLabel.style.fontFamily).toContain(firstFamily);
     expect(yLabel.style.fontSize).toBe(`${theme.axis.fontSize}px`);
     expect(yLabel.style.pointerEvents).toBe('none');
