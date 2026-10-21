@@ -242,6 +242,9 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
 
     <template v-for="s in snapshots" :key="s.id">
       <div v-if="isOHLC(s.data)" :style="{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }">
+        <span v-if="rowTimeFor(s) !== null" :style="{ gridColumn: '1 / -1', opacity: 0.45, whiteSpace: 'nowrap' }">{{
+          rowTimeFor(s)
+        }}</span>
         <template
           v-for="row in [
             { label: 'Open', val: (s.data as OHLCData).open, field: 'open' as const },

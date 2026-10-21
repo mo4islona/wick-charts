@@ -232,6 +232,8 @@ describe('formatTooltipNumber', () => {
     [0.02, 2, '0.02'],
     [0.00000812, 8, '0.0₅812'],
     [0.0000082, 10, '0.0₅8200'],
+    // Past the 12 decimals a series is counted with, the digits are not cut.
+    [1.234e-13, 12, '0.0₁₂1234'],
   ])('formatTooltipNumber(%s) at %s decimals -> %s', (value, decimals, expected) => {
     expect(formatTooltipNumber(value, 'value', raw(decimals))).toBe(expected);
   });

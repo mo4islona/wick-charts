@@ -342,4 +342,34 @@ describe('Tooltip rows on a monthly and a daily series', () => {
     expect(rows.find((row) => row.startsWith('Monthly'))).toMatch(/Apr 1/);
     expect(rows.find((row) => row.startsWith('Daily'))).not.toMatch(/Mar|Apr/);
   });
+
+  it('names the date of a candle that is not the header date', () => {
+    const candles = monthly.map(({ time, value }) => ({
+      time,
+      open: value,
+      high: value + 1,
+      low: value - 1,
+      close: value,
+    }));
+    mounted = mountChart(
+      <>
+        <CandlestickSeries data={candles} />
+        <LineSeries data={{ label: 'Daily', data: daily }} />
+        <Tooltip />
+      </>,
+      { width: 800, height: 400 },
+    );
+
+    const chart = mounted.chart;
+    act(() => {
+      chart.setCrosshair({ time: Date.UTC(2020, 0, 21), y: 5 });
+    });
+    mounted.flushScheduler();
+
+    const tooltip = Array.from(mounted.container.querySelectorAll<HTMLElement>('[data-chart-tooltip]')).at(-1);
+    const text = tooltip?.textContent ?? '';
+
+    expect(text).toMatch(/^Jan 21/);
+    expect(text).toMatch(/Feb 1, 2020Open/);
+  });
 });
