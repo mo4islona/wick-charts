@@ -18,6 +18,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { ApiRoutePage } from './pages/api';
 import { ChartRoutePage } from './pages/charts';
 import { HookPage } from './pages/HookPage';
+import { IntegrationsRoutePage } from './pages/integrations';
 import { MigrationPage } from './pages/MigrationPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { StressTestPage } from './pages/StressTestPage';
@@ -206,6 +207,7 @@ function renderRoute({ route, theme, baseTheme, editorValue, onEditorChange }: R
   if (route === 'stress-test') return <StressTestPage theme={theme} />;
   if (route.startsWith('charts/')) return <ChartRoutePage route={route} theme={theme} />;
   if (route.startsWith('use-cases/')) return <UseCasesRoutePage route={route} theme={theme} />;
+  if (route.startsWith('integrations/')) return <IntegrationsRoutePage route={route} theme={theme} />;
   if (route.startsWith('api/')) return <ApiRoutePage route={route} theme={theme} />;
 
   const hookKey = hookKeyForRoute(route);

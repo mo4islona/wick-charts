@@ -65,9 +65,9 @@ export function Sidebar({
 
   // Only top-level section headings are collapsible — subsection labels
   // (API → Components, API → Hooks) render as static groupings inside an
-  // open parent. "Charts" and "Guides" start expanded; the useEffect below
+  // open parent. Every group but API starts expanded; the useEffect below
   // expands the top-level section that contains the current route on deep-link.
-  const DEFAULT_OPEN = new Set(['Charts', 'Guides', 'Resources']);
+  const DEFAULT_OPEN = new Set(['Charts', 'Guides', 'Integrations', 'Resources']);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     for (const s of SECTIONS) {

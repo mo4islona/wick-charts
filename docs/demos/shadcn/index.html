@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>shadcn/ui Chart Blocks — Wick Charts</title>
+    <meta
+      name="description"
+      content="Every Wick Charts block for shadcn/ui, live: line, candlestick, order book, sparkline, bar, donut, band, area, heatmap and annotated charts, themed from shadcn CSS variables."
+    />
+    <link rel="canonical" href="https://wick-charts.eeff.io/demos/shadcn/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+    />
+    <script>
+      // Set the mode before the first paint, so a dark page does not flash white.
+      (() => {
+        const param = new URLSearchParams(location.search).get('theme');
+        let stored = null;
+        try {
+          stored = localStorage.getItem('wick-shadcn-demo-theme');
+        } catch {}
+        const mode = param || stored || 'system';
+        const dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.classList.add('dark');
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>
