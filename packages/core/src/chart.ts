@@ -205,12 +205,22 @@ function isBarCount(value: number): boolean {
   return Number.isInteger(value) && value >= 2;
 }
 
-/** `initialRange` with an unusable bar count dropped, as `setVisibleRange` ignores one. */
+/** A window with finite edges, `to` after `from`. */
+function isUsableWindow(from: number, to: number): boolean {
+  return Number.isFinite(from) && Number.isFinite(to) && to > from;
+}
+
+/** `initialRange` with an unusable bar count or window dropped, as `setVisibleRange` ignores one. */
 function validRangeSpec(spec: VisibleRangeSpec | undefined): VisibleRangeSpec | undefined {
   if (typeof spec === 'number') return isBarCount(spec) ? spec : undefined;
-  if (spec !== undefined && 'bars' in spec && !isBarCount(spec.bars)) return undefined;
+  if (spec === undefined) return undefined;
+  if ('bars' in spec) {
+    const usable = isBarCount(spec.bars) && Number.isFinite(normalizeTime(spec.from));
 
-  return spec;
+    return usable ? spec : undefined;
+  }
+
+  return isUsableWindow(normalizeTime(spec.from), normalizeTime(spec.to)) ? spec : undefined;
 }
 
 /** The explicit `{ from, to }` form of a {@link VisibleRangeSpec}. */
@@ -2358,7 +2368,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /**
    * Write `spec` into the logical X range, the autoscroll flag and the warm-up
    * hold, without touching the engine. Returns whether the range changed, or
-   * `null` when the spec is invalid or a bar count has no data to count back from.
+   * `null` when the spec is invalid, a bar count has no data to count back
+   * from, or a window spans less than two data steps.
    */
   #resolveVisibleRange(spec: VisibleRangeSpec): boolean | null {
     if (typeof spec === 'number') {
@@ -2376,9 +2387,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     if ('bars' in spec) {
-      if (!isBarCount(spec.bars)) return null;
-
       const from = normalizeTime(spec.from);
+      if (!isBarCount(spec.bars) || !Number.isFinite(from)) return null;
+
       const to = from + spec.bars * this.#dataInterval;
       this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
       const changed = this.#commitLogical({ from, to }, { emitChange: true });
@@ -2391,7 +2402,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     const from = normalizeTime(spec.from);
     const to = normalizeTime(spec.to);
-    if (this.#tooNarrow({ from, to })) return null;
+    if (!isUsableWindow(from, to) || this.#tooNarrow({ from, to })) return null;
 
     this.#autoScroll = this.#dataEnd !== null && this.#dataEnd >= from && this.#dataEnd <= to;
     this.#holdUntilFilled = false;

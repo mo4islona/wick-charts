@@ -131,6 +131,18 @@ describe('ChartInstance — the chart’s own window', () => {
       expect(range.to).toBeGreaterThanOrEqual(T0 + 29 * INTERVAL);
     });
 
+    it('falls back to the default fit for a reversed window', () => {
+      makeChart({ viewport: { initialRange: { from: T0 + 20 * INTERVAL, to: T0 } } });
+      const id = chart.addSeries('candlestick');
+
+      chart.setSeriesData(id, candles(30));
+      raf.flush();
+
+      const range = chart.getVisibleRange();
+      expect(range.from).toBeLessThanOrEqual(T0);
+      expect(range.to).toBeGreaterThanOrEqual(T0 + 29 * INTERVAL);
+    });
+
     it('lets a user zoom replace it', () => {
       makeChart({ viewport: { initialRange: 50 } });
       const id = chart.addSeries('candlestick');

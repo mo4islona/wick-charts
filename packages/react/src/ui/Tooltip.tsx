@@ -361,6 +361,11 @@ function FloatingTooltip({
             resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <div key={s.id} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
+              {rowTime !== null && (
+                <span style={{ gridColumn: '1 / -1' }}>
+                  <RowTime text={rowTime} />
+                </span>
+              )}
               <TooltipRow label="Open" color={valColor} display={rowFormat(ohlc.open, 'open')} />
               <TooltipRow label="High" color={valColor} display={rowFormat(ohlc.high, 'high')} />
               <TooltipRow label="Low" color={valColor} display={rowFormat(ohlc.low, 'low')} />

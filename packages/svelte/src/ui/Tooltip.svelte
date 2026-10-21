@@ -212,6 +212,7 @@ $: floatingPos = (() => {
           {@const isUp = ohlc.close >= ohlc.open}
           {@const valColor = theme.tooltip.valueColor ?? resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">
+            {#if rowTime !== null}<span style="grid-column:1 / -1;opacity:0.45;white-space:nowrap;">{rowTime}</span>{/if}
             <span style="opacity:0.5;">Open</span>
             <span style="font-weight:600;color:{valColor};text-align:right;"><NumberText text={rowFormat(ohlc.open, 'open')} /></span>
             <span style="opacity:0.5;">High</span>

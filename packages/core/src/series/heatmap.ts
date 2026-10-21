@@ -441,18 +441,23 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
     this.#cells = [];
     this.#cellAt = new Array(cols.length * rows.length).fill(-1);
 
+    // Last datum wins on a collision, a null one too; a slot keeps its first-seen order.
+    const latest = new Map<number, { datum: HeatmapCellInput; col: number; row: number }>();
     for (const datum of this.#data) {
       const col = colIndex.get(datum.x);
       const row = rowIndex.get(datum.y);
       if (col === undefined || row === undefined) continue;
 
+      latest.set(row * cols.length + col, { datum, col, row });
+    }
+
+    for (const [position, { datum, col, row }] of latest) {
       // A missing reading keeps its column and row but leaves the cell empty: no fill, no tooltip.
       const { value } = datum;
       if (value === null || !Number.isFinite(value)) continue;
 
-      const position = row * cols.length + col;
-      const existing = this.#cellAt[position];
-      const placed: PlacedCell = {
+      this.#cellAt[position] = this.#cells.length;
+      this.#cells.push({
         x: datum.x,
         y: datum.y,
         value,
@@ -460,13 +465,7 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
         col,
         row,
         key: cellKey(datum.x, datum.y),
-      };
-      if (existing >= 0) {
-        this.#cells[existing] = placed;
-      } else {
-        this.#cellAt[position] = this.#cells.length;
-        this.#cells.push(placed);
-      }
+      });
     }
 
     // Any shape change (resize, transpose, reorder) invalidates the hover
@@ -530,7 +529,8 @@ export class HeatmapRenderer implements HeatmapSeriesRenderer {
   // --- Render -------------------------------------------------------------------
 
   render(ctx: SeriesRenderContext): void {
-    if (this.#cells.length === 0) return;
+    // An all-null matrix still draws its row and column labels.
+    if (this.#cols.length === 0 || this.#rows.length === 0) return;
 
     const { scope, theme, padding } = ctx;
     const { context, bitmapSize, horizontalPixelRatio: hpr, verticalPixelRatio: vpr } = scope;

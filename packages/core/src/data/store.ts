@@ -1,4 +1,5 @@
 import { EventEmitter } from '../events';
+import { MAX_VALUE_DECIMALS } from '../utils/format';
 import { binarySearch } from '../utils/math';
 import { warnDataOnce } from '../utils/poisoned-data-reporter';
 
@@ -30,9 +31,6 @@ function countFractions(points: readonly object[]): number {
 
   return count;
 }
-
-/** Most decimals a value is read with: a float sum such as 0.1 + 0.2 carries noise past them. */
-export const MAX_VALUE_DECIMALS = 12;
 
 /** How a series' values are written — the default Tooltip / InfoBar format reads it. */
 export interface ValueStats {

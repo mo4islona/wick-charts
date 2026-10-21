@@ -181,6 +181,16 @@ describe('HeatmapRenderer.hitTest', () => {
     expect(r.hitTest(700, 300, 800, 400)).toBe(-1);
   });
 
+  it('lets a later null clear an earlier cell at the same position', () => {
+    const { ctx, spy } = buildRenderContext();
+    const r = new HeatmapRenderer(FLAT);
+    r.setData([...GRID, { x: 'c2', y: 'r2', value: null }]);
+    r.render(ctx);
+
+    expect(spy.countOf('fillRect')).toBe(3);
+    expect(r.hitTest(700, 300, 800, 400)).toBe(-1);
+  });
+
   it('returns -1 on empty data', () => {
     const r = new HeatmapRenderer(FLAT);
     r.setData([]);
@@ -466,5 +476,18 @@ describe('HeatmapRenderer — options and lifecycle', () => {
     expect(r.getData()).toEqual([]);
     expect(r.needsAnimation).toBe(false);
     expect(fired).toBe(1);
+  });
+});
+
+describe('HeatmapRenderer with only null values', () => {
+  it('draws no cell but keeps its row and column labels', () => {
+    const { ctx, spy } = buildRenderContext();
+    const r = new HeatmapRenderer({ ...FLAT, axisLabels: true });
+    r.setData(GRID.map((cell) => ({ ...cell, value: null })));
+    r.render(ctx);
+
+    expect(spy.countOf('fillRect')).toBe(0);
+    const labels = spy.callsOf('fillText').map((call) => call.args[0]);
+    expect(labels).toEqual(expect.arrayContaining(['c1', 'c2', 'r1', 'r2']));
   });
 });

@@ -319,15 +319,12 @@ export class YScale {
     const ownFormat = this.ownTicks !== null ? this.transform?.format : undefined;
     if (ownFormat) return ownFormat(value);
 
-    const interval = this.resolvedInterval;
-
     // Kick into K/M/B/T suffixes once labels would otherwise balloon past ~7
     // characters. Keeping the threshold at ≥ 1e6 preserves readable raw
     // numbers up through "50000" / "99999" tick labels.
-    if (this.max - this.min >= 1e6) {
-      return interval != null && interval > 0 ? formatCompactTick(value, interval) : formatCompact(value);
-    }
+    if (this.isCompact()) return formatCompact(value);
 
+    const interval = this.resolvedInterval;
     // Interval is always {1,2,5}×10^k, so decimals needed = max(0, -floor(log10(interval))).
     // Fall back to a single decimal only if interval isn't resolved yet
     // (e.g. degenerate range) — unlikely but keeps the call safe.
@@ -335,6 +332,25 @@ export class YScale {
 
     // A low-priced token's ticks keep their width: 0.00000815 reads 0.0₅815.
     return collapseZeros(value.toFixed(decimals));
+  }
+
+  /**
+   * {@link formatY} for an axis tick: a K / M / B / T label takes only the
+   * decimals the tick step needs (`12T`, `12.5T`). Other values — a crosshair,
+   * a bar's value label — keep {@link formatY}'s precision.
+   */
+  formatTick(value: number): string {
+    if (this.customFormat || !this.isCompact()) return this.formatY(value);
+
+    const ownFormat = this.ownTicks !== null ? this.transform?.format : undefined;
+    const interval = this.resolvedInterval;
+    if (ownFormat || interval == null || interval <= 0) return this.formatY(value);
+
+    return formatCompactTick(value, interval);
+  }
+
+  private isCompact(): boolean {
+    return this.max - this.min >= 1e6;
   }
 
   private resolveTicks(): void {

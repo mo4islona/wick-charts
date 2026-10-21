@@ -231,6 +231,13 @@ export function formatSignificant(v: number, opts: SignificantFormatOptions = {}
   return sign + formatCompactUnit(abs, notation);
 }
 
+/**
+ * Most decimals a series' values are counted with: a float sum such as
+ * 0.1 + 0.2 carries noise past them. A count that reaches it says nothing
+ * about the digits a value has.
+ */
+export const MAX_VALUE_DECIMALS = 12;
+
 /** How a series' values print in a Tooltip / InfoBar row — see `ChartInstance.getValueStyle`. */
 export interface ValueStyle {
   /** Most decimals any value of the series has; a row never pads past them. */
@@ -266,9 +273,10 @@ export function formatTooltipNumber(v: number, field: TooltipField, style: Value
   if (compact && abs >= 1e3) return formatSignificant(v, { compactFrom: 1e3 });
   if (abs >= 1 || abs === 0) return v.toFixed(Math.min(style.decimals, maxRowDecimals(abs)));
 
-  // The digits the series carries after the leading zeros, one to four.
+  // The digits the series carries after the leading zeros, one to four; a full count limits nothing.
   const leadingZeros = -Math.floor(Math.log10(abs)) - 1;
-  const digits = Math.min(4, Math.max(1, style.decimals - leadingZeros));
+  const carried = style.decimals >= MAX_VALUE_DECIMALS ? 4 : style.decimals - leadingZeros;
+  const digits = Math.min(4, Math.max(1, carried));
 
   return formatSignificant(v, { digits, trimZeros: false });
 }

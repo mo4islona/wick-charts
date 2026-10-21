@@ -80,7 +80,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   }
 
   function formatLabel(value: number, tickInterval: number): string {
-    if (axis === 'y') return yScale().formatY(value);
+    if (axis === 'y') return yScale().formatTick(value);
 
     const scale = chart.timeScale;
     const builtInDates = scale.getType() === 'time' && scale.getFormat() === null && tickInterval >= DAY;
