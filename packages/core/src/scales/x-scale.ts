@@ -56,6 +56,8 @@ export class XScale {
   private width = 1;
   private pixelRatio = 1;
   private dataInterval: number | null = null;
+  /** Media px the series draw past each pane edge — see {@link getDrawRange}. */
+  private overscan = { left: 0, right: 0 };
 
   // Label density knobs — written by <TimeAxis labelCount=… minLabelSpacing=…>.
   private labelCountHintValue: number | null = null;
@@ -402,6 +404,24 @@ export class XScale {
 
   getRange(): XRange {
     return { from: this.from, to: this.to };
+  }
+
+  /** Media px a series draws past each pane edge: the strip the pane clip opens under a Y-axis column. */
+  setOverscan(overscan: { left: number; right: number }): void {
+    this.overscan = overscan;
+  }
+
+  /**
+   * The range a series reads its data over: {@link getRange} plus the
+   * {@link setOverscan} strips. Data sliding under a Y-axis column then melts
+   * in its fade instead of ending one point past the pane edge.
+   */
+  getDrawRange(): XRange {
+    if (this.to <= this.from || this.width <= 0) return this.getRange();
+
+    const perPx = (this.to - this.from) / this.width;
+
+    return { from: this.from - this.overscan.left * perPx, to: this.to + this.overscan.right * perPx };
   }
 
   getMediaWidth(): number {

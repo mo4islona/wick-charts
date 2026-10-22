@@ -14,6 +14,7 @@ import { hexToRgba } from '../utils/color';
 import { lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
+import { type EdgeStrip, edgeStripAlpha } from './edge-strip';
 import {
   type LineIntroDirectives,
   type LineIntroFn,
@@ -1171,7 +1172,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
     const { verticalPixelRatio } = scope;
     const hasStroke = this.options.strokeWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
@@ -1407,7 +1408,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
   private renderStacked(ctx: SeriesRenderContext, percent: boolean): void {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
     const { verticalPixelRatio } = scope;
     const hasStroke = this.options.strokeWidth > 0;
     const lineWidth = Math.max(1, Math.round(this.options.strokeWidth * verticalPixelRatio));
@@ -1935,10 +1936,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
             : this.stackedPositionAt(ctx, li, closest.time);
         if (!Number.isFinite(py)) continue;
 
-        const dotFaded = layerAlpha < 1;
+        const haloRadius = r + 3 * size.horizontalPixelRatio;
+        const dotAlpha = layerAlpha * edgeStripAlpha({ strip: ctx.edgeStrip ?? null, x: px, radius: haloRadius });
+        if (dotAlpha <= 0) continue;
+
+        const dotFaded = dotAlpha < 1;
         if (dotFaded) {
           scope.context.save();
-          scope.context.globalAlpha *= layerAlpha;
+          scope.context.globalAlpha *= dotAlpha;
         }
 
         // Halo: the series color at reduced alpha via globalAlpha rather than
@@ -1948,7 +1953,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         scope.context.save();
         scope.context.globalAlpha *= 0.25;
         scope.context.beginPath();
-        scope.context.arc(px, py, r + 3 * size.horizontalPixelRatio, 0, Math.PI * 2);
+        scope.context.arc(px, py, haloRadius, 0, Math.PI * 2);
         scope.context.fillStyle = color;
         scope.context.fill();
         scope.context.restore();
@@ -2016,6 +2021,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
             pixelRatio: size.horizontalPixelRatio,
             phase: pulsePhase,
             alpha: layerAlpha * introHandoff,
+            strip: ctx.edgeStrip ?? null,
           });
           continue;
         }
@@ -2034,6 +2040,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           pixelRatio: size.horizontalPixelRatio,
           phase: pulsePhase,
           alpha: layerAlpha * introHandoff,
+          strip: ctx.edgeStrip ?? null,
         });
       }
     }
@@ -2047,6 +2054,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     pixelRatio,
     phase,
     alpha = 1,
+    strip = null,
   }: {
     ctx: CanvasRenderingContext2D;
     x: number;
@@ -2057,15 +2065,23 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     phase: number;
     /** Per-layer alpha applied via save/restore. Defaults to 1 (no fade). */
     alpha?: number;
+    /** See {@link OverlayRenderContext.edgeStrip}. */
+    strip?: EdgeStrip | null;
   }): void {
     const dotRadius = 3 * pixelRatio;
+    const glowReach = 4 * pixelRatio;
     const pulse = 0.4 + 0.6 * Math.abs(Math.sin(phase * 2 * Math.PI));
-    const glowRadius = dotRadius + 4 * pixelRatio * pulse;
+    const glowRadius = dotRadius + glowReach * pulse;
 
-    const faded = alpha < 1;
+    // The widest halo, so the fade holds still while the halo breathes.
+    const stripAlpha = edgeStripAlpha({ strip, x, radius: dotRadius + glowReach });
+    const dotAlpha = alpha * stripAlpha;
+    if (dotAlpha <= 0) return;
+
+    const faded = dotAlpha < 1;
     if (faded) {
       ctx.save();
-      ctx.globalAlpha *= alpha;
+      ctx.globalAlpha *= dotAlpha;
     }
 
     ctx.beginPath();

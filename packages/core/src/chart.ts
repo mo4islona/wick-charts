@@ -4694,8 +4694,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       context.beginPath();
       // The clip widens by the axis-side fade intrusion so panning content
       // can slide under a right Y-axis column before the mask dissolves it.
-      context.rect(0, 0, this.#paneClipWidth(scope, chartBitmapWidth), chartBitmapHeight);
+      const paneClipWidth = this.#paneClipWidth(scope, chartBitmapWidth);
+      context.rect(0, 0, paneClipWidth, chartBitmapHeight);
       context.clip();
+      // Series read their data out to the clip edge, not just one point past the pane.
+      const intrusion = (paneClipWidth - chartBitmapWidth) / size.horizontalPixelRatio;
+      this.timeScale.setOverscan({ left: 0, right: intrusion });
 
       // Diff current tick sets against the previous frame's and route the
       // entering / exiting tick values through the engine. The engine's
@@ -5452,10 +5456,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         this.#drawCrosshair({ scope, chartBitmapWidth, chartBitmapHeight });
       }
 
+      // Series overlays ride their series under a right Y-axis column, so they share its clip.
+      const paneClipWidth = this.#paneClipWidth(scope, chartBitmapWidth);
+      const edgeStrip = paneClipWidth > chartBitmapWidth ? { start: chartBitmapWidth, end: paneClipWidth } : null;
       scope.context.save();
       scope.context.translate(this.#paneBitmapLeft(scope), 0);
       scope.context.beginPath();
-      scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
+      scope.context.rect(0, 0, paneClipWidth, chartBitmapHeight);
       scope.context.clip();
 
       // Dispatch to each renderer's overlay hook — crosshair dots, pulses, etc.
@@ -5475,12 +5482,22 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           dataInterval: this.#snapInterval(),
           padding: overlayPadding,
           crosshair: this.#crosshairPos,
+          edgeStrip,
           state: scaleId === undefined ? overlayState : this.#scaleAnimationState(overlayState, scaleId),
           seriesId: entry.id,
         });
         // A hover ease starts inside `drawOverlay`, after the check above.
         if (entry.renderer.overlayNeedsAnimation) overlayAnimates = true;
       }
+
+      scope.context.restore();
+
+      // Lines, markers and edge indicators stay inside the pane.
+      scope.context.save();
+      scope.context.translate(this.#paneBitmapLeft(scope), 0);
+      scope.context.beginPath();
+      scope.context.rect(0, 0, chartBitmapWidth, chartBitmapHeight);
+      scope.context.clip();
 
       // Reference lines (thresholds / event boundaries): above series overlays,
       // below point markers so an event dot reads on top of its own line.

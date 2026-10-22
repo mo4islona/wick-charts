@@ -16,6 +16,7 @@ import { hexToRgba, resolveColor } from '../utils/color';
 import { lerp } from '../utils/math';
 import { normalizeTime, sliceSample } from '../utils/time';
 import type { SeriesDefinition } from './definition';
+import { edgeStripAlpha } from './edge-strip';
 import {
   type LineIntroDirectives,
   type LineIntroFn,
@@ -806,7 +807,7 @@ export class BandRenderer implements TimeSeriesRenderer {
     if (layerAlpha <= 0) return;
 
     const { scope, timeScale } = ctx;
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
     let data = layer.store.getVisibleData(range.from, range.to);
     if (data.length > scope.mediaSize.width * 2) {
       data = decimateBandData(data, Math.round(scope.mediaSize.width * 1.5));
@@ -1126,9 +1127,12 @@ export class BandRenderer implements TimeSeriesRenderer {
       const vertex = this.#hoverVertex(ctx, li, nearest);
       if (vertex === null) continue;
 
+      const dotAlpha = layerAlpha * edgeStripAlpha({ strip: ctx.edgeStrip ?? null, x: vertex.x, radius: halo });
+      if (dotAlpha <= 0) continue;
+
       const color = this.#layerColor(li);
       context.save();
-      context.globalAlpha *= layerAlpha;
+      context.globalAlpha *= dotAlpha;
       context.fillStyle = color;
 
       for (const y of [vertex.top, vertex.bottom]) {
@@ -1151,7 +1155,7 @@ export class BandRenderer implements TimeSeriesRenderer {
   /** The hovered sample where the fill draws it: an entering tail point sits on its grown head. */
   #hoverVertex(ctx: OverlayRenderContext, layerIndex: number, point: BandPoint): BandVertex | null {
     const layer = this.#layers[layerIndex];
-    const range = ctx.timeScale.getRange();
+    const range = ctx.timeScale.getDrawRange();
     const slice = layer.store.getVisibleData(range.from, range.to);
     const grown = this.#sliceEndsLive(layer, slice) ? this.#growTail(ctx, layerIndex) : null;
 

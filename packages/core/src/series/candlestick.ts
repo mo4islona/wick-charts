@@ -555,7 +555,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     const { scope, timeScale, yScale, dataInterval } = ctx;
     const { context, horizontalPixelRatio } = scope;
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
 
     let visibleData = this.store.getVisibleData(range.from, range.to);
     const pixelWidth = scope.mediaSize.width;
