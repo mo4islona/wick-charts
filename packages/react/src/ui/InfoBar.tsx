@@ -187,7 +187,7 @@ export function InfoBar({ sort = 'none', format, children }: InfoBarProps) {
           const isUp = ohlc.close >= ohlc.open;
           const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
-            <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <LegendItem label="O" display={rowFormat(ohlc.open, 'open')} color={c} dim={theme.axis.textColor} />
               <LegendItem label="H" display={rowFormat(ohlc.high, 'high')} color={c} dim={theme.axis.textColor} />
               <LegendItem label="L" display={rowFormat(ohlc.low, 'low')} color={c} dim={theme.axis.textColor} />
@@ -237,13 +237,14 @@ export function InfoBar({ sort = 'none', format, children }: InfoBarProps) {
 }
 
 function LegendItem({ label, display, color, dim }: { label: string; display: string; color: string; dim: string }) {
+  // One flex item, so a narrow bar wraps between values, never between a label and its value.
   return (
-    <>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <span style={{ color: dim, opacity: 0.5, marginLeft: 5 }}>{label}</span>
       <span style={{ color, fontWeight: 500, marginLeft: 2 }}>
         <NumberText text={display} />
       </span>
-    </>
+    </span>
   );
 }
 

@@ -18,13 +18,17 @@ export interface PerfConfig {
    * Mounts the HUD overlay. The chart calls it at construction with its theme,
    * calls `setTheme` when the theme changes, and destroys the result.
    */
-  hud?: (
-    container: HTMLElement,
-    monitor: PerfMonitor,
-    theme?: ChartTheme,
-  ) => { destroy(): void; setTheme?(theme: ChartTheme): void };
+  hud?: (container: HTMLElement, monitor: PerfMonitor, theme?: ChartTheme) => PerfHudHandle;
   /** True when the config constructed the monitor — the chart then destroys it on teardown. */
   ownsMonitor?: boolean;
+}
+
+/** A mounted HUD, as {@link PerfConfig.hud} returns it. */
+export interface PerfHudHandle {
+  destroy(): void;
+  setTheme?(theme: ChartTheme): void;
+  /** CSS px the Y-axis columns take at each side of the container; called on mount and on each change. */
+  setPlotInsets?(insets: { left: number; right: number }): void;
 }
 
 /**
@@ -257,10 +261,13 @@ const DEFAULT_RADIUS_PX = 10;
 const DEFAULT_BLUR_PX = 10;
 const FULL_WIDTH_PX = 216;
 
+/** Gap between the panel's home corner and the plot's top-right corner. */
+const HUD_EDGE_PX = 8;
+
 const HUD_STYLE: Partial<CSSStyleDeclaration> = {
   position: 'absolute',
-  top: '8px',
-  right: '8px',
+  top: `${HUD_EDGE_PX}px`,
+  right: `${HUD_EDGE_PX}px`,
   boxSizing: 'border-box',
   padding: '8px 10px 9px',
   font: '10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace',
@@ -703,6 +710,11 @@ export class PerfHud {
   setTheme(theme: ChartTheme): void {
     this.theme = theme;
     this.applyColors();
+  }
+
+  /** Home the panel left of a right Y-axis column, off its tick labels. */
+  setPlotInsets(insets: { left: number; right: number }): void {
+    this.element.style.right = `${HUD_EDGE_PX + insets.right}px`;
   }
 
   destroy(): void {

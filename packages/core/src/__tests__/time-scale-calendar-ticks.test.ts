@@ -138,6 +138,46 @@ describe('time-axis ticks fall on calendar boundaries', () => {
       }
     });
 
+    it.each([2, 3, 14])('puts %i-day ticks on days counted from the 1st, never closer than the step', (step) => {
+      const ticks = timeTicks({
+        from: Date.UTC(2024, 0, 10),
+        to: Date.UTC(2024, 5, 10),
+        interval: step * DAY,
+        timeZone,
+        max: 500,
+      });
+      const days = ticks.map((t) => {
+        const wall = wallClock(t, timeZone);
+        expect(wall).toMatchObject({ hour: 0, minute: 0 });
+        expect((wall.day - 1) % step).toBe(0);
+
+        return Date.UTC(wall.year, wall.month - 1, wall.day) / DAY;
+      });
+
+      expect(ticks.length).toBeGreaterThan(5);
+      for (let i = 1; i < days.length; i++) {
+        expect(days[i] - days[i - 1]).toBeGreaterThanOrEqual(step);
+        expect(days[i] - days[i - 1]).toBeLessThan(2 * step);
+      }
+    });
+
+    it('puts half-year ticks on Jan 1 and Jul 1', () => {
+      const ticks = timeTicks({
+        from: Date.UTC(2019, 3, 1),
+        to: Date.UTC(2024, 3, 1),
+        interval: 180 * DAY,
+        timeZone,
+        max: 50,
+      });
+
+      expect(ticks.length).toBe(10);
+      for (const tick of ticks) {
+        const wall = wallClock(tick, timeZone);
+        expect(wall).toMatchObject({ day: 1, hour: 0, minute: 0 });
+        expect([1, 7]).toContain(wall.month);
+      }
+    });
+
     it('puts sub-day ticks on whole wall-clock hours', () => {
       const { ticks, tickInterval } = ticksFor({
         from: Date.UTC(2024, 5, 1),
@@ -220,6 +260,36 @@ describe('time-axis ticks fall on calendar boundaries', () => {
       const date = new Date(tick);
       expect([date.getMonth(), date.getDate(), date.getHours(), date.getMinutes()]).toEqual([0, 1, 0, 0]);
     }
+  });
+});
+
+describe('label density between the day and month tiers', () => {
+  // 200 hourly bars: eight days, as in a narrow candlestick chart.
+  const from = Date.UTC(2024, 3, 10);
+  const to = from + 200 * HOUR;
+
+  it.each([
+    { width: 315, tickInterval: 3 * DAY },
+    { width: 580, tickInterval: 2 * DAY },
+    { width: 1200, tickInterval: DAY },
+  ])('labels eight days of hourly bars every few days at $width px', ({ width, tickInterval }) => {
+    const ticks = ticksFor({ from, to, dataInterval: HOUR, timeZone: 'UTC', width });
+
+    expect(ticks.tickInterval).toBe(tickInterval);
+    expect(ticks.ticks.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('steps from a week to half a month before a month', () => {
+    const ticks = ticksFor({
+      from: Date.UTC(2024, 0, 1),
+      to: Date.UTC(2024, 2, 20),
+      dataInterval: DAY,
+      timeZone: 'UTC',
+      width: 500,
+    });
+
+    expect(ticks.tickInterval).toBe(14 * DAY);
+    expect(ticks.ticks.map((t) => new Date(t).getUTCDate())).toEqual([1, 15, 1, 15, 1, 15]);
   });
 });
 

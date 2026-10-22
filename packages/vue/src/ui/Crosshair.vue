@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
+import { vAxisLabelCover } from '../axis-label-cover';
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
 import NumberText from './NumberText.vue';
@@ -82,6 +83,7 @@ const labelStyle = computed(() => ({
     <!-- Y label on the value axis -->
     <div
       v-if="!defaultSideTaken"
+      v-axis-label-cover="chart"
       :style="{
         position: 'absolute',
         [chart.yAxisPosition]: '0',
@@ -95,6 +97,7 @@ const labelStyle = computed(() => ({
     <div
       v-for="label in scaleLabels"
       :key="label.scale"
+      v-axis-label-cover="chart"
       :style="{
         position: 'absolute',
         [label.position]: '0',
@@ -108,6 +111,7 @@ const labelStyle = computed(() => ({
     <!-- Time label on bottom axis -->
     <div
       v-if="xLabel"
+      v-axis-label-cover="chart"
       :style="{
         position: 'absolute',
         left: xLabel.left + 'px',

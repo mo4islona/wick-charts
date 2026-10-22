@@ -76,6 +76,29 @@ describe('<Crosshair>', () => {
     expect(timeLabel!.style.bottom).toBe(`${mounted.chart.xAxisHeight / 2}px`);
   });
 
+  it('registers its axis labels as tick-label covers while it shows', () => {
+    mounted = mountChart(
+      <>
+        <LineSeries data={DATA} />
+        <Crosshair />
+      </>,
+      { width: 400, height: 240 },
+    );
+    expect(mounted.chart.getAxisLabelCovers().size).toBe(0);
+
+    mounted.dispatchMouse('mousemove', { clientX: 200, clientY: 120 }, mounted.overlayCanvas);
+    mounted.flushScheduler();
+
+    const covers = mounted.chart.getAxisLabelCovers();
+    const badges = getCrosshairBadges(mounted);
+    expect(badges).toHaveLength(2);
+    expect(covers.size).toBe(2);
+    expect(badges.every((badge) => covers.has(badge))).toBe(true);
+
+    act(() => mounted?.chart.setCrosshair(null));
+    expect(mounted.chart.getAxisLabelCovers().size).toBe(0);
+  });
+
   it('positions labels at the crosshair coordinates from the chart', () => {
     mounted = mountChart(
       <>

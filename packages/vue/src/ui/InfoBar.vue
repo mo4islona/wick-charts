@@ -154,8 +154,12 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
           {{ formatHeaderX(chart, { time: displayTime, snapshots, interval: dataInterval }) }}
         </span>
         <template v-for="s in snapshots" :key="s.id">
-          <span v-if="isOHLC(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }">
-            <template
+          <span
+            v-if="isOHLC(s.data)"
+            :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }"
+          >
+            <!-- One flex item per pair, so a narrow bar wraps between values, never inside a pair. -->
+            <span
               v-for="cell in [
                 { label: 'O', field: 'open' as const, val: (s.data as OHLCData).open },
                 { label: 'H', field: 'high' as const, val: (s.data as OHLCData).high },
@@ -163,6 +167,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
                 { label: 'C', field: 'close' as const, val: (s.data as OHLCData).close },
               ]"
               :key="cell.label"
+              :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }"
             >
               <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">{{ cell.label }}</span>
               <span
@@ -178,13 +183,16 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               >
                 <NumberText :text="formatFor(s)(cell.val, cell.field)" />
               </span>
-            </template>
-            <template v-if="(s.data as OHLCData).volume != null">
+            </span>
+            <span
+              v-if="(s.data as OHLCData).volume != null"
+              :style="{ display: 'inline-flex', alignItems: 'center', gap: '4px' }"
+            >
               <span :style="{ color: theme.axis.textColor, opacity: 0.5, marginLeft: '5px' }">V</span>
               <span :style="{ color: theme.axis.textColor, fontWeight: 500, marginLeft: '2px' }">
                 <NumberText :text="formatFor(s)((s.data as OHLCData).volume!, 'volume')" />
               </span>
-            </template>
+            </span>
           </span>
           <span v-else-if="isBand(s.data)" :style="{ display: 'inline-flex', alignItems: 'center', gap: '3px' }">
             <span

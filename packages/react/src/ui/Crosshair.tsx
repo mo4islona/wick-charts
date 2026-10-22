@@ -1,5 +1,8 @@
+import type { CSSProperties, ReactNode } from 'react';
+
 import { useChartInstance } from '../context';
 import { useCrosshairPosition, useOverlayVersion } from '../store-bridge';
+import { useAxisLabelCover } from '../use-axis-label-cover';
 import { NumberText } from './NumberText';
 
 export function Crosshair() {
@@ -47,7 +50,7 @@ export function Crosshair() {
     <>
       {/* Y label on the value axis */}
       {!defaultSideTaken && (
-        <div
+        <AxisPill
           style={{
             position: 'absolute',
             [chart.yAxisPosition]: 0,
@@ -57,10 +60,10 @@ export function Crosshair() {
           }}
         >
           <NumberText text={chart.yScale.formatY(position.y)} mute={false} />
-        </div>
+        </AxisPill>
       )}
       {scaleLabels.map((label) => (
-        <div
+        <AxisPill
           key={label.scale}
           style={{
             position: 'absolute',
@@ -71,10 +74,10 @@ export function Crosshair() {
           }}
         >
           <NumberText text={label.text} mute={false} />
-        </div>
+        </AxisPill>
       ))}
       {/* Time label on bottom axis */}
-      <div
+      <AxisPill
         style={{
           position: 'absolute',
           bottom: xLabel.bottom,
@@ -84,7 +87,19 @@ export function Crosshair() {
         }}
       >
         {xLabel.text}
-      </div>
+      </AxisPill>
     </>
+  );
+}
+
+/** A crosshair label on an axis: the tick labels under it hide while it shows. */
+function AxisPill({ style, children }: { style: CSSProperties; children: ReactNode }) {
+  const chart = useChartInstance();
+  const coverRef = useAxisLabelCover(chart);
+
+  return (
+    <div ref={coverRef} style={style}>
+      {children}
+    </div>
   );
 }

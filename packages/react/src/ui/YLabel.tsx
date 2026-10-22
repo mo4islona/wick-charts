@@ -14,6 +14,7 @@ import {
 } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
+import { useAxisLabelCover } from '../use-axis-label-cover';
 import { NumberFlow } from './NumberFlow';
 
 // Badge motion tuning types + the resolve/reduced-motion/count-up helpers live
@@ -85,6 +86,7 @@ interface BadgeFrame {
 
 export function YLabel({ seriesId, color, format, animate, children, scale }: YLabelProps) {
   const chart = useChartInstance();
+  const coverRef = useAxisLabelCover(chart);
 
   // Notify chart that YLabel is present (affects right padding).
   useEffect(() => {
@@ -269,6 +271,7 @@ export function YLabel({ seriesId, color, format, animate, children, scale }: YL
         }}
       />
       <div
+        ref={coverRef}
         style={{
           position: 'absolute',
           [side]: 4,

@@ -67,6 +67,11 @@ verdict, dev server command.
 
 ## Framework probe blocks
 
+**All frameworks**
+- Hover every overlay tooltip (`Tooltip`, `HeatmapTooltip`, `PieTooltip`) on a chart whose data is set before mount, with
+  no `<Title>` and no theme change: a Title fires the event that hid a Vue tooltip P1 for a whole session.
+- SSR probes: run them in both color schemes; headless Chrome follows the OS, and a light OS hid a theme mismatch.
+
 **React**
 - StrictMode on (the create-vite default): double-mount effects, `initialRange`, EdgeLoader firing.
 - An inline array literal as `data` on every render; parent re-renders at 60 Hz with unchanged data.

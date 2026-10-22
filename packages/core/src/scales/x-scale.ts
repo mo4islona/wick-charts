@@ -122,6 +122,11 @@ export class XScale {
     this.resolveInterval();
   }
 
+  /** Minimum px between adjacent label centres: `<XAxis minLabelSpacing>`, else the default. */
+  getMinLabelSpacing(): number {
+    return this.minLabelSpacing;
+  }
+
   /**
    * Install (or clear) a custom tick-label formatter. A {@link TimeFormatter}
    * fits a time axis, where every `x` is a timestamp.

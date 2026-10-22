@@ -118,18 +118,29 @@ $: displayTime =
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
           {@const isUp = ohlc.close >= ohlc.open}
           {@const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
-          <span style="display:inline-flex;align-items:center;gap:4px;">
-            <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.open, 'open')} /></span>
-            <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">H</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.high, 'high')} /></span>
-            <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">L</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.low, 'low')} /></span>
-            <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">C</span>
-            <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.close, 'close')} /></span>
+          <span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
+            <!-- One flex item per pair, so a narrow bar wraps between values, never inside a pair. -->
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+              <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">O</span>
+              <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.open, 'open')} /></span>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+              <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">H</span>
+              <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.high, 'high')} /></span>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+              <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">L</span>
+              <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.low, 'low')} /></span>
+            </span>
+            <span style="display:inline-flex;align-items:center;gap:4px;">
+              <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">C</span>
+              <span style="color:{c};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.close, 'close')} /></span>
+            </span>
             {#if ohlc.volume != null}
-              <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
-              <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.volume, 'volume')} /></span>
+              <span style="display:inline-flex;align-items:center;gap:4px;">
+                <span style="color:{theme.axis.textColor};opacity:0.5;margin-left:5px;">V</span>
+                <span style="color:{theme.axis.textColor};font-weight:500;margin-left:2px;"><NumberText text={rowFormat(ohlc.volume, 'volume')} /></span>
+              </span>
             {/if}
           </span>
         {:else if 'high' in s.data}

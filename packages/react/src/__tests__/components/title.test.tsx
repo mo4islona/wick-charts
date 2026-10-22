@@ -36,6 +36,24 @@ describe('<Title> hoisting + grid layering', () => {
     mounted.unmount();
   });
 
+  it('stops the overlay header at the right Y-axis column, so the InfoBar wraps before the tick labels', () => {
+    const mounted = mountChart(
+      <>
+        <InfoBar />
+        <CandlestickSeries data={bars} />
+      </>,
+      { width: 320, height: 240, axis: { y: { width: 70 } } },
+    );
+    mounted.flushScheduler();
+
+    const header = mounted.container.querySelector('[data-chart-top-overlay]') as HTMLElement;
+    expect(mounted.chart.getAxisColumnWidth('right')).toBe(70);
+    expect(header.style.left).toBe('0px');
+    expect(header.style.right).toBe('70px');
+
+    mounted.unmount();
+  });
+
   it('omits the primary span when children is absent so `gap` does not leak a leading space', () => {
     const mounted = mountChart(
       <>

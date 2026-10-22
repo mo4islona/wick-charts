@@ -99,6 +99,34 @@
         "The installed shadcn-vue card imports `cn` from the `cn` npm package, while init still writes @/lib/utils; registry files that import @/lib/utils keep working.",
         "pnpm 12 stops `shadcn-vue init` on ignored esbuild build scripts; npm in the app folder avoids it."
       ]
+    },
+    {
+      "id": "2026-10-22-integrations",
+      "type": "focused",
+      "commit": "ecbb693",
+      "dirtyTree": false,
+      "libVersion": "0.8.5",
+      "frameworks": {
+        "vue": "3.5.x",
+        "nuxt": "4.6.2",
+        "react": "19.3.1",
+        "next": "16.4.0",
+        "vite": "8.3.4 (shadcn React) / 6.4.4 (shadcn-vue)",
+        "shadcn": "latest (4.x)",
+        "shadcn-vue": "2.8.2",
+        "tailwindcss": "4.3.3",
+        "typescript": "5.9.3 (Vue/Nuxt apps)",
+        "@wick-charts/nuxt": "0.8.5 (npm, published during the session)"
+      },
+      "approach": "Focused session on the new integrations, installed from the public docs and the live registry. A Nuxt agent followed only /integrations/nuxt/ and the README in fresh Nuxt 4 apps (npm, strict pnpm, Vuetify, color-mode, prefix options): SSR, generate, nuxi typecheck, Lazy*, keepalive navigation, streaming, every registered component. A shadcn-vue agent installed all 11 Vue blocks from https://wick-charts.eeff.io/r/vue/ into a fresh Vite app, the existing shadcn-nuxt app and a new shadcn-nuxt app with @wick-charts/nuxt, then swapped two blocks to real data (pepe-1h, orderbook-snapshots). Tech lead: React blocks re-added from the live URL into the Vite and Next.js shadcn apps, all-blocks diff vs 2026-10-21-full, hover light/dark, 320/375 px, Next.js production build, live docs pages at 1280/375; verified every P1 and most P2 claims, plus a Svelte static-tooltip control.",
+      "notes": [
+        "Check npm for the \"unpublished\" package at the start: @wick-charts/nuxt went public mid-session and the teams switched to it.",
+        "A <Title> in a scenario fires overlayChange and hid the Vue static-tooltip P1 for a whole session: keep a title-less, static-data variant of every overlay tooltip.",
+        "headless Chrome inherits the OS dark mode: a \"system\" theme app renders dark, which exposed the SSR theme mismatch. Force the scheme per capture (localStorage, param, or emulateMediaFeatures).",
+        "The docs demo frame at 375 px is narrower than an app at 375 px; capture registry blocks at 320 px too.",
+        "Two agents (~0.64M tokens, ~40 min) plus the tech lead covered three integration tracks; the React registry sweep needed no agent because the installed files had not changed.",
+        "zsh: a loop variable named `path` overwrites PATH."
+      ]
     }
   ],
   "quirkClasses": {
@@ -151,7 +179,7 @@
       "window": "pinned",
       "quirks": ["time-gap", "zero-volume", "flat-candle"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17", "2026-10-21-full"]
+      "usedIn": ["2026-10-17", "2026-10-21-full", "2026-10-22-integrations"]
     },
     {
       "id": "pepe-1h",
@@ -163,7 +191,7 @@
       "window": "pinned",
       "quirks": ["tiny-magnitude", "huge-magnitude", "outlier-spike"],
       "fetchedAt": "2026-10-17",
-      "usedIn": ["2026-10-17", "2026-10-21-full"]
+      "usedIn": ["2026-10-17", "2026-10-21-full", "2026-10-22-integrations"]
     },
     {
       "id": "stable-1m-flat",
@@ -331,7 +359,7 @@
       "window": "rolling",
       "quirks": ["tiny-magnitude", "huge-magnitude", "string-numbers", "descending-order", "outlier-spike"],
       "fetchedAt": "2026-10-21",
-      "usedIn": ["2026-10-21-full"]
+      "usedIn": ["2026-10-21-full", "2026-10-22-integrations"]
     }
   ],
   "probes": [
@@ -808,7 +836,7 @@
       "quirks": [],
       "frameworks": ["vue"],
       "paths": ["packages/vue/src"],
-      "runs": ["2026-10-17", "2026-10-21-full"]
+      "runs": ["2026-10-17", "2026-10-21-full", "2026-10-22-integrations"]
     },
     {
       "id": "svelte5-compat",
@@ -865,7 +893,7 @@
         "packages/react/src/ChartContainer.tsx",
         "packages/core/src/theme/create.ts"
       ],
-      "runs": ["2026-10-21", "2026-10-21-full"],
+      "runs": ["2026-10-21", "2026-10-21-full", "2026-10-22-integrations"],
       "features": ["d9dc3f8", "1c46496"]
     },
     {
@@ -959,7 +987,7 @@
         "packages/react/src/ui/NumberFlow.tsx"
       ],
       "features": ["d9dc3f8", "1c46496"],
-      "runs": ["2026-10-21-full"]
+      "runs": ["2026-10-21-full", "2026-10-22-integrations"]
     },
     {
       "id": "shadcn-vue-registry",
@@ -968,9 +996,58 @@
       "datasets": [],
       "quirks": [],
       "frameworks": ["vue"],
-      "paths": ["registry/shadcn-vue", "packages/vue/src/ChartContainer.vue", "packages/vue/src/ui/NumberFlow.vue"],
-      "features": [],
-      "runs": ["2026-10-22-shadcn-vue"]
+      "paths": [
+        "registry/shadcn-vue",
+        "packages/vue/src/ChartContainer.vue",
+        "packages/vue/src/ui/NumberFlow.vue",
+        "packages/vue/src/ui/HeatmapTooltip.vue",
+        "packages/vue/src/ui/PieTooltip.vue",
+        "docs/pages/integrations/shadcn-vue.tsx"
+      ],
+      "features": ["b256c88"],
+      "runs": ["2026-10-22-shadcn-vue", "2026-10-22-integrations"]
+    },
+    {
+      "id": "nuxt-module",
+      "kind": "framework",
+      "title": "@wick-charts/nuxt from the docs: install (npm, strict pnpm), SSR + hydration, generate, nuxi typecheck, options/prefix, Lazy*, keepalive navigation, Vuetify, color-mode, streaming",
+      "datasets": ["btc-1h-gap", "pepe-1h"],
+      "quirks": ["time-gap", "tiny-magnitude"],
+      "frameworks": ["vue"],
+      "paths": ["packages/nuxt", "packages/vue/src/ChartContainer.vue", "docs/pages/integrations/nuxt.tsx"],
+      "features": ["ecbb693", "7e8bb86"],
+      "runs": ["2026-10-22-integrations"]
+    },
+    {
+      "id": "static-overlay-tooltips",
+      "kind": "framework",
+      "title": "HeatmapTooltip / PieTooltip on data set before mount, no Title, no theme change, hover right after mount — all three frameworks",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["react", "vue", "svelte"],
+      "paths": [
+        "packages/vue/src/ui/HeatmapTooltip.vue",
+        "packages/vue/src/ui/PieTooltip.vue",
+        "packages/svelte/src/ui/HeatmapTooltip.svelte",
+        "packages/svelte/src/ui/PieTooltip.svelte",
+        "packages/react/src/ui/HeatmapTooltip.tsx",
+        "packages/react/src/ui/PieTooltip.tsx"
+      ],
+      "runs": ["2026-10-22-integrations"]
+    },
+    {
+      "id": "ssr-theme-mismatch",
+      "kind": "framework",
+      "title": "SSR with a theme the client resolves differently (color-mode / \"system\" / prefers-color-scheme): container background after hydration",
+      "datasets": ["btc-1h-gap"],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": [
+        "packages/vue/src/ChartContainer.vue",
+        "packages/react/src/ChartContainer.tsx",
+        "packages/svelte/src/ChartContainer.svelte"
+      ],
+      "runs": ["2026-10-22-integrations"]
     }
   ],
   "ideas": [
@@ -1040,7 +1117,7 @@
     {
       "id": "meta-frameworks-ssr",
       "kind": "angle",
-      "idea": "Nuxt 3, SvelteKit (SSR + hydrate), Astro islands — Next.js App Router done in 2026-10-21-full",
+      "idea": "SvelteKit (SSR + hydrate), Astro islands — Next.js App Router done in 2026-10-21-full, Nuxt 4 in 2026-10-22-integrations",
       "why": "Where real users install it; SSR import safety beyond a bare renderToString",
       "priority": "high",
       "quirks": [],
@@ -1247,7 +1324,7 @@
     {
       "id": "registry-real-data",
       "kind": "angle",
-      "idea": "Swap shadcn blocks to real data: chart-order-book on orderbook-snapshots, chart-candlestick on pepe-1h; a translucent bg-card/50 card; a Tailwind 3 HSL-token project; output: export",
+      "idea": "React blocks on real data (chart-order-book on orderbook-snapshots, chart-candlestick on pepe-1h); a translucent bg-card/50 card; a Tailwind 3 HSL-token project; output: export. Vue blocks done in 2026-10-22-integrations",
       "why": "The blocks only ever ran on their own synthetic seeds",
       "priority": "medium",
       "quirks": ["tiny-magnitude"],
@@ -1261,6 +1338,69 @@
       "priority": "high",
       "quirks": [],
       "addedIn": "2026-10-21-full"
+    },
+    {
+      "id": "ssr-theme-mismatch-all",
+      "kind": "angle",
+      "idea": "The SSR theme-mismatch probe in Next.js, SvelteKit and plain Vue SSR, in both color schemes",
+      "why": "React and Svelte also do not patch attribute mismatches after hydration; a light OS hides it",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "offscreen-annotations",
+      "kind": "angle",
+      "idea": "Marker, TimeRegion and a vertical ReferenceLine with times left and right of the window, all frameworks",
+      "why": "An off-screen Marker drew its label at the plot edge",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "registry-framework-typecheck",
+      "kind": "angle",
+      "idea": "Type-check every registry item under the framework defaults: stock Nuxt 4 nuxi typecheck, Next.js, vue-tsc/tsc with noUncheckedIndexedAccess",
+      "why": "Nuxt 4 enables noUncheckedIndexedAccess and the Vue blocks fail it with 28 errors",
+      "priority": "high",
+      "quirks": [],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "registry-data-swap",
+      "kind": "angle",
+      "idea": "Swap each registry block feed to a tiny-magnitude and a huge-magnitude dataset and diff labels against the library defaults",
+      "why": "Block formatters are tuned to the demo prices and show 0 for pepe-1h",
+      "priority": "medium",
+      "quirks": ["tiny-magnitude"],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "nuxt-collision-matrix",
+      "kind": "angle",
+      "idea": "Nuxt module prefix \"\" and short prefixes against Nuxt built-ins (Title, Link, Meta), shadcn-nuxt and Nuxt UI names",
+      "why": "prefix \"\" silently lost Title and Tooltip",
+      "priority": "low",
+      "quirks": [],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "nuxt-payload-budget",
+      "kind": "angle",
+      "idea": "useFetch with btc-1m-big (130k bars) in Nuxt SSR: payload size, TTFB, the NUXT_E8006 warning",
+      "why": "1500 candles already make 292 kB of a 294 kB page",
+      "priority": "low",
+      "quirks": ["big-n"],
+      "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "vue-reserved-props",
+      "kind": "angle",
+      "idea": "A check that no Vue component declares a prop named style, class or key",
+      "why": "ReferenceLine `style` cannot take a static string in Vue",
+      "priority": "low",
+      "quirks": [],
+      "addedIn": "2026-10-22-integrations"
     }
   ]
 }

@@ -59,7 +59,7 @@ Root cause: packages/core/src/utils/format.ts:91 — formatPriceAdaptive(null) r
 Status: new | known #123 | rejected (reason)
 Probe: line-weather-nulls
 Issue title: Tooltip shows 0 instead of a gap for null values
-Labels: bug, P0, confirmed
+Labels: bug, P0, confirmed, core
 ```
 
 BUGS.md and the team reports stay in the git-ignored session folder: they are working notes. Once
@@ -75,19 +75,51 @@ Issues are public: show the user the BUGS.md titles first and create only what t
 - Write in English. Body: what the user sees, minimal repro (code + data shape, not the dataset file),
   expected vs actual, root cause if verified, screenshot. No internal details beyond the repo itself,
   no session or agent bookkeeping, no "Generated with" line.
-- Screenshots go to the orphan branch `issue-assets` under `dogfood/<session-id>/`, uploaded through the
-  contents API (no worktree, no checkout):
-  ```
-  gh api -X PUT repos/mo4islona/wick-charts/contents/dogfood/<id>/<name>.png \
-    -f branch=issue-assets -f message="docs: add dogfood screenshot" \
-    -f content="$(base64 -i <file>)"
-  ```
-  and referenced as `https://raw.githubusercontent.com/mo4islona/wick-charts/issue-assets/dogfood/<id>/<name>.png`.
-  Never delete that branch — the roadmap issues use it too.
+- Screenshots are GitHub attachments, never files in git: no branch, no contents API. Upload them in
+  the user's Chrome (Claude in Chrome tools), the way a person pastes an image into an issue:
+  1. Open `https://github.com/mo4islona/wick-charts/issues/new` in a new tab.
+  2. `javascript_tool` adds a file input for the upload tool:
+     ```js
+     const input = Object.assign(document.createElement('input'), { type: 'file', multiple: true, id: 'shot-upload' });
+     input.setAttribute('aria-label', 'shot upload');
+     document.body.append(input);
+     ```
+  3. `find` "shot upload file input", then `file_upload` with the absolute screenshot paths (10 MB per call).
+  4. `javascript_tool` pastes each file into the body editor, collects the URLs and clears the draft:
+     ```js
+     const ta = document.querySelector('textarea');
+     const urls = {};
+
+     for (const file of document.getElementById('shot-upload').files) {
+       const before = ta.value;
+       const dt = new DataTransfer();
+       dt.items.add(file);
+       ta.focus();
+       ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+
+       for (let i = 0; i < 60 && !urls[file.name]; i++) {
+         await new Promise((r) => setTimeout(r, 500));
+         urls[file.name] = ta.value.slice(before.length).match(/https:\/\/github\.com\/user-attachments\/assets\/[0-9a-f-]+/)?.[0];
+       }
+     }
+
+     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, '');
+     ta.dispatchEvent(new Event('input', { bubbles: true }));
+     urls
+     ```
+  5. Close the tab and put `![<alt>](https://github.com/user-attachments/assets/<id>)` into the
+     `gh issue create` body. The form is never submitted: the upload alone makes the URL.
+
+  A call times out after 45 s, so paste at most ~10 files per call. If Chrome is not connected or a
+  file gets no URL, stop and ask the user; do not fall back to committing the image.
 - Labels: `bug`, one severity label (`P0` crash / blank / wrong numbers, `P1` misleading render or
   broken interaction, `P2` visual glitch, `P3` DX / docs papercut), and `confirmed` only when you
   reproduced it yourself. `coverage.mjs due --online` lists bugs closed since the last session and asks
   the next session to re-check each fix on the same data.
+- Area labels, every one that applies: the package the fix lands in (`core`, `react`, `vue`, `svelte`,
+  `nuxt`) and each integration where users see it (`shadcn`, `shadcn-vue`, `documentation`). A Vue
+  wrapper bug that breaks a shadcn-vue block gets `vue` + `shadcn-vue`. Check a registry bug in both
+  registries before you label it: they share most code.
 - Put the issue numbers into BUGS.md for this session's own bookkeeping.
 
 ## 7. Update the coverage map (the step that makes the next session smarter)

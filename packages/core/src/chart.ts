@@ -59,6 +59,7 @@ import { EventEmitter } from './events';
 import { InteractionHandler, type PointerPosition } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
 import type { PerfMonitor } from './perf';
+import type { PerfHudHandle } from './perf/perf-hud';
 import { RenderScheduler } from './render-scheduler';
 import type { TickTrackerSnapshot } from './scales/tick-tracker';
 import { type XAxisFormatter, XScale } from './scales/x-scale';
@@ -329,6 +330,15 @@ interface ChartEvents {
    * `buildHoverSnapshots` / `buildLastSnapshots` report those animated values.
    */
   seriesFrame: () => void;
+  /** An element registered with {@link ChartInstance.coverAxisLabels} came, moved or left. */
+  axisLabelCoverChange: () => void;
+}
+
+/** Handle {@link ChartInstance.coverAxisLabels} returns. */
+export interface AxisLabelCover {
+  /** Re-check the tick labels after the element moved or resized. */
+  update(): void;
+  remove(): void;
 }
 
 /** Internal bookkeeping for a registered series. */
@@ -541,6 +551,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #fade: ResolvedFade;
   /** See {@link headerHeight}. */
   #headerHeight = 0;
+  /** See {@link coverAxisLabels}. */
+  #labelCovers = new Set<HTMLElement>();
+  #labelCoverChangePending = false;
   /** Memoized destination-out mask gradients, one per edge, keyed by the
    *  zone's bitmap geometry so a resize / DPR change / `setFade` rebuilds
    *  them and steady frames reuse them. */
@@ -774,7 +787,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** When true, `destroy()` tears down the monitor; false for caller-supplied monitors we must not destroy. */
   #ownsPerfMonitor = false;
   /** Visible HUD overlay (mounted by the perf config); non-null only when the caller requested one. */
-  #perfHud: { destroy(): void; setTheme?(theme: ChartTheme): void } | null = null;
+  #perfHud: PerfHudHandle | null = null;
+  /** Y-axis column widths last sent to the HUD, `null` before the first. */
+  #perfHudInsets: { left: number; right: number } | null = null;
 
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
@@ -857,6 +872,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     );
     if (this.#perfMonitor && resolvedPerf.hud) {
       this.#perfHud = resolvedPerf.hud(container, this.#perfMonitor, this.#theme);
+      this.#syncPerfHudInsets();
     }
 
     const interactive = options?.interactive !== false;
@@ -3355,6 +3371,45 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * Hide the axis tick labels that `element` overlaps while it shows, such as
+   * a crosshair pill or a value badge. `<Crosshair>` and `<YLabel>` register
+   * their own; a custom overlay calls `update()` after each move.
+   */
+  coverAxisLabels(element: HTMLElement): AxisLabelCover {
+    this.#labelCovers.add(element);
+    this.#announceLabelCoverChange();
+    // A size change needs no `update()`: a rolling badge digit or a new font can resize it between moves.
+    const resize =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => this.#announceLabelCoverChange());
+    resize?.observe(element);
+
+    return {
+      update: () => this.#announceLabelCoverChange(),
+      remove: () => {
+        resize?.disconnect();
+        if (this.#labelCovers.delete(element)) this.#announceLabelCoverChange();
+      },
+    };
+  }
+
+  /** Elements registered with {@link coverAxisLabels}. */
+  getAxisLabelCovers(): ReadonlySet<HTMLElement> {
+    return this.#labelCovers;
+  }
+
+  // Deferred to a microtask: every pill of one crosshair move reports in the
+  // same commit, and the axes re-check once, still before the paint.
+  #announceLabelCoverChange(): void {
+    if (this.#labelCoverChangePending) return;
+
+    this.#labelCoverChangePending = true;
+    queueMicrotask(() => {
+      this.#labelCoverChangePending = false;
+      this.emit('axisLabelCoverChange');
+    });
+  }
+
+  /**
    * Set the visual state for one side of the chart. Typically called in
    * response to the `onEdgeReached` callback:
    *   - `loading` while a history fetch is in flight,
@@ -5367,10 +5422,25 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * land after the consume and re-arm cleanly for the next frame.
    */
   #renderFrame(timestamp?: number): void {
+    this.#syncPerfHudInsets();
     this.#measuredRender('main', timestamp, () => this.renderMain(timestamp));
 
     this.#overlayScheduler.consume();
     this.#measuredRender('overlay', timestamp, () => this.renderOverlay(timestamp));
+  }
+
+  // Every layout change repaints, so the frame is where the HUD learns of a new column width.
+  #syncPerfHudInsets(): void {
+    const hud = this.#perfHud;
+    if (hud?.setPlotInsets === undefined) return;
+
+    const insets = { left: this.getAxisColumnWidth('left'), right: this.getAxisColumnWidth('right') };
+    const sent = this.#perfHudInsets;
+    const unchanged = sent !== null && insets.left === sent.left && insets.right === sent.right;
+    if (unchanged) return;
+
+    this.#perfHudInsets = insets;
+    hud.setPlotInsets(insets);
   }
 
   /** Run a layer's paint, booking duration + draw calls to the perf monitor

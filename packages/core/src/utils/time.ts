@@ -141,7 +141,8 @@ export function niceTimeIntervals(interval: number): number[] {
   const sub_minute = [1_000, 5_000, 10_000, 15_000, 30_000];
   const sub_hour = [MINUTE, 2 * MINUTE, 5 * MINUTE, 10 * MINUTE, 15 * MINUTE, 30 * MINUTE];
   const sub_day = [HOUR, 2 * HOUR, 4 * HOUR, 6 * HOUR, 12 * HOUR];
-  const days = [DAY, 7 * DAY, 30 * DAY, 90 * DAY];
+  // Day-of-month steps (2, 3, 14 days) and a half-year fill the gaps between week, month and year.
+  const days = [DAY, 2 * DAY, 3 * DAY, 7 * DAY, 14 * DAY, 30 * DAY, 90 * DAY, 180 * DAY];
   const years = [YEAR, 2 * YEAR, 5 * YEAR, 10 * YEAR, 25 * YEAR, 50 * YEAR, 100 * YEAR];
 
   // Always include all larger interval tiers so zoomed-out views

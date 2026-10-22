@@ -161,6 +161,30 @@ describe('Vue <Crosshair>', () => {
     wrapper.unmount();
   });
 
+  it('registers its axis labels as tick-label covers and re-checks them on each move', async () => {
+    const { getChart, wrapper } = mountCrosshair(host);
+    await settle();
+    const chart = getChart();
+    const changes = vi.fn();
+    chart.on('axisLabelCoverChange', changes);
+
+    chart.setCrosshair({ time: 10, y: 100 });
+    await settle();
+    expect(chart.getAxisLabelCovers().size).toBe(2);
+    const afterShow = changes.mock.calls.length;
+    expect(afterShow).toBeGreaterThan(0);
+
+    chart.setCrosshair({ time: 20, y: 100 });
+    await settle();
+    expect(changes.mock.calls.length).toBeGreaterThan(afterShow);
+
+    chart.setCrosshair(null);
+    await settle();
+    expect(chart.getAxisLabelCovers().size).toBe(0);
+
+    wrapper.unmount();
+  });
+
   it('names the point the tooltip snaps to, not the day under the pointer (matches React)', async () => {
     const { getChart, wrapper } = mountCrosshair(host, dailyData);
     await settle();
