@@ -1,14 +1,13 @@
-import { FLAVORS, installAllCommand, installCommand } from '../../demos/shadcn/catalog';
-import { FrameworkLink, type GuideCopy, HEADINGS, registriesJson } from './shadcn-guide';
+import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
+import { FrameworkLink, type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
 
-const THEME_HOOK_CODE = `const ref = useRef<HTMLDivElement>(null);
-const theme = useWickTheme(ref);
+function usageCode(block: BlockEntry): string {
+  return `import { ${block.component} } from '@/components/${block.name}';
 
-return (
-  <div ref={ref} className="h-64">
-    <ChartContainer theme={theme}>…</ChartContainer>
-  </div>
-);`;
+export default function Dashboard() {
+  return <${block.component} />;
+}`;
+}
 
 const WRAPPER_CODE = `import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/react';
 
@@ -29,8 +28,8 @@ export function Revenue({ data }: { data: TimePoint[] }) {
 export const REACT_COPY: GuideCopy = {
   lead: (demoLink) => (
     <p style={{ margin: 0 }}>
-      Chart blocks for shadcn/ui. For Vue and Nuxt, see the{' '}
-      <FrameworkLink framework="vue">shadcn-vue blocks</FrameworkLink>. {demoLink}
+      Chart blocks for shadcn/ui. Also for <FrameworkLink framework="vue">shadcn-vue</FrameworkLink> and{' '}
+      <FrameworkLink framework="svelte">shadcn-svelte</FrameworkLink>. {demoLink}
     </p>
   ),
   steps: (block) => [
@@ -38,59 +37,23 @@ export const REACT_COPY: GuideCopy = {
       heading: HEADINGS.add,
       body: (
         <>
-          Install the block, then render <code>&lt;{block.component} /&gt;</code> from{' '}
-          <code>@/components/{block.name}</code>.
+          It adds <code>components/{block.name}.tsx</code> and the <code>card</code> and <code>wick-chart</code>{' '}
+          components it uses.
         </>
       ),
       code: installCommand(block.name),
     },
     {
-      heading: HEADINGS.byName,
-      body: (
-        <>
-          Add the registry to <code>components.json</code> to install by name:{' '}
-          <code>npx shadcn@latest add @wick-charts/{block.name}</code>. All items:{' '}
-          <a href={`${FLAVORS.react.registryUrl}/registry.json`} target="_blank" rel="noopener noreferrer">
-            registry.json
-          </a>
-          .
-        </>
-      ),
-      code: registriesJson('react'),
+      heading: HEADINGS.use,
+      body: <YourData block={block} file={`${block.name}.tsx`} />,
+      code: usageCode(block),
     },
     {
-      heading: HEADINGS.all,
+      heading: HEADINGS.own,
       body: (
         <>
-          <code>shadcn add --all</code> reads only the default registry, so name every block in one command.
-        </>
-      ),
-      code: installAllCommand('react'),
-    },
-    {
-      heading: HEADINGS.theme,
-      body: (
-        <>
-          The <code>wick-theme</code> item adds <code>useWickTheme</code> to <code>@/hooks</code>; every block brings
-          it. To add it alone: <code>npx shadcn@latest add @wick-charts/wick-theme</code>.{' '}
-          <code>useWickTheme(ref?)</code> reads <code>--background</code>, <code>--foreground</code>,{' '}
-          <code>--muted-foreground</code>, <code>--border</code> and <code>--chart-1</code> … <code>--chart-5</code>,
-          and follows dark mode. Candles and order book sides take your chart colors, not green and red. Pass a ref to
-          read the tokens inside a scoped <code>.dark</code> panel.
-        </>
-      ),
-      code: THEME_HOOK_CODE,
-    },
-    {
-      heading: HEADINGS.wrapper,
-      body: (
-        <>
-          The <code>wick-chart</code> item adds <code>WickChart</code> to <code>@/components/ui/wick-chart</code>:{' '}
-          <code>npx shadcn@latest add @wick-charts/wick-chart</code>. Size it with classes:{' '}
-          <code>aspect-video</code> by default,{' '}
-          <code>aspect-auto h-[250px]</code> for a fixed height. It takes every <code>ChartContainer</code> prop and
-          draws horizontal grid lines only. <code>theme</code> also takes a function that adjusts the generated theme;
-          define it outside the component.
+          Add the chart container of the blocks: <code>{installCommand('wick-chart')}</code>. It takes the colors and
+          dark mode of your shadcn theme. Set the size with classes, the default is <code>aspect-video</code>.
         </>
       ),
       code: WRAPPER_CODE,

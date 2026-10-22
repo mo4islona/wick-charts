@@ -1,3 +1,6 @@
 packages:
   - 'packages/*'
   - 'docs'
+  # Svelte 5 for the shadcn-svelte registry and its demo; the rest of the repo builds with Svelte 4.
+  - 'registry/shadcn-svelte'
+  - 'docs/demos/shadcn-svelte'

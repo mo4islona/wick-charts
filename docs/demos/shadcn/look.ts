@@ -1,4 +1,4 @@
-// Mode, palette and URL helpers the React and Vue demo pages share; no framework code here.
+// Mode, palette and URL helpers the React, Vue and Svelte demo pages share; no framework code here.
 import { BLOCKS, type BlockEntry, type Mode, PALETTES, type PaletteName } from './catalog';
 
 export type ModeSetting = Mode | 'system';

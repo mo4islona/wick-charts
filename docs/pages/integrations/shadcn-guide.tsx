@@ -9,7 +9,6 @@ import {
   BLOCKS,
   type BlockEntry,
   type DemoMessage,
-  FLAVORS,
   type Flavor,
   PALETTES,
   type PaletteName,
@@ -17,17 +16,14 @@ import {
 } from '../../demos/shadcn/catalog';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { routeToPath } from '../../router';
-import { routeForFramework } from '../../routes';
+import { type Route, labelForRoute, routeForFramework } from '../../routes';
 import { hexToRgba, isDarkColor } from '../../utils';
 
 export const HEADINGS = {
   pick: '01 — PICK A BLOCK',
-  add: '02 — ADD IT WITH THE CLI',
-  byName: '03 — OR ADD BLOCKS BY NAME',
-  all: '04 — ADD EVERY BLOCK',
-  theme: '05 — THEMED FROM YOUR CSS VARIABLES',
-  wrapper: '06 — SIZE A CHART WITH CLASSES',
-  svelte: '07 — SVELTE',
+  add: '02 — ADD IT',
+  use: '03 — USE IT',
+  own: '04 — BUILD YOUR OWN CHART',
 };
 
 const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => ({
@@ -37,12 +33,39 @@ const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => (
 
 const DEFAULT_BLOCK = BLOCKS.find((entry) => entry.name === 'chart-candlestick') ?? BLOCKS[0];
 
-export function registriesJson(flavor: Flavor): string {
-  return `{
-  "registries": {
-    "@wick-charts": "${FLAVORS[flavor].registryUrl}/{name}.json"
+/** The series that draws a block's data, and the chart page with that data's format. */
+const BLOCK_SERIES: Record<string, { series: string; chart: Route }> = {
+  'chart-line-live': { series: 'LineSeries', chart: 'charts/line' },
+  'chart-candlestick': { series: 'CandlestickSeries', chart: 'charts/candlestick' },
+  'chart-order-book': { series: 'DepthSeries', chart: 'charts/depth' },
+  'chart-sparkline-cards': { series: 'LineSeries', chart: 'charts/line' },
+  'chart-bar-grouped': { series: 'BarSeries', chart: 'charts/bar' },
+  'chart-pie-donut': { series: 'PieSeries', chart: 'charts/pie' },
+  'chart-band-latency': { series: 'BandSeries', chart: 'charts/band' },
+  'chart-area-stacked': { series: 'LineSeries', chart: 'charts/line' },
+  'chart-heatmap': { series: 'HeatmapSeries', chart: 'charts/heatmap' },
+  'chart-line-annotations': { series: 'LineSeries', chart: 'charts/line' },
+  'chart-line-navigator': { series: 'LineSeries', chart: 'charts/line' },
+};
+
+/** How to put your data into a block; `file` is the block file the CLI added. */
+export function YourData({ block, file }: { block: BlockEntry; file: string }) {
+  const entry = BLOCK_SERIES[block.name];
+  if (!entry) {
+    return (
+      <>
+        The block draws demo data. To draw yours, replace it in <code>{file}</code>.
+      </>
+    );
   }
-}`;
+
+  return (
+    <>
+      The block draws demo data. To draw yours, replace it in <code>{file}</code> and pass your array to{' '}
+      <code>&lt;{entry.series}&gt;</code>. Data format:{' '}
+      <a href={routeToPath(entry.chart)}>{labelForRoute(entry.chart)}</a>.
+    </>
+  );
 }
 
 /**
@@ -72,7 +95,7 @@ export function FrameworkLink({ framework, children }: { framework: Flavor; chil
 export interface GuideCopy {
   /** The line above the columns; `demoLink` opens every block in a new window. */
   lead: (demoLink: ReactNode) => ReactNode;
-  /** The steps between the block picker and the Svelte note. */
+  /** The steps after the block picker. */
   steps: (block: BlockEntry) => Step[];
 }
 
@@ -118,16 +141,6 @@ export function ShadcnGuide({ theme, flavor, copy }: ShadcnGuideProps) {
     body: <BlockList theme={theme} value={block} onPick={pickBlock} />,
   };
 
-  const svelteStep: Step = {
-    heading: HEADINGS.svelte,
-    body: (
-      <>
-        There is no Svelte registry. Use <code>@wick-charts/svelte</code> and build a theme with{' '}
-        <code>createTheme</code>.
-      </>
-    ),
-  };
-
   const demoLink = (
     <a href={demoUrl({ flavor, mode, palette })} target="_blank" rel="noopener noreferrer">
       All blocks on one page ↗
@@ -162,7 +175,7 @@ export function ShadcnGuide({ theme, flavor, copy }: ShadcnGuideProps) {
       }
       chartHeight="clamp(440px, 70vh, 600px)"
       mobileChartHeight={480}
-      steps={[pickStep, ...copy.steps(block), svelteStep]}
+      steps={[pickStep, ...copy.steps(block)]}
     />
   );
 }

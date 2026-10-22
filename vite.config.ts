@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
 import vue from '@vitejs/plugin-vue';
-import { type Plugin, defineConfig } from 'vite';
+import { type Plugin, createServer, defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig(({ command, mode }) => {
@@ -62,6 +62,28 @@ export default defineConfig(({ command, mode }) => {
     },
   };
 
+  // The shadcn-svelte demo builds with Svelte 5 in a Vite of its own (docs/demos/shadcn-svelte/vite.config.ts).
+  // The docs dev server starts it and proxies its URLs, so the guide's frame needs no second command.
+  const svelteDemoConfig = resolve(__dirname, 'docs/demos/shadcn-svelte/vite.config.ts');
+  // A restart runs this config again; one demo server per process keeps the fixed port free of a race.
+  const processState = globalThis as typeof globalThis & { wickSvelteDemo?: Promise<void> };
+  const startSvelteDemo = async (): Promise<void> => {
+    const demo = await createServer({ configFile: svelteDemoConfig });
+
+    try {
+      await demo.listen();
+    } catch {
+      // Another docs dev server already runs it on the fixed port.
+      await demo.close();
+    }
+  };
+  const svelteDemoServer: Plugin = {
+    name: 'shadcn-svelte-demo-server',
+    configureServer() {
+      processState.wickSvelteDemo ??= startSvelteDemo();
+    },
+  };
+
   // Library build: npm run build (handled by per-package vite configs now)
   if (command === 'build' && mode !== 'docs') {
     return {
@@ -106,7 +128,10 @@ export default defineConfig(({ command, mode }) => {
   // Dev server: npm run dev
   return {
     root: 'docs',
-    plugins: [vue(), tailwindcss(), dropUseClient, shadcnPaths],
+    plugins: [vue(), tailwindcss(), dropUseClient, shadcnPaths, svelteDemoServer],
     resolve: { alias: aliases },
+    server: {
+      proxy: { '/demos/shadcn-svelte/': { target: 'http://localhost:5179', ws: true } },
+    },
   };
 });

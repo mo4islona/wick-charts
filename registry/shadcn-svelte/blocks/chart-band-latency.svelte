@@ -1,0 +1,118 @@
+<script lang="ts">
+	import {
+		BandSeries,
+		Crosshair,
+		LineSeries,
+		NumberFlow,
+		TimeAxis,
+		Tooltip,
+		YAxis,
+	} from "@wick-charts/svelte";
+	import { onMount } from "svelte";
+
+	import * as Card from "$lib/registry/ui/card/index.js";
+	import { WickChart } from "$lib/registry/ui/wick-chart/index.js";
+
+	const POINTS = 90;
+	const TICK_MS = 1000;
+
+	const formatMs = (value: number) => `${Math.round(value)} ms`;
+
+	const viewport = { maxVisibleBars: POINTS };
+	const medianOptions = { area: { visible: false } };
+
+	interface LatencyRow {
+		time: number;
+		p5: number;
+		p25: number;
+		p50: number;
+		p75: number;
+		p95: number;
+	}
+
+	// Demo feed: replace with your own percentiles, one row a second.
+	function nextRow(previous: LatencyRow): LatencyRow {
+		const p50 = previous.p50 + (120 - previous.p50) * 0.08 + (Math.random() - 0.5) * 14;
+		const spread = 18 + Math.random() * 10;
+
+		return {
+			time: previous.time + TICK_MS,
+			p5: p50 - spread * 1.6,
+			p25: p50 - spread * 0.6,
+			p50,
+			p75: p50 + spread * 0.8,
+			p95: p50 + spread * 2.6 + Math.random() * 30,
+		};
+	}
+
+	function seedRows(): LatencyRow[] {
+		let row: LatencyRow = {
+			time: Date.now() - POINTS * TICK_MS,
+			p5: 90,
+			p25: 110,
+			p50: 120,
+			p75: 135,
+			p95: 180,
+		};
+		const rows = [row];
+
+		while (rows.length < POINTS) {
+			row = nextRow(row);
+			rows.push(row);
+		}
+
+		return rows;
+	}
+
+	let rows = $state.raw(seedRows());
+	const bands = $derived([
+		{
+			label: "p5–p95",
+			data: rows.map((row) => ({ time: row.time, low: row.p5, high: row.p95 })),
+		},
+		{
+			label: "p25–p75",
+			data: rows.map((row) => ({ time: row.time, low: row.p25, high: row.p75 })),
+		},
+	]);
+	const median = $derived({
+		label: "p50",
+		data: rows.map((row) => ({ time: row.time, value: row.p50 })),
+	});
+	const latest = $derived(rows[rows.length - 1]?.p50 ?? 0);
+
+	onMount(() => {
+		const timer = setInterval(() => {
+			const last = rows[rows.length - 1];
+			if (!last) return;
+
+			rows = [...rows.slice(1), nextRow(last)];
+		}, TICK_MS);
+
+		return () => clearInterval(timer);
+	});
+</script>
+
+<Card.Root>
+	<Card.Header>
+		<Card.Title>API latency</Card.Title>
+		<Card.Description>Median with p25–p75 and p5–p95 bands</Card.Description>
+		<Card.Action class="text-right">
+			<div class="text-2xl font-semibold tabular-nums">
+				<NumberFlow value={latest} format={formatMs} />
+			</div>
+			<div class="text-xs text-muted-foreground">p50</div>
+		</Card.Action>
+	</Card.Header>
+	<Card.Content>
+		<WickChart class="aspect-auto h-[280px]" {viewport}>
+			<!-- Bands first, so the median draws over them. -->
+			<BandSeries data={bands} />
+			<LineSeries data={median} options={medianOptions} />
+			<YAxis format={formatMs} />
+			<TimeAxis />
+			<Crosshair />
+			<Tooltip format={formatMs} />
+		</WickChart>
+	</Card.Content>
+</Card.Root>
