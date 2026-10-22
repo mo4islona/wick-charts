@@ -84,8 +84,9 @@ export function migrateLegacyHash(): void {
 /**
  * Current route + a `navigate` that pushes a new history entry. An optional
  * `hash` (an element id on the target page) goes into the URL as `#hash`.
+ * `redirect` swaps the current entry, for a URL that shows another view of the same page.
  */
-export function usePathRoute(): [Route, (r: Route, hash?: string) => void] {
+export function usePathRoute(): [Route, (r: Route, hash?: string) => void, (r: Route) => void] {
   const [route, setRoute] = useState<Route>(() =>
     typeof window === 'undefined' ? 'overview' : pathToRoute(window.location.pathname),
   );
@@ -107,5 +108,10 @@ export function usePathRoute(): [Route, (r: Route, hash?: string) => void] {
     setRoute(r);
   }, []);
 
-  return [route, navigate];
+  const redirect = useCallback((r: Route) => {
+    window.history.replaceState({}, '', routeToPath(r));
+    setRoute(r);
+  }, []);
+
+  return [route, navigate, redirect];
 }

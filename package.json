@@ -11,12 +11,12 @@
     "dev": "vite",
     "build": "pnpm -r build",
     "build:docs": "pnpm registry:build && vite build --mode docs",
-    "registry:build": "pnpm dlx shadcn@4.22.1 build --cwd registry/shadcn --output ../../docs/public/r",
+    "registry:build": "pnpm dlx shadcn@4.22.1 build --cwd registry/shadcn --output ../../docs/public/r && pnpm dlx shadcn-vue@2.8.2 build --cwd registry/shadcn-vue --output ../../docs/public/r/vue",
     "prerender": "node scripts/prerender.mjs",
     "build:seo": "pnpm build:docs && pnpm prerender",
     "preview": "vite preview",
     "serve:docs": "node scripts/serve-docs.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && vue-tsc --noEmit -p registry/shadcn-vue && vue-tsc --noEmit -p docs/demos/shadcn-vue",
     "lint": "biome check .",
     "lint:fix": "biome check --fix .",
     "format": "biome format --write .",
@@ -65,6 +65,7 @@
     "vite": "^5.4.0",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^2.1.9",
-    "vue": "^3.4.0"
+    "vue": "^3.4.0",
+    "vue-tsc": "^3.3.13"
   }
 }

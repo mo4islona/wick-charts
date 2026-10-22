@@ -14,6 +14,7 @@ import {
   getSectionPath,
   getSections,
   hookKeyForRoute,
+  menuRoute,
 } from '../routes';
 import { gridBackgroundImage, hexToRgba, isDarkColor, saturate } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
@@ -225,7 +226,7 @@ export function Sidebar({
                     key={item.route}
                     item={item}
                     label={labelFor(item, fw)}
-                    active={item.route === route}
+                    active={item.route === menuRoute(route)}
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
@@ -255,7 +256,7 @@ export function Sidebar({
                     key={item.route}
                     item={item}
                     label={labelFor(item, fw)}
-                    active={item.route === route}
+                    active={item.route === menuRoute(route)}
                     theme={theme}
                     mobile={mobile}
                     fontSize={fontSize}
@@ -274,7 +275,7 @@ export function Sidebar({
                           key={item.route}
                           item={item}
                           label={labelFor(item, fw)}
-                          active={item.route === route}
+                          active={item.route === menuRoute(route)}
                           theme={theme}
                           mobile={mobile}
                           fontSize={fontSize}

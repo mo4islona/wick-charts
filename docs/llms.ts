@@ -4,7 +4,7 @@
 // (see docs/main.tsx) and written to docs-dist/llms.txt.
 
 import { routeToPath } from './router';
-import { type Route, type RouteEntry, getSections } from './routes';
+import { type Route, type RouteEntry, getSections, withViews } from './routes';
 import { DEFAULT_DESCRIPTION, SITE_NAME, SITE_URL, metaForRoute } from './seo';
 
 /** Internal page with no value for LLM consumers (mirrors PRERENDER_ROUTES). */
@@ -17,7 +17,7 @@ function lineFor(entry: RouteEntry): string {
 }
 
 function sectionBlock(heading: string, items: RouteEntry[]): string[] {
-  const visible = items.filter((e) => !EXCLUDED.has(e.route));
+  const visible = withViews(items).filter((e) => !EXCLUDED.has(e.route));
   if (visible.length === 0) return [];
 
   return [`## ${heading}`, '', ...visible.map(lineFor), ''];

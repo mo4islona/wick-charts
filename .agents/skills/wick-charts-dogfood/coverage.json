@@ -6,7 +6,9 @@
       "react": 5181,
       "vue": 5182,
       "svelte": 5183,
-      "shadcn": 5184
+      "shadcn": 5184,
+      "shadcn-vue": 5186,
+      "shadcn-nuxt": 5187
     }
   },
   "sessions": [
@@ -75,6 +77,27 @@
         "Shared adapters with .ts import extensions need allowImportingTsExtensions in each app, and must pass noUncheckedIndexedAccess (the Vue app uses it).",
         "A Next.js team needs experimental.reactDebugChannel: false and short dev runs: the sandbox blocks the dev WebSocket.",
         "The Server Component children probe found the only P1 in the wrapper layer: test composition from a server page, not only \"use client\" blocks."
+      ]
+    },
+    {
+      "id": "2026-10-22-shadcn-vue",
+      "type": "focused",
+      "commit": "a6d0956",
+      "dirtyTree": true,
+      "libVersion": "0.8.5",
+      "frameworks": {
+        "vue": "3.5.44",
+        "nuxt": "4.6.2",
+        "vite": "6.4.4",
+        "tailwindcss": "4.3.3",
+        "shadcn-vue": "2.8.2",
+        "typescript": "5.9.3"
+      },
+      "approach": "Focused session, tech lead alone, new angle: the shadcn-vue registry (registry/shadcn-vue) before its first release. Two fresh `shadcn-vue init` apps (reka-nova style): Vite (test/dogfood/shadcn-vue, port 5186) installed all eleven blocks by URL, Nuxt 4 (test/dogfood/shadcn-nuxt, port 5187) by name through a components.json registries entry, both from a local registry build with localhost URLs; @wick-charts/vue 0.8.5 from npm. Checked the installed files against the sources, vue-tsc with strict + noUnusedLocals, vite build, every block in light and dark, a runtime `.dark` toggle, and the Nuxt dev console for SSR and hydration warnings.",
+      "notes": [
+        "shadcn-vue places files by their registry path: keep the sources under components/, components/ui/<name>/ and composables/ so blocks land in @/components, not in @/components/blocks.",
+        "The installed shadcn-vue card imports `cn` from the `cn` npm package, while init still writes @/lib/utils; registry files that import @/lib/utils keep working.",
+        "pnpm 12 stops `shadcn-vue init` on ignored esbuild build scripts; npm in the app folder avoids it."
       ]
     }
   ],
@@ -937,6 +960,17 @@
       ],
       "features": ["d9dc3f8", "1c46496"],
       "runs": ["2026-10-21-full"]
+    },
+    {
+      "id": "shadcn-vue-registry",
+      "kind": "framework",
+      "title": "shadcn-vue registry: install every block into fresh Vite and Nuxt shadcn-vue apps, types, build, light / dark / runtime toggle, SSR and hydration",
+      "datasets": [],
+      "quirks": [],
+      "frameworks": ["vue"],
+      "paths": ["registry/shadcn-vue", "packages/vue/src/ChartContainer.vue", "packages/vue/src/ui/NumberFlow.vue"],
+      "features": [],
+      "runs": ["2026-10-22-shadcn-vue"]
     }
   ],
   "ideas": [

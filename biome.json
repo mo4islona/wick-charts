@@ -69,5 +69,15 @@
     "parser": {
       "tailwindDirectives": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.vue"],
+      "linter": {
+        "domains": {
+          "react": "none"
+        }
+      }
+    }
+  ]
 }
