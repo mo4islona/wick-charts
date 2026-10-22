@@ -65,6 +65,13 @@ export function installCommand(name: string, flavor: Flavor = 'react'): string {
   return `npx ${cli}@latest add ${registryUrl}/${name}.json`;
 }
 
+/** One command for every block: `add --all` reads only the CLI's default registry. */
+export function installAllCommand(flavor: Flavor): string {
+  const names = BLOCKS.map((entry) => `  @wick-charts/${entry.name}`);
+
+  return [`npx ${FLAVORS[flavor].cli}@latest add`, ...names].join(' \\\n');
+}
+
 /** `--chart-1` … `--chart-5` ramps of shadcn themes, as OKLCH triplets. Neutral keeps the stylesheet's own. */
 export const PALETTES = {
   neutral: { label: 'Neutral', light: [], dark: [] },

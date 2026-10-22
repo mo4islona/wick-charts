@@ -41,6 +41,8 @@ const handler = () => {
 };
 onMounted(() => {
   chart.on('overlayChange', handler);
+  // A sibling series registers in its own onMounted, after this tooltip's first render cached no id.
+  if (chart.getSeriesIds().length > 0) bump.value++;
 });
 onUnmounted(() => {
   chart.off('overlayChange', handler);

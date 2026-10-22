@@ -1,4 +1,4 @@
-import { FLAVORS, installCommand } from '../../demos/shadcn/catalog';
+import { FLAVORS, installAllCommand, installCommand } from '../../demos/shadcn/catalog';
 import { FrameworkLink, type GuideCopy, HEADINGS, registriesJson } from './shadcn-guide';
 
 const THEME_COMPOSABLE_CODE = `<script setup lang="ts">
@@ -68,9 +68,20 @@ export const VUE_COPY: GuideCopy = {
       code: registriesJson('vue'),
     },
     {
+      heading: HEADINGS.all,
+      body: (
+        <>
+          <code>shadcn-vue add --all</code> reads only the default registry, so name every block in one command.
+        </>
+      ),
+      code: installAllCommand('vue'),
+    },
+    {
       heading: HEADINGS.theme,
       body: (
         <>
+          The <code>wick-theme</code> item adds <code>useWickTheme</code> to <code>@/composables</code>; every block
+          brings it. To add it alone: <code>npx shadcn-vue@latest add @wick-charts/wick-theme</code>.{' '}
           <code>useWickTheme(target?)</code> reads <code>--background</code>, <code>--foreground</code>,{' '}
           <code>--muted-foreground</code>, <code>--border</code> and <code>--chart-1</code> … <code>--chart-5</code>,
           and follows dark mode. Candles and order book sides take your chart colors, not green and red. Pass a template
@@ -83,7 +94,9 @@ export const VUE_COPY: GuideCopy = {
       heading: HEADINGS.wrapper,
       body: (
         <>
-          Size <code>WickChart</code> with classes: <code>aspect-video</code> by default,{' '}
+          The <code>wick-chart</code> item adds <code>WickChart</code> to <code>@/components/ui/wick-chart</code>:{' '}
+          <code>npx shadcn-vue@latest add @wick-charts/wick-chart</code>. Size it with classes:{' '}
+          <code>aspect-video</code> by default,{' '}
           <code>aspect-auto h-[250px]</code> for a fixed height. Other attributes go to <code>ChartContainer</code>; it
           draws horizontal grid lines only. <code>theme</code> also takes a function that adjusts the generated theme;
           keep it in <code>&lt;script setup&gt;</code>.

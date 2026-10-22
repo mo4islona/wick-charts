@@ -89,6 +89,22 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
+function contrastOf(hexA: string, hexB: string): number {
+  const luminance = (hex: string) => {
+    const linear = [1, 3, 5].map((start) => {
+      const value = Number.parseInt(hex.slice(start, start + 2), 16) / 255;
+
+      return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+    });
+    const [r = 0, g = 0, b = 0] = linear;
+
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [darker, lighter] = [luminance(hexA), luminance(hexB)].sort((x, y) => x - y);
+
+  return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
+}
+
 // The default theme holds closures (`bar.color`); two equal closures compare by their source.
 function comparable(theme: unknown): unknown {
   return JSON.parse(JSON.stringify(theme, (_key, value) => (typeof value === 'function' ? String(value) : value)));
@@ -112,6 +128,18 @@ describe('wick-theme in the React and Vue registries', () => {
     expect(reactTheme(LIGHT).background).toBe('#ffffff');
     expect(reactTheme(DARK).background).toBe('#171717');
     expect(reactTheme({ ...DARK, surfaces: ['rgba(23, 23, 23, 0.5)'] }).background).toBe('#111111');
+  });
+
+  it.each([
+    ['light', LIGHT],
+    ['dark', DARK],
+  ] as const)('keeps every series color apart from a %s card', (_mode, tokens) => {
+    const theme = reactTheme(tokens);
+    const contrasts = theme.seriesColors.map((color) => contrastOf(color, theme.background));
+
+    expect(Math.min(...contrasts)).toBeGreaterThanOrEqual(2);
+    // The ramp keeps its order: no two lifted colors land on the same shade.
+    expect(new Set(theme.seriesColors).size).toBe(RAMP.length);
   });
 
   it('keeps the token reading and color code identical', () => {

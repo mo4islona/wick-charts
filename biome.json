@@ -72,6 +72,18 @@
   },
   "overrides": [
     {
+      "includes": [
+        "registry/shadcn/blocks/**",
+        "registry/shadcn/hooks/**",
+        "registry/shadcn/ui/**",
+        "registry/shadcn-vue/components/**",
+        "registry/shadcn-vue/composables/**"
+      ],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["**/*.vue"],
       "linter": {
         "domains": {

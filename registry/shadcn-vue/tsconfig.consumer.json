@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@wick-charts/core": ["../../packages/core/dist/index.d.ts"],
+      "@wick-charts/vue": ["../../packages/vue/dist/index.d.ts"],
+      "@/components/ui/card": ["./shims/card.d.ts"],
+      "@/lib/utils": ["./shims/utils.d.ts"],
+      "@/*": ["./*"]
+    }
+  }
+}

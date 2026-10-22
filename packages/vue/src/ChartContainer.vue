@@ -224,6 +224,7 @@ const props = withDefaults(
   },
 );
 
+const rootRef = ref<HTMLDivElement>();
 const containerRef = ref<HTMLDivElement>();
 const chart = shallowRef<ChartInstance | null>(null);
 const themeRef = shallowRef<ChartTheme>(props.theme);
@@ -405,6 +406,9 @@ function subscribeDeclarativeEvents(instance: ChartInstance): void {
 }
 
 onMounted(async () => {
+  // Hydration keeps a server style that differs (another theme resolved on the client) in production.
+  if (rootRef.value) rootRef.value.style.cssText = rootStyle.value;
+
   if (!containerRef.value) return;
 
   const options: ChartOptions = {};
@@ -585,7 +589,7 @@ const rootStyle = computed(() => {
 </script>
 
 <template>
-  <div :style="rootStyle">
+  <div ref="rootRef" :style="rootStyle">
     <div style="display: flex; flex-direction: row; flex: 1; min-height: 0">
       <!-- Canvas-block column. In inline mode the header is a flex sibling
            above the canvas inside this column; in overlay mode it's absolute
