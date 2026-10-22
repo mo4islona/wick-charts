@@ -134,8 +134,8 @@ export function PieTooltip({ seriesId, format = formatCompact, children }: PieTo
 // Custom slot content has unknown dimensions — measure the container, then
 // position it. Matches `CustomFloatingTooltip` in `Tooltip.tsx`: same glass
 // panel styling, so a render-prop pie tooltip looks like the built-in one
-// instead of a bare, unstyled box.
-function CustomPieTooltip({
+// instead of a bare, unstyled box. `SankeyTooltip` shares it.
+export function CustomPieTooltip({
   x,
   y,
   chartWidth,
@@ -157,9 +157,10 @@ function CustomPieTooltip({
     const node = nodeRef.current;
     if (!node || typeof ResizeObserver === 'undefined') return;
 
-    const ro = new ResizeObserver((entries) => {
-      const box = entries[0]?.contentRect;
-      if (!box) return;
+    const ro = new ResizeObserver(() => {
+      // `contentRect` leaves out the padding and border, so read the border box from the node.
+      const box = { width: node.offsetWidth, height: node.offsetHeight };
+      if (box.width === 0) return;
       setSize((prev) =>
         prev && prev.width === box.width && prev.height === box.height
           ? prev

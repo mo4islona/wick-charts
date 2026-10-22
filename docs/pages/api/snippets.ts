@@ -64,6 +64,13 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
     ],
     selfClosingWhenEmpty: true,
   },
+  SankeySeries: {
+    required: [
+      { name: 'nodes', valueExpr: 'nodes' },
+      { name: 'links', valueExpr: 'links' },
+    ],
+    selfClosingWhenEmpty: true,
+  },
 
   Sparkline: {
     required: [{ name: 'data', valueExpr: 'data' }],
@@ -199,6 +206,19 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
 
   HeatmapTooltip: {
     required: [{ name: 'seriesId', valueExpr: "'heatmap'" }],
+  },
+
+  SankeyTooltip: {
+    required: [{ name: 'seriesId', valueExpr: "'flow'" }],
+    slot: {
+      ctxBindings: ['info', 'format'],
+      bodyExample: {
+        react: '<div>{info.label}: {format(info.value)}</div>',
+        vue: '<div>{{ info.label }}: {{ format(info.value) }}</div>',
+        svelte: '<div>{info.label}: {format(info.value)}</div>',
+      },
+      ctxTypeName: 'SankeyTooltipRenderContext',
+    },
   },
 
   YLabel: {

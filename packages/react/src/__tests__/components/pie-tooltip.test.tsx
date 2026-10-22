@@ -10,8 +10,14 @@ import { mountChart } from '../helpers/mount-chart';
  * host size). Picks the container by its `data-measured="false"` marker —
  * the pre-measurement frame — so we can feed it a custom content size and
  * test how `computeTooltipPosition` reacts to the measured dimensions.
+ *
+ * `width` / `height` are the border box. The entry's `contentRect` leaves out
+ * the box's 14 / 10 px padding and 1 px border, as a browser reports it.
  */
 function fireTooltipResize(node: HTMLElement, width: number, height: number) {
+  Object.defineProperty(node, 'offsetWidth', { configurable: true, value: width });
+  Object.defineProperty(node, 'offsetHeight', { configurable: true, value: height });
+  const content = { width: width - 30, height: height - 22 };
   type Ctor = {
     callbacks: Set<(entries: ResizeObserverEntry[], observer: ResizeObserver) => void>;
   };
@@ -19,9 +25,18 @@ function fireTooltipResize(node: HTMLElement, width: number, height: number) {
   const observer: ResizeObserver = { observe() {}, unobserve() {}, disconnect() {} };
   const entry = {
     target: node,
-    contentRect: { x: 0, y: 0, top: 0, left: 0, bottom: height, right: width, width, height, toJSON: () => ({}) },
+    contentRect: {
+      x: 0,
+      y: 0,
+      top: 0,
+      left: 0,
+      bottom: content.height,
+      right: content.width,
+      ...content,
+      toJSON: () => ({}),
+    },
     borderBoxSize: [{ inlineSize: width, blockSize: height }],
-    contentBoxSize: [{ inlineSize: width, blockSize: height }],
+    contentBoxSize: [{ inlineSize: content.width, blockSize: content.height }],
     devicePixelContentBoxSize: [{ inlineSize: width, blockSize: height }],
   } as unknown as ResizeObserverEntry;
   act(() => {
@@ -159,7 +174,7 @@ describe('PieTooltip', () => {
     expect(container.style.visibility).toBe('hidden');
   });
 
-  it('custom slot: repositions based on the measured container size (near right edge it flips left)', () => {
+  it('custom slot: keeps the whole border box, padding and border included, inside the chart', () => {
     mounted = mountChart(
       <>
         <PieSeries id={id} data={slices} />
@@ -178,18 +193,16 @@ describe('PieTooltip', () => {
     expect(container).toBeDefined();
     expect(container.dataset.measured).toBe('false');
 
-    // Feed the ResizeObserver a realistic "wide custom content" size. Position
-    // must clamp to stay in bounds — i.e. `left + width <= chartWidth`.
-    fireTooltipResize(container, 300, 120);
+    // A 200 px border box around 170 px of content: by `contentRect` it would
+    // fit right of the pointer (200 + 16 + 170 = 386) and spill 16 px past the edge.
+    fireTooltipResize(container, 200, 120);
     mounted.flushScheduler();
 
     expect(container.dataset.measured).toBe('true');
     expect(container.style.visibility).toBe('visible');
     const left = Number.parseFloat(container.style.left);
     expect(Number.isFinite(left)).toBe(true);
-    // The whole tooltip fits inside the chart — without this fix the
-    // hardcoded 160×70 flip would leave left=360+16=376 (overflow).
-    expect(left + 300).toBeLessThanOrEqual(400);
+    expect(left + 200).toBeLessThanOrEqual(400);
   });
 
   it('clears the tooltip when the cursor leaves the canvas', () => {

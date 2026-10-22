@@ -106,6 +106,12 @@ export type {
   ReferenceLineStyle,
   RenderPadding,
   RoundedRectArgs,
+  SankeyData,
+  SankeyLabelsOptions,
+  SankeyLink,
+  SankeyNode,
+  SankeySeriesOptions,
+  SankeySeriesRenderer,
   ScaleTickArgs,
   SeriesCreateEnv,
   SeriesDefinition,
@@ -172,6 +178,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  SankeySeriesDef,
   XScale,
   YScale,
   andromeda,
@@ -267,6 +274,8 @@ export type { HeatmapSeriesProps } from './HeatmapSeries';
 export { HeatmapSeries } from './HeatmapSeries';
 export { LineSeries } from './LineSeries';
 export { PieSeries } from './PieSeries';
+export type { SankeySeriesProps } from './SankeySeries';
+export { SankeySeries } from './SankeySeries';
 export {
   useCrosshairPosition,
   useLastYValue,
@@ -295,6 +304,8 @@ export { PieTooltip } from './ui/PieTooltip';
 // Reference lines — horizontal threshold / vertical event boundary
 export type { ReferenceLineProps } from './ui/ReferenceLine';
 export { ReferenceLine } from './ui/ReferenceLine';
+export type { SankeyTooltipProps, SankeyTooltipRenderContext } from './ui/SankeyTooltip';
+export { SankeyTooltip } from './ui/SankeyTooltip';
 export type { SparklineProps, SparklineValuePosition, SparklineVariant } from './ui/Sparkline';
 export { Sparkline } from './ui/Sparkline';
 // Time regions — translucent shaded bands over a time interval

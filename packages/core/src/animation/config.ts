@@ -78,6 +78,11 @@ export const DEFAULT_HEATMAP_ENTRY = 600;
 /** Heatmap in-place value/color tween and hover-lift ease. */
 export const DEFAULT_HEATMAP_UPDATE = 300;
 
+/** Sankey first-data cascade, start to end: sources grow, bands run and fill their targets. */
+export const DEFAULT_SANKEY_ENTRY = 1400;
+/** Sankey morph to new data and the hover dim ease. */
+export const DEFAULT_SANKEY_UPDATE = 500;
+
 /** Depth initial-load reveal — the walls grow outward from mid; the full reveal lasts ~2×. */
 export const DEFAULT_DEPTH_INTRO = DEFAULT_SERIES_INTRO;
 /** Depth morph between order-book updates, mid-marker glide and hover ease. */
@@ -169,7 +174,7 @@ export const DEFAULT_GRID_MS = 400;
  * - `axis.ticks` — axis tick label cross-fade.
  * - `toggle` — series visibility (alpha fade + Y re-fit, locked to one
  *   duration so they finish on the same frame).
- * - `series.{line,candlestick,bar,band,pie,heatmap,depth}` — per-series-type data tweens.
+ * - `series.{line,candlestick,bar,band,pie,heatmap,depth,sankey}` — per-series-type data tweens.
  *
  * Top-level `false` disables every animation category. `axis: false`
  * disables both axes and ticks. `axis.y: false` / `axis.x: false` disables
@@ -488,6 +493,28 @@ export interface AnimationsConfig {
                */
               update?: AnimationTime;
             };
+        /**
+         * Sankey tweens. `false` disables the reveal, the data morph and
+         * the hover dim ease.
+         */
+        sankey?:
+          | false
+          | {
+              /**
+               * First-data cascade, start to end: sources grow, bands run
+               * to their targets and fill them, labels fade in.
+               *
+               * @default {@link DEFAULT_SANKEY_ENTRY}
+               */
+              entry?: AnimationTime;
+              /**
+               * Morph from the diagram on screen to new data, and the hover
+               * dim ease.
+               *
+               * @default {@link DEFAULT_SANKEY_UPDATE}
+               */
+              update?: AnimationTime;
+            };
       };
 }
 
@@ -513,7 +540,7 @@ export interface ResolvedXAxisAnimation {
   gestureMs: number;
 }
 
-/** Resolved per-series numeric durations (Pie / Heatmap / Depth have their own `updateMs`). */
+/** Resolved per-series numeric durations (Pie / Heatmap / Depth / Sankey have their own `updateMs`). */
 export interface ResolvedSeriesAnimations {
   line: { entryMs: number; smoothMs: number; pulseMs: number; introMs: number };
   candlestick: { entryMs: number; smoothMs: number; introMs: number };
@@ -522,6 +549,7 @@ export interface ResolvedSeriesAnimations {
   pie: { entryMs: number; updateMs: number };
   heatmap: { entryMs: number; updateMs: number };
   depth: { introMs: number; updateMs: number };
+  sankey: { entryMs: number; updateMs: number };
 }
 
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
@@ -532,6 +560,7 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   pie: { entryMs: 0, updateMs: 0 },
   heatmap: { entryMs: 0, updateMs: 0 },
   depth: { introMs: 0, updateMs: 0 },
+  sankey: { entryMs: 0, updateMs: 0 },
 };
 
 /**
@@ -697,6 +726,12 @@ export class AnimationConfig {
       return { introMs, updateMs };
     }
 
+    if (kind === 'sankey') {
+      const { entryMs, updateMs } = this.series.sankey;
+
+      return { entryMs, updateMs };
+    }
+
     if (kind === 'bar') {
       const { entryMs, smoothMs, introMs } = this.series.bar;
 
@@ -756,6 +791,14 @@ export class AnimationConfig {
       return out;
     }
 
+    if (kind === 'sankey') {
+      const { entryMs, updateMs } = this.series.sankey;
+      if (entryMs === 0) out.entryMs = 0;
+      if (updateMs === 0) out.updateMs = 0;
+
+      return out;
+    }
+
     const timed = this.#timedSeries(kind);
     if (timed === null) {
       // A custom series kind isn't named by `animations.series.*` — no forced override.
@@ -790,6 +833,7 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
   const rawPie = raw?.pie;
   const rawHeatmap = raw?.heatmap;
   const rawDepth = raw?.depth;
+  const rawSankey = raw?.sankey;
 
   const line =
     rawLine === false
@@ -852,5 +896,13 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           updateMs: resolveAnimationTime(rawDepth?.update, DEFAULT_DEPTH_UPDATE),
         };
 
-  return { line, candlestick, bar, band, pie, heatmap, depth };
+  const sankey =
+    rawSankey === false
+      ? { entryMs: 0, updateMs: 0 }
+      : {
+          entryMs: resolveAnimationTime(rawSankey?.entry, DEFAULT_SANKEY_ENTRY),
+          updateMs: resolveAnimationTime(rawSankey?.update, DEFAULT_SANKEY_UPDATE),
+        };
+
+  return { line, candlestick, bar, band, pie, heatmap, depth, sankey };
 }

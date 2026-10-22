@@ -119,7 +119,16 @@ export interface XFocus {
  * series (see {@link CustomSpatialSeriesRenderer} / {@link TimeSeriesRenderer})
  * picks any string that isn't one of the built-ins.
  */
-export type SeriesKind = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | 'depth' | (string & {});
+export type SeriesKind =
+  | 'candlestick'
+  | 'line'
+  | 'bar'
+  | 'band'
+  | 'pie'
+  | 'heatmap'
+  | 'depth'
+  | 'sankey'
+  | (string & {});
 
 /**
  * Members shared by every series renderer, regardless of whether it owns a
@@ -434,9 +443,14 @@ export interface HeatmapSeriesRenderer extends BaseSeriesRenderer {
   readonly kind: 'heatmap';
 }
 
+/** A spatial flow renderer with no time axis (Sankey). Has no time-series queries. */
+export interface SankeySeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'sankey';
+}
+
 /**
  * A custom spatial renderer with no time axis — implement this (rather than
- * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer}, which are reserved
+ * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer} / {@link SankeySeriesRenderer}, which are reserved
  * for the built-ins) when writing a new non-time-axis series from scratch,
  * e.g. a radar or treemap chart. Pick any `kind` that isn't a built-in one.
  */
@@ -447,12 +461,13 @@ export interface CustomSpatialSeriesRenderer extends BaseSeriesRenderer {
 /**
  * Every series renderer is one of these. Discriminated on `kind`: narrow with
  * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
- * (pie, heatmap, and any custom spatial kind) have no time-series queries.
+ * (pie, heatmap, sankey, and any custom spatial kind) have no time-series queries.
  */
 export type SeriesRenderer =
   | TimeSeriesRenderer
   | PieSeriesRenderer
   | HeatmapSeriesRenderer
+  | SankeySeriesRenderer
   | CustomSpatialSeriesRenderer;
 
 /**

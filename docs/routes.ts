@@ -13,6 +13,7 @@ export type Route =
   | 'charts/pie'
   | 'charts/heatmap'
   | 'charts/depth'
+  | 'charts/sankey'
   | 'charts/sparkline'
   // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
   // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
@@ -41,6 +42,7 @@ export type Route =
   | 'api/pie-series'
   | 'api/heatmap-series'
   | 'api/depth-series'
+  | 'api/sankey-series'
   | 'api/sparkline'
   | 'api/chart-container'
   | 'api/edge-loader'
@@ -58,6 +60,7 @@ export type Route =
   | 'api/pie-legend'
   | 'api/pie-tooltip'
   | 'api/heatmap-tooltip'
+  | 'api/sankey-tooltip'
   | 'api/number-flow'
   | 'api/y-label'
   | 'hooks/use-chart-instance'
@@ -125,6 +128,7 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/pie', label: 'Pie & Donut', title: 'Pie & Donut' },
   { route: 'charts/heatmap', label: 'Heatmap', title: 'Heatmap' },
   { route: 'charts/depth', label: 'Order Book', title: 'Order Book' },
+  { route: 'charts/sankey', label: 'Sankey', title: 'Sankey' },
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
@@ -157,6 +161,7 @@ const API_CHARTS: RouteEntry[] = [
   { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
   { route: 'api/line-series', label: 'LineSeries', title: '' },
   { route: 'api/pie-series', label: 'PieSeries', title: '' },
+  { route: 'api/sankey-series', label: 'SankeySeries', title: '' },
   { route: 'api/sparkline', label: 'Sparkline', title: '' },
 ];
 
@@ -173,6 +178,7 @@ const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/pie-legend', label: 'PieLegend', title: '' },
   { route: 'api/pie-tooltip', label: 'PieTooltip', title: '' },
   { route: 'api/reference-line', label: 'ReferenceLine', title: '' },
+  { route: 'api/sankey-tooltip', label: 'SankeyTooltip', title: '' },
   { route: 'api/time-region', label: 'TimeRegion', title: '' },
   { route: 'api/title', label: 'Title', title: '' },
   { route: 'api/tooltip', label: 'Tooltip', title: '' },
@@ -389,6 +395,7 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/pie-series': 'charts/pie',
   'api/heatmap-series': 'charts/heatmap',
   'api/depth-series': 'charts/depth',
+  'api/sankey-series': 'charts/sankey',
   'api/sparkline': 'charts/sparkline',
 };
 
@@ -417,6 +424,7 @@ export const CHART_GUIDES: Partial<Record<Route, Route[]>> = {
     'use-cases/custom-renders',
   ],
   'charts/depth': ['use-cases/realtime-data'],
+  'charts/sankey': ['use-cases/realtime-data'],
 };
 
 /** The guides before and after `route` in sidebar order, for the Previous / Next links. */

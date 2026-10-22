@@ -1529,6 +1529,159 @@
         }
       ]
     },
+    "SankeySeries": {
+      "kind": "chart",
+      "file": "packages/react/src/SankeySeries.tsx",
+      "alias": null,
+      "description": "Sankey diagram: flows between stages drawn as bands whose width follows\nthe volume. A new `nodes` / `links` pair morphs the diagram on screen.",
+      "props": [
+        {
+          "name": "nodes",
+          "type": "readonly SankeyNode[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stages of the flow. A node no link reaches is not drawn.",
+          "see": []
+        },
+        {
+          "name": "links",
+          "type": "readonly SankeyLink[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Flows between nodes by `id`. Links must not form a cycle — the series throws on one.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<SankeySeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — node colors, node width and gap, link opacity, labels, entry / update durations.",
+          "see": [],
+          "nested": {
+            "name": "SankeySeriesOptions",
+            "props": [
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Node colors in node order, before `theme.seriesColors`. A node's own `color` wins.",
+                "see": []
+              },
+              {
+                "name": "nodeWidth",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "12",
+                "deprecated": null,
+                "description": "Node width in CSS pixels. Default: 12.",
+                "see": []
+              },
+              {
+                "name": "nodePadding",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "12",
+                "deprecated": null,
+                "description": "Vertical gap between the nodes of a column in CSS pixels. Default: 12.",
+                "see": []
+              },
+              {
+                "name": "linkOpacity",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0.35",
+                "deprecated": null,
+                "description": "Opacity of the link bands, 0 to 1, over their (shaded) color. Default: 0.35.",
+                "see": []
+              },
+              {
+                "name": "labels",
+                "type": "boolean | SankeyLabelsOptions",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "`label · value` beside each node. `false` hides them. Default: `true`.",
+                "see": [],
+                "nested": {
+                  "name": "SankeyLabelsOptions",
+                  "props": [
+                    {
+                      "name": "color",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "the theme's tooltip text color",
+                      "deprecated": null,
+                      "description": "Text color. Default: the theme's tooltip text color.",
+                      "see": []
+                    },
+                    {
+                      "name": "background",
+                      "type": "string",
+                      "optional": true,
+                      "defaultValue": "the theme background",
+                      "deprecated": null,
+                      "description": "Fill of the rounded backdrop behind the text. Default: the theme background, translucent.",
+                      "see": []
+                    },
+                    {
+                      "name": "format",
+                      "type": "(value: number) => string",
+                      "optional": true,
+                      "defaultValue": "whole numbers as they are",
+                      "deprecated": null,
+                      "description": "Value formatter. Default: whole numbers as they are, others compact (`1.2K`).",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "entryMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "First-data cascade in milliseconds, start to end: sources grow, bands run to\ntheir targets and fill them, labels fade in. `0` paints at once.\nDefault: chart animation config (1400).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Morph from the diagram on screen to new data, and the hover dim ease. `0` snaps.\nDefault: chart animation config (500).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — excludes it from the tooltip. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -4100,7 +4253,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -4373,6 +4526,38 @@
                             "defaultValue": "500ms",
                             "deprecated": null,
                             "description": "Morph from the book on screen to each snapshot or delta, the\nmid-marker glide and the hover-highlight ease.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "sankey",
+                      "type": "false | { entry?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Sankey tweens. `false` disables the reveal, the data morph and\nthe hover dim ease.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "1400ms",
+                            "deprecated": null,
+                            "description": "First-data cascade, start to end: sources grow, bands run\nto their targets and fill them, labels fade in.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Morph from the diagram on screen to new data, and the hover\ndim ease.",
                             "see": []
                           }
                         ]
@@ -5078,6 +5263,41 @@
           "defaultValue": "plain integers",
           "deprecated": null,
           "description": "Custom formatter for the cell value. Default: plain integers, compact decimals.",
+          "see": []
+        }
+      ]
+    },
+    "SankeyTooltip": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/SankeyTooltip.tsx",
+      "alias": null,
+      "description": "Tooltip for sankey charts. Shows the hovered node (`label`) or link\n(`Source → Target`), its value, and its share of the outflow: of all\nsources for a node, of the source node for a link.",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible sankey\nseries is picked.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "plain integers",
+          "deprecated": null,
+          "description": "Custom formatter for the flow value. Default: plain integers, compact decimals.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: SankeyTooltipRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch — receives hover info + format, replaces default UI.",
           "see": []
         }
       ]

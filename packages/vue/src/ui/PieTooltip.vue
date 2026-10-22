@@ -90,9 +90,10 @@ watchEffect((onCleanup) => {
   const node = containerRef.value;
   if (!node || typeof ResizeObserver === 'undefined') return;
 
-  observer = new ResizeObserver((entries) => {
-    const box = entries[0]?.contentRect;
-    if (!box) return;
+  observer = new ResizeObserver(() => {
+    // `contentRect` leaves out the padding and border, so read the border box from the node.
+    const box = { width: node.offsetWidth, height: node.offsetHeight };
+    if (box.width === 0) return;
     const prev = measuredSize.value;
     if (!prev || prev.width !== box.width || prev.height !== box.height) {
       measuredSize.value = { width: box.width, height: box.height };

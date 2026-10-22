@@ -66,15 +66,20 @@ function formatValue(v: PropValue, indent: number): string {
 // codeConfig introduces a genuine variable binding the caller would have in
 // their host code.
 const VAR_REF_NAMES = new Set([
+  'accentColors',
   'asks',
   'bands',
   'bids',
+  'catppuccin.theme.axis.textColor',
   'closePoints',
   'data',
   'data[0]',
+  'formatCount',
   'ohlcData',
   'layers',
   'layers[0]',
+  'links',
+  'nodes',
   'sid',
   'series',
   // Y-bound transition factory calls — rendered as bare identifiers so the

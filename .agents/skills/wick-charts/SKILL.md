@@ -141,6 +141,7 @@ const { data: candles } = await useFetch<OHLCData[]>('/api/candles');
 - [Bar / Histogram](bar.md) — multi-layer, stacking, grouped category bars, value labels
 - [Band / Range](#band-series) — fill between a `low` and a `high` edge; percentile bands, Bollinger, fan charts (section below)
 - [Order book](#depth-series) — cumulative bid / ask walls around mid on a numeric price axis (section below)
+- [Sankey](#sankey-series) — flows between stages as bands sized by volume (section below)
 - [Pie / Donut](pie.md) — `innerRadiusRatio`, hover animation, "Other" grouping (on by default)
 - [Sparkline](sparkline.md) — inline mini-chart + value label (React only)
 
@@ -191,6 +192,7 @@ import { hermite, spring, snap } from '@wick-charts/react';
       band:        { entry: 250, smooth: 250 },
       pie:         { entry: 250, update: 250 },
       depth:       { intro: 500, update: 500 },
+      sankey:      { entry: 1400, update: 500 },
     },
     toggle: 250,
   }}
@@ -213,6 +215,8 @@ import { hermite, spring, snap } from '@wick-charts/react';
 | `series.pie.update` | ms | `250` | Slice-resize duration on data change. |
 | `series.depth.intro` | ms | `500` | Depth walls grow out from mid on the first data; the full reveal lasts ~2×. |
 | `series.depth.update` | ms | `500` | Depth morph to each new book, mid-marker glide and hover-highlight ease. |
+| `series.sankey.entry` | ms | `1400` | Sankey first-data cascade, start to end: sources grow, bands run to their targets and fill them, labels fade in. |
+| `series.sankey.update` | ms | `500` | Sankey morph to new data and the hover dim ease. |
 | `toggle` | ms | `250` | Series-visibility fade + Y re-fit duration. |
 
 **Disabling a whole group.** Any group field accepts `false` to skip animations for that subtree — `animations: false` (chart-wide), `animations: { axis: false }`, `animations: { series: { line: false } }`, etc.
@@ -239,6 +243,7 @@ Placed as children of `ChartContainer`.
 | `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?`, `scale?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
 | `TimeRegion` | `from`, `to?`, `fill?`, `label?`, `color?` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
 | `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
+| `SankeyTooltip` | `seriesId?`, `format?` | `{ info, format }` | Sankey hover tooltip: node or `Source → Target`, value, share |
 | `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
 | `NumberFlow` | `value`, `format?`, `spinDuration?`, `shrinkDelay?` | — | Standalone animated number |
 
@@ -488,6 +493,31 @@ Several bands in one series make a fan chart — layers draw in order with trans
 - **View** — centered on mid: half-width `span × mid`, or without `span` the book fit (mid out to the nearer of the two outermost levels). The view eases to each new mid; wheel / pinch zoom around mid (double-click resets); drag-pan is off. Y runs from 0 to the deepest visible cumulative size.
 - **Options** — `span`, `bidColor` / `askColor` (default: the theme's candlestick up / down colors), `strokeWidth` (1), `introMs`, `updateMs`.
 - **Overlays** — `Tooltip` / `InfoBar` rows: `Bids` / `Asks` (the layers; `Legend` toggles them), the level price in the header, the cumulative size as the value. The hover dot snaps to the step's level and the area from mid to the pointer brightens. `InfoBar` in last-mode shows the best bid and ask.
+
+## Sankey series
+
+`<SankeySeries>` draws flows between stages as bands whose width follows the volume — an acquisition funnel, a budget or energy breakdown, request routing. It is a spatial series: no axes, no crosshair, no zoom.
+
+```tsx
+<ChartContainer grid={{ visible: false }}>
+  <SankeySeries
+    nodes={[{ id: 'ads', label: 'Paid ads' }, { id: 'landing' }, { id: 'signup' }, { id: 'bounced' }]}
+    links={[
+      { source: 'ads', target: 'landing', value: 2600 },
+      { source: 'landing', target: 'signup', value: 900 },
+      { source: 'landing', target: 'bounced', value: 1700 },
+    ]}
+  />
+  <SankeyTooltip />
+</ChartContainer>
+```
+
+- **Data** — `nodes: SankeyNode[]` = `{ id, label?, color? }`, `links: SankeyLink[]` = `{ source, target, value, color? }` (`source` / `target` are node ids). Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node or without a finite `value` above 0 is skipped with a dev warning; links with the same `source` and `target` merge; a node no link reaches is not drawn.
+- **No cycles** — links must form a DAG. A cycle (a self-link too) makes `setData` throw `Sankey links form a cycle: a → b → a`, and the series keeps its previous data. Catch it if the graph comes from user input.
+- **Layout** — a node's column is its longest path from a source; a node with no outgoing link moves to the last column. Node height follows throughput (`max(in, out)`), on one scale fitted to the fullest column. The layout is deterministic and reorders nodes to untangle crossing bands.
+- **Options** — `colors` (node colors in node order, before `theme.seriesColors`; a node's own `color` wins), `nodeWidth` (12 px), `nodePadding` (12 px gap in a column), `linkOpacity` (0.35; a link is its own `color`, else its source node's color shaded by its place at the source — the top band keeps it, each next one mixes in more of the theme background, in even steps of at most 40%, up to 60%), `labels: boolean | { color?, background?, format? }` (`label · value` beside each node on a backdrop; whole numbers plain, others compact; an overlapping label is skipped), `entryMs`, `updateMs`.
+- **Live updates** — pass new `nodes` / `links`: nodes ease by `id`, links by `source → target`, new ones fade in, removed ones fade out. A fresh array of the same graph is a no-op.
+- **Hover** — a node highlights its links and their end nodes, a link its two nodes; the rest dims. `<SankeyTooltip>` shows the node label and throughput with its share of all source outflow, or `Source → Target` with the link value and its share of the source's outflow. `seriesHover` and `getHoverInfo` report the same.
 
 ## Custom render (slots / render-props)
 
