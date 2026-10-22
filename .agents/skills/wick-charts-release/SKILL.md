@@ -7,26 +7,27 @@ metadata:
 
 # Wick Charts release
 
-End-to-end release procedure. Bumps `packages/{core,react,vue,svelte}/package.json` to a single shared version, tags `vX.Y.Z`, pushes, watches the `Release` workflow, then rewrites the auto-generated GitHub release notes with the standardized format.
+End-to-end release procedure. Bumps `packages/{core,react,vue,svelte,nuxt}/package.json` to a single shared version, tags `vX.Y.Z`, pushes, watches the `Release` workflow, then rewrites the auto-generated GitHub release notes with the standardized format.
 
 ## Preconditions
 
 Confirm before starting:
 - `git status` is clean on `main` (or the user has staged the version bump deliberately).
 - The user named a target version, e.g. `0.3.5`. If not, ask.
-- All four packages currently sit at the same version (`pnpm -r exec node -p "require('./package.json').version"`).
+- All five packages currently sit at the same version (`pnpm -r exec node -p "require('./package.json').version"`).
 
 ## Steps
 
 ### 1. Bump versions
 
-Update **all four** packages to the same version:
+Update **all five** packages to the same version:
 - `packages/core/package.json`
 - `packages/react/package.json`
 - `packages/vue/package.json`
 - `packages/svelte/package.json`
+- `packages/nuxt/package.json`
 
-The release workflow's `Verify versions` step rejects mismatches between react/vue/svelte and the tag. Core is private (workspace-internal) but bump it too for consistency.
+The release workflow's `Verify versions` step rejects mismatches between react/vue/svelte/nuxt and the tag. `@wick-charts/nuxt` depends on `@wick-charts/vue` through `workspace:^`, so the publish pins it to the same version. Core is private (workspace-internal) but bump it too for consistency.
 
 If `registry/shadcn` uses API new in this release, raise its `@wick-charts/react@^X.Y.Z` pin in `registry/shadcn/registry.json` to the new version in the same commit. The shadcn CLI installs that range, so a stale pin installs a version the blocks do not compile against. The same rule holds for `registry/shadcn-vue` and its `@wick-charts/vue@^X.Y.Z` pin in `registry/shadcn-vue/registry.json`.
 
@@ -89,5 +90,5 @@ See [release-template.md](release-template.md). Rules:
 ## Failure modes
 
 - **Tag exists**: `git tag vX.Y.Z` fails. Either the user already started the release or a previous attempt didn't complete. Check `gh release view vX.Y.Z` and `gh run list --workflow=release.yml`. Don't force-delete tags without confirming.
-- **`Verify versions` fails in CI**: one of `packages/{react,vue,svelte}/package.json` doesn't match the tag. Fix locally, commit, retag, repush.
+- **`Verify versions` fails in CI**: one of `packages/{react,vue,svelte,nuxt}/package.json` doesn't match the tag. Fix locally, commit, retag, repush.
 - **Publish fails on one package**: npm Trusted Publishing is configured per-package. If react publishes but vue 404s, the vue trusted publisher config is missing on npmjs.com. The release is now half-published — flag clearly to the user and don't proceed to the GitHub release rewrite until resolved.

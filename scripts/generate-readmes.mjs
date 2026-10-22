@@ -100,7 +100,7 @@ function main() {
   // Mirror the root LICENSE into each published package so npm includes it in
   // the tarball (npm only auto-packs a LICENSE that sits next to package.json).
   const rootLicense = join(ROOT, 'LICENSE');
-  for (const pkg of ['react', 'vue', 'svelte']) {
+  for (const pkg of ['react', 'vue', 'svelte', 'nuxt']) {
     const dest = join(ROOT, 'packages', pkg, 'LICENSE');
     copyFileSync(rootLicense, dest);
     console.log(`✓ ${relative(ROOT, dest)}`);

@@ -30,6 +30,7 @@ Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered
 npm install @wick-charts/react   # React
 npm install @wick-charts/vue     # Vue
 npm install @wick-charts/svelte  # Svelte
+npm install @wick-charts/nuxt    # Nuxt module
 ```
 
 ## Quick start

@@ -87,7 +87,7 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          for pkg in react vue svelte; do
+          for pkg in react vue svelte nuxt; do
             PACKAGE_VERSION=$(jq -r '.version' "packages/$pkg/package.json")
             if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
               echo "packages/$pkg/package.json has version $PACKAGE_VERSION, expected $VERSION."
@@ -111,6 +111,9 @@ jobs:
 
       - name: Publish @wick-charts/svelte
         run: pnpm publish packages/svelte --access public --provenance --no-git-checks
+
+      - name: Publish @wick-charts/nuxt
+        run: pnpm publish packages/nuxt --access public --provenance --no-git-checks
 
   github-release:
     needs: publish

@@ -32,6 +32,7 @@ export type Route =
   | 'use-cases/theme'
   | 'integrations/shadcn'
   | 'integrations/shadcn/vue'
+  | 'integrations/nuxt'
   | 'api/line-series'
   | 'api/band-series'
   | 'api/bar-series'
@@ -201,7 +202,10 @@ const MIGRATION: RouteEntry = { route: 'migration', label: 'Migration Guide', ti
 // learning flow). Route stays `use-cases/theme` — only its menu slot moved.
 const THEME: RouteEntry = { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' };
 // How Wick Charts fits a framework or a UI kit around it, one page per integration.
-const INTEGRATIONS: RouteEntry[] = [{ route: 'integrations/shadcn', label: 'Shadcn', title: 'shadcn/ui' }];
+const INTEGRATIONS: RouteEntry[] = [
+  { route: 'integrations/shadcn', label: 'Shadcn', title: 'shadcn/ui' },
+  { route: 'integrations/nuxt', label: 'Nuxt', title: 'Nuxt' },
+];
 // The shadcn page's Vue view: a URL of its own to prerender and rank, no menu item of its own.
 const SHADCN_VUE: RouteEntry = { route: 'integrations/shadcn/vue', label: 'shadcn-vue', title: 'shadcn-vue' };
 // Title blank — StressTestPage renders its own header (like Api/Hook/Migration),
