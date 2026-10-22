@@ -1,6 +1,6 @@
 {
   "name": "@wick-charts/nuxt",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Realtime, animated canvas charts for Nuxt: candlestick, line, bar, heatmap, pie and more, auto-imported. Tree-shakeable, zero runtime deps.",
   "license": "MIT",
   "repository": {
@@ -56,7 +56,8 @@
   },
   "dependencies": {
     "@nuxt/kit": "^4.6.2",
-    "@wick-charts/vue": "workspace:^"
+    "@wick-charts/vue": "workspace:^",
+    "scule": "^1.3.0"
   },
   "devDependencies": {
     "@nuxt/cli": "^3.37.0",

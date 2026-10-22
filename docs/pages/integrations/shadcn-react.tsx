@@ -1,4 +1,4 @@
-import { FLAVORS, installCommand } from '../../demos/shadcn/catalog';
+import { FLAVORS, installAllCommand, installCommand } from '../../demos/shadcn/catalog';
 import { FrameworkLink, type GuideCopy, HEADINGS, registriesJson } from './shadcn-guide';
 
 const THEME_HOOK_CODE = `const ref = useRef<HTMLDivElement>(null);
@@ -59,9 +59,20 @@ export const REACT_COPY: GuideCopy = {
       code: registriesJson('react'),
     },
     {
+      heading: HEADINGS.all,
+      body: (
+        <>
+          <code>shadcn add --all</code> reads only the default registry, so name every block in one command.
+        </>
+      ),
+      code: installAllCommand('react'),
+    },
+    {
       heading: HEADINGS.theme,
       body: (
         <>
+          The <code>wick-theme</code> item adds <code>useWickTheme</code> to <code>@/hooks</code>; every block brings
+          it. To add it alone: <code>npx shadcn@latest add @wick-charts/wick-theme</code>.{' '}
           <code>useWickTheme(ref?)</code> reads <code>--background</code>, <code>--foreground</code>,{' '}
           <code>--muted-foreground</code>, <code>--border</code> and <code>--chart-1</code> … <code>--chart-5</code>,
           and follows dark mode. Candles and order book sides take your chart colors, not green and red. Pass a ref to
@@ -74,7 +85,9 @@ export const REACT_COPY: GuideCopy = {
       heading: HEADINGS.wrapper,
       body: (
         <>
-          Size <code>WickChart</code> with classes: <code>aspect-video</code> by default,{' '}
+          The <code>wick-chart</code> item adds <code>WickChart</code> to <code>@/components/ui/wick-chart</code>:{' '}
+          <code>npx shadcn@latest add @wick-charts/wick-chart</code>. Size it with classes:{' '}
+          <code>aspect-video</code> by default,{' '}
           <code>aspect-auto h-[250px]</code> for a fixed height. It takes every <code>ChartContainer</code> prop and
           draws horizontal grid lines only. <code>theme</code> also takes a function that adjusts the generated theme;
           define it outside the component.

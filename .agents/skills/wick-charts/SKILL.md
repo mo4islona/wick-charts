@@ -12,6 +12,7 @@ Canvas-based charting library for React, Vue 3, and Svelte.
 - `@wick-charts/react` — components + hooks + `ThemeProvider`
 - `@wick-charts/vue` — components + composables
 - `@wick-charts/svelte` — components + stores
+- `@wick-charts/nuxt` — Nuxt module that auto-imports the `@wick-charts/vue` components and composables (see [Nuxt](#nuxt))
 
 Core components (`ChartContainer`, all `*Series`, `Tooltip`, `InfoBar`, `Title`, `Crosshair`, axes, `YLabel`, `Legend`, `Marker`, `ReferenceLine`, `TimeRegion`, `PieTooltip`, `PieLegend`) exist in every framework with matching semantics — syntax differs only where the host framework forces it (`:prop` / `{prop}`).
 
@@ -22,18 +23,28 @@ Framework-specific gaps to know about:
 - The [reactive accessors](#reactive-accessors) are hooks in React, composables with the same names in Vue, and stores in Svelte.
 - **Svelte**: the components work in Svelte 4 and Svelte 5. In a Svelte 5 project (`sv create` turns runes on), write your own components with runes — `let { data }: { data: OHLCInput[] } = $props()`, not `export let` — and keep chart data in `$state.raw` (see [Realtime updates](#realtime-updates)).
 
-## shadcn/ui
+## shadcn/ui and shadcn-vue
 
-In a shadcn/ui project (React), install from the Wick Charts registry instead of wiring a theme by hand. Items install as source files into the project:
+In a shadcn/ui project (React) or a shadcn-vue project (Vue, Nuxt), install from the Wick Charts registry instead of wiring a theme by hand. Items install as source files into the project. The two registries have the same items:
 
-- `wick-theme` — `useWickTheme(ref?)` builds a `ChartTheme` from the shadcn CSS variables (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--chart-1` … `--chart-5`) and follows light/dark switches.
-- `wick-chart` — `<WickChart>`: `ChartContainer` themed by that hook, sized with classes (`aspect-video` by default), horizontal grid lines only. `theme` takes a `ChartTheme` or a function that adjusts the generated one.
-- Blocks in a shadcn `Card`: `chart-line-live`, `chart-candlestick`, `chart-order-book`, `chart-sparkline-cards`, `chart-bar-grouped`, `chart-pie-donut`, `chart-band-latency`, `chart-area-stacked`, `chart-heatmap`, `chart-line-annotations`, `chart-line-navigator`.
+- `wick-theme` — `useWickTheme(ref?)` builds a `ChartTheme` from the shadcn CSS variables (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--chart-1` … `--chart-5`) and follows light/dark switches. React: `@/hooks/use-wick-theme`. Vue: `@/composables/useWickTheme`, takes a template ref.
+- `wick-chart` — `<WickChart>`: `ChartContainer` themed by that hook, sized with classes (`aspect-video` by default), horizontal grid lines only. `theme` takes a `ChartTheme` or a function that adjusts the generated one. Import it from `@/components/ui/wick-chart`.
+- Blocks in a shadcn `Card`: `chart-line-live`, `chart-candlestick`, `chart-order-book`, `chart-sparkline-cards`, `chart-bar-grouped`, `chart-pie-donut`, `chart-band-latency`, `chart-area-stacked`, `chart-heatmap`, `chart-line-annotations`, `chart-line-navigator`. A Vue block is `@/components/ChartCandlestick.vue` (PascalCase).
+
+| | React (shadcn/ui) | Vue / Nuxt (shadcn-vue) |
+|---|---|---|
+| CLI | `npx shadcn@latest add` | `npx shadcn-vue@latest add` |
+| Registry | `https://wick-charts.eeff.io/r/{name}.json` | `https://wick-charts.eeff.io/r/vue/{name}.json` |
+| Index | `https://wick-charts.eeff.io/r/registry.json` | `https://wick-charts.eeff.io/r/vue/registry.json` |
 
 ```bash
+# React
 npx shadcn@latest add https://wick-charts.eeff.io/r/wick-chart.json
-# or, with "@wick-charts": "https://wick-charts.eeff.io/r/{name}.json" under "registries" in components.json:
-npx shadcn@latest add @wick-charts/chart-line-live
+# Vue / Nuxt
+npx shadcn-vue@latest add https://wick-charts.eeff.io/r/vue/wick-chart.json
+# Or add "@wick-charts": "<registry URL above>" under "registries" in components.json and add by name.
+# `add --all` reads only the default registry, so list the blocks:
+npx shadcn-vue@latest add @wick-charts/chart-line-live @wick-charts/chart-candlestick
 ```
 
 ```tsx
@@ -53,7 +64,58 @@ export function Revenue({ data }: { data: TimePoint[] }) {
 }
 ```
 
-The index of all items is `https://wick-charts.eeff.io/r/registry.json`.
+```vue
+<script setup lang="ts">
+import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/vue';
+
+import { WickChart } from '@/components/ui/wick-chart';
+
+defineProps<{ data: TimePoint[] }>();
+</script>
+
+<template>
+  <WickChart class="aspect-auto h-[250px]">
+    <LineSeries :data="data" />
+    <YAxis />
+    <TimeAxis />
+    <Tooltip />
+  </WickChart>
+</template>
+```
+
+## Nuxt
+
+`@wick-charts/nuxt` registers every `@wick-charts/vue` component with a `Wick` prefix and auto-imports the composables, so a page needs no imports. Import types, themes, helpers and `useTheme` from `@wick-charts/vue`.
+
+```bash
+npx nuxi module add @wick-charts/nuxt
+```
+
+```vue
+<script setup lang="ts">
+import type { OHLCData } from '@wick-charts/vue';
+
+// A server route that returns [{ time, open, high, low, close }], time in ms.
+const { data: candles } = await useFetch<OHLCData[]>('/api/candles');
+</script>
+
+<template>
+  <div style="height: 400px">
+    <WickChartContainer>
+      <WickCandlestickSeries :data="candles ?? []" />
+      <WickCrosshair />
+      <WickTooltip />
+      <WickYAxis />
+      <WickTimeAxis />
+    </WickChartContainer>
+  </div>
+</template>
+```
+
+- No `<ClientOnly>`: the server renders the sized, themed container, and the canvas draws after hydration.
+- `useFetch` on the server puts every row into the HTML payload. For thousands of rows, pass `{ server: false }`.
+- Options: `wickCharts: { prefix: 'Wick', composables: true }` in `nuxt.config.ts`. A prefix applies to every name (`prefix: 'Chart'` gives `<ChartChartContainer>`). Do not set an empty prefix: `<Title>` is then Nuxt's head component, and the app's own components can take other names. The module warns at build time when that happens.
+- The shadcn-vue registry works in Nuxt too: see [shadcn/ui and shadcn-vue](#shadcnui-and-shadcn-vue).
 
 ## Chart types (reference pages)
 

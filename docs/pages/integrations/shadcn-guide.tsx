@@ -24,9 +24,10 @@ export const HEADINGS = {
   pick: '01 — PICK A BLOCK',
   add: '02 — ADD IT WITH THE CLI',
   byName: '03 — OR ADD BLOCKS BY NAME',
-  theme: '04 — THEMED FROM YOUR CSS VARIABLES',
-  wrapper: '05 — SIZE A CHART WITH CLASSES',
-  svelte: '06 — SVELTE',
+  all: '04 — ADD EVERY BLOCK',
+  theme: '05 — THEMED FROM YOUR CSS VARIABLES',
+  wrapper: '06 — SIZE A CHART WITH CLASSES',
+  svelte: '07 — SVELTE',
 };
 
 const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => ({

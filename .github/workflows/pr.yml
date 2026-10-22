@@ -38,6 +38,8 @@ jobs:
           fail_ci_if_error: false
           use_oidc: true
       - run: pnpm build
+      # The registry files against the built types, under the stricter tsconfig of a new Nuxt or Vite app.
+      - run: pnpm registry:typecheck
       - run: pnpm svelte:compat
       # Smoke-check the docs SPA bundle (the full prerender + deploy runs in
       # deploy-cloudflare.yml on push to main; this just catches build breakage).

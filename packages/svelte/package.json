@@ -1,6 +1,6 @@
 {
   "name": "@wick-charts/svelte",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Realtime, animated canvas charts for Svelte: candlestick, line, bar, heatmap, pie and more. Tree-shakeable, zero runtime deps.",
   "license": "MIT",
   "repository": {

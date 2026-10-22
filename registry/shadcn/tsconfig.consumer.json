@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@wick-charts/core": ["../../packages/core/dist/index.d.ts"],
+      "@wick-charts/react": ["../../packages/react/dist/index.d.ts"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/components/ui/wick-chart": ["./ui/wick-chart.tsx"],
+      "@/components/ui/card": ["./shims/card.d.ts"],
+      "@/lib/utils": ["./shims/utils.d.ts"]
+    }
+  },
+  "include": ["blocks", "hooks", "ui", "shims"]
+}

@@ -36,6 +36,7 @@ function process(data: Data): Result {
 ## Rules
 
 - Lint files with Biome before committing
+- Registry files that install into user projects (`registry/shadcn/{blocks,hooks,ui}`, `registry/shadcn-vue/{components,composables}`) use the shadcn Prettier style: format them with `pnpm registry:format`, Biome only lints them
 - Not more than three arguments per function — prefer object parameters for clarity
 - Don't use `!` non-null assertion operator — handle nullability explicitly
 - Don't use `any` — prefer `unknown` and explicit type checks

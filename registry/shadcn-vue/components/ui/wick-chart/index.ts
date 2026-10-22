@@ -1,1 +1,1 @@
-export { default as WickChart } from './WickChart.vue';
+export { default as WickChart } from "./WickChart.vue"
