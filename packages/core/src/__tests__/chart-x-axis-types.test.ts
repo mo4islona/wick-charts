@@ -426,7 +426,7 @@ describe('ChartInstance X axis types', () => {
       expect(verticalGridlines()).toEqual([]);
     });
 
-    it('labels one tick per band and truncates a name wider than its step', () => {
+    it('labels one tick per band and truncates a name wider than its step, with a gap', () => {
       makeChart({ axis: { x: { type: 'category' } } });
       const id = chart.addSeries('bar');
       chart.setSeriesData(id, [
@@ -443,7 +443,7 @@ describe('ChartInstance X axis types', () => {
 
       expect(spans.map((span) => span.textContent)).toEqual(['EU', 'Australia and Oceania']);
       for (const span of spans) {
-        expect(span.style.maxWidth).toBe(`${step}px`);
+        expect(span.style.maxWidth).toBe(`${step - 8}px`);
         expect(span.style.textOverflow).toBe('ellipsis');
         expect(span.style.overflow).toBe('hidden');
       }
@@ -662,6 +662,58 @@ describe('ChartInstance X axis types', () => {
       expect(chart.timeScale.niceTickValues(1).ticks).toHaveLength(60);
     });
 
+    it('names every n-th band when the names outgrow their bands', () => {
+      // A name measures 100 px unless capped narrower.
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        const cap = Number.parseFloat(this.style.maxWidth);
+
+        return Number.isNaN(cap) ? 100 : Math.min(100, cap);
+      });
+      makeChart({ axis: { x: { type: 'category' } } });
+      const id = chart.addSeries('bar');
+      chart.setSeriesData(
+        id,
+        Array.from({ length: 30 }, (_, i) => ({ x: `Region ${i}`, value: 30 - i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      const step = chart.timeScale.barWidthMedia(1);
+      // 80 px of room (the default `minLabelSpacing`) plus the 8 px gap.
+      const stride = Math.ceil(88 / step);
+      const spans = [...strip.querySelectorAll('span')];
+      expect(stride).toBeGreaterThan(1);
+      expect(spans.map((span) => span.textContent)).toEqual(
+        Array.from({ length: Math.ceil(30 / stride) }, (_, i) => `Region ${i * stride}`),
+      );
+      for (const span of spans) {
+        expect(span.style.maxWidth).toBe(`${stride * step - 8}px`);
+      }
+
+      unmount();
+    });
+
+    it('keeps every short name when it fits its band', () => {
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(20);
+      makeChart({ axis: { x: { type: 'category' } } });
+      const id = chart.addSeries('bar');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      chart.setSeriesData(
+        id,
+        months.map((x, i) => ({ x, value: i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      expect(chart.timeScale.barWidthMedia(1)).toBeGreaterThan(28);
+      expect([...strip.querySelectorAll('span')].map((span) => span.textContent)).toEqual(months);
+      unmount();
+    });
+
     it('measures a long category name at its slot width, again after the slot narrows', () => {
       vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
         const cap = Number.parseFloat(this.style.maxWidth);
@@ -683,8 +735,11 @@ describe('ChartInstance X axis types', () => {
       chart.setSeriesData(id, regions(20));
       raf.flush(5);
 
+      // The first name now spans three bands and shifts inward by its fresh, narrower cap.
+      const cap = Number.parseFloat(strip.querySelector('span')?.style.maxWidth ?? '');
       expect(chart.timeScale.barWidthMedia(1)).toBeLessThan(60);
-      expect(firstLeft()).toBe(chart.timeScale.timeToSnappedX(0));
+      expect(cap).toBeLessThan(190);
+      expect(firstLeft()).toBeCloseTo(cap / 2, 4);
       unmount();
     });
 

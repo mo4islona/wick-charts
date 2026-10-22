@@ -37,6 +37,7 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 const FADE_AUTO_BAND = 24;
 
 import { ChartContext } from './context';
+import { useAxisLayout } from './store-bridge';
 import { ThemeProvider, useThemeOptional } from './ThemeContext';
 // Slot components (Title, Legend, PieLegend, InfoBar, Navigator) are matched
 // via their static slot marker, NOT imported here — a value import would pull
@@ -581,6 +582,7 @@ export function ChartContainer({
   }, [grid?.visible, grid?.horizontal, grid?.vertical]);
 
   const chart = chartRef.current;
+  const axisLayout = useAxisLayout(chart);
 
   // `chart` in the deps hands a rebuilt instance the current height too.
   const floatingHeaderHeight = headerLayout === 'overlay' ? topOverlayHeight : 0;
@@ -710,7 +712,8 @@ export function ChartContainer({
               position: 'absolute',
               top: 0,
               left: 0,
-              right: 0,
+              // Stops at a right Y-axis column, so the InfoBar wraps before the tick labels.
+              right: axisLayout?.rightAxisWidth ?? 0,
               // Lower than the series-overlay layer below, so the floating
               // <Tooltip> glass panel renders *above* Title/InfoBar
               // when the cursor hovers near them.

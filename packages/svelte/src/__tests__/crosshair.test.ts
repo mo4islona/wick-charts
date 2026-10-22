@@ -111,6 +111,28 @@ describe('Svelte <Crosshair>', () => {
     expect(niceSpy).toHaveBeenCalledWith(dataInterval);
   });
 
+  it('registers its axis labels as tick-label covers and re-checks them on each move', async () => {
+    const { chart } = mountHarness();
+    await settle();
+    const c = chart();
+    const changes = vi.fn();
+    c.on('axisLabelCoverChange', changes);
+
+    c.setCrosshair({ time: 10, y: 100 });
+    await settle();
+    expect(c.getAxisLabelCovers().size).toBe(2);
+    const afterShow = changes.mock.calls.length;
+    expect(afterShow).toBeGreaterThan(0);
+
+    c.setCrosshair({ time: 20, y: 100 });
+    await settle();
+    expect(changes.mock.calls.length).toBeGreaterThan(afterShow);
+
+    c.setCrosshair(null);
+    await settle();
+    expect(c.getAxisLabelCovers().size).toBe(0);
+  });
+
   it('re-resolves the tick interval on every crosshair move (V1 — not frozen on zoom)', async () => {
     const { chart } = mountHarness();
     await settle();

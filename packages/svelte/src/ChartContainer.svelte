@@ -307,6 +307,17 @@ function syncHeaderObserver() {
 // call sees the caller's latest callback, mirroring Vue's reactive-props
 // read. Shared between the mount path and the animations-triggered rebuild
 // below so the two don't drift.
+// The floating header stops at a right Y-axis column, so the InfoBar wraps before the tick labels.
+let headerRight = 0;
+
+function trackHeaderRight(target: ChartInstance): void {
+  const sync = () => {
+    headerRight = target.getAxisColumnWidth('right');
+  };
+  sync();
+  target.on('viewportChange', sync);
+}
+
 function subscribeDeclarativeEvents(target: ChartInstance): void {
   target.on('pointClick', (info) => onPointClick?.(info));
   target.on('pointDoubleClick', (info) => onPointDoubleClick?.(info));
@@ -334,6 +345,7 @@ onMount(() => {
   instance = new ChartInstance(containerEl, options);
   chartStore.set(instance);
   subscribeDeclarativeEvents(instance);
+  trackHeaderRight(instance);
   onReady?.(instance);
 
   void tick().then(() => {
@@ -422,6 +434,7 @@ async function rebuildChartFromAnimations() {
   seedFadeOption(opts);
   instance = new ChartInstance(containerEl, opts);
   subscribeDeclarativeEvents(instance);
+  trackHeaderRight(instance);
   chartStore.set(instance);
   onReady?.(instance);
 }
@@ -524,7 +537,7 @@ $: rootStyle =
           <div
             bind:this={topOverlayEl}
             data-chart-top-overlay=""
-            style="position:absolute;top:0;left:0;right:0;z-index:2;pointer-events:none;display:flex;flex-direction:column"
+            style="position:absolute;top:0;left:0;right:{headerRight}px;z-index:2;pointer-events:none;display:flex;flex-direction:column"
           >
             <div bind:this={titleAnchorEl} data-chart-title-anchor=""></div>
             <div bind:this={infoBarAnchorEl} data-tooltip-legend-anchor=""></div>

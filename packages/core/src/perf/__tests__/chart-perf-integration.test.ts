@@ -187,6 +187,22 @@ describe('ChartInstance — perf instrumentation', () => {
     }
   });
 
+  it('homes the HUD left of the right Y-axis column, and follows a width change', () => {
+    const chart = new ChartInstance(container, { perf: perfHud(), axis: { y: { width: 70 } }, interactive: false });
+    const right = () => container.querySelector<HTMLElement>('[data-chart-perf-hud]')?.style.right;
+    try {
+      seedCandles(chart, 20);
+      raf.flush(5);
+      expect(right()).toBe('78px');
+
+      chart.setAxis({ y: { position: 'left', width: 70 } });
+      raf.flush(5);
+      expect(right()).toBe('8px');
+    } finally {
+      chart.destroy();
+    }
+  });
+
   it('throws on the removed perf: true shorthand with factory guidance', () => {
     expect(() => new ChartInstance(container, { perf: true as never, interactive: false })).toThrowError(/perfHud\(\)/);
   });

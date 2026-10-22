@@ -308,6 +308,26 @@ describe('Vue <ChartContainer> ported props', () => {
     wrapper.unmount();
   });
 
+  it('stops the overlay header at the right Y-axis column, so the InfoBar wraps before the tick labels', async () => {
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme, axis: { y: { width: 70 } } }, () => [
+            h(InfoBar),
+            h(CandlestickSeries, { data: ohlc }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const overlay = host.querySelector('[data-chart-top-overlay]') as HTMLElement;
+    expect(overlay.style.left).toBe('0px');
+    expect(overlay.style.right).toBe('70px');
+
+    wrapper.unmount();
+  });
+
   it('headerLayout="inline" passes the user-configured padding.top through unchanged (no fold-in)', async () => {
     const setPadding = vi.spyOn(ChartInstance.prototype, 'setPadding');
 

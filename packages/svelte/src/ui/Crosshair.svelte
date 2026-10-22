@@ -2,6 +2,7 @@
 import type { ChartInstance, CrosshairPosition, YAxisPosition } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
+import { axisLabelCover } from '../axis-label-cover.js';
 import { getChartContext } from '../context.js';
 import { createCrosshairPosition } from '../stores.js';
 import NumberText from './NumberText.svelte';
@@ -80,18 +81,27 @@ $: labelStyle = theme
 {#if position && chart && theme}
   <!-- Y label on the value axis -->
   {#if !defaultSideTaken}
-    <div style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
+    <div
+      use:axisLabelCover={{ chart, at: position }}
+      style="position:absolute;{chart.yAxisPosition}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}"
+    >
       <NumberText text={defaultLabel} mute={false} />
     </div>
   {/if}
   {#each scaleLabels as label (label.scale)}
-    <div style="position:absolute;{label.position}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}">
+    <div
+      use:axisLabelCover={{ chart, at: position }}
+      style="position:absolute;{label.position}:0;top:{position.mediaY}px;transform:translateY(-50%);{labelStyle}"
+    >
       <NumberText text={label.text} mute={false} />
     </div>
   {/each}
   <!-- Time label on bottom axis -->
   {#if xLabel}
-    <div style="position:absolute;bottom:{xLabel.bottom}px;left:{xLabel.left}px;transform:{xLabel.transform};{labelStyle}">
+    <div
+      use:axisLabelCover={{ chart, at: xLabel }}
+      style="position:absolute;bottom:{xLabel.bottom}px;left:{xLabel.left}px;transform:{xLabel.transform};{labelStyle}"
+    >
       {xLabel.text}
     </div>
   {/if}

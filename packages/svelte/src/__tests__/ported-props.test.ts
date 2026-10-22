@@ -117,6 +117,8 @@ describe('Svelte ported props parity', () => {
     const overlay = result.container.querySelector('[data-chart-top-overlay]') as HTMLElement;
     expect(overlay).not.toBeNull();
     expect(overlay.style.position || getComputedStyle(overlay).position).toBe('absolute');
+    // Stops at the default 55 px right Y-axis column, so the InfoBar wraps before the tick labels.
+    expect(overlay.style.right).toBe('55px');
     result.unmount();
   });
 

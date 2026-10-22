@@ -8,6 +8,7 @@ const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 const MONTH = 30 * DAY;
 const QUARTER = 90 * DAY;
+const HALF_YEAR = 180 * DAY;
 const YEAR = 365 * DAY;
 
 /** Zone offsets are cached per 15-minute bucket — every modern zone transition falls on that grid. */
@@ -104,11 +105,11 @@ function offsetShift(args: { from: number; to: number; offsetAt: OffsetFn }): nu
 
 function calendarTicks(args: TimeTicksArgs, offsetAt: OffsetFn): number[] {
   const { from, to, interval, max } = args;
-  const boundaryAt = calendarBoundaries(interval, new Date(from + offsetAt(from)));
+  const walk = calendarWalk(interval, new Date(from + offsetAt(from)));
   const ticks: number[] = [];
 
-  for (let i = 0; ticks.length < max; i++) {
-    const t = wallToInstant(boundaryAt(i), offsetAt);
+  for (let wall = walk.first; ticks.length < max; wall = walk.next(wall)) {
+    const t = wallToInstant(wall, offsetAt);
     // NaN past the Date range ends the walk too.
     if (!(t <= to)) break;
 
@@ -118,36 +119,78 @@ function calendarTicks(args: TimeTicksArgs, offsetAt: OffsetFn): number[] {
   return ticks;
 }
 
-/**
- * Wall-clock time of the `i`-th boundary of the tier, counted from the one at
- * or before `start`. `start` holds wall-clock time and is read through the UTC getters.
- */
-function calendarBoundaries(interval: number, start: Date): (i: number) => number {
+/** Boundaries of one tier as wall-clock times, read through the UTC getters. */
+interface CalendarWalk {
+  /** The boundary at or before the start. */
+  first: number;
+  next: (wall: number) => number;
+}
+
+function calendarWalk(interval: number, start: Date): CalendarWalk {
   const year = start.getUTCFullYear();
   const month = start.getUTCMonth();
   const day = start.getUTCDate();
 
   if (interval >= YEAR) {
     const step = Math.round(interval / YEAR);
-    const firstYear = Math.floor(year / step) * step;
+    const first = wallDate({ year: Math.floor(year / step) * step, month: 0, day: 1 });
+    const next = (wall: number) => wallDate({ year: new Date(wall).getUTCFullYear() + step, month: 0, day: 1 });
 
-    return (i) => wallDate({ year: firstYear + i * step, month: 0, day: 1 });
+    return { first, next };
   }
 
   if (interval >= MONTH) {
-    const step = interval >= QUARTER ? 3 : 1;
-    const firstMonth = Math.floor(month / step) * step;
+    const step = monthStep(interval);
+    const first = wallDate({ year, month: Math.floor(month / step) * step, day: 1 });
+    const next = (wall: number) => {
+      const date = new Date(wall);
 
-    return (i) => wallDate({ year, month: firstMonth + i * step, day: 1 });
+      return wallDate({ year: date.getUTCFullYear(), month: date.getUTCMonth() + step, day: 1 });
+    };
+
+    return { first, next };
   }
 
-  if (interval >= WEEK) {
+  if (interval === WEEK) {
     const sinceMonday = (start.getUTCDay() + 6) % 7;
 
-    return (i) => wallDate({ year, month, day: day - sinceMonday + i * 7 });
+    return { first: wallDate({ year, month, day: day - sinceMonday }), next: (wall) => wall + WEEK };
   }
 
-  return (i) => wallDate({ year, month, day: day + i });
+  return dayOfMonthWalk({ step: Math.round(interval / DAY), year, month, day });
+}
+
+function monthStep(interval: number): number {
+  if (interval >= HALF_YEAR) return 6;
+  if (interval >= QUARTER) return 3;
+
+  return 1;
+}
+
+/**
+ * Every `step`-th day from each 1st. A day nearer than `step` to the next 1st
+ * is dropped, so no two ticks sit closer than the step at a month's end.
+ */
+function dayOfMonthWalk(args: { step: number; year: number; month: number; day: number }): CalendarWalk {
+  const { step, year, month, day } = args;
+  const keeps = (date: number, monthDays: number) => date + step <= monthDays + 1;
+
+  let firstDay = 1 + Math.floor((day - 1) / step) * step;
+  if (!keeps(firstDay, daysInMonth(year, month))) firstDay -= step;
+
+  const next = (wall: number) => {
+    const date = new Date(wall);
+    const nextDay = date.getUTCDate() + step;
+    if (keeps(nextDay, daysInMonth(date.getUTCFullYear(), date.getUTCMonth()))) return wall + step * DAY;
+
+    return wallDate({ year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: 1 });
+  };
+
+  return { first: wallDate({ year, month, day: firstDay }), next };
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(wallDate({ year, month: month + 1, day: 0 })).getUTCDate();
 }
 
 /** Midnight of a wall-clock date as a UTC number; months and days overflow into the next unit. */

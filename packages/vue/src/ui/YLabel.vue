@@ -12,6 +12,7 @@ import {
 } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
+import { vAxisLabelCover } from '../axis-label-cover';
 import { useChartInstance } from '../context';
 import NumberFlow from './NumberFlow.vue';
 
@@ -308,6 +309,7 @@ const BADGE_SHRINK_DELAY = 1000;
         }"
       />
       <div
+        v-axis-label-cover="chart"
         :style="{
           position: 'absolute',
           [side]: '4px',

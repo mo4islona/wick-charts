@@ -33,6 +33,7 @@ export { mountAxisLabels } from './axis/dom-labels';
 // Bitmap-space geometry a custom series' `render(ctx)` draws into — see `ctx.scope`.
 export type { BitmapCoordinateSpace } from './canvas-manager';
 export type {
+  AxisLabelCover,
   ChartOptions,
   EdgeReachedInfo,
   EdgeSide,
@@ -121,6 +122,7 @@ export type {
   PercentileSample,
   PerfConfig,
   PerfHudColors,
+  PerfHudHandle,
   PerfHudOptions,
   PerfMonitorOptions,
   PerfStats,

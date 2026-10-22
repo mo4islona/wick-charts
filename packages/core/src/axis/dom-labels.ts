@@ -42,8 +42,21 @@ const VISIBLE_OPACITY_EPS = 0.01;
 /** How far past the chart edge (CSS px) a tick's label takes to fade out, held at the edge. */
 const EDGE_FADE_PX = 8;
 
+/** CSS px kept clear between two category names. */
+const CATEGORY_GAP_PX = 8;
+
+/** CSS px a tick label keeps from a cover, so it does not peek out at the cover's edge. */
+const COVER_GAP_PX = 4;
+
 const DAY = 86_400_000;
 const YEAR = 365 * DAY;
+
+function sameNames(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+
+  return a.every((name, i) => name === b[i]);
+}
 
 /**
  * Append axis-label `<span>` children to `container`, keep them positioned
@@ -61,6 +74,9 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   let appliedTheme: ChartTheme | null = null;
   // Y-axis side the spans are anchored for; a flip re-anchors reused spans.
   let appliedSide: YAxisPosition | null = null;
+  // A category axis names every n-th band when the names outgrow their bands.
+  let categoryStride = 1;
+  let widestName: { names: readonly string[]; format: unknown; font: string; width: number } | null = null;
 
   // Resolved on every read: `setScales` can drop and re-add a named scale.
   function yScale(): YScale {
@@ -95,9 +111,12 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // Returns the label's opacity factor for the chart edge.
   function positionSpan(el: HTMLSpanElement, value: number): number {
     if (axis === 'x') {
-      // A category name longer than its step ends in an ellipsis instead of running into the next one.
+      // A category name longer than its slot ends in an ellipsis instead of running into the next one.
       // Capped before `justifiedX` measures it, or the edge clamp uses the uncapped width.
-      if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${chart.timeScale.barWidthMedia(1)}px`;
+      if (chart.timeScale.getType() === 'category') {
+        const slot = categoryStride * chart.timeScale.barWidthMedia(1);
+        el.style.maxWidth = `${Math.max(0, slot - CATEGORY_GAP_PX)}px`;
+      }
 
       const placement = justifiedX(el, chart.timeScale.timeToSnappedX(value));
       el.style.left = `${placement.left}px`;
@@ -160,7 +179,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // cached on the element. `sync` re-applies them whenever the theme changes —
   // without that, a reused span keeps the previous palette's color/font after
   // `setTheme` (the "axis text doesn't follow the theme" regression).
-  function applyThemeStyles(el: HTMLSpanElement, theme: ChartTheme): void {
+  function applyThemeStyles(el: HTMLElement, theme: ChartTheme): void {
     el.style.color = resolveAxisTextColor(theme, axis);
     el.style.fontSize = `${resolveAxisFontSize(theme, axis)}px`;
     el.style.fontFamily = theme.typography.fontFamily;
@@ -186,6 +205,77 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     const labelTop = yScale().valueToSnappedY(value) - labelHeight / 2;
 
     return clamp((labelTop - header + labelHeight) / labelHeight, 0, 1);
+  }
+
+  // Room for the widest name, capped at `minLabelSpacing` so one long name cannot thin out the axis.
+  function resolveCategoryStride(theme: ChartTheme): number {
+    const step = chart.timeScale.barWidthMedia(1);
+    if (!(step > 0)) return 1;
+
+    const room = Math.min(widestCategoryName(theme), chart.timeScale.getMinLabelSpacing()) + CATEGORY_GAP_PX;
+
+    return Math.max(1, Math.ceil(room / step));
+  }
+
+  // Measured once per name list, formatter and font, all names in one layout.
+  function widestCategoryName(theme: ChartTheme): number {
+    const names = chart.timeScale.getCategories();
+    const format = chart.timeScale.getFormat();
+    const font = `${resolveAxisFontSize(theme, axis)}px ${theme.typography.fontFamily}`;
+    const cached = widestName;
+    // Each data update re-derives the list into a new array, mostly with the same names.
+    const hit = cached !== null && cached.format === format && cached.font === font && sameNames(cached.names, names);
+    if (hit) return cached.width;
+
+    const probe = document.createElement('div');
+    probe.style.position = 'absolute';
+    probe.style.visibility = 'hidden';
+    applyThemeStyles(probe, theme);
+    const spans = names.map((_, i) => {
+      const el = document.createElement('span');
+      el.style.position = 'absolute';
+      el.style.whiteSpace = 'nowrap';
+      el.textContent = formatLabel(i, 1);
+      probe.appendChild(el);
+
+      return el;
+    });
+    container.appendChild(probe);
+
+    let width = 0;
+    for (const el of spans) {
+      width = Math.max(width, el.offsetWidth);
+    }
+    probe.remove();
+    widestName = { names, format, font, width };
+
+    return width;
+  }
+
+  // Read in one pass before the opacity writes, so one layout serves every span.
+  function coverRects(): DOMRect[] {
+    const rects: DOMRect[] = [];
+    for (const el of chart.getAxisLabelCovers()) {
+      // Each property is opt-in: without `visibilityProperty`, a `visibility: hidden` cover still reads visible.
+      const visible = el.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true;
+      if (!el.isConnected || !visible) continue;
+
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) rects.push(rect);
+    }
+
+    return rects;
+  }
+
+  function isCovered(el: HTMLSpanElement, covers: readonly DOMRect[]): boolean {
+    const box = el.getBoundingClientRect();
+
+    return covers.some((cover) => {
+      const apartX = box.right + COVER_GAP_PX <= cover.left || cover.right + COVER_GAP_PX <= box.left;
+      const apartY = box.bottom + COVER_GAP_PX <= cover.top || cover.bottom + COVER_GAP_PX <= box.top;
+
+      return !apartX && !apartY;
+    });
   }
 
   function setText(el: HTMLSpanElement, text: string): void {
@@ -242,11 +332,14 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     // A tick still fading out past the last band has no category left to name.
     const isCategory = axis === 'x' && chart.timeScale.getType() === 'category';
     const bandCount = chart.timeScale.getCategories().length;
+    categoryStride = isCategory ? resolveCategoryStride(theme) : 1;
 
     const seen = new Set<number>();
+    const placed: { el: HTMLSpanElement; opacity: number }[] = [];
     for (const { value, opacity } of entries) {
       const orphan = isCategory && value >= bandCount;
-      if (opacity <= VISIBLE_OPACITY_EPS || orphan) continue;
+      const skipped = isCategory && value % categoryStride !== 0;
+      if (opacity <= VISIBLE_OPACITY_EPS || orphan || skipped) continue;
 
       seen.add(value);
       let el = spans.get(value);
@@ -262,7 +355,13 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
       const edgeOpacity = positionSpan(el, value);
       // A category that just entered fades its name in while the others slide aside.
       const entering = isCategory ? chart.timeScale.bandEnterProgress(value) : 1;
-      el.style.opacity = String(opacity * entering * edgeOpacity * headerClearance(value, theme));
+      placed.push({ el, opacity: opacity * entering * edgeOpacity * headerClearance(value, theme) });
+    }
+
+    const covers = coverRects();
+    for (const { el, opacity } of placed) {
+      const covered = covers.length > 0 && opacity > VISIBLE_OPACITY_EPS && isCovered(el, covers);
+      el.style.opacity = String(covered ? 0 : opacity);
     }
 
     for (const [value, el] of spans) {
@@ -289,6 +388,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // widths would let an edge label overrun the chart by the difference.
   function remeasure(): void {
     sizes = new WeakMap();
+    widestName = null;
     sync();
   }
 
@@ -299,12 +399,14 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   chart.on('tickFrame', sync);
   chart.on('viewportChange', syncWhenIdle);
   chart.on('overlayChange', syncWhenIdle);
+  chart.on('axisLabelCoverChange', sync);
 
   return () => {
     fonts?.removeEventListener('loadingdone', remeasure);
     chart.off('tickFrame', sync);
     chart.off('viewportChange', syncWhenIdle);
     chart.off('overlayChange', syncWhenIdle);
+    chart.off('axisLabelCoverChange', sync);
     for (const el of spans.values()) el.remove();
     spans.clear();
   };

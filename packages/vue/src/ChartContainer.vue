@@ -382,6 +382,17 @@ function syncHeaderObserver() {
 // always sees the caller's latest callback, no ref-latch needed the way
 // React does. Shared between the mount path and the animations-triggered
 // rebuild below so the two don't drift.
+// The floating header stops at a right Y-axis column, so the InfoBar wraps before the tick labels.
+const headerRight = ref(0);
+
+function trackHeaderRight(instance: ChartInstance): void {
+  const sync = () => {
+    headerRight.value = instance.getAxisColumnWidth('right');
+  };
+  sync();
+  instance.on('viewportChange', sync);
+}
+
 function subscribeDeclarativeEvents(instance: ChartInstance): void {
   instance.on('pointClick', (info) => props.onPointClick?.(info));
   instance.on('pointDoubleClick', (info) => props.onPointDoubleClick?.(info));
@@ -410,6 +421,7 @@ onMounted(async () => {
   seedFadeOption(options);
   chart.value = new ChartInstance(containerRef.value, options);
   subscribeDeclarativeEvents(chart.value);
+  trackHeaderRight(chart.value);
   props.onReady?.(chart.value);
 
   await nextTick();
@@ -502,6 +514,7 @@ watch(
     seedFadeOption(opts);
     chart.value = new ChartInstance(containerRef.value, opts);
     subscribeDeclarativeEvents(chart.value);
+    trackHeaderRight(chart.value);
     props.onReady?.(chart.value);
   },
 );
@@ -594,7 +607,8 @@ const rootStyle = computed(() => {
             v-if="headerLayout === 'overlay'"
             ref="topOverlayRef"
             data-chart-top-overlay=""
-            style="position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+            style="position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; display: flex; flex-direction: column"
+            :style="{ right: `${headerRight}px` }"
           >
             <div ref="titleAnchor" data-chart-title-anchor="" />
             <div ref="infoBarAnchor" data-tooltip-legend-anchor="" />

@@ -42,6 +42,19 @@ describe('<YLabel> positioning vs headerLayout', () => {
     mounted = null;
   });
 
+  it('registers its badge as a tick-label cover until it unmounts', () => {
+    mounted = mountChart(tree, { width: 400, height: 240 });
+    const overlay = mounted.container.querySelector('[data-chart-series-overlay]') as HTMLElement;
+    const badge = Array.from(overlay.querySelectorAll<HTMLElement>('div')).find((el) =>
+      el.style.transform.includes('translateY(-50%)'),
+    );
+
+    expect([...mounted.chart.getAxisLabelCovers()]).toEqual([badge]);
+
+    mounted.rerender(<LineSeries id={seriesId} data={data} />);
+    expect(mounted.chart.getAxisLabelCovers().size).toBe(0);
+  });
+
   it('in inline mode the badge top equals chart.yScale.valueToY(lastValue)', () => {
     mounted = mountChart(tree, { width: 400, height: 240, headerLayout: 'inline' });
 
