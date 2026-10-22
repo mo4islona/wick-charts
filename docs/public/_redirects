@@ -1,4 +1,6 @@
-# Cloudflare Pages redirects. /r/ holds only the shadcn registry JSON (no index
-# page), so a person who opens the folder itself lands on the install guide.
-/r    /integrations/shadcn/    302
-/r/   /integrations/shadcn/    302
+# Cloudflare Pages redirects. /r/ and /r/vue/ hold only the shadcn registry JSON (no index
+# page), so a person who opens a folder itself lands on its install guide.
+/r/vue   /integrations/shadcn/vue/    302
+/r/vue/  /integrations/shadcn/vue/    302
+/r       /integrations/shadcn/        302
+/r/      /integrations/shadcn/        302

@@ -1,16 +1,40 @@
-// The registry blocks and the demo's URL / message contract, shared by the demo page and the
-// docs guide that embeds it. No block code here, so the guide does not bundle the blocks.
+// The registry blocks and the demos' URL / message contract, shared by the demo pages and the
+// docs guides that embed them. No block code here, so a guide does not bundle the blocks.
 import registry from '../../../registry/shadcn/registry.json';
 
-export const REGISTRY_URL = 'https://wick-charts.eeff.io/r';
-export const DEMO_PATH = '/demos/shadcn/';
+/** The shadcn/ui registry for React and the shadcn-vue one; both list the same blocks. */
+export type Flavor = 'react' | 'vue';
+
+interface FlavorInfo {
+  /** Where the built registry items are served. */
+  registryUrl: string;
+  /** The CLI that installs an item. */
+  cli: string;
+  demoPath: string;
+  guidePath: string;
+}
+
+export const FLAVORS: Record<Flavor, FlavorInfo> = {
+  react: {
+    registryUrl: 'https://wick-charts.eeff.io/r',
+    cli: 'shadcn',
+    demoPath: '/demos/shadcn/',
+    guidePath: '/integrations/shadcn/',
+  },
+  vue: {
+    registryUrl: 'https://wick-charts.eeff.io/r/vue',
+    cli: 'shadcn-vue',
+    demoPath: '/demos/shadcn-vue/',
+    guidePath: '/integrations/shadcn/vue/',
+  },
+};
 
 export interface BlockEntry {
   /** Registry item name, e.g. `chart-candlestick`. */
   name: string;
   title: string;
   description: string;
-  /** The component the block file exports, e.g. `ChartCandlestick`. */
+  /** The block's component, e.g. `ChartCandlestick`: the React file's export, the Vue file's name. */
   component: string;
   /** Takes a full row of the gallery grid. */
   wide: boolean;
@@ -35,8 +59,10 @@ export const BLOCKS: BlockEntry[] = registry.items
     wide: WIDE.has(item.name),
   }));
 
-export function installCommand(name: string): string {
-  return `npx shadcn@latest add ${REGISTRY_URL}/${name}.json`;
+export function installCommand(name: string, flavor: Flavor = 'react'): string {
+  const { cli, registryUrl } = FLAVORS[flavor];
+
+  return `npx ${cli}@latest add ${registryUrl}/${name}.json`;
 }
 
 /** `--chart-1` … `--chart-5` ramps of shadcn themes, as OKLCH triplets. Neutral keeps the stylesheet's own. */
@@ -107,13 +133,14 @@ export function isDemoMessage(value: unknown): value is DemoMessage {
 }
 
 export interface DemoUrlOptions {
+  flavor?: Flavor;
   block?: string;
   mode?: Mode;
   palette?: PaletteName;
   embed?: boolean;
 }
 
-export function demoUrl({ block, mode, palette, embed = false }: DemoUrlOptions): string {
+export function demoUrl({ flavor = 'react', block, mode, palette, embed = false }: DemoUrlOptions): string {
   const params = new URLSearchParams();
   if (block) params.set('block', block);
   if (mode) params.set('theme', mode);
@@ -121,6 +148,7 @@ export function demoUrl({ block, mode, palette, embed = false }: DemoUrlOptions)
   if (embed) params.set('embed', '');
 
   const query = params.toString();
+  const { demoPath } = FLAVORS[flavor];
 
-  return query ? `${DEMO_PATH}?${query}` : DEMO_PATH;
+  return query ? `${demoPath}?${query}` : demoPath;
 }

@@ -16,6 +16,7 @@ export default defineConfig({
       'packages/vue/src/**/*.test.ts',
       'packages/svelte/src/**/*.test.ts',
       'docs/__tests__/**/*.test.{ts,tsx}',
+      'registry/__tests__/**/*.test.ts',
     ],
     environmentMatchGlobs: [
       // Tests that instantiate ChartInstance need a DOM.
@@ -33,6 +34,8 @@ export default defineConfig({
       ['docs/__tests__/search.test.tsx', 'happy-dom'],
       // themeJson uses HTMLCanvasElement for CSS-color → hex normalization.
       ['docs/__tests__/themeJson.test.ts', 'happy-dom'],
+      // The shadcn theme reads colors through a canvas.
+      ['registry/__tests__/**', 'happy-dom'],
     ],
     setupFiles: ['packages/react/test-setup.ts'],
     // Svelte 4's dev helper calls `set_current_component` with a stale component

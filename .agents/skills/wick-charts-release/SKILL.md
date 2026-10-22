@@ -28,7 +28,7 @@ Update **all four** packages to the same version:
 
 The release workflow's `Verify versions` step rejects mismatches between react/vue/svelte and the tag. Core is private (workspace-internal) but bump it too for consistency.
 
-If `registry/shadcn` uses API new in this release, raise its `@wick-charts/react@^X.Y.Z` pin in `registry/shadcn/registry.json` to the new version in the same commit. The shadcn CLI installs that range, so a stale pin installs a version the blocks do not compile against.
+If `registry/shadcn` uses API new in this release, raise its `@wick-charts/react@^X.Y.Z` pin in `registry/shadcn/registry.json` to the new version in the same commit. The shadcn CLI installs that range, so a stale pin installs a version the blocks do not compile against. The same rule holds for `registry/shadcn-vue` and its `@wick-charts/vue@^X.Y.Z` pin in `registry/shadcn-vue/registry.json`.
 
 ### 2. Commit and tag
 

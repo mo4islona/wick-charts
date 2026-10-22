@@ -1,6 +1,8 @@
 // Centralised route table — sidebar groups, page titles, and hash-route
 // validation all read from here so adding/renaming a page is a one-file change.
 
+import type { Framework } from './context/framework';
+
 export type Route =
   | 'overview'
   | 'migration'
@@ -29,6 +31,7 @@ export type Route =
   | 'use-cases/category-bars'
   | 'use-cases/theme'
   | 'integrations/shadcn'
+  | 'integrations/shadcn/vue'
   | 'api/line-series'
   | 'api/band-series'
   | 'api/bar-series'
@@ -198,7 +201,9 @@ const MIGRATION: RouteEntry = { route: 'migration', label: 'Migration Guide', ti
 // learning flow). Route stays `use-cases/theme` — only its menu slot moved.
 const THEME: RouteEntry = { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' };
 // How Wick Charts fits a framework or a UI kit around it, one page per integration.
-const INTEGRATIONS: RouteEntry[] = [{ route: 'integrations/shadcn', label: 'shadcn/ui', title: 'shadcn/ui' }];
+const INTEGRATIONS: RouteEntry[] = [{ route: 'integrations/shadcn', label: 'Shadcn', title: 'shadcn/ui' }];
+// The shadcn page's Vue view: a URL of its own to prerender and rank, no menu item of its own.
+const SHADCN_VUE: RouteEntry = { route: 'integrations/shadcn/vue', label: 'shadcn-vue', title: 'shadcn-vue' };
 // Title blank — StressTestPage renders its own header (like Api/Hook/Migration),
 // so a topbar title would double it up.
 const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress Tests', title: '' };
@@ -232,6 +237,7 @@ const ALL_ENTRIES: RouteEntry[] = [
   ...CHARTS,
   ...GUIDES,
   ...INTEGRATIONS,
+  SHADCN_VUE,
   ...API,
   ...HOOKS,
   THEME,
@@ -239,6 +245,55 @@ const ALL_ENTRIES: RouteEntry[] = [
 ];
 
 const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
+
+/**
+ * Views of a page under their own URL, one per framework; the page's own URL shows React.
+ * The docs framework selector picks the view.
+ */
+const FRAMEWORK_VIEWS: Partial<Record<Route, Partial<Record<Framework, Route>>>> = {
+  'integrations/shadcn': { vue: 'integrations/shadcn/vue' },
+};
+
+interface ViewEntry {
+  page: Route;
+  framework: Framework;
+}
+
+const VIEWS = new Map<Route, ViewEntry>();
+for (const [page, views] of Object.entries(FRAMEWORK_VIEWS) as [Route, Partial<Record<Framework, Route>>][]) {
+  for (const [framework, view] of Object.entries(views) as [Framework, Route][]) {
+    VIEWS.set(view, { page, framework });
+  }
+}
+
+/** The menu item that shows `route`: the route itself, or the page it is a view of. */
+export function menuRoute(route: Route): Route {
+  return VIEWS.get(route)?.page ?? route;
+}
+
+/** The framework a view's URL is bound to, e.g. `vue` for the shadcn page's Vue URL. */
+export function viewFramework(route: Route): Framework | undefined {
+  return VIEWS.get(route)?.framework;
+}
+
+/** The URL of `route`'s page for `framework`: the page's view for it, or the page itself. */
+export function routeForFramework(route: Route, framework: Framework): Route {
+  const page = menuRoute(route);
+
+  return FRAMEWORK_VIEWS[page]?.[framework] ?? page;
+}
+
+/** What a URL shows: a view as it is, a page with views as the view of the chosen framework. */
+export function viewForUrl(route: Route, framework: Framework): Route {
+  if (VIEWS.has(route)) return route;
+
+  return routeForFramework(route, framework);
+}
+
+/** Menu items followed by the views of their pages, for lists of every URL such as llms.txt. */
+export function withViews(items: RouteEntry[]): RouteEntry[] {
+  return items.flatMap((item) => [item, ...ALL_ENTRIES.filter((entry) => VIEWS.get(entry.route)?.page === item.route)]);
+}
 
 export function isRoute(s: string): s is Route {
   return ROUTES_SET.has(s);
@@ -271,7 +326,9 @@ export const PRERENDER_ROUTES: Route[] = ALL_ENTRIES.filter((e) => e.route !== '
  * `API → Hooks` still resolves to `'API'` (the breadcrumb's outermost label).
  * Returns `null` for top-level routes (Overview).
  */
-export function getSection(route: Route): string | null {
+export function getSection(view: Route): string | null {
+  const route = menuRoute(view);
+
   for (const section of BASE_SECTIONS) {
     if (section.items?.some((i) => i.route === route)) return section.heading;
     if (section.subsections?.some((sub) => sub.items?.some((i) => i.route === route))) {
@@ -289,7 +346,9 @@ export function getSection(route: Route): string | null {
  * For `route = 'hooks/use-chart-instance'` returns `['API', 'Hooks']`; for a
  * top-level route under `Charts` returns `['Charts']`.
  */
-export function getSectionPath(route: Route): string[] {
+export function getSectionPath(view: Route): string[] {
+  const route = menuRoute(view);
+
   for (const section of BASE_SECTIONS) {
     if (section.items?.some((i) => i.route === route)) {
       return section.heading ? [section.heading] : [];

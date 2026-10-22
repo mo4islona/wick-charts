@@ -11,7 +11,7 @@ import {
 import { Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
 import { type JsonValue, normalizeThemeConfig, themeToJson } from './components/theme-editor/themeJson';
-import { FrameworkProvider } from './context/framework';
+import { type Framework, FrameworkProvider } from './context/framework';
 import { applyRouteMeta } from './head';
 import { useFrameworkState } from './hooks/useFramework';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -25,7 +25,17 @@ import { StressTestPage } from './pages/StressTestPage';
 import { ThemePage } from './pages/ThemePage';
 import { UseCasesRoutePage } from './pages/use-cases';
 import { hashOf, resolveInternalPath, routeToPath, usePathRoute } from './router';
-import { CHART_DEMO_TO_API, CHART_GUIDES, type Route, getTitle, hookKeyForRoute, labelForRoute } from './routes';
+import {
+  CHART_DEMO_TO_API,
+  CHART_GUIDES,
+  type Route,
+  getTitle,
+  hookKeyForRoute,
+  labelForRoute,
+  routeForFramework,
+  viewForUrl,
+  viewFramework,
+} from './routes';
 import { themes } from './themes';
 import { gridBackgroundImage, hexToRgba, isDarkColor } from './utils';
 
@@ -227,10 +237,29 @@ export default function App() {
     return prefersDark ? 'Catppuccin' : 'Quiet Light';
   });
 
-  const [route, navigate] = usePathRoute();
+  const [urlRoute, navigate, redirect] = usePathRoute();
 
   const mobile = useIsMobile();
   const [framework, setFramework] = useFrameworkState();
+  // A page with framework views (the shadcn page) shows the view of the chosen framework.
+  const route = viewForUrl(urlRoute, framework);
+  // A view's URL shows its framework in the selector without storing it, so a visit, or the
+  // prerender crawler that opens every route in one browser, does not change the reader's choice.
+  const shownFramework = viewFramework(route) ?? framework;
+
+  useEffect(() => {
+    if (route !== urlRoute) redirect(route);
+  }, [route, urlRoute, redirect]);
+
+  const pickFramework = useCallback(
+    (next: Framework) => {
+      setFramework(next);
+
+      const view = routeForFramework(route, next);
+      if (view !== route) redirect(view);
+    },
+    [route, setFramework, redirect],
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [focusSearchOnOpen, setFocusSearchOnOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -448,7 +477,7 @@ export default function App() {
 
   const bgImage = [preset.backgroundImage, gridBackgroundImage(isDarkActive)].filter(Boolean).join(', ');
 
-  const fwCtx = { framework, setFramework };
+  const fwCtx = { framework: shownFramework, setFramework: pickFramework };
 
   return (
     <ThemeProvider value={theme}>

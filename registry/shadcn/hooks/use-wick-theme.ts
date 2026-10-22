@@ -132,7 +132,7 @@ function subscribeTo(element: HTMLElement | null, onChange: () => void): () => v
   };
 }
 
-/** A string, so `useSyncExternalStore` sees an unchanged theme as equal. */
+/** A string, so an unchanged theme compares equal and causes no update. */
 function readSnapshot(element: HTMLElement | null): string {
   const target = element ?? document.body;
   const style = getComputedStyle(target);

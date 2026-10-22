@@ -3,68 +3,38 @@ import { type ComponentType, type ReactNode, useEffect, useLayoutEffect, useStat
 import {
   BLOCKS,
   type BlockEntry,
+  FLAVORS,
   type Mode,
-  PALETTES,
   type PaletteName,
   installCommand,
   isDemoMessage,
   isPaletteName,
 } from './catalog';
 import { cn } from './lib/utils';
-
-type ModeSetting = Mode | 'system';
+import {
+  DARK_QUERY,
+  MODE_OPTIONS,
+  type ModeSetting,
+  PALETTE_OPTIONS,
+  applyLook,
+  findBlock,
+  isModeSetting,
+  readStoredMode,
+  replaceQuery,
+  storeMode,
+} from './look';
 
 // Each block file exports one component, named as in the catalog.
 const BLOCK_MODULES = import.meta.glob<Record<string, ComponentType>>('../../../registry/shadcn/blocks/*.tsx', {
   eager: true,
 });
 
-const MODE_KEY = 'wick-shadcn-demo-theme';
-const DARK_QUERY = '(prefers-color-scheme: dark)';
-const GUIDE_PATH = '/integrations/shadcn/';
-
-const MODE_OPTIONS: { value: ModeSetting; label: string }[] = [
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
-];
-
-const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => ({
-  value: name,
-  label: PALETTES[name].label,
-}));
+const GUIDE_PATH = FLAVORS.react.guidePath;
 
 function blockComponent(entry: BlockEntry): ComponentType | undefined {
   const blockModule = BLOCK_MODULES[`../../../registry/shadcn/blocks/${entry.name}.tsx`];
 
   return blockModule?.[entry.component];
-}
-
-function findBlock(name: string | null): BlockEntry | null {
-  return BLOCKS.find((entry) => entry.name === name) ?? null;
-}
-
-function isModeSetting(value: unknown): value is ModeSetting {
-  return value === 'light' || value === 'dark' || value === 'system';
-}
-
-// Storage can throw in a private window or a sandboxed frame; the mode then lasts one visit.
-function readStoredMode(): ModeSetting | null {
-  try {
-    const stored = localStorage.getItem(MODE_KEY);
-
-    return isModeSetting(stored) ? stored : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeMode(mode: ModeSetting): void {
-  try {
-    localStorage.setItem(MODE_KEY, mode);
-  } catch {
-    // The choice is a convenience.
-  }
 }
 
 function useSystemMode(): Mode {
@@ -79,40 +49,6 @@ function useSystemMode(): Mode {
   }, []);
 
   return dark ? 'dark' : 'light';
-}
-
-/** Puts the mode class and the palette's `--chart-*` values on `<html>`, as a shadcn theme does. */
-function applyLook(mode: Mode, palette: PaletteName): void {
-  const root = document.documentElement;
-  root.classList.toggle('dark', mode === 'dark');
-
-  const ramp = PALETTES[palette];
-  const values = mode === 'dark' && ramp.dark.length > 0 ? ramp.dark : ramp.light;
-
-  for (let i = 0; i < 5; i++) {
-    const token = `--chart-${i + 1}`;
-    const value = values[i];
-
-    if (value === undefined) {
-      root.style.removeProperty(token);
-    } else {
-      root.style.setProperty(token, `oklch(${value})`);
-    }
-  }
-}
-
-function replaceQuery(updates: Record<string, string | null>): void {
-  const url = new URL(window.location.href);
-
-  for (const [name, value] of Object.entries(updates)) {
-    if (value === null) {
-      url.searchParams.delete(name);
-    } else {
-      url.searchParams.set(name, value);
-    }
-  }
-
-  window.history.replaceState(null, '', url);
 }
 
 export function App() {
@@ -181,12 +117,7 @@ export function App() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 md:px-6">
       <header className="flex flex-col gap-4 border-b pb-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-xl font-semibold tracking-tight">Wick Charts blocks for shadcn/ui</h1>
-            <p className="text-sm text-muted-foreground">
-              Each block is a chart in a shadcn card, themed from the CSS variables of this page.
-            </p>
-          </div>
+          <h1 className="text-xl font-semibold tracking-tight">Wick Charts blocks for shadcn/ui</h1>
           <a
             href={GUIDE_PATH}
             className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"

@@ -94,6 +94,13 @@
       #root { position: relative; z-index: 1; }
       /* Links in guide prose; AdvancedLayout sets --doc-link from the theme. */
       .doc-prose a { color: var(--doc-link); text-underline-offset: 2px; }
+      /* Inline code in guide prose keeps the theme font, as on API pages; the UA monospace mixed a third font in. */
+      .doc-prose :not(pre) > code {
+        font-family: inherit;
+        padding: 0 0.3em;
+        border-radius: 4px;
+        background: color-mix(in srgb, currentColor 10%, transparent);
+      }
       /* Prism token colors */
       .token.keyword { color: #c678dd; }
       .token.string, .token.template-string { color: #98c379; }

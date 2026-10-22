@@ -1,8 +1,10 @@
-/* The stylesheet `shadcn init` writes (neutral base color), scanned only where the demo's classes live. */
+/* The stylesheet `shadcn init` writes (neutral base color), scanned only where the demos' classes live. */
 @import "tailwindcss" source(none);
 
 @source "./";
 @source "../../../registry/shadcn";
+@source "../shadcn-vue";
+@source "../../../registry/shadcn-vue";
 
 @custom-variant dark (&:is(.dark *));
 
