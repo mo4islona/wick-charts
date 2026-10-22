@@ -313,7 +313,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   #drawnPoints(args: { layerIndex: number; timeScale: XScale }): readonly TimePoint[] {
     const { layerIndex, timeScale } = args;
     const store = this.stores[layerIndex];
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
     const visible = timeScale.getType() === 'category' ? store.getAll() : store.getVisibleData(range.from, range.to);
     const exits = this.#exits[layerIndex];
     if (exits.size === 0) return visible;
@@ -690,7 +690,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
   private renderOff(ctx: SeriesRenderContext): void {
     const { scope, timeScale, yScale } = ctx;
     const { context } = scope;
-    const range = timeScale.getRange();
+    const range = timeScale.getDrawRange();
 
     const bodyWidth = this.#bodyWidth(ctx);
     const halfBody = Math.floor(bodyWidth / 2);

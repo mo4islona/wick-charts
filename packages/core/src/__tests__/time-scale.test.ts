@@ -264,4 +264,19 @@ describe('TimeScale', () => {
       expect(utc).not.toBe(tokyo);
     });
   });
+
+  describe('getDrawRange', () => {
+    it('matches the visible range without overscan', () => {
+      const s = makeScale(0, 800 * MINUTE, 800);
+
+      expect(s.getDrawRange()).toEqual(s.getRange());
+    });
+
+    it('widens the visible range by the overscan pixels on each side', () => {
+      const s = makeScale(0, 800 * MINUTE, 800);
+      s.setOverscan({ left: 0, right: 12 });
+
+      expect(s.getDrawRange()).toEqual({ from: 0, to: 812 * MINUTE });
+    });
+  });
 });

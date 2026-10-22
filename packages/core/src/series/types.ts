@@ -8,6 +8,7 @@ import type { XScale } from '../scales/x-scale';
 import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { BandPoint, OHLCData, StackingMode, TimePoint, ValueColor } from '../types';
+import type { EdgeStrip } from './edge-strip';
 
 /**
  * Vertical padding reserved at the top/bottom of the chart area.
@@ -60,6 +61,12 @@ export interface OverlayRenderContext {
   padding: RenderPadding;
   /** Current crosshair position, or null when none. */
   crosshair: { mediaX: number; mediaY: number; time: number; y: number } | null;
+  /**
+   * The strip past the pane's right edge that the overlay clip opens under a
+   * Y-axis column, in pane-local bitmap px: a dot reaching into it should be
+   * gone by its end, where the clip stops. Absent or `null` without one.
+   */
+  edgeStrip?: EdgeStrip | null;
   /**
    * Engine-owned animation state. Pulse renderers read `state.pulsePhase`
    * here so the halo cycles off the same clock the rest of the chart uses.
