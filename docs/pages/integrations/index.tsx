@@ -12,9 +12,10 @@ interface IntegrationPageProps {
 }
 
 const INTEGRATIONS: Partial<Record<Route, FC<IntegrationPageProps>>> = {
-  // One component for both views, so a framework pick keeps the picked block.
+  // One component for every view, so a framework pick keeps the picked block.
   'integrations/shadcn': ShadcnPage,
   'integrations/shadcn/vue': ShadcnPage,
+  'integrations/shadcn/svelte': ShadcnPage,
   'integrations/nuxt': NuxtPage,
 };
 

@@ -2,15 +2,22 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import * as estree from 'prettier/plugins/estree';
+import * as typescript from 'prettier/plugins/typescript';
+import { format } from 'prettier/standalone';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { type WickThemeTokens, themeFromTokens as reactTheme } from '../shadcn/hooks/use-wick-theme';
 import { themeFromTokens as vueTheme } from '../shadcn-vue/composables/useWickTheme';
 
-// The React hook and the Vue composable carry the same color code; these tests keep the two copies in step.
+// The React hook, the Vue composable and the Svelte hook carry the same color code; these tests keep the copies in step.
 const here = dirname(fileURLToPath(import.meta.url));
 const REACT_SOURCE = resolve(here, '../shadcn/hooks/use-wick-theme.ts');
 const VUE_SOURCE = resolve(here, '../shadcn-vue/composables/useWickTheme.ts');
+const SVELTE_SOURCE = resolve(here, '../shadcn-svelte/hooks/wick-theme.svelte.ts');
+
+// tsc here knows no Svelte runes, so it must not follow an import into the Svelte hook: load it by path.
+const { themeFromTokens: svelteTheme }: { themeFromTokens: typeof reactTheme } = await import(SVELTE_SOURCE);
 
 // happy-dom has no 2D canvas: the stub "paints" a color by looking it up here.
 const RGBA: Record<string, [number, number, number, number]> = {
@@ -119,9 +126,17 @@ function sharedPart(path: string): string {
   return `${source.slice(tokensStart, tokensEnd)}\n${source.slice(colorCodeStart)}`;
 }
 
-describe('wick-theme in the React and Vue registries', () => {
+// The Svelte registry keeps the shadcn-svelte code style (tabs, semicolons, 100 columns): compare in one style.
+function inOneStyle(code: string): Promise<string> {
+  return format(code, { parser: 'typescript', plugins: [estree, typescript], printWidth: 100 });
+}
+
+describe('wick-theme in the React, Vue and Svelte registries', () => {
   it.each(FIXTURES)('builds the same theme for a %s', (_name, tokens) => {
-    expect(comparable(vueTheme(tokens))).toEqual(comparable(reactTheme(tokens)));
+    const expected = comparable(reactTheme(tokens));
+
+    expect(comparable(vueTheme(tokens))).toEqual(expected);
+    expect(comparable(svelteTheme(tokens))).toEqual(expected);
   });
 
   it('reads the tokens, not the fallback theme', () => {
@@ -142,10 +157,11 @@ describe('wick-theme in the React and Vue registries', () => {
     expect(new Set(theme.seriesColors).size).toBe(RAMP.length);
   });
 
-  it('keeps the token reading and color code identical', () => {
+  it('keeps the token reading and color code identical', async () => {
     const shared = sharedPart(REACT_SOURCE);
 
     expect(shared.length).toBeGreaterThan(2000);
     expect(sharedPart(VUE_SOURCE)).toBe(shared);
+    expect(await inOneStyle(sharedPart(SVELTE_SOURCE))).toBe(await inOneStyle(shared));
   });
 });

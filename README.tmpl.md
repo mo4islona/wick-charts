@@ -139,20 +139,10 @@ Put them on [numeric](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [c
 A [shadcn/ui](https://ui.shadcn.com/) registry adds Wick Charts to a shadcn project as source files you own: a theme hook that reads your CSS variables, a `WickChart` wrapper, and chart blocks in shadcn `Card`s. Add an item with the shadcn CLI:
 
 ```bash
-npx shadcn@latest add https://wick-charts.eeff.io/r/chart-line-live.json
+npx shadcn@latest add @wick-charts/chart-line-live
 ```
 
-To use short names, add the registry to `registries` in `components.json`:
-
-```json
-{
-  "registries": {
-    "@wick-charts": "https://wick-charts.eeff.io/r/{name}.json"
-  }
-}
-```
-
-Then `npx shadcn@latest add @wick-charts/chart-candlestick` works too. The [shadcn/ui page](https://wick-charts.eeff.io/integrations/shadcn/) lists every block and explains the theme hook and the wrapper.
+The [shadcn/ui page](https://wick-charts.eeff.io/integrations/shadcn/) shows every block live, with its install command and a usage example.
 <!-- @/only -->
 
 ## No framework? Use the engine directly

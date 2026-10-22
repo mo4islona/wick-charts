@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "svelte": ["./node_modules/svelte"],
+      "svelte/*": ["./node_modules/svelte/*"],
+      "@wick-charts/core": ["../../../packages/core/dist/index.d.ts"],
+      "@wick-charts/svelte": ["../../../packages/svelte/dist/index.d.ts"],
+      "$lib/registry/hooks/*": ["../../../registry/shadcn-svelte/hooks/*"],
+      "$lib/registry/ui/card/index.js": ["./ui/card/index.ts"],
+      "$lib/registry/ui/wick-chart/index.js": ["../../../registry/shadcn-svelte/ui/wick-chart/index.ts"],
+      "$lib/utils.js": ["../shadcn/lib/utils.ts"]
+    }
+  },
+  "include": [".", "../shadcn/catalog.ts", "../shadcn/look.ts", "../shadcn/lib/utils.ts"],
+  "exclude": ["node_modules"]
+}

@@ -15,10 +15,14 @@ const SHIPPED_DIRS = [
   'registry/shadcn-vue/composables',
 ];
 
-function prettierCheck(): string {
+// The Svelte registry formats with its own Prettier, which has the Svelte 5 plugin.
+const SVELTE_REGISTRY = resolve(ROOT, 'registry/shadcn-svelte');
+const SVELTE_SHIPPED_DIRS = ['blocks', 'hooks', 'ui'];
+
+function prettierCheck(args: { prettier: string; cwd: string; dirs: string[] }): string {
   try {
-    execFileSync(resolve(ROOT, 'node_modules/.bin/prettier'), ['--check', ...SHIPPED_DIRS], {
-      cwd: ROOT,
+    execFileSync(args.prettier, ['--check', ...args.dirs], {
+      cwd: args.cwd,
       encoding: 'utf8',
       stdio: 'pipe',
     });
@@ -33,6 +37,14 @@ function prettierCheck(): string {
 
 describe('registry sources', () => {
   it('are in the shadcn Prettier style (run `pnpm registry:format`)', () => {
-    expect(prettierCheck()).toBe('');
+    const prettier = resolve(ROOT, 'node_modules/.bin/prettier');
+
+    expect(prettierCheck({ prettier, cwd: ROOT, dirs: SHIPPED_DIRS })).toBe('');
+  });
+
+  it('are in the shadcn-svelte Prettier style (run `pnpm registry:format`)', () => {
+    const prettier = resolve(SVELTE_REGISTRY, 'node_modules/.bin/prettier');
+
+    expect(prettierCheck({ prettier, cwd: SVELTE_REGISTRY, dirs: SVELTE_SHIPPED_DIRS })).toBe('');
   });
 });

@@ -77,7 +77,10 @@
         "registry/shadcn/hooks/**",
         "registry/shadcn/ui/**",
         "registry/shadcn-vue/components/**",
-        "registry/shadcn-vue/composables/**"
+        "registry/shadcn-vue/composables/**",
+        "registry/shadcn-svelte/blocks/**",
+        "registry/shadcn-svelte/hooks/**",
+        "registry/shadcn-svelte/ui/**"
       ],
       "formatter": {
         "enabled": false

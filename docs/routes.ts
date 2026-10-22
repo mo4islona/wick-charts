@@ -32,6 +32,7 @@ export type Route =
   | 'use-cases/theme'
   | 'integrations/shadcn'
   | 'integrations/shadcn/vue'
+  | 'integrations/shadcn/svelte'
   | 'integrations/nuxt'
   | 'api/line-series'
   | 'api/band-series'
@@ -206,8 +207,13 @@ const INTEGRATIONS: RouteEntry[] = [
   { route: 'integrations/shadcn', label: 'Shadcn', title: 'shadcn/ui' },
   { route: 'integrations/nuxt', label: 'Nuxt', title: 'Nuxt' },
 ];
-// The shadcn page's Vue view: a URL of its own to prerender and rank, no menu item of its own.
+// The shadcn page's Vue and Svelte views: URLs of their own to prerender and rank, no menu items of their own.
 const SHADCN_VUE: RouteEntry = { route: 'integrations/shadcn/vue', label: 'shadcn-vue', title: 'shadcn-vue' };
+const SHADCN_SVELTE: RouteEntry = {
+  route: 'integrations/shadcn/svelte',
+  label: 'shadcn-svelte',
+  title: 'shadcn-svelte',
+};
 // Title blank — StressTestPage renders its own header (like Api/Hook/Migration),
 // so a topbar title would double it up.
 const STRESS: RouteEntry = { route: 'stress-test', label: 'Stress Tests', title: '' };
@@ -242,6 +248,7 @@ const ALL_ENTRIES: RouteEntry[] = [
   ...GUIDES,
   ...INTEGRATIONS,
   SHADCN_VUE,
+  SHADCN_SVELTE,
   ...API,
   ...HOOKS,
   THEME,
@@ -255,7 +262,7 @@ const ROUTES_SET = new Set<string>(ALL_ENTRIES.map((e) => e.route));
  * The docs framework selector picks the view.
  */
 const FRAMEWORK_VIEWS: Partial<Record<Route, Partial<Record<Framework, Route>>>> = {
-  'integrations/shadcn': { vue: 'integrations/shadcn/vue' },
+  'integrations/shadcn': { vue: 'integrations/shadcn/vue', svelte: 'integrations/shadcn/svelte' },
 };
 
 interface ViewEntry {

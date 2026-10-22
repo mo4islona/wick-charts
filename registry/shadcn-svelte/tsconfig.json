@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "svelte": ["./node_modules/svelte"],
+      "svelte/*": ["./node_modules/svelte/*"],
+      "@wick-charts/core": ["../../packages/core/dist/index.d.ts"],
+      "@wick-charts/svelte": ["../../packages/svelte/dist/index.d.ts"],
+      "$lib/registry/hooks/*": ["./hooks/*"],
+      "$lib/registry/ui/card/index.js": ["./shims/card.d.ts"],
+      "$lib/registry/ui/wick-chart/index.js": ["./ui/wick-chart/index.ts"],
+      "$lib/utils.js": ["./shims/utils.d.ts"]
+    }
+  },
+  "include": ["blocks", "hooks", "ui", "shims"]
+}

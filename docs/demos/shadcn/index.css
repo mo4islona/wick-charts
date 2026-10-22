@@ -5,6 +5,8 @@
 @source "../../../registry/shadcn";
 @source "../shadcn-vue";
 @source "../../../registry/shadcn-vue";
+@source "../shadcn-svelte";
+@source "../../../registry/shadcn-svelte";
 
 @custom-variant dark (&:is(.dark *));
 

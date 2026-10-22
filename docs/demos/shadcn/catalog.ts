@@ -2,14 +2,16 @@
 // docs guides that embed them. No block code here, so a guide does not bundle the blocks.
 import registry from '../../../registry/shadcn/registry.json';
 
-/** The shadcn/ui registry for React and the shadcn-vue one; both list the same blocks. */
-export type Flavor = 'react' | 'vue';
+/** The shadcn/ui registry for React, the shadcn-vue one and the shadcn-svelte one; all list the same blocks. */
+export type Flavor = 'react' | 'vue' | 'svelte';
 
 interface FlavorInfo {
   /** Where the built registry items are served. */
   registryUrl: string;
   /** The CLI that installs an item. */
   cli: string;
+  /** The CLI's registry directory lists `@wick-charts`, so `add @wick-charts/{name}` needs no config. */
+  listed: boolean;
   demoPath: string;
   guidePath: string;
 }
@@ -18,14 +20,23 @@ export const FLAVORS: Record<Flavor, FlavorInfo> = {
   react: {
     registryUrl: 'https://wick-charts.eeff.io/r',
     cli: 'shadcn',
+    listed: true,
     demoPath: '/demos/shadcn/',
     guidePath: '/integrations/shadcn/',
   },
   vue: {
     registryUrl: 'https://wick-charts.eeff.io/r/vue',
     cli: 'shadcn-vue',
+    listed: false,
     demoPath: '/demos/shadcn-vue/',
     guidePath: '/integrations/shadcn/vue/',
+  },
+  svelte: {
+    registryUrl: 'https://wick-charts.eeff.io/r/svelte',
+    cli: 'shadcn-svelte',
+    listed: false,
+    demoPath: '/demos/shadcn-svelte/',
+    guidePath: '/integrations/shadcn/svelte/',
   },
 };
 
@@ -60,16 +71,10 @@ export const BLOCKS: BlockEntry[] = registry.items
   }));
 
 export function installCommand(name: string, flavor: Flavor = 'react'): string {
-  const { cli, registryUrl } = FLAVORS[flavor];
+  const { cli, listed, registryUrl } = FLAVORS[flavor];
+  const item = listed ? `@wick-charts/${name}` : `${registryUrl}/${name}.json`;
 
-  return `npx ${cli}@latest add ${registryUrl}/${name}.json`;
-}
-
-/** One command for every block: `add --all` reads only the CLI's default registry. */
-export function installAllCommand(flavor: Flavor): string {
-  const names = BLOCKS.map((entry) => `  @wick-charts/${entry.name}`);
-
-  return [`npx ${FLAVORS[flavor].cli}@latest add`, ...names].join(' \\\n');
+  return `npx ${cli}@latest add ${item}`;
 }
 
 /** `--chart-1` … `--chart-5` ramps of shadcn themes, as OKLCH triplets. Neutral keeps the stylesheet's own. */

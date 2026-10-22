@@ -43,6 +43,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Add Wick Charts to a shadcn-vue or Nuxt project with the shadcn-vue CLI: a theme composable that reads your CSS variables, a WickChart wrapper and ready-made chart blocks.',
   },
+  'integrations/shadcn/svelte': {
+    title: 'shadcn-svelte Charts — Wick Charts',
+    description:
+      'Add Wick Charts to a shadcn-svelte project with the shadcn-svelte CLI: a theme hook that reads your CSS variables, a WickChart wrapper and ready-made chart blocks.',
+  },
   'integrations/nuxt': {
     title: 'Nuxt Charts — Wick Charts',
     description:

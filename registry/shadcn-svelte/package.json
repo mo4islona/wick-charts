@@ -1,0 +1,18 @@
+{
+  "name": "shadcn-svelte-registry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:registry": "pnpm dlx shadcn-svelte@1.7.0 registry build --output ../../docs/public/r/svelte",
+    "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
+    "format": "prettier --write blocks hooks ui"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10",
+    "prettier-plugin-svelte": "^4.1.1",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.7",
+    "typescript": "^5.4.0"
+  }
+}
