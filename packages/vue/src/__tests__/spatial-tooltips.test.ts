@@ -6,6 +6,8 @@ import {
   HeatmapTooltip,
   PieSeries,
   PieTooltip,
+  SankeySeries,
+  SankeyTooltip,
   catppuccin,
   useChartInstance,
 } from '@wick-charts/vue';
@@ -56,6 +58,8 @@ const info: HoverInfo = { label: 'Hovered cell', value: 42, percent: 50, color: 
 const cells = [{ x: 'c', y: 'r', value: 1 }];
 const heatmapOptions = { rows: ['r'], columns: ['c'] };
 const slices = [{ label: 'A', value: 1 }];
+const flowNodes = [{ id: 'a' }, { id: 'b' }];
+const flowLinks = [{ source: 'a', target: 'b', value: 1 }];
 
 const cases: Array<{ name: string; series: () => ReturnType<typeof h>; tooltip: Component; id: string }> = [
   {
@@ -69,6 +73,12 @@ const cases: Array<{ name: string; series: () => ReturnType<typeof h>; tooltip: 
     id: 'pie',
     series: () => h(PieSeries, { id: 'pie', data: slices }),
     tooltip: PieTooltip,
+  },
+  {
+    name: 'SankeyTooltip',
+    id: 'flow',
+    series: () => h(SankeySeries, { id: 'flow', nodes: flowNodes, links: flowLinks }),
+    tooltip: SankeyTooltip,
   },
 ];
 

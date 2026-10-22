@@ -229,7 +229,16 @@ export interface ChartLayout {
 }
 
 /** Primary series types. Open-ended — a custom {@link SeriesDefinition} picks any string that isn't a built-in. */
-export type SeriesType = 'candlestick' | 'line' | 'bar' | 'band' | 'pie' | 'heatmap' | 'depth' | (string & {});
+export type SeriesType =
+  | 'candlestick'
+  | 'line'
+  | 'bar'
+  | 'band'
+  | 'pie'
+  | 'heatmap'
+  | 'depth'
+  | 'sankey'
+  | (string & {});
 
 /**
  * Entrance animation styles for candlesticks (shown when a new candle appears via `appendData`).
@@ -1172,6 +1181,76 @@ export interface DepthSeriesOptions {
   /**
    * Morph from the book on screen to a new snapshot or delta, the mid
    * marker's glide, and the hover highlight's ease. `0` snaps.
+   * Default: chart animation config (500).
+   */
+  updateMs?: number;
+}
+
+/** One stage of a sankey diagram. */
+export interface SankeyNode {
+  /** Key the links point at. */
+  id: string;
+  /** Text of the node label and tooltip. Default: the `id`. */
+  label?: string;
+  /** Node fill, and the default color of its outgoing links. Default: `options.colors`, then `theme.seriesColors`. */
+  color?: string;
+}
+
+/** A flow between two nodes; its band width is proportional to `value`. */
+export interface SankeyLink {
+  /** `id` of the node the flow leaves. */
+  source: string;
+  /** `id` of the node the flow enters. */
+  target: string;
+  /** Size of the flow. A link without a finite value above 0 is skipped. */
+  value: number;
+  /**
+   * Band color, used as is. Default: the source node's color, shaded by the band's
+   * place at the source: the top band keeps it, and each next one mixes in more of
+   * the theme background, in even steps of at most 40%, up to 60% for the bottom one.
+   */
+  color?: string;
+}
+
+/**
+ * The graph a sankey series draws. Links must not form a cycle. A node no
+ * link reaches is not drawn; links with the same `source` and `target` merge.
+ */
+export interface SankeyData {
+  nodes: SankeyNode[];
+  links: SankeyLink[];
+}
+
+/** Node labels of a sankey series. */
+export interface SankeyLabelsOptions {
+  /** Text color. Default: the theme's tooltip text color. */
+  color?: string;
+  /** Fill of the rounded backdrop behind the text. Default: the theme background, translucent. */
+  background?: string;
+  /** Value formatter. Default: whole numbers as they are, others compact (`1.2K`). */
+  format?: (value: number) => string;
+}
+
+/** Visual options for a sankey series. */
+export interface SankeySeriesOptions {
+  /** Node colors in node order, before `theme.seriesColors`. A node's own `color` wins. */
+  colors?: string[];
+  /** Node width in CSS pixels. Default: 12. */
+  nodeWidth?: number;
+  /** Vertical gap between the nodes of a column in CSS pixels. Default: 12. */
+  nodePadding?: number;
+  /** Opacity of the link bands, 0 to 1, over their (shaded) color. Default: 0.35. */
+  linkOpacity?: number;
+  /** `label · value` beside each node. `false` hides them. Default: `true`. */
+  labels?: boolean | SankeyLabelsOptions;
+  /**
+   * First-data cascade in milliseconds, start to end: sources grow, bands run to
+   * their targets and fill them, labels fade in. `0` paints at once.
+   * Default: chart animation config (1400).
+   */
+  entryMs?: number;
+  /**
+   * Morph from the diagram on screen to new data, and the hover dim ease. `0` snaps.
    * Default: chart animation config (500).
    */
   updateMs?: number;

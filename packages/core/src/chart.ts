@@ -96,6 +96,7 @@ import type {
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
+  SankeySeriesOptions,
   SeriesType,
   TimePoint,
   TimePointInput,
@@ -512,6 +513,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   } | null = null;
   /** Category axis: the band under the crosshair, which gets the hover backdrop. */
   #hoverBand: number | null = null;
+  /** What the last `seriesHover` reported. */
+  #lastSeriesHover: SeriesHoverInfo | null = null;
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
   /** All registered series (candlestick, line, bar, pie). */
@@ -1056,15 +1059,21 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     type: 'depth',
     options?: Partial<DepthSeriesOptions & { id?: string; labels?: (string | undefined)[] }>,
   ): string;
+  addSeries(type: 'sankey', options?: Partial<SankeySeriesOptions & { id?: string; label?: string }>): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
-    options?: Partial<O> & {
-      layers?: number;
-      id?: string;
-      label?: string;
-      labels?: (string | undefined)[];
-      scale?: string;
-    },
+    // A key the series options define (a sankey's `labels`) keeps the series' own type.
+    options?: Partial<O> &
+      Omit<
+        {
+          layers?: number;
+          id?: string;
+          label?: string;
+          labels?: (string | undefined)[];
+          scale?: string;
+        },
+        keyof O
+      >,
   ): string;
   addSeries(type: SeriesType | SeriesDefinition, options: Record<string, unknown> = {}): string {
     const def = typeof type === 'string' ? resolveSeriesDefinition(type) : type;
@@ -1079,14 +1088,24 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // `label` / `labels` are series-entry metadata, not renderer options — pull
     // them out so they never reach `def.create`. `labels` (per-layer) wins;
     // `label` is the single-name back-compat form (pie, candlestick).
-    const { layers, id, label, labels, scale, ...rest } = options as {
+    const {
+      layers,
+      id,
+      label,
+      labels: rawLabels,
+      scale,
+      ...rest
+    } = options as {
       layers?: number;
       id?: string;
       label?: string;
-      labels?: (string | undefined)[];
+      labels?: unknown;
       scale?: string;
       [key: string]: unknown;
     };
+    // Layer names are an array; any other `labels` is a series option (a sankey's node labels).
+    const labels = Array.isArray(rawLabels) ? (rawLabels as (string | undefined)[]) : undefined;
+    if (rawLabels !== undefined && labels === undefined) rest.labels = rawLabels;
     const layerCount = layers ?? 1;
 
     // A named scale's config can land after its series (wrapper effect order), so it warns at render instead.
@@ -2094,6 +2113,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<PieSeriesOptions>
       | Partial<HeatmapSeriesOptions>
       | Partial<DepthSeriesOptions>
+      | Partial<SankeySeriesOptions>
     ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
@@ -3528,7 +3548,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * probed, not kind-gated: a kind check here silently kills hover for the
    * next spatial renderer.
    */
-  #updateHover(pos: CrosshairPosition | null): void {
+  #updateHover(pos: CrosshairPosition | null, opts?: { dataChanged?: boolean }): void {
     const size = this.#canvasManager.size;
     const vpad = this.#padding;
     const padding = {
@@ -3552,8 +3572,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         hovered = { seriesId: entry.id, index, info: entry.renderer.getHoverInfo?.(this.#theme) ?? null };
       }
     }
-    if (changed) {
+    // New data changes the info of a hovered element even when its index stays.
+    const refresh = opts?.dataChanged === true && (hovered !== null || this.#lastSeriesHover !== null);
+    if (changed || refresh) {
       this.#mainScheduler.markDirty();
+      this.#lastSeriesHover = hovered;
       this.emit('seriesHover', hovered);
     }
 
@@ -3839,6 +3862,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     } else {
       this.#mainScheduler.markDirty();
     }
+
+    // New data can move a spatial series' shapes under a resting pointer.
+    if (this.#crosshairPos !== null) this.#updateHover(this.#crosshairPos, { dataChanged: true });
+
     this.emit('dataUpdate');
     this.#bumpOverlayVersion();
   }

@@ -6,9 +6,10 @@ import { DepthSeriesDef } from './depth';
 import { HeatmapSeriesDef } from './heatmap';
 import { LineSeriesDef } from './line';
 import { PieSeriesDef } from './pie';
+import { SankeySeriesDef } from './sankey';
 
 /**
- * Register the seven built-in series so the string form
+ * Register the eight built-in series so the string form
  * `chart.addSeries('line', …)` resolves. Call it once at startup.
  *
  * Importing this helper pulls every renderer into the bundle — hosts that
@@ -23,4 +24,5 @@ export function registerBuiltinSeries(): void {
   registerSeriesDefinition(PieSeriesDef);
   registerSeriesDefinition(HeatmapSeriesDef);
   registerSeriesDefinition(DepthSeriesDef);
+  registerSeriesDefinition(SankeySeriesDef);
 }

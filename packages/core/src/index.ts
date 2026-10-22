@@ -128,6 +128,12 @@ export type {
   PerfStats,
 } from './perf';
 export { PerfMonitor, perfHud } from './perf';
+export {
+  SANKEY_TOOLTIP_HEIGHT,
+  SANKEY_TOOLTIP_WIDTH,
+  defaultSankeyFormat,
+  resolveSankeySeriesId,
+} from './sankey-tooltip';
 export { type LogScaleOptions, logScale } from './scales/log-scale';
 // Tick fade tracker (read-only types — instances live on chart.timeScale/yScale)
 export type { TickEntry, TickTrackerSnapshot } from './scales/tick-tracker';
@@ -212,6 +218,7 @@ export type {
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
 export { registerBuiltinSeries } from './series/register-builtins';
+export { SankeySeriesDef } from './series/sankey';
 // The full renderer contract — everything reachable from `SeriesDefinition.create()`'s
 // return type, so a custom series (e.g. scatter) can be written with zero deep imports.
 export type {
@@ -224,6 +231,7 @@ export type {
   OverlayRenderContext,
   PieSeriesRenderer,
   RenderPadding,
+  SankeySeriesRenderer,
   SeriesKind,
   SeriesRenderContext,
   SeriesRenderer,
@@ -333,6 +341,11 @@ export type {
   PieSeriesOptions,
   PieSliceData,
   PieSliceInput,
+  SankeyData,
+  SankeyLabelsOptions,
+  SankeyLink,
+  SankeyNode,
+  SankeySeriesOptions,
   ScaleTickArgs,
   SeriesLayer,
   SeriesType,

@@ -106,6 +106,12 @@ export type {
   ReferenceLineStyle,
   RenderPadding,
   RoundedRectArgs,
+  SankeyData,
+  SankeyLabelsOptions,
+  SankeyLink,
+  SankeyNode,
+  SankeySeriesOptions,
+  SankeySeriesRenderer,
   ScaleTickArgs,
   SeriesCreateEnv,
   SeriesDefinition,
@@ -172,6 +178,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  SankeySeriesDef,
   XScale,
   YScale,
   andromeda,
@@ -263,6 +270,7 @@ export { default as DepthSeries } from './DepthSeries.vue';
 export { default as HeatmapSeries } from './HeatmapSeries.vue';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';
+export { default as SankeySeries } from './SankeySeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
 export { default as HeatmapTooltip } from './ui/HeatmapTooltip.vue';
 export { default as InfoBar } from './ui/InfoBar.vue';
@@ -273,6 +281,7 @@ export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
 export { default as ReferenceLine } from './ui/ReferenceLine.vue';
+export { default as SankeyTooltip } from './ui/SankeyTooltip.vue';
 export { default as TimeRegion } from './ui/TimeRegion.vue';
 export { default as Title } from './ui/Title.vue';
 // UI overlays

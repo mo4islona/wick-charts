@@ -98,6 +98,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Canvas heatmaps of category cells colored by value on a perceptual sequential or diverging scale, with an animated entrance, smooth in-place updates, hover and tooltips.',
   },
+  'charts/sankey': {
+    title: 'Sankey Diagrams for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas sankey diagrams: flows between stages as bands sized by volume, with an untangled layout, node labels, smooth morphing updates, hover highlight and tooltips.',
+  },
   'use-cases/realtime-data': {
     title: 'Realtime Data Streaming — Wick Charts',
     description:
@@ -162,6 +167,8 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
     'Matrix heatmap series — category cells colored by value on a perceptual ramp from the theme, with an entrance wave, in-place morphing and hover lift.',
   'api/depth-series':
     'Order book series on a numeric price axis — cumulative bid and ask walls, a mid and spread marker, morphing updates and level deltas via updateData.',
+  'api/sankey-series':
+    'Sankey series — nodes and links drawn as flows between stages with bands sized by volume, node labels, morphing updates and hover highlight.',
   'api/sparkline':
     'Self-contained inline mini chart with an optional value label — renders without a ChartContainer (React only).',
   'api/chart-container':
@@ -186,6 +193,8 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
   'api/pie-legend':
     'Slice list for pie charts showing value or percent per slice, with formatting and a custom render slot.',
   'api/pie-tooltip': 'Hover tooltip for pie slices with formatting and a custom render slot.',
+  'api/sankey-tooltip':
+    'Hover tooltip for sankey nodes and links — label, flow value and share of the outflow, with formatting and a custom render slot.',
   'api/title': 'Chart title bar with optional subtitle, hoisted above the canvas.',
   'api/tooltip':
     'Floating tooltip near the cursor with per-series value snapshots, sorting, formatting and a custom render slot.',

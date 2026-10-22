@@ -44,6 +44,10 @@ export const INTROS: Record<string, string> = {
     'Companion to `<PieSeries>` — renders slice labels with their value or percent, anchored to one of three positions (`bottom`, `right`, `overlay`).',
   HeatmapTooltip:
     "Hover tooltip for `<HeatmapSeries>`. Shows the hovered cell's row · column label, its value, and a small intensity meter locating the value on the color ramp.",
+  SankeySeries:
+    'Renders a sankey diagram — flows between stages as bands whose width follows the volume. Pass `nodes` (`{ id, label?, color? }`) and `links` (`{ source, target, value, color? }`); each node takes the column of its longest path from a source, and a node with no outgoing link moves to the last column. The layout is deterministic and untangles crossing bands. Links must not form a cycle — the series throws an error that names the nodes on one. A link to an unknown node or without a value above 0 is skipped with a warning. New data morphs the diagram on screen; hovering a node or a link highlights its neighbors. Use `<SankeyTooltip>` for the hover overlay.',
+  SankeyTooltip:
+    'Hover tooltip for `<SankeySeries>`. Shows the hovered node (or `Source → Target` for a link), its value, and its share of the outflow — of all source nodes for a node, of the source node for a link. The render-prop exposes the hover info and the formatter.',
   PieTooltip:
     'Hover tooltip for `<PieSeries>`. Behaves like `<Tooltip>` but takes a `seriesId` and exposes the active slice in the render-prop.',
   NumberFlow:

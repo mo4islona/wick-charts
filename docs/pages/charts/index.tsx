@@ -15,6 +15,7 @@ import { DepthPage } from '../DepthPage';
 import { HeatmapPage } from '../HeatmapPage';
 import { LinePage } from '../LinePage';
 import { PiePage } from '../PiePage';
+import { SankeyPage } from '../SankeyPage';
 import { SparklinePage } from '../SparklinePage';
 
 const CHARTS: Record<string, FC<{ theme: ChartTheme }>> = {
@@ -25,6 +26,7 @@ const CHARTS: Record<string, FC<{ theme: ChartTheme }>> = {
   'charts/pie': PiePage,
   'charts/heatmap': HeatmapPage,
   'charts/depth': DepthPage,
+  'charts/sankey': SankeyPage,
   'charts/sparkline': SparklinePage,
 };
 

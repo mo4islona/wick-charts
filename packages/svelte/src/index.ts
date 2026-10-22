@@ -106,6 +106,12 @@ export type {
   ReferenceLineStyle,
   RenderPadding,
   RoundedRectArgs,
+  SankeyData,
+  SankeyLabelsOptions,
+  SankeyLink,
+  SankeyNode,
+  SankeySeriesOptions,
+  SankeySeriesRenderer,
   ScaleTickArgs,
   SeriesCreateEnv,
   SeriesDefinition,
@@ -172,6 +178,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  SankeySeriesDef,
   XScale,
   YScale,
   andromeda,
@@ -262,6 +269,7 @@ export { default as DepthSeries } from './DepthSeries.svelte';
 export { default as HeatmapSeries } from './HeatmapSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';
+export { default as SankeySeries } from './SankeySeries.svelte';
 export {
   createCrosshairPosition,
   createLastYValue,
@@ -279,6 +287,7 @@ export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
 export { default as ReferenceLine } from './ui/ReferenceLine.svelte';
+export { default as SankeyTooltip } from './ui/SankeyTooltip.svelte';
 export { default as TimeRegion } from './ui/TimeRegion.svelte';
 export { default as Title } from './ui/Title.svelte';
 // UI overlays
