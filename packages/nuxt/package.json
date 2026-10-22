@@ -1,0 +1,66 @@
+{
+  "name": "@wick-charts/nuxt",
+  "version": "0.8.5",
+  "description": "Realtime, animated canvas charts for Nuxt: candlestick, line, bar, heatmap, pie and more, auto-imported. Tree-shakeable, zero runtime deps.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mo4islona/wick-charts.git",
+    "directory": "packages/nuxt"
+  },
+  "homepage": "https://wick-charts.eeff.io/",
+  "bugs": "https://github.com/mo4islona/wick-charts/issues",
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "charts",
+    "charting",
+    "canvas",
+    "realtime",
+    "streaming",
+    "candlestick",
+    "line-chart",
+    "bar-chart",
+    "heatmap",
+    "pie-chart",
+    "sparkline",
+    "timeseries",
+    "vue",
+    "visualization"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/types.d.mts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "nuxt-module-build build",
+    "prepublishOnly": "pnpm -w readme && pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@nuxt/kit": "^4.6.2",
+    "@wick-charts/vue": "workspace:^"
+  },
+  "devDependencies": {
+    "@nuxt/cli": "^3.37.0",
+    "@nuxt/module-builder": "^1.0.3",
+    "@nuxt/schema": "^4.6.2"
+  }
+}
