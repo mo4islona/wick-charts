@@ -1047,6 +1047,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.options.stacking;
   }
 
+  get valueRangeKey(): string {
+    return this.options.stacking;
+  }
+
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
     const stacking = this.options.stacking;
     if (stacking === 'percent') {

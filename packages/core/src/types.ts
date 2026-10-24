@@ -412,6 +412,24 @@ export interface LineSeriesOptions {
   area: {
     /** Whether the area gradient under the line is rendered. Default: `true`. */
     visible: boolean;
+    /**
+     * Y value the fill closes to, instead of the plot floor. The fill runs from
+     * the line to this value's pixel row on both sides of it and fades toward
+     * the row; Y autoscale keeps the value in view. A value outside the plotted
+     * Y range clamps to the plot edge. Pair it with a `threshold` at the same
+     * value for a two-color fill (P&L around zero, deviation from a target).
+     *
+     * ```
+     * <LineSeries
+     *   data={pnl}
+     *   options={{ area: { visible: true, baseline: 0 }, threshold: { value: 0, above: up, below: down } }}
+     * />
+     * ```
+     *
+     * Ignored in stacked mode — a stack always closes to its own zero.
+     * Default: the plot floor.
+     */
+    baseline?: number;
   };
   /**
    * Whether to show an animated pulsing dot at the last data point.

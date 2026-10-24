@@ -37,7 +37,7 @@
               },
               {
                 "name": "area",
-                "type": "{ visible: boolean; }",
+                "type": "{ visible: boolean; baseline?: number; }",
                 "optional": false,
                 "defaultValue": "{ visible: true }",
                 "deprecated": null,
@@ -53,6 +53,15 @@
                       "defaultValue": "true",
                       "deprecated": null,
                       "description": "Whether the area gradient under the line is rendered. Default: `true`.",
+                      "see": []
+                    },
+                    {
+                      "name": "baseline",
+                      "type": "number",
+                      "optional": true,
+                      "defaultValue": "the plot floor",
+                      "deprecated": null,
+                      "description": "Y value the fill closes to, instead of the plot floor. The fill runs from\nthe line to this value's pixel row on both sides of it and fades toward\nthe row; Y autoscale keeps the value in view. A value outside the plotted\nY range clamps to the plot edge. Pair it with a `threshold` at the same\nvalue for a two-color fill (P&L around zero, deviation from a target).\n\n```\n<LineSeries\n  data={pnl}\n  options={{ area: { visible: true, baseline: 0 }, threshold: { value: 0, above: up, below: down } }}\n/>\n```\n\nIgnored in stacked mode — a stack always closes to its own zero.\nDefault: the plot floor.",
                       "see": []
                     }
                   ]
