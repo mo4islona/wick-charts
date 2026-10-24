@@ -178,6 +178,21 @@ export function waveStrategy(opts: WaveOpts = {}): LineStrategy {
   };
 }
 
+// ── P&L strategy (mean-reverting walk around zero) ─────────
+
+/** Running P&L: a noisy walk pulled back toward 0, with a slow swing that carries it across zero. */
+export function pnlStrategy(scale = 40): LineStrategy {
+  return {
+    boundary: ({ index, time, prev }) => {
+      const base = prev?.value ?? 0;
+      const swing = Math.sin(index / 45) * 0.08 * scale;
+      const value = base * 0.97 + swing + (Math.random() - 0.5) * scale;
+
+      return { time, value: round(value) };
+    },
+  };
+}
+
 // ── Band strategy (derived from OHLC) ─────────────────────
 
 export function bandStrategy(ohlc: OHLCData[], offset: number, noiseScale = 0.003): LineStrategy {
@@ -245,6 +260,10 @@ export function generateLayerData(count: number, base: number, interval = DEMO_I
 export function generateWaveData(count: number, opts: WaveOpts & { interval?: number } = {}): TimePoint[] {
   const { interval = DEMO_INTERVAL, ...rest } = opts;
   return walkLine(count, interval, waveStrategy({ ...rest, totalHint: rest.totalHint ?? count }));
+}
+
+export function generatePnlData(count: number, interval = DEMO_INTERVAL): TimePoint[] {
+  return walkLine(count, interval, pnlStrategy());
 }
 
 export function generateGrowthData(count: number, opts: GrowthOpts & { interval?: number }): TimePoint[] {

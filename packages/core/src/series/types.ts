@@ -415,6 +415,11 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
   /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a Y scale with no 0. */
   readonly stacking?: StackingMode;
+  /**
+   * The options {@link getValueRange} reads, as one comparable value. An options
+   * update that changes it re-fits Y; one that doesn't costs no data scan.
+   */
+  readonly valueRangeKey?: string;
 }
 
 /** Options for the hover lookups ({@link BaseSeriesRenderer.getDataAtTime}, {@link BaseSeriesRenderer.getLayerSnapshots}). */

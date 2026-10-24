@@ -455,6 +455,11 @@ function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefin
   return a.every((label, i) => label === b[i]);
 }
 
+/** A time series' {@link TimeSeriesRenderer.valueRangeKey}; `undefined` for spatial kinds. */
+function valueRangeKey(renderer: SeriesRenderer): string | undefined {
+  return isTimeSeriesRenderer(renderer) ? renderer.valueRangeKey : undefined;
+}
+
 /** A time series' stacking mode; `undefined` for spatial kinds. */
 function seriesStacking(renderer: SeriesRenderer): unknown {
   return isTimeSeriesRenderer(renderer) ? renderer.stacking : undefined;
@@ -620,7 +625,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #batchDepth = 0;
   /** True when batched operations include data changes (triggers full onDataChanged on end). */
   #batchDataDirty = false;
-  /** True when batched operations include visibility changes (triggers Y-range + redraw on end). */
+  /** True when batched operations include visibility changes or a moved series fit (triggers Y-range + redraw on end). */
   #batchVisualDirty = false;
   /** True when batched operations bumped overlay version (emits a single overlayChange on flush). */
   #batchOverlayDirty = false;
@@ -2146,6 +2151,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // animations the chart asked to hold off.
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
     const prevFocusWidth = entry.renderer.getXFocus?.()?.halfWidth;
+    const prevRangeKey = valueRangeKey(entry.renderer);
     entry.renderer.updateOptions({ ...rendererOptions, ...forceOff });
 
     // A new default width from the app (a depth `span`) wins over the user's zoom, even on a static book.
@@ -2161,7 +2167,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const prevScaleId = this.#scaleIdOf(entry);
     entry.scale = nextScale;
     const scaleMoved = this.#scaleIdOf(entry) !== prevScaleId;
-    if (scaleMoved) this.#refitScales();
+    // An option the Y fit reads (a line's `area.baseline`, `stacking`) moves it without a data change.
+    const fitMoved = entry.visible && valueRangeKey(entry.renderer) !== prevRangeKey;
+    if (scaleMoved) {
+      this.#refitScales();
+    } else if (fitMoved) {
+      this.#easeYRefit();
+    }
 
     const nextColors = entry.renderer.getLayerColors();
     const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
@@ -2169,6 +2181,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (colorsChanged || labelChanged || scaleMoved) {
       this.#bumpOverlayVersion();
     }
+  }
+
+  /** Re-fit Y after what a series adds to it changed, eased like a visibility toggle. */
+  #easeYRefit(): void {
+    if (this.#batchDepth > 0) {
+      this.#batchVisualDirty = true;
+
+      return;
+    }
+
+    this.#yInited = true;
+    const now = performance.now();
+    this.#engine.onSeriesVisibilityChanged(now);
+    this.#applyEngineState(now);
   }
 
   /**
@@ -2189,7 +2215,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           this.#batchVisualDirty = false;
           this.onDataChanged();
         } else if (this.#batchVisualDirty) {
-          // Only visibility toggles set this flag, so the Y re-fit eases with their fade.
+          // Visibility toggles and moved series fits set this flag, so the Y re-fit eases with their fade.
           this.#batchVisualDirty = false;
           this.#yInited = true;
           const now = performance.now();

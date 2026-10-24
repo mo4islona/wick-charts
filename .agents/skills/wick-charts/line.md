@@ -54,7 +54,10 @@ data={{ color: (v) => (v >= 0 ? '#46b78f' : '#f0556a'), data }}
 ```ts
 interface LineSeriesOptions {
   strokeWidth: number;                     // stroke width in px — default: 1
-  area: { visible: boolean };              // gradient area under line — default: { visible: true }
+  area: {                                  // gradient area under line — default: { visible: true }
+    visible: boolean;
+    baseline?: number;                     //   Y value the fill closes to — default: the plot floor
+  };
   pulse: boolean;                          // animated dot at last point — default: true
   pulseMs?: number | false;                // pulse period; false disables — default: 600
   stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
@@ -95,6 +98,13 @@ When `area.visible` is `true`, a vertical gradient fills the area below each lin
 - Bottom: line color at 1% opacity
 
 Works with stacking — each layer fills down to the layer below it.
+
+`area.baseline` closes the fill to a Y value instead of the plot floor: the fill runs from the line to that value's row on both sides of it, fading toward the row. Y autoscale keeps the baseline in view; a baseline outside a pinned Y range clamps to the plot edge. Pair it with a `threshold` at the same value for the classic two-color P&L chart. Ignored in stacked mode.
+
+```ts
+// P&L around zero: green above, red below, each fading toward 0
+options={{ area: { visible: true, baseline: 0 }, threshold: { value: 0, above: '#46b78f', below: '#f0556a' } }}
+```
 
 ### `pulse`
 

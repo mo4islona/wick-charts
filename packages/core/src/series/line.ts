@@ -28,7 +28,7 @@ import { buildCurveSegments, replaySegmentsForward, replaySegmentsReversed } fro
 import { resolveLinePainter } from './painters/resolve';
 import type { LinePoint, PaintEnv } from './painters/types';
 import { ScaleStack } from './scale-stack';
-import type { OverlayRenderContext, SeriesRenderContext } from './types';
+import type { OverlayRenderContext, SeriesRenderContext, ValueRangeOptions } from './types';
 
 /** Internal resolved shape: `entryMs` / `smoothMs` / `pulseMs` are concrete
  *  numbers (`false` from the public surface gets normalized to `0` at the
@@ -95,6 +95,12 @@ function toPoints(xy: readonly [number, number][]): LinePoint[] {
  *  pulse dot cross-fades in over the same tail window so the handoff is
  *  seamless. */
 const INTRO_HEAD_FADE = 0.15;
+
+/** Alpha of a baseline fill at the plot edges — the floor fill's top stop, and louder under a threshold. */
+const BASELINE_PEAK_ALPHA = 0.12;
+const BASELINE_THRESHOLD_PEAK_ALPHA = 0.26;
+/** Alpha a baseline fill fades to at its baseline row — the floor fill's bottom stop. */
+const BASELINE_EDGE_ALPHA = 0.01;
 
 /** Fallback history reveal — the line back-fills itself from the data
  *  boundary behind a moving clip front. Stateless, safe to share. */
@@ -181,6 +187,34 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
   getStacking(): string {
     return this.options.stacking;
+  }
+
+  getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null {
+    const range = super.getValueRange(from, to, opts);
+    const baseline = this.areaBaseline();
+    if (range === null || baseline === null) return range;
+
+    // The fill reads against its baseline, so the row stays in view where the scale can place it.
+    const placeable = opts?.plottable?.(baseline) ?? true;
+    if (!placeable) return range;
+
+    return { min: Math.min(baseline, range.min), max: Math.max(baseline, range.max) };
+  }
+
+  override get valueRangeKey(): string {
+    return `${this.options.stacking}|${this.areaBaseline() ?? ''}`;
+  }
+
+  /** `area.baseline` where it applies: a finite value on a visible, unstacked area. */
+  private areaBaseline(): number | null {
+    const { area, stacking } = this.options;
+    const baseline = area.baseline;
+    if (baseline === undefined || !Number.isFinite(baseline)) return null;
+
+    // A stack closes to its own zero, and a hidden area has no edge to keep in view.
+    const applies = area.visible && stacking === 'off';
+
+    return applies ? baseline : null;
   }
 
   applyTheme(theme: ChartTheme, prev: ChartTheme): void {
@@ -1105,18 +1139,11 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const threshold = this.options.threshold;
     if (!threshold) return null;
 
-    const { scope, yScale } = ctx;
-    const { context } = scope;
-    const height = scope.bitmapSize.height;
+    const { context } = ctx.scope;
+    const height = ctx.scope.bitmapSize.height;
     const above = threshold.above;
     const below = threshold.below ?? seriesColor;
-
-    // The threshold value's pixel row as a 0..1 gradient offset, with a small
-    // blend band so the switch reads as a transition rather than an aliased edge.
-    const row = Math.min(1, Math.max(0, yScale.valueToBitmapYExact(threshold.value) / height));
-    const band = Math.min(6 * scope.verticalPixelRatio, height * 0.02) / height;
-    const top = Math.max(0, row - band);
-    const bottom = Math.min(1, row + band);
+    const { top, bottom } = thresholdBand(ctx, threshold.value);
 
     const stroke = context.createLinearGradient(0, 0, 0, height);
     stroke.addColorStop(0, above);
@@ -1131,6 +1158,80 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     area.addColorStop(1, hexToRgba(below, 0.01));
 
     return { stroke, area };
+  }
+
+  /**
+   * Bitmap row an unstacked area closes to for `area.baseline`, clamped to the
+   * plot; `null` closes to the floor. Read every frame, so the edge tracks Y
+   * autoscale and Y animations.
+   */
+  private areaBaselineY(ctx: SeriesRenderContext): number | null {
+    const baseline = this.areaBaseline();
+    if (baseline === null) return null;
+
+    const row = ctx.yScale.valueToBitmapYExact(baseline);
+
+    return Math.min(ctx.scope.bitmapSize.height, Math.max(0, row));
+  }
+
+  /** Fill style of one unstacked layer's area. */
+  private areaFillStyle(args: {
+    ctx: SeriesRenderContext;
+    layerIndex: number;
+    color: string;
+    thresholdPaint: { area: CanvasGradient } | null;
+    baselineY: number | null;
+  }): CanvasGradient {
+    const { ctx, layerIndex, color, thresholdPaint, baselineY } = args;
+    if (baselineY !== null) return this.buildBaselineArea(ctx, { color, baselineY });
+    if (thresholdPaint) return thresholdPaint.area;
+
+    const bottomY = ctx.scope.bitmapSize.height;
+    const cacheKey = String(layerIndex);
+    const cached = this.areaGradientCache.get(cacheKey);
+    if (cached && cached.bottomY === bottomY && cached.color === color) return cached.gradient;
+
+    const gradient = ctx.scope.context.createLinearGradient(0, 0, 0, bottomY);
+    gradient.addColorStop(0, hexToRgba(color, 0.12));
+    gradient.addColorStop(1, hexToRgba(color, 0.01));
+    this.areaGradientCache.set(cacheKey, { gradient, bottomY, color });
+
+    return gradient;
+  }
+
+  /**
+   * Area gradient for a fill closing to `baselineY`: strongest at the plot
+   * edges, fading toward the row from both sides. A threshold splits it into
+   * its `above` / `below` colors across the same blend band as the stroke.
+   * Built per frame, like the threshold paint — the row moves with the Y axis.
+   */
+  private buildBaselineArea(ctx: SeriesRenderContext, args: { color: string; baselineY: number }): CanvasGradient {
+    const { color, baselineY } = args;
+    const height = ctx.scope.bitmapSize.height;
+    const row = height > 0 ? baselineY / height : 1;
+
+    const threshold = this.options.threshold;
+    const split = threshold ? thresholdBand(ctx, threshold.value) : null;
+    const above = threshold?.above ?? color;
+    const below = threshold?.below ?? color;
+    const peak = threshold ? BASELINE_THRESHOLD_PEAK_ALPHA : BASELINE_PEAK_ALPHA;
+
+    // The row's own stop would sit mid-blend inside the split, where the band edges already fade it.
+    const offsets = new Set([0, 1]);
+    if (split !== null) {
+      offsets.add(split.top);
+      offsets.add(split.bottom);
+    }
+    const rowInsideSplit = split !== null && row > split.top && row < split.bottom;
+    if (!rowInsideSplit) offsets.add(row);
+
+    const gradient = ctx.scope.context.createLinearGradient(0, 0, 0, height);
+    for (const offset of [...offsets].sort((a, b) => a - b)) {
+      const stopColor = split === null || offset <= split.top ? above : below;
+      gradient.addColorStop(offset, hexToRgba(stopColor, baselineFadeAlpha({ offset, row, peak })));
+    }
+
+    return gradient;
   }
 
   /**
@@ -1335,27 +1436,13 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         }
       }
 
-      // Area fill — one closed polygon per run, each dropped to the chart
-      // baseline. Without per-run polygons, a single shared path would bleed
-      // fill across the gaps. The 'trace' ghost pass draws stroke-only.
+      // Area fill — one closed polygon per run, each dropped to the floor or the
+      // `area.baseline` row. Without per-run polygons, a single shared path would
+      // bleed fill across the gaps. The 'trace' ghost pass draws stroke-only.
       if (this.options.area.visible && !this.introGhostPass) {
-        const bottomY = scope.bitmapSize.height;
-        let grad: CanvasGradient;
-        if (thresholdPaint) {
-          grad = thresholdPaint.area;
-        } else {
-          const cacheKey = String(li);
-          const cached = this.areaGradientCache.get(cacheKey);
-          if (cached && cached.bottomY === bottomY && cached.color === color) {
-            grad = cached.gradient;
-          } else {
-            grad = context.createLinearGradient(0, 0, 0, bottomY);
-            grad.addColorStop(0, hexToRgba(color, 0.12));
-            grad.addColorStop(1, hexToRgba(color, 0.01));
-            this.areaGradientCache.set(cacheKey, { gradient: grad, bottomY, color });
-          }
-        }
-        context.fillStyle = grad;
+        const baselineY = this.areaBaselineY(ctx);
+        const bottomY = baselineY ?? scope.bitmapSize.height;
+        context.fillStyle = this.areaFillStyle({ ctx, layerIndex: li, color, thresholdPaint, baselineY });
         // One fill for every run: abutting subpaths of one fill share their edge
         // coverage, where separate translucent fills would leave a seam.
         context.beginPath();
@@ -2114,6 +2201,29 @@ export const LineSeriesDef: SeriesDefinition<LineSeriesOptions> = {
       paletteIndex,
     ),
 };
+
+/**
+ * A threshold's color switch as 0..1 offsets of the plot height: the value's
+ * pixel row widened into a small blend band, so the switch reads as a
+ * transition rather than an aliased edge.
+ */
+function thresholdBand(ctx: SeriesRenderContext, value: number): { top: number; bottom: number } {
+  const { scope, yScale } = ctx;
+  const height = scope.bitmapSize.height;
+  const row = Math.min(1, Math.max(0, yScale.valueToBitmapYExact(value) / height));
+  const band = Math.min(6 * scope.verticalPixelRatio, height * 0.02) / height;
+
+  return { top: Math.max(0, row - band), bottom: Math.min(1, row + band) };
+}
+
+/** Baseline-fill alpha at a 0..1 gradient `offset`: `peak` at either plot edge, falling linearly to the `row`. */
+function baselineFadeAlpha(args: { offset: number; row: number; peak: number }): number {
+  const { offset, row, peak } = args;
+  const reach = offset < row ? row : 1 - row;
+  const distance = reach > 0 ? Math.abs(offset - row) / reach : 0;
+
+  return BASELINE_EDGE_ALPHA + (peak - BASELINE_EDGE_ALPHA) * distance;
+}
 
 /** Index runs `[from, to)` of the columns between gap columns. */
 function stackSpans(gapColumns: readonly boolean[]): Array<{ from: number; to: number }> {

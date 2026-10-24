@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+
 import {
   ChartContainer,
   type ChartTheme,
@@ -25,6 +27,7 @@ import {
   buildCommonSeriesOptions,
   buildNavigatorComponent,
   useAnimationsProp,
+  withLinearY,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
 import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
@@ -35,9 +38,11 @@ import {
   type LineStrategy,
   generateGrowthData,
   generateLineData,
+  generatePnlData,
   generateWaveData,
   growthStrategy,
   lineDriftStrategy,
+  pnlStrategy,
   waveStrategy,
 } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
@@ -46,10 +51,12 @@ import { useLineStreams } from '../hooks';
 type DataMode = 'wave' | 'line' | 'growth';
 type LegendPos = 'off' | 'bottom' | 'right';
 type LegendMode = 'toggle' | 'isolate';
+type AreaBaseline = 'floor' | 'zero';
 
 interface LineSettings {
   dataMode: DataMode;
   areaVisible: boolean;
+  areaBaseline: AreaBaseline;
   curve: CurveKind;
   strokeWidth: number;
   pointsVisible: boolean;
@@ -112,6 +119,13 @@ function strategyFor(mode: DataMode) {
   };
 }
 
+/** The `area` option the Fill + Baseline controls stand for. */
+function areaOption({ areaVisible, areaBaseline }: LineSettings): { visible: boolean; baseline?: number } {
+  if (areaBaseline === 'zero') return { visible: areaVisible, baseline: 0 };
+
+  return { visible: areaVisible };
+}
+
 function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][] }) {
   const { datasets } = useLineStreams(props.allData, {
     interval: DEMO_INTERVAL,
@@ -140,7 +154,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
         id={sid}
         data={data}
         options={{
-          area: { visible: props.areaVisible },
+          area: areaOption(props),
           curve: props.curve,
           strokeWidth: props.strokeWidth,
           pulse: props.streaming,
@@ -207,7 +221,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
         data={display}
         options={{
           // Multi-layer lines default to the theme palette (seriesColors).
-          area: { visible: props.areaVisible },
+          area: areaOption(props),
           curve: props.curve,
           strokeWidth: props.strokeWidth,
           pulse: props.streaming,
@@ -222,6 +236,56 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       {props.axis?.x?.visible !== false && <XAxis />}
       {props.legendPos !== 'off' && <Legend position={props.legendPos} mode={props.legendMode} />}
       {props.navigatorVisible && <Navigator data={{ type: 'line', series: display }} height={props.navigatorHeight} />}
+    </ChartContainer>
+  );
+}
+
+/** Running P&L in the classic baseline look: the fill closes to 0, up color above it, down color below. */
+function PnlChart(props: PlaygroundChartProps & LineSettings) {
+  const [history] = useState(() => [generatePnlData(300)]);
+  const { datasets } = useLineStreams(history, {
+    interval: DEMO_INTERVAL,
+    speed: 5,
+    strategy: () => pnlStrategy(),
+  });
+  const series = props.streaming ? datasets[0] : history[0];
+  const animations = useAnimationsProp(props);
+  // P&L is signed, and a log axis has no place for values ≤ 0.
+  const axis = withLinearY(props.axis);
+  const heldLinear = axis !== props.axis;
+  const { up, down } = props.theme.candlestick;
+  // The pulse dot, info bar and legend read the series color — sign it by the latest P&L.
+  const signColor = useMemo(() => (value: number) => (value >= 0 ? up.wick : down.wick), [up.wick, down.wick]);
+
+  return (
+    <ChartContainer
+      theme={props.theme}
+      axis={axis}
+      gradient={props.gradient}
+      headerLayout={props.headerLayout}
+      perf={props.perfHudVisible ? perfHud() : undefined}
+      animations={animations}
+      viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
+    >
+      <Title sub={heldLinear ? 'Baseline 0 · linear' : 'Baseline 0'}>P&amp;L</Title>
+      {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
+      <LineSeries
+        data={{ label: 'P&L', color: signColor, data: series }}
+        options={{
+          area: { visible: props.areaVisible, baseline: 0 },
+          threshold: { value: 0, above: up.wick, below: down.wick },
+          curve: props.curve,
+          strokeWidth: props.strokeWidth,
+          pulse: props.streaming,
+          entryAnimation: props.lineEntryAnimation,
+          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
+        }}
+      />
+      {props.tooltipVisible && renderTooltip(props)}
+      {props.crosshairVisible && <Crosshair />}
+      {props.axis?.y?.visible !== false && <YAxis />}
+      {props.axis?.x?.visible !== false && <XAxis />}
+      {props.navigatorVisible && <Navigator data={{ type: 'line', series: [series] }} height={props.navigatorHeight} />}
     </ChartContainer>
   );
 }
@@ -320,6 +384,22 @@ const SERIES_SECTION: SectionSpec = {
       label: 'Fill',
       hint: 'Area gradient below the line',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'areaBaseline',
+      label: 'Baseline',
+      hint: 'Value the fill closes to · unstacked only',
+      visible: (s) => s.areaVisible,
+      render: (v, onChange) => (
+        <ToggleGroup<AreaBaseline>
+          value={v as AreaBaseline}
+          options={[
+            { value: 'floor', label: 'Floor' },
+            { value: 'zero', label: '0' },
+          ]}
+          onChange={onChange as (v: AreaBaseline) => void}
+        />
+      ),
     },
     {
       key: 'pointsVisible',
@@ -446,10 +526,12 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       id="line"
       theme={theme}
       animationKinds={['line']}
+      gridTemplate="1fr 1fr 1fr"
       mobileRowHeight={300}
       extraDefaults={(mobile) => ({
         dataMode: 'wave',
         areaVisible: true,
+        areaBaseline: 'floor',
         curve: 'straight',
         strokeWidth: 1,
         pointsVisible: false,
@@ -486,6 +568,9 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
                 title={label}
               />
             </Cell>
+            <Cell theme={props.theme}>
+              <PnlChart key={`${props.streaming}-${props.perfHudVisible}-${props.pointsVisible}-p`} {...props} />
+            </Cell>
           </>
         );
       }}
@@ -498,7 +583,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
 
         const options: Record<string, PropValue> = {
           ...buildCommonSeriesOptions(s, 'line'),
-          ...(s.areaVisible ? { area: { visible: true } } : {}),
+          ...(s.areaVisible ? { area: areaOption(s) } : {}),
           ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
           ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
           ...(s.pointsVisible
