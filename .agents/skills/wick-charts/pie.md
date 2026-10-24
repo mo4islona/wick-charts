@@ -22,42 +22,9 @@ data={[
 ]}
 ```
 
-## Series options
+## Options
 
-```ts
-interface PieSeriesOptions {
-  colors?: string[];         // palette — default: theme.seriesColors
-  innerRadiusRatio: number;  // 0 = pie, 0.6 = donut — default: 0
-  padAngle: number;          // gap between slices in degrees — default: 1.15°
-  label?: string;            // tooltip label
-  sliceLabels?: PieLabelsOptions; // per-slice on-pie labels — see below
-  animate?: boolean;         // label draw-in + hover explode — default: false
-  gradient?: boolean;        // radial depth gradient on slices — default: true
-  other?: boolean | PieOtherOptions; // small-slice grouping — default: true (on)
-}
-
-interface PieOtherOptions {
-  maxSlices?: number;       // total rendered slices including "Other" — default: 8
-  label?: string;           // aggregated slice label — default: 'Other'
-  color?: string;           // aggregated slice fill — default: theme.pie.otherColor
-}
-
-interface PieLabelsOptions {
-  mode?: 'inside' | 'outside' | 'none'; // default: 'outside'
-  content?: 'percent' | 'label' | 'both'; // default: 'both'
-  fontSize?: number;        // CSS px — default: 11
-  minSliceAngle?: number;   // degrees; slices narrower than this skip label — default: 2.5°
-  elbowLen?: number;        // leader-line radial segment length in CSS px — default: 12
-  legPad?: number;          // gap between leader line and text in CSS px — default: 6
-  distance?: number;        // radial px from pie edge to label anchor — default: 24
-  labelGap?: number;        // vertical gap between outside labels as fontSize multiplier — default: 1.4
-  balanceSides?: boolean;   // @deprecated — no effect in radial per-slice layout
-}
-```
-
-All options are optional — pass `Partial<PieSeriesOptions>`.
-
-## Options explained
+Every option with its default and doc comment: `PieSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/pie-series/>. The sections below cover what a type can't show.
 
 ### `innerRadiusRatio`
 
@@ -73,10 +40,6 @@ Controls pie vs donut mode. Fraction of the outer radius used as inner hole.
 ### `colors`
 
 Palette for slice coloring. Falls back to `theme.seriesColors` if not provided. Slices with an explicit `color` in data override the palette.
-
-### `padAngle`
-
-Gap between adjacent slices in degrees. Default `1.15°` (≈ 0.02 rad) gives a subtle separation. Set `0` for flush slices.
 
 ### `animate`
 
@@ -123,11 +86,7 @@ options={{ sliceLabels: { mode: 'inside', content: 'percent', fontSize: 12 } }}
 options={{ sliceLabels: { mode: 'none' } }}
 ```
 
-Tuning outside-label crowding:
-- `minSliceAngle` (default `2.5°`) — raise to drop tiny slices from the layout pass
-- `labelGap` (default `1.4`) — vertical min-gap between same-side labels as a multiplier of `fontSize`
-- `elbowLen` / `legPad` — leader-line geometry
-- `balanceSides` (default `true`) — redistributes labels near 12/6 o'clock to the less-crowded side
+Crowded outside labels: raise `minSliceAngle` to drop the tiniest slices from the layout, or `labelGap` to spread same-side labels (`PieLabelsOptions`).
 
 ## Visual features
 
@@ -180,17 +139,6 @@ function PieChart({ data }: { data: PieSliceData[] }) {
 />
 ```
 
-### Props
-
-```ts
-interface PieSeriesProps {
-  data: PieSliceData[];
-  options?: Partial<PieSeriesOptions>;
-  /** Stable series ID — reuse across overlays that target this series. */
-  id?: string;
-}
-```
-
 ## Vue
 
 ### Donut chart
@@ -219,15 +167,6 @@ const data: PieSliceData[] = [
 </template>
 ```
 
-### Props
-
-```ts
-data: PieSliceData[]
-options?: Partial<PieSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
-```
-
 ## Svelte
 
 ### Donut chart
@@ -253,21 +192,12 @@ id?: string
 </ChartContainer>
 ```
 
-### Props
-
-```ts
-data: PieSliceData[]
-options?: Partial<PieSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
-```
-
 ## Pie-specific overlays
 
-| Component | Props | Slot ctx | Description |
-|-----------|-------|----------|-------------|
-| `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Shows slice label, value, and percentage on hover |
-| `PieLegend` | `seriesId?`, `mode?: 'value' \| 'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Slice labels with values or percentages |
+| Component | Slot ctx | Description |
+|-----------|----------|-------------|
+| `PieTooltip` | `{ info, format }` | Shows slice label, value, and percentage on hover |
+| `PieLegend` | `{ slices, mode, format }` | Slice labels with values (`mode="value"`) or percentages (`mode="percent"`) |
 
 `seriesId` is optional on both — omit on a single-pie chart and the first visible pie series is picked automatically.
 

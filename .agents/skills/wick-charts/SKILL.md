@@ -23,6 +23,27 @@ Framework-specific gaps to know about:
 - The [reactive accessors](#reactive-accessors) are hooks in React, composables with the same names in Vue, and stores in Svelte.
 - **Svelte**: the components work in Svelte 4 and Svelte 5. In a Svelte 5 project (`sv create` turns runes on), write your own components with runes — `let { data }: { data: OHLCInput[] } = $props()`, not `export let` — and keep chart data in `$state.raw` (see [Realtime updates](#realtime-updates)).
 
+## Props and options: read the installed types
+
+This skill shows how the pieces fit, with patterns and traps. It does not list every prop and option: the type declarations of the installed package do, with each default and doc comment, for the exact version the project uses. Read the declaration before you use an option this skill does not show, and trust it over this skill when the two differ.
+
+| Package | Declarations |
+|---|---|
+| `@wick-charts/react` | `node_modules/@wick-charts/react/dist/index.d.ts` |
+| `@wick-charts/vue` (also in a Nuxt app) | `node_modules/@wick-charts/vue/dist/index.d.ts` |
+| `@wick-charts/svelte` | `node_modules/@wick-charts/svelte/dist/core/index.d.ts`; component props in `dist/<Component>.svelte.d.ts` |
+
+```bash
+# One declaration with its doc comments
+awk '/interface LineSeriesOptions [{]/,/^}/' node_modules/@wick-charts/react/dist/index.d.ts
+```
+
+- **Series options**: `LineSeriesOptions`, `BarSeriesOptions`, `CandlestickSeriesOptions`, `BandSeriesOptions`, `PieSeriesOptions`, `HeatmapSeriesOptions`, `DepthSeriesOptions`, `SankeySeriesOptions`. A series' `options` prop takes a `Partial` of one.
+- **Container and annotations**: `AxisConfig` (`XAxisConfig`, `YAxisConfig`), `AnimationsConfig`, `ChartTheme`, `ThemeConfig` (`createTheme` input), `MarkerConfig`, `ReferenceLineConfig`, `TimeRegionConfig`. Slot data: `SeriesSnapshot`, `LegendItem`.
+- **Component props** are the same in the three frameworks; React names them `<Component>Props` (`LineSeriesProps`, `TooltipProps`).
+- An `@default {@link DEFAULT_…}` names a constant the bundle does not carry. The component's API page shows the value.
+- No `node_modules` at hand: one API page per component (`https://wick-charts.eeff.io/api/line-series/`, `/api/chart-container/`, …), or the generated API reference at the end of `https://wick-charts.eeff.io/llms-full.txt`.
+
 ## shadcn/ui, shadcn-vue and shadcn-svelte
 
 In a shadcn/ui project (React), a shadcn-vue project (Vue, Nuxt) or a shadcn-svelte project (Svelte 5), install from the Wick Charts registry instead of wiring a theme by hand. Items install as source files into the project. The three registries have the same items:
@@ -163,9 +184,16 @@ Root component. Requires a defined width + height.
 </ChartContainer>
 ```
 
-Props: `theme`, `axis`, `scales`, `padding`, `viewport`, `gradient`, `grid`, `interactive`, `headerLayout`, `animations`, `onEdgeReached`, `perf`, `style`, `className` — all optional with safe defaults, in parity across React/Vue/Svelte (`style` / `className` are React props; Vue passes `style` / `class` through; Svelte `style` is a string). `padding.top|bottom` are pixels; `padding.left|right` accept pixels **or** `{ intervals: N }` for N empty data slots. `grid` is `{ visible?, horizontal?, vertical? }` (all default `true`) — `grid={{ visible: false }}` hides it, `grid={{ vertical: false }}` keeps only the horizontal lines. `axis.y` / `axis.x` accept `width` / `height` respectively for axis gutter sizing; `axis.y.position` is `'right'` (default) or `'left'` — the plot area shifts past a left axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right. A custom overlay that sits on an axis (a price pill, a badge) can call `const cover = chart.coverAxisLabels(el)`: the tick labels under it hide while it shows — call `cover.update()` after it moves and `cover.remove()` on unmount (`<Crosshair>` and `<YLabel>` do this already). `axis.y.scale` takes a value mapping — omit it for linear, `logScale()` (import it; `logScale({ base: 2 })` for powers-of-two ticks) for a log axis, or any `{ forward, inverse, isPlottable?, ticks?, format? }` object (define it outside the component so it stays the same object). Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0. `headerLayout` is `'overlay' | 'inline'` — defaults to `'overlay'` (Title / InfoBar float above the canvas with their height folded into `padding.top`); `'inline'` pushes them into the vertical flow instead. `viewport.maxVisibleBars` (default 200) caps the visible window before tail-scroll kicks in. `viewport.initialRange` matches `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and is applied **before** the first paint — use instead of an after-mount `useEffect(() => chart.setVisibleRange(...))` to avoid a visible re-zoom on the next frame. `animations` is configured at construction time and is **init-only** — there is no `chart.setAnimations` runtime setter; remount the chart (or change the React `key`) to swap curves or durations.
+Every prop is optional and the same in React, Vue and Svelte (`ChartContainerProps`). React adds `style` / `className`, Vue passes `style` / `class` through to the root element, and Svelte takes `style` as a string. What the types alone don't tell:
 
-`AxisBound` = `'auto' | number | "+10%" | ((values: number[]) => number)`.
+- `padding.left` / `padding.right` take pixels **or** `{ intervals: N }` — N empty data slots.
+- `grid={{ vertical: false }}` keeps only the horizontal lines; `grid={{ visible: false }}` hides the grid.
+- `axis.y.position: 'left'` shifts the plot area past the axis, and every overlay (YAxis, TimeAxis, YLabel, Crosshair, Tooltip, Navigator) plus the default edge fade follow it. Custom overlays should size themselves to `chart.getLayout().chartArea` (or offset scale output by `chart.plotLeft`) instead of assuming the axis is on the right.
+- A custom overlay that sits on an axis (a price pill, a badge) can call `const cover = chart.coverAxisLabels(el)`: the tick labels under it hide while it shows. Call `cover.update()` after it moves and `cover.remove()` on unmount (`<Crosshair>` and `<YLabel>` do this already).
+- `axis.y.scale` takes a value mapping: omit it for linear, `logScale()` for a log axis (`logScale({ base: 2 })` for powers-of-two ticks), or any `{ forward, inverse, isPlottable?, ticks?, format? }` object — define it outside the component so it stays the same object. Autoscale and Y animations run in the scale's space; values it can't place (≤ 0 on log) are skipped — a gap in a line, no bar or candle — and a percent-stacked series throws when the scale can't place 0.
+- `headerLayout: 'overlay'` (default) floats Title / InfoBar above the canvas and folds their height into `padding.top`; `'inline'` puts them in the vertical flow.
+- `viewport.initialRange` takes the same spec as `chart.setVisibleRange(spec)` (bar count, `{from, to}`, or `{from, bars}`) and applies **before** the first paint — use it instead of an after-mount `useEffect(() => chart.setVisibleRange(...))`, which re-zooms on the next frame.
+- `animations` is **init-only**: there is no `chart.setAnimations` runtime setter. Remount the chart (or change the React `key`) to swap curves or durations.
 
 ### Performance HUD
 
@@ -199,29 +227,11 @@ import { hermite, spring, snap } from '@wick-charts/react';
 />
 ```
 
-| Group | Field | Default | Notes |
-|---|---|---|---|
-| `axis.y.curve` | `hermite()` / `spring()` / `snap()` | `hermite()` | Hermite = fixed-duration cubic. Spring = critically-damped physics. Snap = no easing. |
-| `axis.y.settle` | ms | `250` | Outward chase to a new extreme. Lower = punchier reaction to spikes. |
-| `axis.y.sticky` | ms | `2500` | Inward contraction after an extreme leaves the window. Sticky-Y feel. |
-| `axis.y.gesture` | ms | `100` | One-shot override during pan/zoom — short = frame-per-tick interactive feel. |
-| `axis.x.curve` | `spring()` / `snap()` | `spring()` | Spring carries velocity across streaming ticks. |
-| `axis.x.settle` | ms | `200` | Streaming retarget baseline. The cadence EMA tunes this at runtime. |
-| `axis.x.gesture` | ms | `150` | Pan/zoom commit easing. `0` = instant apply. |
-| `axis.ticks` | ms | `250` | Cross-fade duration for axis tick labels. |
-| `series.<kind>.entry` | ms | `250` (`linePulse: 600`) | Per-point/candle/bar/slice entrance duration. `false` disables. |
-| `series.<kind>.smooth` | ms | `250` | Last-value chase on `updateData` ticks. `false` snaps. |
-| `series.line.pulse` | ms | `600` | Halo cycle period at the line tail (periodic loop). `false` disables. |
-| `series.pie.update` | ms | `250` | Slice-resize duration on data change. |
-| `series.depth.intro` | ms | `500` | Depth walls grow out from mid on the first data; the full reveal lasts ~2×. |
-| `series.depth.update` | ms | `500` | Depth morph to each new book, mid-marker glide and hover-highlight ease. |
-| `series.sankey.entry` | ms | `1400` | Sankey first-data cascade, start to end: sources grow, bands run to their targets and fill them, labels fade in. |
-| `series.sankey.update` | ms | `500` | Sankey morph to new data and the hover dim ease. |
-| `toggle` | ms | `250` | Series-visibility fade + Y re-fit duration. |
+Every field, its default and what it tunes: `AnimationsConfig`.
 
 **Disabling a whole group.** Any group field accepts `false` to skip animations for that subtree — `animations: false` (chart-wide), `animations: { axis: false }`, `animations: { series: { line: false } }`, etc.
 
-**Per-series-type entry style.** Each series option also accepts `entryAnimation` for the visual *style* (separate from duration). Defaults: line `'grow'`, band `'grow'`, bar `'fade-grow'`, candlestick `'unfold'`. See each chart-type page for the full enum.
+**Per-series-type entry style.** Each series also takes `entryAnimation` for the visual *style*, separate from the duration; its options type lists the styles.
 
 **Curve factories.** `hermite()`, `spring()`, `snap()` are factories — call them when assigning. Reuse the same factory instance across renders (memoize in `useMemo` / `computed`) so the engine doesn't see a fresh reference on every re-render.
 
@@ -229,23 +239,23 @@ import { hermite, spring, snap } from '@wick-charts/react';
 
 Placed as children of `ChartContainer`.
 
-| Component | Props | Slot ctx | Notes |
-|---|---|---|---|
-| `Title` | `children`, `sub?` | — | Title bar, hoisted above canvas |
-| `InfoBar` | `sort?`, `format?` | `{ snapshots, time, isHover }` | OHLC / values info bar, hoisted above canvas |
-| `Tooltip` | `sort?`, `format?` | `{ snapshots, time }` | Floating glass tooltip near cursor (hover only) |
-| `Legend` | `items?`, `position?: 'bottom'\|'right'`, `mode?: 'toggle'\|'isolate'` | `{ items: LegendItem[] }` | Series legend, hoisted below / beside canvas |
-| `Crosshair` | — | — | Axis labels at cursor |
-| `YAxis` | `format?`, `labelCount?`, `minLabelSpacing?`, `scale?` | — | Vertical tick axis — of a named scale with `scale` |
-| `XAxis` (alias `TimeAxis`) | `format?: (x, step) => string`, `labelCount?`, `minLabelSpacing?` | — | Horizontal axis of any `axis.x.type`; `format` also drives the crosshair label and tooltip / info-bar headers |
-| `YLabel` | `seriesId?`, `color?`, `format?`, `scale?` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
-| `Marker` | `time`, `value?`, `seriesId?`, `shape?`, `pulse?`, `label?`, `color?`, `scale?` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
-| `ReferenceLine` | `value?` \| `time?`, `color?`, `label?`, `style?`, `width?`, `scale?` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
-| `TimeRegion` | `from`, `to?`, `fill?`, `label?`, `color?` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
-| `PieTooltip` | `seriesId?`, `format?` | `{ info, format }` | Pie hover tooltip |
-| `SankeyTooltip` | `seriesId?`, `format?` | `{ info, format }` | Sankey hover tooltip: node or `Source → Target`, value, share |
-| `PieLegend` | `seriesId?`, `mode?: 'value'\|'percent'`, `format?: (v) => string` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
-| `NumberFlow` | `value`, `format?`, `spinDuration?`, `shrinkDelay?` | — | Standalone animated number |
+| Component | Slot ctx | Notes |
+|---|---|---|
+| `Title` | — | Title bar, hoisted above canvas |
+| `InfoBar` | `{ snapshots, time, isHover }` | OHLC / values info bar, hoisted above canvas |
+| `Tooltip` | `{ snapshots, time }` | Floating glass tooltip near cursor (hover only) |
+| `Legend` | `{ items: LegendItem[] }` | Series legend, hoisted below / beside canvas |
+| `Crosshair` | — | Axis labels at cursor |
+| `YAxis` | — | Vertical tick axis — of a named scale with `scale` |
+| `XAxis` (alias `TimeAxis`) | — | Horizontal axis of any `axis.x.type`; `format` also drives the crosshair label and tooltip / info-bar headers |
+| `YLabel` | `{ value, y, bgColor, isLive, direction, format }` | Floating price badge + dashed line |
+| `Marker` | — | Point annotation (event marker); **not a series** — excluded from tooltip / legend / Y-range |
+| `ReferenceLine` | — | Horizontal threshold (`value`) / vertical event line (`time`); above series; **not a series** |
+| `TimeRegion` | — | Shaded time-interval band (anomaly / maintenance window), behind series; **not a series** |
+| `PieTooltip` | `{ info, format }` | Pie hover tooltip |
+| `SankeyTooltip` | `{ info, format }` | Sankey hover tooltip: node or `Source → Target`, value, share |
+| `PieLegend` | `{ slices, mode, format }` | Pie slice list (function formatter only) |
+| `NumberFlow` | — | Standalone animated number |
 
 `seriesId` is optional on `YLabel` / `PieTooltip` / `PieLegend` — omit it on single-series charts and the first compatible visible series is picked automatically (time-series for `YLabel` — bands are skipped, a range has no single value; pie for `PieTooltip` / `PieLegend`). `InfoBar` and `Tooltip` are **always multi-series**; there is no `seriesId` prop. Filter inside the slot if you need a subset.
 
@@ -276,12 +286,7 @@ Y-axis ticks, the `YLabel` badge, the crosshair label, `Tooltip` and `InfoBar` c
 </ChartContainer>
 ```
 
-- `time` — ms or `Date`.
-- `value` — Y as a data value. **Omit it and pass `seriesId`** to snap Y to that series' nearest point at `time` (removes the "what Y do I use" problem).
-- `shape` — `'dot' | 'circle' | 'arrow-up' | 'arrow-down'` (default `'dot'`). On a bare marker, arrows point their tip at the anchor.
-- `pulse` — reuse the line halo animation (default `false`).
-- `label` — optional text, drawn as a callout chip whose tail points at the anchor. The tail replaces an arrow glyph — a labeled arrow shape only picks the callout's side (above for `arrow-down`, below for `arrow-up`, auto-flips at plot edges) — while `dot` / `circle` keep their glyph under the callout.
-- `color` — override; falls back to the series color (when `seriesId` is set), then the theme line color.
+Omit `value` and pass `seriesId` to snap Y to that series' nearest point at `time` — no "what Y do I use" problem. The other fields (shape, pulse halo, callout label, color): `MarkerConfig`.
 
 Render as many `<Marker>`s as you need. Prop set is identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addMarker(config) → id`, `chart.updateMarker(id, config)`, `chart.removeMarker(id)`.
 
@@ -306,10 +311,7 @@ Two more annotations in the same family as `<Marker>` — also **excluded from t
 </ChartContainer>
 ```
 
-- `TimeRegion`: `from` (ms / `Date`), `to?` (ms / `Date` / `'now'` / omitted → open-ended), `fill?` (default: faint tint of `color`), `color?` (edge + label accent, default muted axis color), `label?`.
-- `ReferenceLine`: `value?` **xor** `time?` (a `time` wins if both are set), `color?` (default theme line color), `label?`, `style?`, `width?` (CSS px, default 1).
-
-Prop sets are identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addRegion(config) → id` / `updateRegion` / `removeRegion`, and `chart.addLine(config) → id` / `updateLine` / `removeLine`.
+Fields and defaults: `TimeRegionConfig`, `ReferenceLineConfig`. Prop sets are identical across React / Vue / Svelte (parity-checked). Imperative core equivalents: `chart.addRegion(config) → id` / `updateRegion` / `removeRegion`, and `chart.addLine(config) → id` / `updateLine` / `removeLine`.
 
 ## Themes
 
@@ -408,7 +410,7 @@ const SCALES = { rsi: { position: 'left', min: 0, max: 100 } }; // stable object
 </ChartContainer>
 ```
 
-- A scale takes the `axis.y` fields: `position` (default: the side opposite the default axis), `visible` (`false` = overlay scale, autoscaled with no column), `width` (55), `min` / `max`, `scale` (e.g. `logScale()`). Live.
+- A scale takes the `axis.y` fields (`YAxisConfig`), live. `position` defaults to the side opposite the default axis; `visible: false` makes an overlay scale, autoscaled with no column.
 - `scale` works on `LineSeries`, `BarSeries`, `CandlestickSeries`, `BandSeries` (live). Without it — or with an id `scales` doesn't define (dev warning) — the series uses the default scale.
 - One visible column per side: a second scale claiming a taken side renders as an overlay (dev warning). Grid lines follow the default scale.
 - `<YAxis scale>` renders that scale's column; its `format` also drives that side's `<Crosshair>` label and the `YLabel` badge on that scale. `YLabel`, `ReferenceLine` and `Marker` take `scale`; `YLabel` defaults to its series' scale and sits on that scale's side. Tooltip rows show each series' own values.
@@ -468,8 +470,8 @@ Several bands in one series make a fan chart — layers draw in order with trans
 ```
 
 - **Data** (`BandData`) — the same omnivorous shapes as `LineSeries`, with `BandPointInput` = `{ time: number | Date; low: number; high: number }`: a flat array (one band), `BandPointInput[][]`, or named `{ label?, color?, data }` layers. A `low` above `high` draws with the edges swapped; a missing or non-finite edge is a gap that splits the band.
-- **Colors** — one band defaults to `theme.bands.upper`, several to `theme.seriesColors`; a layer `color` overrides. Default fill = a vertical gradient of the layer color, 40% opacity at the top to 4% at the bottom; edges = layer color at 60%, 1px. `fill` takes a flat color or a `[top, bottom]` pair.
-- **Options** — `fill` (a color, or `[top, bottom]` for a vertical gradient), `stroke: { visible, width, color }`, `curve: 'straight' | 'smooth' | 'stepped'` (`'smooth'` is monotone, never overshoots), `entryAnimation` / `entryMs`, `introAnimation` / `introMs`, `historyReveal` / `historyRevealMs`, `smoothMs`. `introAnimation` takes a `LineIntroFn` — the same `unfoldIntro()` (default), `sweepIntro()`, … as `LineSeries`. **No stacking.**
+- **Colors** — one band defaults to `theme.bands.upper`, several to `theme.seriesColors`; a layer `color` overrides.
+- **Options** — `BandSeriesOptions`. `introAnimation` takes a `LineIntroFn` — the same `unfoldIntro()` (default), `sweepIntro()`, … as `LineSeries`. **No stacking.**
 - **Overlays** — `Tooltip` / `InfoBar` show `low – high` (the snapshot `data` is a `BandPoint`); the crosshair marks both edges; the Y range covers both edges. `YLabel` skips bands.
 - **Streaming** — same as a line: `appendData`, `updateData` (both edges chase smoothly), `prependData`, `keepLast`.
 
@@ -491,7 +493,7 @@ Several bands in one series make a fan chart — layers draw in order with trans
 - **Data** — `bids` / `asks` are `DepthLevel[]` = `[price, size]` tuples in any order; the series sorts them and computes the cumulative depth. A level with size ≤ 0 is skipped; a repeated price keeps the last size.
 - **Live updates** — pass new `bids` / `asks` arrays (a full snapshot morphs from the book on screen; 10+ per second is fine). Imperative: `chart.setSeriesData(id, { bids, asks })`, or `chart.updateData(id, { bids?, asks? })` to merge level deltas — a size of `0` removes that level.
 - **View** — centered on mid: half-width `span × mid`, or without `span` the book fit (mid out to the nearer of the two outermost levels). The view eases to each new mid; wheel / pinch zoom around mid (double-click resets); drag-pan is off. Y runs from 0 to the deepest visible cumulative size.
-- **Options** — `span`, `bidColor` / `askColor` (default: the theme's candlestick up / down colors), `strokeWidth` (1), `introMs`, `updateMs`.
+- **Options** — `DepthSeriesOptions`.
 - **Overlays** — `Tooltip` / `InfoBar` rows: `Bids` / `Asks` (the layers; `Legend` toggles them), the level price in the header, the cumulative size as the value. The hover dot snaps to the step's level and the area from mid to the pointer brightens. `InfoBar` in last-mode shows the best bid and ask.
 
 ## Sankey series
@@ -515,7 +517,7 @@ Several bands in one series make a fan chart — layers draw in order with trans
 - **Data** — `nodes: SankeyNode[]` = `{ id, label?, color? }`, `links: SankeyLink[]` = `{ source, target, value, color? }` (`source` / `target` are node ids). Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node or without a finite `value` above 0 is skipped with a dev warning; links with the same `source` and `target` merge; a node no link reaches is not drawn.
 - **No cycles** — links must form a DAG. A cycle (a self-link too) makes `setData` throw `Sankey links form a cycle: a → b → a`, and the series keeps its previous data. Catch it if the graph comes from user input.
 - **Layout** — a node's column is its longest path from a source; a node with no outgoing link moves to the last column. Node height follows throughput (`max(in, out)`), on one scale fitted to the fullest column. The layout is deterministic and reorders nodes to untangle crossing bands.
-- **Options** — `colors` (node colors in node order, before `theme.seriesColors`; a node's own `color` wins), `nodeWidth` (12 px), `nodePadding` (12 px gap in a column), `linkOpacity` (0.35; a link is its own `color`, else its source node's color shaded by its place at the source — the top band keeps it, each next one mixes in more of the theme background, in even steps of at most 40%, up to 60%), `labels: boolean | { color?, background?, format? }` (`label · value` beside each node on a backdrop; whole numbers plain, others compact; an overlapping label is skipped), `entryMs`, `updateMs`.
+- **Options** — `SankeySeriesOptions`. A link takes its own `color`, else its source node's color, shaded by its place among that node's links.
 - **Live updates** — pass new `nodes` / `links`: nodes ease by `id`, links by `source → target`, new ones fade in, removed ones fade out. A fresh array of the same graph is a no-op.
 - **Hover** — a node highlights its links and their end nodes, a link its two nodes; the rest dims. `<SankeyTooltip>` shows the node label and throughput with its share of all source outflow, or `Source → Target` with the link value and its share of the source's outflow. `seriesHover` and `getHoverInfo` report the same.
 
@@ -567,22 +569,13 @@ React uses a function-child render-prop; Vue uses a default scoped slot; Svelte 
 
 ### Snapshot shape (`InfoBar` / `Tooltip` slot)
 
-```ts
-interface SeriesSnapshot {
-  readonly id: string;          // unique row key (safe for React key / v-for / #each key)
-  readonly seriesId: string;    // owning series id (NOT unique when layered)
-  readonly layerIndex?: number; // only set on multi-layer rows
-  readonly label?: string;
-  readonly color: string;
-  readonly data: OHLCData | TimePoint | BandPoint; // deep-frozen clone — safe to read, mutation throws; BandPoint = { time, low, high }
-}
-```
+Rows are `SeriesSnapshot`s. Key a row by `id` (unique in the array); filter and group by `seriesId`, which repeats across the layers of one series. `data` is an `OHLCData`, `TimePoint` or `BandPoint` — a deep-frozen clone, safe to read, and mutation throws. See [context.md](context.md#snapshot-helpers-for-custom-overlays).
 
 `InfoBar` additionally exposes `isHover` — `true` while the cursor is on the chart, `false` in last-mode. `Tooltip` is hover-only and renders `null` when no crosshair is active.
 
 ### `Legend` slot items
 
-`{ items: LegendItem[] }` — each item carries `{ id, seriesId, layerIndex?, label, color, isDisabled, toggle(), isolate() }`. The `toggle` / `isolate` closures are bound to that specific item, so you can sort / filter / reorder the array in your renderer without breaking visibility wiring.
+`{ items: LegendItem[] }`. Each item's `toggle()` / `isolate()` closures are bound to that item, so you can sort / filter / reorder the array in your renderer without breaking visibility wiring.
 
 ### `YLabel` / `PieLegend` / `PieTooltip` slots
 

@@ -46,25 +46,11 @@ data={[
 data={{ color: (v) => (v >= 0 ? '#26a69a' : '#ef5350'), data }}
 ```
 
-## Series options
+## Options
 
-```ts
-interface BarSeriesOptions {
-  barWidthRatio: number;                   // 0–1, bar width relative to interval — default: 0.6
-  stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
-  entryAnimation?: 'none' | 'fade' | 'grow' | 'slide' | 'fade-grow'; // default: 'fade-grow'
-  entryMs?: number | false;                // entrance duration; false disables — default: 250
-  smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 250
-  cornerRadius?: number;                   // free-end corner radius, CSS px — default: 2
-  valueLabels?: boolean | { format?: (value: number) => string }; // value text past each bar end — default: off
-}
-```
-
-All options are optional — pass `Partial<BarSeriesOptions>`.
+Every option with its default and doc comment: `BarSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/bar-series/>. The sections below cover what a type can't show.
 
 > Prefer the chart-level animations API (`<ChartContainer animations={{ series: { bar: { entry, smooth } } }}>`) for new code — it's the canonical surface and groups durations alongside axis / toggle timings. The per-series `entryMs` / `smoothMs` options still work and are the only place to set them per-series-instance. See [SKILL.md → Animations](SKILL.md).
-
-## Options explained
 
 ### Coloring (no `colors` option)
 
@@ -89,10 +75,6 @@ data={[
   { color: '#45b7d1', data: c },
 ]}
 ```
-
-### `barWidthRatio`
-
-Fraction of the available interval width (0–1). At `0.6` (default), each bar takes 60% of the interval with 40% gap.
 
 ### `stacking`
 
@@ -159,17 +141,6 @@ import { ChartContainer, BarSeries, Tooltip, Legend, YAxis, TimeAxis } from '@wi
 </ChartContainer>
 ```
 
-### Props
-
-```ts
-interface BarSeriesProps {
-  data: MultiLayerData;                      // TimePointInput[] | TimePointInput[][] — flat or layered
-  options?: Partial<BarSeriesOptions>;
-  /** Stable series ID — reuse across overlays that target this series. */
-  id?: string;
-}
-```
-
 ## Vue
 
 ### Single layer
@@ -218,16 +189,6 @@ const signColor = (v: number) => (v >= 0 ? '#26a69a' : '#ef5350');
 </template>
 ```
 
-### Props & Events
-
-```ts
-// Props
-data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
-options?: Partial<BarSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
-```
-
 ## Svelte
 
 ### Single layer
@@ -268,15 +229,6 @@ id?: string
   <TimeAxis />
   <Legend position="bottom" mode="toggle" />
 </ChartContainer>
-```
-
-### Props
-
-```ts
-data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
-options?: Partial<BarSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
 ```
 
 ## Category bars

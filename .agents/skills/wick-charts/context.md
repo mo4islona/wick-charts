@@ -80,7 +80,7 @@ const theme = useTheme();
 
 ## Imperative `ChartInstance` methods
 
-Useful from custom children:
+A selection useful from custom children. Every method and event, with its doc comment: `ChartInstance` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)).
 
 - `fitContent()` — auto-fit viewport to all data across every series.
 - `getVisibleRange()`, `getYRange()`, `getCrosshairPosition()` — one-shot reads.

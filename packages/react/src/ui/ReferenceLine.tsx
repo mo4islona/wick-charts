@@ -7,7 +7,7 @@ import { useChartInstance } from '../context';
 export interface ReferenceLineProps {
   /** Horizontal line at this Y data value. Mutually exclusive with {@link ReferenceLineProps.time}. */
   value?: number;
-  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}. */
+  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}; wins when both are set. */
   time?: TimeValue;
   /** Line and label-chip accent color. Default: the theme line color. */
   color?: string;

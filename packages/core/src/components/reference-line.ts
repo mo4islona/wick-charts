@@ -19,7 +19,7 @@ export type ReferenceLineStyle = 'solid' | 'dashed';
 export interface ReferenceLineConfig {
   /** Horizontal line at this Y data value. Mutually exclusive with {@link time}. */
   value?: number;
-  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link value}. */
+  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link value}; wins when both are set. */
   time?: TimeValue;
   /** Line and label-chip accent color. Default: the theme line color. */
   color?: string;

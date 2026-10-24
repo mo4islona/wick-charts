@@ -49,44 +49,11 @@ data={[
 data={{ color: (v) => (v >= 0 ? '#46b78f' : '#f0556a'), data }}
 ```
 
-## Series options
+## Options
 
-```ts
-interface LineSeriesOptions {
-  strokeWidth: number;                     // stroke width in px — default: 1
-  area: { visible: boolean };              // gradient area under line — default: { visible: true }
-  pulse: boolean;                          // animated dot at last point — default: true
-  pulseMs?: number | false;                // pulse period; false disables — default: 600
-  stacking: 'off' | 'normal' | 'percent';  // layer stacking — default: 'off'
-  threshold?: {                            // positional above/below color split — default: off
-    value: number;                         //   Y value where the color switches
-    above: string;                         //   color above the level
-    below?: string;                        //   color below — default: series color
-  };
-  points?: {                               // dot markers at each data point — default: hidden
-    visible: boolean;                      //   draw a dot at every data point
-    radius?: number;                       //   dot radius in CSS px — default: 3
-    color?: string;                        //   fill override — default: layer color
-  };
-  entryAnimation?: 'none' | 'grow' | 'fade'; // entrance style for new points — default: 'grow'
-  entryMs?: number | false;                // entrance duration; false disables — default: 250
-  smoothMs?: number | false;               // live-tracking smoothing for updateLastPoint — default: 250
-}
-```
-
-All options are optional — pass `Partial<LineSeriesOptions>`.
+Every option with its default and doc comment: `LineSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/line-series/>. The sections below cover what a type can't show.
 
 > Prefer the chart-level animations API (`<ChartContainer animations={{ series: { line: { entry, smooth, pulse } } }}>`) for new code — it's the canonical surface and groups durations alongside axis / toggle timings. The per-series `entryMs` / `smoothMs` / `pulseMs` options still work and are the only place to set them per-series-instance. See [SKILL.md → Animations](SKILL.md).
-
-## Options explained
-
-### `strokeWidth`
-
-Stroke width in CSS pixels (scaled by device pixel ratio internally, min 1). Defaults to `1`. Same value applied to every layer.
-
-```ts
-options={{ strokeWidth: 2 }}
-```
 
 ### `area`
 
@@ -95,10 +62,6 @@ When `area.visible` is `true`, a vertical gradient fills the area below each lin
 - Bottom: line color at 1% opacity
 
 Works with stacking — each layer fills down to the layer below it.
-
-### `pulse`
-
-Animated pulsing dot at the last data point. Useful for live data. Set `false` for historical/static charts.
 
 ### `stacking`
 
@@ -119,12 +82,6 @@ options={{ threshold: { value: 70, above: '#f0556a' } }}
 // Explicit color on both sides of zero
 options={{ threshold: { value: 0, above: '#46b78f', below: '#f0556a' } }}
 ```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `value` | yes | Y data value where the color switches |
-| `above` | yes | Color above the threshold (toward the top of the plot) |
-| `below` | no | Color below; defaults to the series' resolved color |
 
 Distinct from the `data.color` callback above (which colors the whole line by its *latest value*): `threshold` colors by Y *position*, so one line reads two colors at once. It is positional and overrides `data.color` for the stroke/fill. Unstacked lines only.
 
@@ -188,17 +145,6 @@ import { ChartContainer, LineSeries, Tooltip, Legend } from '@wick-charts/react'
 </ChartContainer>
 ```
 
-### Props
-
-```ts
-interface LineSeriesProps {
-  data: MultiLayerData;                      // TimePointInput[] | TimePointInput[][] — flat or layered
-  options?: Partial<LineSeriesOptions>;
-  /** Stable series ID — reuse across overlays that target this series. */
-  id?: string;
-}
-```
-
 ## Vue
 
 ### Single line
@@ -244,16 +190,6 @@ const props = defineProps<{ data: TimePoint[] }>();
 </template>
 ```
 
-### Props & Events
-
-```ts
-// Props
-data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
-options?: Partial<LineSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
-```
-
 ## Svelte
 
 ### Single line
@@ -292,15 +228,6 @@ id?: string
   <Tooltip sort="desc" />
   <Legend position="bottom" mode="toggle" />
 </ChartContainer>
-```
-
-### Props
-
-```ts
-data: MultiLayerData  // TimePointInput[] | TimePointInput[][] — flat or layered
-options?: Partial<LineSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
 ```
 
 ## Typical overlay combinations
