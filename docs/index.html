@@ -80,7 +80,8 @@
     </script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html { background: #1e1e2e; }
+      /* iOS Safari autosizes each code line (one div per line) on its own, so long lines render bigger. */
+      html { background: #1e1e2e; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
       html, body, #root { width: 100%; height: 100%; overflow: hidden; }
       html.theme-boot body { visibility: hidden; }
       body::before {
