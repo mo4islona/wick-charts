@@ -134,21 +134,58 @@ function RelatedLinks({ route, theme, mobile = false }: { route: Route; theme: C
   const muted = theme.axis.textColor;
   const fontSize = theme.typography.fontSize - 1;
 
+  // A label column keeps wrapped links under the first link, and the API row under the guides.
+  if (mobile) {
+    return (
+      <nav
+        aria-label="Related pages"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'auto 1fr',
+          alignItems: 'baseline',
+          columnGap: 10,
+          rowGap: 4,
+          // Same inset as the header row, so the labels line up with the hamburger.
+          padding: '0 10px 6px',
+          fontSize,
+          color: muted,
+        }}
+      >
+        {guides.length > 0 && (
+          <>
+            <span>Guides:</span>
+            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 10, rowGap: 4 }}>
+              {guides.map((guide) => (
+                <RelatedLink key={guide} route={guide} theme={theme} />
+              ))}
+            </span>
+          </>
+        )}
+        {api && (
+          <>
+            <span>API:</span>
+            <span>
+              <RelatedLink route={api} theme={theme} mono />
+            </span>
+          </>
+        )}
+      </nav>
+    );
+  }
+
   return (
     <nav
       aria-label="Related pages"
       style={{
         display: 'flex',
-        flexWrap: mobile ? 'wrap' : 'nowrap',
         alignItems: 'baseline',
         columnGap: 10,
-        rowGap: 4,
         minWidth: 0,
-        overflowX: mobile ? 'visible' : 'auto',
+        overflowX: 'auto',
         scrollbarWidth: 'none',
-        padding: mobile ? '0 12px 6px' : '0 0 0 12px',
-        marginLeft: mobile ? 0 : 4,
-        borderLeft: mobile ? 'none' : `1px solid ${theme.tooltip.borderColor}`,
+        padding: '0 0 0 12px',
+        marginLeft: 4,
+        borderLeft: `1px solid ${theme.tooltip.borderColor}`,
         fontSize,
         color: muted,
       }}
