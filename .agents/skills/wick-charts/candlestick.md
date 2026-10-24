@@ -20,25 +20,9 @@ type OHLCInput = Omit<OHLCData, 'time'> & { time: number | Date };
 
 Pass as a flat array: `OHLCData[]` (or `OHLCInput[]` when using `Date`). To name the stream for the tooltip / info bar, wrap it: `{ label: 'BTC', data: candles }` — there is **no `label` option** anymore.
 
-## Series options
+## Options
 
-```ts
-interface CandlestickDirectionColors {
-  body: string | [string, string]; // single color = flat fill; tuple = [top, bottom] gradient stops
-  wick: string;                    // always a single color
-}
-
-interface CandlestickSeriesOptions {
-  up:   CandlestickDirectionColors;  // bullish (close >= open). Default: { body: '#26a69a', wick: '#26a69a' }
-  down: CandlestickDirectionColors;  // bearish (close < open).  Default: { body: '#ef5350', wick: '#ef5350' }
-  bodyWidthRatio: number;          // 0–1, candle body width — default: 0.6
-  entryAnimation?: 'none' | 'fade' | 'unfold' | 'slide' | 'fade-unfold'; // default: 'unfold'
-  entryMs?: number | false;        // entrance duration; false disables — default: 250
-  smoothMs?: number | false;       // live-tracking smoothing for updateLastPoint — default: 250
-}
-```
-
-All options are optional — pass `Partial<CandlestickSeriesOptions>`.
+Every option with its default and doc comment: `CandlestickSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/candlestick-series/>. The sections below cover what a type can't show.
 
 > Prefer the chart-level animations API (`<ChartContainer animations={{ series: { candlestick: { entry, smooth } } }}>`) for new code — it's the canonical surface and groups durations alongside axis / toggle timings. The per-series `entryMs` / `smoothMs` options still work and are the only place to set them per-series-instance. See [SKILL.md → Animations](SKILL.md).
 
@@ -119,17 +103,6 @@ function CandlestickChart({ data }: { data: OHLCData[] }) {
 }
 ```
 
-### Props
-
-```ts
-interface CandlestickSeriesProps {
-  data: OHLCData[];
-  options?: Partial<CandlestickSeriesOptions>;
-  /** Stable series ID — reuse across overlays that target this series. */
-  id?: string;
-}
-```
-
 ### Real-time updates
 
 ```tsx
@@ -181,15 +154,6 @@ const options = {
     <YLabel :series-id="seriesId" />
   </ChartContainer>
 </template>
-```
-
-### Props
-
-```ts
-data: OHLCData[]
-options?: Partial<CandlestickSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
 ```
 
 ### Real-time updates
@@ -245,15 +209,6 @@ function onNewCandle(candle: OHLCData) {
   <TimeAxis />
   <YLabel {seriesId} />
 </ChartContainer>
-```
-
-### Props
-
-```ts
-data: OHLCData[]
-options?: Partial<CandlestickSeriesOptions>
-/** Stable series ID — reuse across overlays that target this series. */
-id?: string
 ```
 
 ### Real-time updates

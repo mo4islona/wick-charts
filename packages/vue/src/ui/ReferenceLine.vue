@@ -7,7 +7,7 @@ import { useChartInstance } from '../context';
 const props = defineProps<{
   /** Horizontal line at this Y data value. Mutually exclusive with `time`. */
   value?: number;
-  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`. */
+  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`; wins when both are set. */
   time?: TimeValue;
   /** Line and label-chip accent color. Default: the theme line color. */
   color?: string;

@@ -4936,7 +4936,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}.",
+          "description": "Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}; wins when both are set.",
           "see": []
         },
         {

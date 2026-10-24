@@ -27,27 +27,7 @@ Unlike `LineSeries` / `BarSeries`, `Sparkline` takes a single `TimePoint[]` — 
 
 ## Props
 
-```ts
-interface SparklineProps {
-  data: TimePointInput[];                 // time in ms or a Date
-  theme: ChartTheme;
-  variant?: 'line' | 'bar';              // default: 'line'
-  valuePosition?: 'left' | 'right' | 'none'; // default: 'right'
-  format?: (value: number) => string;     // value label formatter — default: compact K/M formatter
-  flow?: { capacity: number; align?: 'left' | 'right' | 'offscreen' }; // fixed window of `capacity` bars for streaming
-  yRange?: { min?: AxisBound; max?: AxisBound }; // pin Y bounds, e.g. { min: 0 }
-  label?: string;                         // text above the value
-  sublabel?: string;                      // text below the value (overrides change %)
-  color?: string;                         // line/bar color override
-  negativeColor?: string;                 // color for negative bars
-  area?: { visible: boolean };            // default: { visible: true } (line variant only)
-  width?: number;                         // chart width, default: 140
-  height?: number;                        // container height, default: 48
-  strokeWidth?: number;                 // default: 1
-  gradient?: boolean;                     // background gradient, default: false
-  style?: CSSProperties;                  // container style override
-}
-```
+Every prop with its default: `SparklineProps` in `node_modules/@wick-charts/react/dist/index.d.ts` ([how to read it](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/sparkline/>. Only `data` is required.
 
 ## Default behavior
 
@@ -117,5 +97,4 @@ import { Sparkline, catppuccin } from '@wick-charts/react';
 ## Notes
 
 - The component reads `theme.seriesColors[0]`, `theme.candlestick.up.body` / `theme.candlestick.down.body` (flattened via `resolveCandlestickBodyColor` when a gradient tuple), `theme.tooltip.*`, and `theme.axis.textColor` — all themes in `@wick-charts/core` provide these.
-- Pass `theme` explicitly — `Sparkline` does not read from `ThemeProvider` context.
 - For a fully-custom layout, render a `ChartContainer` with `interactive={false}`, `grid={{ visible: false }}`, and hidden axes directly instead.
