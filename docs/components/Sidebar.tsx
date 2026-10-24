@@ -1,4 +1,4 @@
-import { type RefObject, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 import { ChevronDown, X } from 'lucide-react';
@@ -18,7 +18,7 @@ import {
 } from '../routes';
 import { gridBackgroundImage, hexToRgba, isDarkColor, saturate } from '../utils';
 import { FrameworkSelect } from './FrameworkSelect';
-import { SearchBox } from './SearchBox';
+import { SearchTrigger } from './SearchPalette';
 import { WickLogo } from './WickLogo';
 import { WickWordmark } from './WickWordmark';
 
@@ -36,19 +36,15 @@ const SECTIONS: RouteSection[] = getSections();
 export function Sidebar({
   route,
   onClose,
-  onNavigate,
-  searchRef,
-  autoFocusSearch = false,
+  onOpenSearch,
   theme,
   mobile = false,
 }: {
   route: Route;
   /** Close handler — only used by the mobile overlay drawer. */
   onClose?: () => void;
-  /** Opens a search result; `hash` is an element id on the target page. */
-  onNavigate: (route: Route, hash?: string) => void;
-  searchRef?: RefObject<HTMLInputElement>;
-  autoFocusSearch?: boolean;
+  /** Opens the search palette; `origin` is the trigger's box, which the palette grows out of. */
+  onOpenSearch: (origin: DOMRect) => void;
   theme: ChartTheme;
   mobile?: boolean;
 }) {
@@ -197,13 +193,7 @@ export function Sidebar({
         )}
       </div>
 
-      <SearchBox
-        theme={theme}
-        mobile={mobile}
-        onNavigate={onNavigate}
-        inputRef={searchRef}
-        autoFocus={autoFocusSearch}
-      />
+      <SearchTrigger theme={theme} mobile={mobile} onOpen={onOpenSearch} />
 
       <nav
         style={{
