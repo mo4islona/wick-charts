@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   type ChartTheme,
@@ -8,6 +8,7 @@ import {
   resolveCandlestickBodyColor,
 } from '@wick-charts/react';
 
+import { SearchPalette } from './components/SearchPalette';
 import { Sidebar } from './components/Sidebar';
 import { ThemeSelect } from './components/ThemeSelect';
 import { type JsonValue, normalizeThemeConfig, themeToJson } from './components/theme-editor/themeJson';
@@ -110,6 +111,15 @@ function AgentLink({ theme }: { theme: ChartTheme }) {
       <span style={{ opacity: hover ? 1 : 0.6 }}>Are you an AI agent?</span>
     </a>
   );
+}
+
+/** The visible search trigger (sidebar field or phone header button), for the palette to grow out of. */
+function searchTriggerBox(): DOMRect | null {
+  const trigger = document.querySelector('[data-search-trigger]');
+  const box = trigger?.getBoundingClientRect();
+  if (!box || box.width === 0) return null;
+
+  return box;
 }
 
 /** Keys typed into a field belong to it, not to the page shortcuts. */
@@ -298,8 +308,14 @@ export default function App() {
     [route, setFramework, redirect],
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [focusSearchOnOpen, setFocusSearchOnOpen] = useState(false);
-  const searchRef = useRef<HTMLInputElement>(null);
+  // Open while non-null; the palette grows out of `origin`, the trigger the reader used.
+  const [search, setSearch] = useState<{ origin: DOMRect | null } | null>(null);
+
+  const openSearch = useCallback((origin: DOMRect | null) => {
+    setMobileMenuOpen(false);
+    setSearch((open) => open ?? { origin });
+  }, []);
+  const closeSearch = useCallback(() => setSearch(null), []);
   // `seq` makes a repeat jump to the same id (e.g. two searches for one prop) re-run the effect.
   const [scrollTarget, setScrollTarget] = useState<{ id: string; seq: number } | null>(null);
 
@@ -373,7 +389,7 @@ export default function App() {
     return () => cancelAnimationFrame(frame);
   }, [scrollTarget]);
 
-  // ⌘K / Ctrl+K, or `/` outside a text field, jumps to the docs search.
+  // ⌘K / Ctrl+K, or `/` outside a text field, opens the search palette.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const shortcut = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
@@ -381,32 +397,20 @@ export default function App() {
       if (!shortcut && !slash) return;
 
       e.preventDefault();
-
-      if (mobile) {
-        setFocusSearchOnOpen(true);
-        setMobileMenuOpen(true);
-
-        return;
-      }
-
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      openSearch(searchTriggerBox());
     };
 
     window.addEventListener('keydown', onKeyDown);
 
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mobile]);
+  }, [openSearch]);
 
-  // Close the mobile drawer after any navigation (links no longer call a
+  // Close the mobile drawer and the search after any navigation (links no longer call a
   // close handler directly — navigation flows through the click interceptor).
   useEffect(() => {
     setMobileMenuOpen(false);
+    setSearch(null);
   }, [route]);
-
-  useEffect(() => {
-    if (!mobileMenuOpen) setFocusSearchOnOpen(false);
-  }, [mobileMenuOpen]);
 
   const preset = themes[themeName];
   const baseTheme = preset.theme;
@@ -533,7 +537,7 @@ export default function App() {
           }}
         >
           {/* Sidebar — hidden on mobile, shown on desktop */}
-          {!mobile && <Sidebar route={route} theme={theme} onNavigate={navigateTo} searchRef={searchRef} />}
+          {!mobile && <Sidebar route={route} theme={theme} onOpenSearch={openSearch} />}
 
           {/* Mobile overlay sidebar */}
           {mobile && mobileMenuOpen && (
@@ -558,8 +562,7 @@ export default function App() {
                 <Sidebar
                   route={route}
                   onClose={() => setMobileMenuOpen(false)}
-                  onNavigate={navigateTo}
-                  autoFocusSearch={focusSearchOnOpen}
+                  onOpenSearch={openSearch}
                   theme={theme}
                   mobile
                 />
@@ -617,6 +620,10 @@ export default function App() {
                       fontWeight: 600,
                       letterSpacing: '-0.01em',
                       whiteSpace: 'nowrap',
+                      // The phone row also carries the search button; a long title gives way first.
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
                     {pageTitle}
@@ -627,6 +634,41 @@ export default function App() {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: mobile ? 6 : 8 }}>
                 {!mobile && <AgentLink theme={theme} />}
+                {mobile && (
+                  <button
+                    type="button"
+                    aria-label="Search docs"
+                    data-search-trigger=""
+                    onClick={(e) => openSearch(e.currentTarget.getBoundingClientRect())}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: CONTROL_SIZE,
+                      height: CONTROL_SIZE,
+                      borderRadius: 6,
+                      border: `1px solid ${theme.tooltip.borderColor}`,
+                      background: 'transparent',
+                      color: theme.tooltip.textColor,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
+                      <circle cx="11" cy="11" r="7" />
+                      <path d="M20 20l-3.5-3.5" />
+                    </svg>
+                  </button>
+                )}
                 <IconLink href="https://github.com/mo4islona/wick-charts" label="GitHub repository" theme={theme}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
@@ -661,6 +703,16 @@ export default function App() {
             </main>
           </div>
         </div>
+
+        {search && (
+          <SearchPalette
+            theme={theme}
+            mobile={mobile}
+            origin={search.origin}
+            onClose={closeSearch}
+            onNavigate={navigateTo}
+          />
+        )}
       </FrameworkProvider>
     </ThemeProvider>
   );
