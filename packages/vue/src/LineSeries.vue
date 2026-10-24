@@ -1,26 +1,14 @@
 <script setup lang="ts">
-import type { LineSeriesOptions, MultiLayerData, SeriesSyncState } from '@wick-charts/core';
+import type { MultiLayerData, SeriesSyncState } from '@wick-charts/core';
 import { EMPTY_SYNC_STATE, LineSeriesDef, syncLayers, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
+import type { LineSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    /**
-     * Flat `TimePoint[]`, `TimePoint[][]`, or named `{ label, color?, data }` layers. Time accepts ms or `Date`.
-     * On a numeric or category X axis (`axis.x.type`) points carry `x` in place of `time`.
-     */
-    data: MultiLayerData;
-    options?: Partial<LineSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-    /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
-    scale?: string;
-  }>(),
+  defineProps<LineSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
   // `interactive` fix in ChartContainer.vue for the full explanation.

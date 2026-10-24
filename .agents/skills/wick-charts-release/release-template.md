@@ -50,18 +50,7 @@ Sectioned. Use only the sections that apply.
 ### Playground
 - ...
 
-### Tests
-- N new tests; <total>/<total> passing, typecheck and api:check clean.
-
-**Full Changelog**: https://github.com/mo4islona/wick-charts/compare/vPREV...vNEW
+**Full Changelog**: https://github.com/mo4islona/wick-charts/compare/<PREV>...vNEW
 ```
 
-## Style rules
-
-- **No emoji** — neither in the title nor in section headers or bullets.
-- **No version in the title** — GitHub renders the tag separately.
-- **Lead with user-visible impact**, not internal mechanism. "Streaming no longer pops the navigator" beats "Replaced exponential chase with Animator".
-- **Bold the lede of each highlight bullet** so the page scans in 5 seconds.
-- **Don't restate the commit message verbatim.** The commit body is the engineer's-eye view; the release notes are the user's.
-- **Skip "Tests" on patch releases** unless the headline is *about* test coverage.
-- **End with the compare link** — readers who want the full diff click through.
+The rules for the text are in [SKILL.md](SKILL.md#release-notes-format).

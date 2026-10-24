@@ -79,11 +79,10 @@ export interface XBandPointInput {
 }
 
 /**
- * A color, or a function of a datum's value → color. The function form is
- * evaluated per element — per bar in a bar series, per segment in a line — so
- * one layer can paint by sign / threshold (e.g. `v => v >= 0 ? up : down`)
- * without any extra option. Used both for the per-layer `data` override and the
- * theme's default bar color.
+ * A color, or a function of a datum's value → color. A bar series evaluates the
+ * function per bar, so one layer can paint by sign (e.g. `v => v >= 0 ? up : down`)
+ * without any extra option; a line evaluates it once, at its last value. Used
+ * both for the per-layer `data` override and the theme's default bar color.
  */
 export type ValueColor = string | ((value: number) => string);
 

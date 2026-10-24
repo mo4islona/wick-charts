@@ -187,18 +187,46 @@ function extractVueProps(filePath) {
   if (ts.isTypeLiteralNode(typeArgNode)) return propsFromTypeLiteral(typeArgNode);
 
   // Allow `defineProps<MyProps>()` — resolve the named interface in the same
-  // script block.
+  // script block, or in the relative module it is imported from.
   if (ts.isTypeReferenceNode(typeArgNode)) {
     const name = typeArgNode.typeName.getText();
-    let found = null;
-    ts.forEachChild(sf, (node) => {
-      if (ts.isInterfaceDeclaration(node) && node.name.getText() === name) found = propsFromInterface(node);
-    });
+    const local = findInterfaceProps(sf, name);
+    if (local) return local;
 
-    return found ?? [];
+    const from = importSourceOf(sf, name);
+    if (from?.startsWith('.')) {
+      const modulePath = resolve(dirname(filePath), `${from}.ts`);
+      const moduleSf = ts.createSourceFile(modulePath, readFileSync(modulePath, 'utf-8'), ts.ScriptTarget.Latest, true);
+
+      return findInterfaceProps(moduleSf, name) ?? [];
+    }
   }
 
   return [];
+}
+
+function findInterfaceProps(sf, name) {
+  let found = null;
+  ts.forEachChild(sf, (node) => {
+    if (ts.isInterfaceDeclaration(node) && node.name.getText() === name) found = propsFromInterface(node);
+  });
+
+  return found;
+}
+
+/** Module specifier of the import that brings `name` into `sf`, or null. */
+function importSourceOf(sf, name) {
+  let source = null;
+  ts.forEachChild(sf, (node) => {
+    if (!ts.isImportDeclaration(node)) return;
+
+    const bindings = node.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) return;
+
+    if (bindings.elements.some((el) => el.name.getText() === name)) source = node.moduleSpecifier.text;
+  });
+
+  return source;
 }
 
 /** Svelte file → prop list, by parsing the *instance* `<script lang="ts">` block as TS. */

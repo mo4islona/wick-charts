@@ -17,11 +17,9 @@ import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 import { useCrosshairPosition } from '../composables';
 import { InfoBarAnchorKey, ThemeKey, useChartInstance } from '../context';
 import NumberText from './NumberText.vue';
+import type { InfoBarProps } from './props';
 
-const props = defineProps<{
-  sort?: SnapshotSort;
-  format?: TooltipFormatter;
-}>();
+const props = defineProps<InfoBarProps>();
 
 defineSlots<{
   default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number; isHover: boolean }): unknown;

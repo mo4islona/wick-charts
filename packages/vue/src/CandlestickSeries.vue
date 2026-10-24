@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import type { CandlestickData, CandlestickSeriesOptions, OHLCInput, SeriesSyncState } from '@wick-charts/core';
+import type { CandlestickData, OHLCInput, SeriesSyncState } from '@wick-charts/core';
 import { CandlestickSeriesDef, EMPTY_SYNC_STATE, syncSeriesLayer, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
+import type { CandlestickSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    /** Flat `OHLCInput[]`, or `{ label, data }` to name the stream. */
-    data: CandlestickData;
-    options?: Partial<CandlestickSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-    /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
-    scale?: string;
-  }>(),
+  defineProps<CandlestickSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
   // `interactive` fix in ChartContainer.vue for the full explanation.

@@ -1401,6 +1401,15 @@
       "priority": "low",
       "quirks": [],
       "addedIn": "2026-10-22-integrations"
+    },
+    {
+      "id": "svelte5-runes-slots",
+      "kind": "angle",
+      "idea": "A Svelte 5 runes app fills every overlay slot (Tooltip, InfoBar, Legend, YLabel, PieTooltip, PieLegend, SankeyTooltip) with `let:` and with a `{#snippet children(...)}`",
+      "why": "The wick-charts skill tells runes users both forms work; a compile check passed, but no session or test renders them from a runes parent (TooltipSlotProbe compiles in legacy mode)",
+      "priority": "medium",
+      "quirks": [],
+      "addedIn": "2026-10-25-skill-review"
     }
   ]
 }

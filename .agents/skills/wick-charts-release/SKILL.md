@@ -7,12 +7,12 @@ metadata:
 
 # Wick Charts release
 
-End-to-end release procedure. Bumps `packages/{core,react,vue,svelte,nuxt}/package.json` to a single shared version, tags `vX.Y.Z`, pushes, watches the `Release` workflow, then rewrites the auto-generated GitHub release notes with the standardized format.
+End-to-end release procedure. Bumps `packages/{core,react,vue,svelte,nuxt}/package.json` to a single shared version inside the release's last commit, tags `vX.Y.Z`, pushes, watches the `Release` workflow, then rewrites the auto-generated GitHub release notes with the standardized format.
 
 ## Preconditions
 
 Confirm before starting:
-- `git status` is clean on `main` (or the user has staged the version bump deliberately).
+- `git status` is clean, and you know which commit ends the release: the last commit of the release PR, or the tip of `main` when it has merged.
 - The user named a target version, e.g. `0.3.5`. If not, ask.
 - All five packages currently sit at the same version (`pnpm -r exec node -p "require('./package.json').version"`).
 
@@ -31,17 +31,23 @@ The release workflow's `Verify versions` step rejects mismatches between react/v
 
 If `registry/shadcn` uses API new in this release, raise its `@wick-charts/react@^X.Y.Z` pin in `registry/shadcn/registry.json` to the new version in the same commit. The shadcn CLI installs that range, so a stale pin installs a version the blocks do not compile against. The same rule holds for `registry/shadcn-vue` and its `@wick-charts/vue@^X.Y.Z` pin in `registry/shadcn-vue/registry.json`, and for `registry/shadcn-svelte` and its `@wick-charts/svelte@^X.Y.Z` pin on every item of `registry/shadcn-svelte/registry.json`.
 
-### 2. Commit and tag
+### 2. Fold the bump into the last commit, then tag
+
+There is no separate `chore(release)` commit: the version bump goes into the last commit of the release, before the tag.
+
+- **The release PR has not merged:** amend the PR's last commit with the bump and push the branch with `--force-with-lease`. After the merge, tag the commit on `main`.
+- **The PR has merged:** amend the tip of `main` and force-push it. Tell the user in one line before the push: origin fetched, `--force-with-lease=main:<old sha>`, the diff is only the version lines.
 
 ```sh
-git add packages/*/package.json
-git commit -m "chore(release): X.Y.Z"
+git fetch origin
+git add packages/*/package.json registry/*/registry.json
+git commit --amend --no-edit
+git push --force-with-lease=main:<old sha> origin main   # only in the merged case
 git tag vX.Y.Z
-git push origin main
 git push origin vX.Y.Z
 ```
 
-Both pushes are required — the workflow triggers on `tags: ['v*']`.
+Bump before the tag. A pushed tag starts the publish, and npm rejects a version it already has, so a bump after the tag cannot be undone cleanly. The workflow triggers on `tags: ['v*']`.
 
 ### 3. Watch the workflow
 
@@ -62,7 +68,7 @@ The workflow has three jobs: `check` → `publish` → `github-release`. Total ~
 
 The `github-release` job creates the release with `generate_release_notes: true` (auto-generated GitHub bullet list). Replace it with the standardized format from [release-template.md](release-template.md).
 
-Source the highlights from the merge commit message body — it's already structured by area. Don't restate every bullet from the commit; pick the user-visible changes.
+Source the highlights from the commit messages since the previous tag (`git log <PREV>..vX.Y.Z`). Don't restate every commit; pick the user-visible changes.
 
 ```sh
 gh release edit vX.Y.Z --repo mo4islona/wick-charts --notes "$(cat <<'EOF'
@@ -77,12 +83,14 @@ Print the release URL: `https://github.com/mo4islona/wick-charts/releases/tag/vX
 
 ## Release notes format
 
-See [release-template.md](release-template.md). Rules:
+The two shapes (patch, minor / major) are in [release-template.md](release-template.md). Rules:
 
 - **Title line**: `## <Headline>` — one phrase, no version (the GitHub UI shows the tag). No emoji.
 - **Lead paragraph**: 1–3 sentences. What changed for the user, not the implementation.
 - **Sections**: `### Highlights` is required. Add area sections (`### Viewport`, `### API`, `### Playground`, etc.) only for minor/major releases. Patch releases stay flat.
-- **Tests/internal**: only mention if the user-facing impact is "we now have confidence in X" — otherwise skip.
+- **Lead with user-visible impact**, not the mechanism: "Streaming no longer pops the navigator" beats "Replaced exponential chase with Animator". Bold the lede of each highlight bullet.
+- **Tests / internals**: skip them, unless the headline is about reliability.
+- **Public text**: release notes are public. No internal infrastructure, processes, incidents or unreleased plans.
 - **Footer**: always end with `**Full Changelog**: https://github.com/mo4islona/wick-charts/compare/<PREV>...vNEW`. Resolve `<PREV>` as the previous tag if it exists, otherwise the parent commit SHA: `git rev-parse vNEW^ | cut -c1-7`. Don't blindly write `vPREV` — early tags are missing and the link 404s.
 - **No install block.** Don't paste `npm i @wick-charts/...` into the notes — install instructions live in the README and on the docs site. Release notes are for *what changed*.
 - Keep it short. The full commit message lives in `git log` for anyone who wants the deep dive.

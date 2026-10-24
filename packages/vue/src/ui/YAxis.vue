@@ -1,27 +1,12 @@
 <script setup lang="ts">
-import { type ValueFormatter, mountAxisLabels } from '@wick-charts/core';
+import { mountAxisLabels } from '@wick-charts/core';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { useAxisLayout, useYRange } from '../composables';
 import { useChartInstance } from '../context';
+import type { YAxisProps } from './props';
 
-const props = defineProps<{
-  /** Custom tick-label formatter. Overrides the built-in range-adaptive default. */
-  format?: ValueFormatter;
-  /**
-   * Desired number of labels (≥ 2). Overrides any chart-level `axis.y.labelCount`.
-   * Realized count may differ ±1 after the 1-2-5 snap.
-   */
-  labelCount?: number;
-  /** Minimum pixel gap between adjacent labels (hard floor). Overrides chart-level. */
-  minLabelSpacing?: number;
-  /**
-   * Named Y scale (`ChartContainer` `scales`) this axis labels. Default: the
-   * default scale. An overlay scale has no column, so only `format` and the
-   * label density apply.
-   */
-  scale?: string;
-}>();
+const props = defineProps<YAxisProps>();
 
 const chart = useChartInstance();
 const layout = useAxisLayout(chart);

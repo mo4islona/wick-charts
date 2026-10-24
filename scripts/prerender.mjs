@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer';
 import sirv from 'sirv';
 
+import { buildApiReference } from './api-reference.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const DIST = resolve(here, '..', 'docs-dist');
 const PORT = 4317;
@@ -110,10 +112,11 @@ function buildSitemap(routes, siteUrl) {
 // it concatenates the curated LLM-oriented docs (the wick-charts skill,
 // checked into .agents/skills/ — .claude/skills is a symlink to it) with the
 // runnable use-case example sources the docs pages render, so an LLM gets
-// API knowledge + working code.
+// API knowledge + working code. The props and options come last, generated
+// from the API manifest; the skill does not list them.
 const SKILL_DIR = resolve(here, '..', '.agents', 'skills', 'wick-charts');
 const EXAMPLES_DIR = resolve(here, '..', 'docs', 'pages', 'use-cases');
-const SKILL_FILES = ['SKILL.md', 'candlestick.md', 'line.md', 'bar.md', 'pie.md', 'sparkline.md', 'context.md'];
+const API_MANIFEST = resolve(here, '..', 'docs', 'data', 'api-manifest.json');
 
 const stripFrontmatter = (md) => md.replace(/^---\n[\s\S]*?\n---\n/, '');
 
@@ -125,7 +128,9 @@ const exampleTitle = (slug) =>
 
 async function buildLlmsFull({ siteUrl, description }) {
   const sections = [];
-  for (const name of SKILL_FILES) {
+  // SKILL.md is the entry point; every other file of the skill follows, so a new one is never left out.
+  const skillFiles = (await readdir(SKILL_DIR)).filter((f) => f.endsWith('.md') && f !== 'SKILL.md').sort();
+  for (const name of ['SKILL.md', ...skillFiles]) {
     const md = await readFile(join(SKILL_DIR, name), 'utf8');
     sections.push(stripFrontmatter(md).trim());
   }
@@ -146,6 +151,9 @@ async function buildLlmsFull({ siteUrl, description }) {
       ].join('\n'),
     );
   }
+
+  const manifest = JSON.parse(await readFile(API_MANIFEST, 'utf8'));
+  sections.push(buildApiReference(manifest));
 
   const intro = [
     '# Wick Charts — full documentation for LLMs',

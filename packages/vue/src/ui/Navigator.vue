@@ -1,17 +1,11 @@
 <script setup lang="ts">
-import { NavigatorController, type NavigatorData } from '@wick-charts/core';
+import { NavigatorController } from '@wick-charts/core';
 import { computed, inject, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 
 import { ChartKey, NavigatorAnchorKey, ThemeKey } from '../context';
+import type { NavigatorProps } from './props';
 
-const props = withDefaults(
-  defineProps<{
-    data: NavigatorData;
-    /** Strip height in CSS pixels. Defaults to `theme.navigator.height` (60). */
-    height?: number;
-  }>(),
-  {},
-);
+const props = withDefaults(defineProps<NavigatorProps>(), {});
 
 const anchor = inject(NavigatorAnchorKey);
 const chartRef = inject(ChartKey);

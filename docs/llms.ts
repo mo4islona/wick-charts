@@ -41,7 +41,7 @@ export function buildLlmsTxt(): string {
   lines.push(
     '## Optional',
     '',
-    `- [Full documentation](${SITE_URL}/llms-full.txt): Complete API guide with chart-type references and runnable use-case examples in a single file`,
+    `- [Full documentation](${SITE_URL}/llms-full.txt): Complete API guide with chart-type references, runnable use-case examples and the generated API reference in a single file`,
   );
 
   return `${lines.join('\n').trimEnd()}\n`;

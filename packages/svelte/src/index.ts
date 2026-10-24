@@ -161,6 +161,7 @@ export type {
   XAxisType,
   XBandPointInput,
   XPointInput,
+  XRange,
   YAxisConfig,
   YAxisPosition,
   YRange,

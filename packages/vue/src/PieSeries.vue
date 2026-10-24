@@ -1,20 +1,13 @@
 <script setup lang="ts">
-import type { PieSeriesOptions, PieSliceInput } from '@wick-charts/core';
 import { PieSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
+import type { PieSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    data: PieSliceInput[];
-    options?: Partial<PieSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-  }>(),
+  defineProps<PieSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
   // `interactive` fix in ChartContainer.vue for the full explanation.

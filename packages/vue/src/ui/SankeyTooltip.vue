@@ -12,16 +12,9 @@ import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vu
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
+import type { SankeyTooltipProps } from './props';
 
-const props = defineProps<{
-  /**
-   * Owning series id. **Optional** — when omitted, the first visible sankey
-   * series is picked.
-   */
-  seriesId?: string;
-  /** Custom formatter for the flow value. Default: plain integers, compact decimals. */
-  format?: ValueFormatter;
-}>();
+const props = defineProps<SankeyTooltipProps>();
 
 defineSlots<{
   default?(ctx: { info: HoverInfo; format: ValueFormatter }): unknown;

@@ -1,35 +1,14 @@
 <script setup lang="ts">
-import {
-  type NumberFlowFormat,
-  type NumberFlowHandle,
-  mountNumberFlow,
-  resolveNumberFlowFormat,
-} from '@wick-charts/core';
+import { type NumberFlowHandle, mountNumberFlow, resolveNumberFlowFormat } from '@wick-charts/core';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-const props = withDefaults(
-  defineProps<{
-    value: number;
-    /**
-     * Value-to-string formatter. Defaults to `formatSignificant`: leading
-     * zeros collapse into a count (`0.0₅8123`), large values take a suffix
-     * (`1.235B`). `Intl.NumberFormatOptions` is also accepted (legacy) —
-     * routed through the built-in `Intl.NumberFormat`.
-     */
-    format?: NumberFlowFormat;
-    /** BCP 47 locale tag. Gives the decimal separator; a locale other than `'en-US'` without `format` formats with `Intl.NumberFormat`. */
-    locale?: string;
-    /** Per-digit spin duration in ms. A value that arrives sooner than this after the previous one snaps instead. */
-    spinDuration?: number;
-    /** How long a character that left keeps its width before the number shrinks, in ms. */
-    shrinkDelay?: number;
-  }>(),
-  {
-    locale: 'en-US',
-    spinDuration: 350,
-    shrinkDelay: 0,
-  },
-);
+import type { NumberFlowProps } from './props';
+
+const props = withDefaults(defineProps<NumberFlowProps>(), {
+  locale: 'en-US',
+  spinDuration: 350,
+  shrinkDelay: 0,
+});
 
 const resolved = computed(() => resolveNumberFlowFormat(props.format, props.locale));
 const text = computed(() => resolved.value.format(props.value));

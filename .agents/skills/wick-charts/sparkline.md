@@ -1,121 +1,33 @@
-# Sparkline
+# Sparkline (React only)
 
-Compact inline chart + value label for dashboards, metric rows, and KPI cards. Wraps `ChartContainer` with a non-interactive `LineSeries` or `BarSeries` plus an optional label / value / change-percent block.
-
-**React only.** Not currently available in Vue or Svelte.
-
-## Import
+`<Sparkline>` is a small inline chart with a value block, for dashboards, metric rows and KPI cards: a non-interactive line or bar chart, the last value, and the change since the first point. Vue and Svelte have no `Sparkline`; build one from a small `ChartContainer` ([line.md](line.md#common-patterns)). Every prop with its default: `SparklineProps` in `node_modules/@wick-charts/react/dist/index.d.ts` ([how to read it](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/sparkline/>. Only `data` is required.
 
 ```tsx
 import { Sparkline } from '@wick-charts/react';
-import type { SparklineProps, SparklineVariant, SparklineValuePosition } from '@wick-charts/react';
+
+<Sparkline data={priceHistory} label="BTC/USD" />
 ```
 
-## Data format
-
-```ts
-import type { TimePoint } from '@wick-charts/react';
-
-const data: TimePoint[] = [
-  { time: Date.now() - 60_000, value: 42.1 },
-  { time: Date.now() - 30_000, value: 43.7 },
-  { time: Date.now(),          value: 45.2 },
-];
-```
-
-Unlike `LineSeries` / `BarSeries`, `Sparkline` takes a single `TimePoint[]` — **not** nested.
-
-## Props
-
-```ts
-interface SparklineProps {
-  data: TimePointInput[];                 // time in ms or a Date
-  theme: ChartTheme;
-  variant?: 'line' | 'bar';              // default: 'line'
-  valuePosition?: 'left' | 'right' | 'none'; // default: 'right'
-  format?: (value: number) => string;     // value label formatter — default: compact K/M formatter
-  flow?: { capacity: number; align?: 'left' | 'right' | 'offscreen' }; // fixed window of `capacity` bars for streaming
-  yRange?: { min?: AxisBound; max?: AxisBound }; // pin Y bounds, e.g. { min: 0 }
-  label?: string;                         // text above the value
-  sublabel?: string;                      // text below the value (overrides change %)
-  color?: string;                         // line/bar color override
-  negativeColor?: string;                 // color for negative bars
-  area?: { visible: boolean };            // default: { visible: true } (line variant only)
-  width?: number;                         // chart width, default: 140
-  height?: number;                        // container height, default: 48
-  strokeWidth?: number;                 // default: 1
-  gradient?: boolean;                     // background gradient, default: false
-  style?: CSSProperties;                  // container style override
-}
-```
-
-## Default behavior
-
-- **Value label**: last point's value, formatted via `format` (compact K / M / decimal).
-- **Change %**: computed from first vs last point. Green if non-negative, red otherwise, using the theme's candlestick up/down colors. Overridden by `sublabel`.
-- **Non-interactive**: zoom/pan/crosshair disabled; grid and axes hidden.
-- **Container**: inline-flex row with rounded tooltip-style background from the theme.
-
-## Examples
-
-### Minimal
+- **Data:** one flat `TimePoint[]` — not layers.
+- **Value block:** the last value through `format` (compact by default) and the change from the first to the last point, green when it is not negative and red otherwise. `sublabel` replaces the change; `valuePosition="none"` hides the block.
+- **Theme:** the `ThemeProvider` theme, else the default theme; `theme` overrides it.
+- **Size:** 140 × 48 by default; `width` / `height` change it, `style={{ width: '100%' }}` fills a grid cell.
+- **Live data:** `flow={{ capacity: 60 }}` holds the window at 60 bars, and each new point scrolls it. Pass at least two seed points so the window can find the interval; `flow.align` places the seed (`'right'` by default, `'left'`, or `'offscreen'` to drive it in).
 
 ```tsx
-import { Sparkline, catppuccin } from '@wick-charts/react';
+// Bars with a custom format and a color for negative values
+<Sparkline data={dailyVolume} variant="bar" label="Volume" format={(v) => `$${v.toFixed(0)}`} color="#4ecdc4" negativeColor="#ff6b6b" />
 
-<Sparkline data={priceHistory} theme={catppuccin.theme} label="BTC/USD" />
-```
+// Only the chart
+<Sparkline data={series} valuePosition="none" width={80} height={24} />
 
-### Bar variant with custom formatter
+// A fixed text instead of the change
+<Sparkline data={latency} label="api-prod-1" sublabel="99.9% uptime" />
 
-```tsx
-<Sparkline
-  data={dailyVolume}
-  theme={catppuccin.theme}
-  variant="bar"
-  label="Volume"
-  format={(v) => `$${v.toFixed(0)}`}
-  color="#4ecdc4"
-  negativeColor="#ff6b6b"
-/>
-```
-
-### Chart-only (no label block)
-
-```tsx
-<Sparkline data={series} theme={catppuccin.theme} valuePosition="none" width={80} height={24} />
-```
-
-### Static sublabel instead of change %
-
-```tsx
-<Sparkline
-  data={latency}
-  theme={catppuccin.theme}
-  label="api-prod-1"
-  sublabel="99.9% uptime"
-/>
-```
-
-### Grid of metric cards
-
-```tsx
+// A grid of metric cards
 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
   {metrics.map((m) => (
-    <Sparkline
-      key={m.id}
-      data={m.series}
-      theme={catppuccin.theme}
-      label={m.label}
-      color={m.color}
-      style={{ width: '100%' }}
-    />
+    <Sparkline key={m.id} data={m.series} label={m.label} color={m.color} style={{ width: '100%' }} />
   ))}
 </div>
 ```
-
-## Notes
-
-- The component reads `theme.seriesColors[0]`, `theme.candlestick.up.body` / `theme.candlestick.down.body` (flattened via `resolveCandlestickBodyColor` when a gradient tuple), `theme.tooltip.*`, and `theme.axis.textColor` — all themes in `@wick-charts/core` provide these.
-- Pass `theme` explicitly — `Sparkline` does not read from `ThemeProvider` context.
-- For a fully-custom layout, render a `ChartContainer` with `interactive={false}`, `grid={{ visible: false }}`, and hidden axes directly instead.

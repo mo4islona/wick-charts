@@ -2,7 +2,6 @@
 import {
   BadgeAnimator,
   type ValueFormatter,
-  type YLabelAnimate,
   collapseZeros,
   firstVisibleValue,
   prefersReducedMotion,
@@ -15,6 +14,7 @@ import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 import { vAxisLabelCover } from '../axis-label-cover';
 import { useChartInstance } from '../context';
 import NumberFlow from './NumberFlow.vue';
+import type { YLabelProps } from './props';
 
 // Badge motion tuning types + the resolve/reduced-motion/count-up helpers live
 // in core next to BadgeAnimator so React / Vue / Svelte share one set of
@@ -25,28 +25,7 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 export type YLabelDirection = 'up' | 'down' | 'neutral';
 
 const props = withDefaults(
-  defineProps<{
-    /**
-     * Owning series id. **Optional** — when omitted, the first visible
-     * single-layer time series is picked, falling back to the first visible
-     * multi-layer time series.
-     */
-    seriesId?: string;
-    color?: string;
-    /** Custom formatter; routed through NumberFlow's `formatter` so the digit animation still plays. Default: the scale's `<YAxis format>`, else a range-adaptive number. */
-    format?: ValueFormatter;
-    /**
-     * Badge motion. `true` (default) glides + counts up + fades in with the
-     * intro; `false` snaps with no easing; an object tunes individual parts.
-     */
-    animate?: YLabelAnimate;
-    /**
-     * Named Y scale (`ChartContainer` `scales`) the value maps through. Default:
-     * the series' own scale. The badge sits on that scale's axis side — the
-     * default axis side for an overlay scale.
-     */
-    scale?: string;
-  }>(),
+  defineProps<YLabelProps>(),
   // Vue casts an absent Boolean prop to `false`; an absent `animate` must stay `undefined` (on).
   { animate: undefined },
 );

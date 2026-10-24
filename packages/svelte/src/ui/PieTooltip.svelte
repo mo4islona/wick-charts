@@ -17,6 +17,11 @@ export let seriesId: string | undefined = undefined;
 /** Custom formatter for the slice value. Default: shared `formatCompact`. */
 export let format: ValueFormatter = formatCompact;
 
+// biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it; the slot renders only while a slice is hovered, so `info` is never null there
+interface $$Slots {
+  default: { info: HoverInfo; format: ValueFormatter };
+}
+
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
 let crosshairUnsub: (() => void) | null = null;

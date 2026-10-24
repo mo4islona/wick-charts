@@ -37,7 +37,10 @@ reports, compare montages and BUGS.md (working notes; the issues are the record)
 between sessions on purpose: their scenarios are the visual regression baseline. If `test/dogfood/`
 is gone (new machine), the first session rebuilds the apps from the contract — a full session.
 
-`shadcn/` (port 5184) is a `shadcn init -t vite -p nova` app with the `registry/shadcn` blocks
+The registry apps, one per CLI: `shadcn/` (React, Vite, port 5184), `shadcn-next/` (Next.js App
+Router), `shadcn-vue/` (Vite, port 5186), `shadcn-nuxt/` (Nuxt 4, port 5187) and `shadcn-svelte/`
+(SvelteKit in runes mode, not yet in a session). The sessions in `coverage.json` say how each one was
+installed. `shadcn/` is a `shadcn init -t vite -p nova` app with the `registry/shadcn` blocks
 installed by the shadcn CLI. The root page shows every block under its registry name; `?s=<id>` shows
 one (`sparks`, `line`, `candles`, `bars`, `donut`, `band`, `area`, `heatmap`, `annotations`, `navigator`,
 `book`), `?theme=dark`, `?tokens=blue|emerald|orange|legacy` swaps in the `--chart-*` ramp of that shadcn

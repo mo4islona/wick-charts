@@ -222,7 +222,7 @@ export interface AnimationsConfig {
                *   contraction takes the same time regardless of size (the
                *   legacy sticky feel). `false` snaps contractions instantly.
                *
-               * @default `{ min:` {@link DEFAULT_Y_STICKY_MIN_MS}`, max:` {@link DEFAULT_Y_STICKY_MAX_MS}` }`
+               * @default min {@link DEFAULT_Y_STICKY_MIN_MS}, max {@link DEFAULT_Y_STICKY_MAX_MS}
                */
               sticky?: AnimationTime | { min?: AnimationTime; max?: AnimationTime };
               /**

@@ -161,6 +161,7 @@ export type {
   XAxisType,
   XBandPointInput,
   XPointInput,
+  XRange,
   YAxisConfig,
   YAxisPosition,
   YRange,
@@ -270,6 +271,17 @@ export { default as DepthSeries } from './DepthSeries.vue';
 export { default as HeatmapSeries } from './HeatmapSeries.vue';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';
+export type {
+  BandSeriesProps,
+  BarSeriesProps,
+  CandlestickSeriesProps,
+  ChartContainerProps,
+  DepthSeriesProps,
+  HeatmapSeriesProps,
+  LineSeriesProps,
+  PieSeriesProps,
+  SankeySeriesProps,
+} from './props';
 export { default as SankeySeries } from './SankeySeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
 export { default as HeatmapTooltip } from './ui/HeatmapTooltip.vue';
@@ -280,6 +292,28 @@ export { default as Navigator } from './ui/Navigator.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
+export type {
+  HeatmapTooltipProps,
+  InfoBarProps,
+  LegendItemOverride,
+  LegendProps,
+  LegendToggleInfo,
+  MarkerProps,
+  NavigatorProps,
+  NumberFlowProps,
+  PieLegendMode,
+  PieLegendPosition,
+  PieLegendProps,
+  PieTooltipProps,
+  ReferenceLineProps,
+  SankeyTooltipProps,
+  TimeRegionProps,
+  TitleProps,
+  TooltipProps,
+  XAxisProps,
+  YAxisProps,
+  YLabelProps,
+} from './ui/props';
 export { default as ReferenceLine } from './ui/ReferenceLine.vue';
 export { default as SankeyTooltip } from './ui/SankeyTooltip.vue';
 export { default as TimeRegion } from './ui/TimeRegion.vue';
