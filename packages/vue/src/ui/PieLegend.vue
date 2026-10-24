@@ -3,30 +3,13 @@ import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact 
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { LegendAnchorKey, LegendRightAnchorKey, useChartInstance, useTheme } from '../context';
+import type { PieLegendMode, PieLegendProps } from './props';
 
-type PieLegendMode = 'value' | 'percent' | 'both';
-type PieLegendPosition = 'bottom' | 'right' | 'overlay';
-
-const props = withDefaults(
-  defineProps<{
-    /**
-     * Owning series id. **Optional** — when omitted, the first visible pie
-     * series is picked.
-     */
-    seriesId?: string;
-    /** 'value' shows only the value, 'percent' only the percent, 'both' shows both. Default: 'both'. */
-    mode?: PieLegendMode;
-    /** Custom formatter for the absolute slice value. */
-    format?: ValueFormatter;
-    /** Layout placement. Default: `'bottom'`. */
-    position?: PieLegendPosition;
-  }>(),
-  {
-    mode: undefined,
-    format: undefined,
-    position: 'bottom',
-  },
-);
+const props = withDefaults(defineProps<PieLegendProps>(), {
+  mode: undefined,
+  format: undefined,
+  position: 'bottom',
+});
 
 const bottomAnchor = inject(LegendAnchorKey);
 const rightAnchor = inject(LegendRightAnchorKey);

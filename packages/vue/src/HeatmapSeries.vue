@@ -1,20 +1,13 @@
 <script setup lang="ts">
-import type { HeatmapCellInput, HeatmapSeriesOptions } from '@wick-charts/core';
 import { HeatmapSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
+import type { HeatmapSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    data: HeatmapCellInput[];
-    options?: Partial<HeatmapSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-  }>(),
+  defineProps<HeatmapSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
   // `interactive` fix in ChartContainer.vue for the full explanation.

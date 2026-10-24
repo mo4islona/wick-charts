@@ -3,42 +3,12 @@ import type { ChartInstance, LegendItem } from '@wick-charts/core';
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { LegendAnchorKey, LegendRightAnchorKey, ThemeKey, useChartInstance } from '../context';
+import type { LegendProps } from './props';
 
-/**
- * Minimal visual shape the {@link LegendProps.items} override accepts. The
- * canonical {@link LegendItem} (re-exported from `@wick-charts/core`) carries
- * the full identity + closures; those aren't meaningful for a pre-baked,
- * non-interactive legend.
- */
-export interface LegendItemOverride {
-  label: string;
-  color: string;
-}
-
-type LegendMode = 'toggle' | 'isolate' | 'solo';
-
-/** Payload for the `onToggle` prop — one entry per user click, regardless of built-in vs custom rendering. */
-export interface LegendToggleInfo {
-  /** The clicked item's id (matches {@link LegendItem.id}). */
-  id: string;
-  /** Which interaction produced this change. */
-  action: 'toggle' | 'isolate' | 'unisolate';
-}
-
-const props = withDefaults(
-  defineProps<{
-    items?: LegendItemOverride[];
-    position?: 'bottom' | 'right';
-    /** `'isolate'` shows only the clicked item; `'solo'` is a @deprecated alias. */
-    mode?: LegendMode;
-    /** Fired after a click changes series visibility — via the built-in UI or a custom slot calling `item.toggle()`/`isolate()` directly. */
-    onToggle?: (info: LegendToggleInfo) => void;
-  }>(),
-  {
-    position: 'bottom',
-    mode: 'toggle',
-  },
-);
+const props = withDefaults(defineProps<LegendProps>(), {
+  position: 'bottom',
+  mode: 'toggle',
+});
 
 defineSlots<{
   default?(ctx: { items: readonly LegendItem[] }): unknown;

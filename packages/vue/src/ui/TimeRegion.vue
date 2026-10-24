@@ -1,21 +1,10 @@
 <script setup lang="ts">
-import type { TimeRegionEnd, TimeValue } from '@wick-charts/core';
 import { onMounted, onUnmounted, watch } from 'vue';
 
 import { useChartInstance } from '../context';
+import type { TimeRegionProps } from './props';
 
-const props = defineProps<{
-  /** Left edge — epoch ms or a `Date`. */
-  from: TimeValue;
-  /** Right edge — epoch ms or a `Date`. Omit (or pass `'now'`) for an open-ended band to the right edge. */
-  to?: TimeRegionEnd;
-  /** Band fill — any CSS color, typically translucent. Default: a faint tint of `color`. */
-  fill?: string;
-  /** Optional text label drawn in an annotation chip at the top of the band. */
-  label?: string;
-  /** Edge-line and label-chip accent. Default: the theme's muted axis text color. */
-  color?: string;
-}>();
+const props = defineProps<TimeRegionProps>();
 
 const chart = useChartInstance();
 let regionId: string | null = null;

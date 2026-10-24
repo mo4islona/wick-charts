@@ -12,16 +12,9 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
+import type { HeatmapTooltipProps } from './props';
 
-const props = defineProps<{
-  /**
-   * Owning series id. **Optional** — when omitted, the first visible heatmap
-   * series is picked.
-   */
-  seriesId?: string;
-  /** Custom formatter for the cell value. Default: plain integers, compact decimals. */
-  format?: ValueFormatter;
-}>();
+const props = defineProps<HeatmapTooltipProps>();
 
 const effectiveFormat = computed<ValueFormatter>(() => props.format ?? defaultHeatmapFormat);
 

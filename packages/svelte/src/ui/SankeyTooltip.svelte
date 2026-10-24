@@ -20,6 +20,11 @@ export let seriesId: string | undefined = undefined;
 /** Custom formatter for the flow value. Default: plain integers, compact decimals. */
 export let format: ValueFormatter = defaultSankeyFormat;
 
+// biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it; the slot renders only while a node or link is hovered, so `info` is never null there
+interface $$Slots {
+  default: { info: HoverInfo; format: ValueFormatter };
+}
+
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
 let crosshairUnsub: (() => void) | null = null;

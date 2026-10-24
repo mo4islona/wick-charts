@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import type { SankeyLink, SankeyNode, SankeySeriesOptions } from '@wick-charts/core';
 import { SankeySeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, toRaw, watch } from 'vue';
 
 import { useChartInstance } from './context';
+import type { SankeySeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    /** Stages of the flow. A node no link reaches is not drawn. */
-    nodes: readonly SankeyNode[];
-    /** Flows between nodes by `id`. Links must not form a cycle — the series throws on one. */
-    links: readonly SankeyLink[];
-    /** Visual options override — node colors, node width and gap, link opacity, labels, entry / update durations. */
-    options?: Partial<SankeySeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the tooltip. Default `true`. Live. */
-    visible?: boolean;
-  }>(),
+  defineProps<SankeySeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default.
   { visible: true },

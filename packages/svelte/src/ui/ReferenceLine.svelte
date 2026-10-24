@@ -7,7 +7,7 @@ import { getChartContext } from '../context.js';
 
 /** Horizontal line at this Y data value. Mutually exclusive with `time`. */
 export let value: number | undefined = undefined;
-/** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`. */
+/** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`; wins when both are set. */
 export let time: TimeValue | undefined = undefined;
 /** Line and label-chip accent color. Default: the theme line color. */
 export let color: string | undefined = undefined;

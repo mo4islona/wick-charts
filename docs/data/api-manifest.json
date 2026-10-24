@@ -4149,7 +4149,7 @@
                             "name": "sticky",
                             "type": "AnimationTime | { min?: AnimationTime; max?: AnimationTime }",
                             "optional": true,
-                            "defaultValue": "{ min:` `500ms``, max:` `2500ms`` }",
+                            "defaultValue": "min `500ms`, max `2500ms`",
                             "deprecated": null,
                             "description": "Inward (contraction) settle — applied when a bound recedes\nafter an extreme leaves the window (the \"sticky-Y\" hold).\n\n- `{ min, max }` — **dynamic**: the contract duration scales\n  with the contraction magnitude, from `min` (a tiny recede)\n  up to `max` (a full-range contraction). Big outliers ease\n  off slowly while small receders finish quickly, so the axis\n  doesn't crawl for seconds over a few pixels. Either side\n  falls back to its default when omitted.\n- a scalar `AnimationTime` — **fixed**: `min === max`, every\n  contraction takes the same time regardless of size (the\n  legacy sticky feel). `false` snaps contractions instantly.",
                             "see": [],
@@ -4945,7 +4945,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}.",
+          "description": "Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with {@link ReferenceLineProps.value}; wins when both are set.",
           "see": []
         },
         {

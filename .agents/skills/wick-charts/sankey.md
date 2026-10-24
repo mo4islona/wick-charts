@@ -1,0 +1,24 @@
+# Sankey
+
+`<SankeySeries>` draws flows between stages as bands whose width follows the volume: an acquisition funnel, a budget or energy breakdown, request routing. It is a spatial series: no axes, no crosshair, no zoom. Options (node colors, node width and gap, link opacity, labels, durations): `SankeySeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)).
+
+```tsx
+<ChartContainer grid={{ visible: false }}>
+  <SankeySeries
+    nodes={[{ id: 'ads', label: 'Paid ads' }, { id: 'landing' }, { id: 'signup' }, { id: 'bounced' }]}
+    links={[
+      { source: 'ads', target: 'landing', value: 2600 },
+      { source: 'landing', target: 'signup', value: 900 },
+      { source: 'landing', target: 'bounced', value: 1700 },
+    ]}
+  />
+  <SankeyTooltip />
+</ChartContainer>
+```
+
+- **Data:** `nodes: SankeyNode[]` = `{ id, label?, color? }` and `links: SankeyLink[]` = `{ source, target, value, color? }`, where `source` and `target` are node ids. Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node, or without a finite `value` above 0, is skipped with a dev warning; links with the same `source` and `target` merge; a node that no link reaches is not drawn.
+- **No cycles:** the links must form a DAG. A cycle (a self-link too) makes the update throw `Sankey links form a cycle: a → b → a`, and the series keeps its previous data. When the graph comes from user input, check it first or put an error boundary around the chart.
+- **Layout:** a node's column is its longest path from a source; a node with no outgoing link goes to the last column. Node height follows its throughput. The layout is deterministic.
+- **Colors:** a link takes its own `color`, else the color of its source node.
+- **Live updates:** pass new `nodes` / `links`. Nodes ease by `id` and links by `source → target`; new ones fade in and removed ones fade out. A new array of the same graph does nothing.
+- **Hover:** a node highlights its links and their end nodes, a link its two nodes; the rest dims. `<SankeyTooltip>` shows the node label and throughput with its share of all source outflow, or `Source → Target` with the link value and its share of the source's outflow. The `onSeriesHover` callback and `chart.getHoverInfo()` report the same.

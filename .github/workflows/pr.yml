@@ -48,3 +48,5 @@ jobs:
       # than a `pretest` hook) so a local `pnpm test` doesn't fail on
       # unrelated drift; CI is the contract enforcer.
       - run: pnpm api:check
+      # The API pages and the llms-full.txt reference read the committed manifest, so it must match the types.
+      - run: pnpm api:extract && git diff --exit-code docs/data/api-manifest.json

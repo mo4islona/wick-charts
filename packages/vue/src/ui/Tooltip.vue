@@ -18,11 +18,9 @@ import { computed, onMounted, onUnmounted, onUpdated, ref, useSlots, watchEffect
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
 import NumberText from './NumberText.vue';
+import type { TooltipProps } from './props';
 
-const props = defineProps<{
-  sort?: SnapshotSort;
-  format?: TooltipFormatter;
-}>();
+const props = defineProps<TooltipProps>();
 
 defineSlots<{
   default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number }): unknown;

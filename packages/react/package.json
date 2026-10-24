@@ -50,7 +50,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "vite build && node ../../scripts/build-umd.mjs",
+    "build": "vite build && node ../../scripts/inline-doc-defaults.mjs dist && node ../../scripts/build-umd.mjs",
     "prepublishOnly": "pnpm -w readme && pnpm build"
   },
   "publishConfig": {

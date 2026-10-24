@@ -43,7 +43,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node ../../scripts/inline-doc-defaults.mjs dist",
     "prepublishOnly": "pnpm -w readme && pnpm build"
   },
   "publishConfig": {

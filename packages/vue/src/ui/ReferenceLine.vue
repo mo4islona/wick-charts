@@ -1,25 +1,10 @@
 <script setup lang="ts">
-import type { ReferenceLineStyle, TimeValue } from '@wick-charts/core';
 import { onMounted, onUnmounted, watch } from 'vue';
 
 import { useChartInstance } from '../context';
+import type { ReferenceLineProps } from './props';
 
-const props = defineProps<{
-  /** Horizontal line at this Y data value. Mutually exclusive with `time`. */
-  value?: number;
-  /** Vertical line at this `time` (epoch ms or `Date`). Mutually exclusive with `value`. */
-  time?: TimeValue;
-  /** Line and label-chip accent color. Default: the theme line color. */
-  color?: string;
-  /** Optional text label drawn in an annotation chip at the line's near end. */
-  label?: string;
-  /** Dash style. Default: `'dashed'`. */
-  style?: ReferenceLineStyle;
-  /** Stroke width in CSS pixels. Default: `1`. */
-  width?: number;
-  /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale. */
-  scale?: string;
-}>();
+const props = defineProps<ReferenceLineProps>();
 
 const chart = useChartInstance();
 let lineId: string | null = null;

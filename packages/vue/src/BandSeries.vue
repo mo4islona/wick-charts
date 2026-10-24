@@ -1,30 +1,14 @@
 <script setup lang="ts">
-import type { BandData, BandSeriesOptions, SeriesSyncState } from '@wick-charts/core';
+import type { BandData, SeriesSyncState } from '@wick-charts/core';
 import { BandSeriesDef, EMPTY_SYNC_STATE, syncLayers, toLayers } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
 import { rawSeriesData, seriesDataSource } from './composables';
 import { useChartInstance } from './context';
+import type { BandSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    /**
-     * Band data — one band per layer. A single band passes a flat
-     * `{ time, low, high }[]`; several bands pass `BandPoint[][]`. To name/color
-     * a band, pass `{ label, color?, data }` (or an array of them). Time accepts
-     * ms or `Date`. On a numeric or category X axis (`axis.x.type`) samples
-     * carry `x` in place of `time`: `{ x: 'EU', low, high }`.
-     */
-    data: BandData;
-    /** Visual options override — fill, edge stroke, curve, entrance / intro / smoothing. */
-    options?: Partial<BandSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-    /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
-    scale?: string;
-  }>(),
+  defineProps<BandSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default — see the
   // `interactive` fix in ChartContainer.vue for the full explanation.

@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import type { DepthLevel, DepthSeriesOptions } from '@wick-charts/core';
 import { DepthSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, toRaw, watch } from 'vue';
 
 import { useChartInstance } from './context';
+import type { DepthSeriesProps } from './props';
 
 const props = withDefaults(
-  defineProps<{
-    /** Bid levels as `[price, size]`, in any order. Cumulative depth is computed from them. */
-    bids: readonly DepthLevel[];
-    /** Ask levels as `[price, size]`, in any order. Cumulative depth is computed from them. */
-    asks: readonly DepthLevel[];
-    /** Visual options override — `span` of the default view, side colors, stroke width, intro / update durations. */
-    options?: Partial<DepthSeriesOptions>;
-    /** Stable series ID — same value across remounts. */
-    id?: string;
-    /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
-    visible?: boolean;
-  }>(),
+  defineProps<DepthSeriesProps>(),
   // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
   // `false` (not `undefined`) without an explicit default.
   { visible: true },

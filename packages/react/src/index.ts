@@ -161,6 +161,7 @@ export type {
   XAxisType,
   XBandPointInput,
   XPointInput,
+  XRange,
   YAxisConfig,
   YAxisPosition,
   YRange,
@@ -260,8 +261,11 @@ export {
 
 export type { BandSeriesProps } from './BandSeries';
 export { BandSeries } from './BandSeries';
+export type { BarSeriesProps } from './BarSeries';
 export { BarSeries } from './BarSeries';
+export type { CandlestickSeriesProps } from './CandlestickSeries';
 export { CandlestickSeries } from './CandlestickSeries';
+export type { ChartContainerProps } from './ChartContainer';
 // React components
 export { ChartContainer } from './ChartContainer';
 // React hooks
@@ -272,7 +276,9 @@ export type { EdgeLoaderProps, EdgeLoaderRenderArgs } from './EdgeLoader';
 export { EdgeLoader } from './EdgeLoader';
 export type { HeatmapSeriesProps } from './HeatmapSeries';
 export { HeatmapSeries } from './HeatmapSeries';
+export type { LineSeriesProps } from './LineSeries';
 export { LineSeries } from './LineSeries';
+export type { PieSeriesProps } from './PieSeries';
 export { PieSeries } from './PieSeries';
 export type { SankeySeriesProps } from './SankeySeries';
 export { SankeySeries } from './SankeySeries';
@@ -297,9 +303,11 @@ export type { MarkerProps } from './ui/Marker';
 export { Marker } from './ui/Marker';
 export type { NavigatorProps } from './ui/Navigator';
 export { Navigator } from './ui/Navigator';
+export type { NumberFlowProps } from './ui/NumberFlow';
 export { NumberFlow } from './ui/NumberFlow';
 export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderContext } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
+export type { PieTooltipProps, PieTooltipRenderContext } from './ui/PieTooltip';
 export { PieTooltip } from './ui/PieTooltip';
 // Reference lines — horizontal threshold / vertical event boundary
 export type { ReferenceLineProps } from './ui/ReferenceLine';
@@ -320,4 +328,5 @@ export type { XAxisProps } from './ui/XAxis';
 export { TimeAxis, XAxis } from './ui/XAxis';
 export type { YAxisProps } from './ui/YAxis';
 export { YAxis } from './ui/YAxis';
+export type { YLabelDirection, YLabelProps, YLabelRenderContext } from './ui/YLabel';
 export { YLabel } from './ui/YLabel';

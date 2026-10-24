@@ -2,23 +2,9 @@
 import { computed, inject, useSlots } from 'vue';
 
 import { ThemeKey, TitleAnchorKey } from '../context';
+import type { TitleProps } from './props';
 
-withDefaults(
-  defineProps<{
-    /**
-     * @deprecated Use the named `sub` slot instead — it accepts arbitrary
-     * inline markup (icons, badges, formatted text) to mirror React's
-     * `sub: ReactNode`. The string-only prop is kept as a back-compat shim
-     * for callers upgrading from 0.3.1; the slot wins when both are provided.
-     *
-     * Note: the title strip is rendered with `pointer-events: none` so it
-     * doesn't intercept canvas hover events. Interactive children (`<a>`,
-     * `<button>`) need to opt back in with `pointer-events: auto`.
-     */
-    sub?: string;
-  }>(),
-  {},
-);
+withDefaults(defineProps<TitleProps>(), {});
 
 defineSlots<{
   default?(): unknown;
