@@ -93,13 +93,24 @@ const VAR_REF_NAMES = new Set([
   'logScale()',
 ]);
 
+// Library exports a snippet references by value — rendered unquoted and added
+// to the import list (`data={heikinAshi(ohlcData)}` imports `heikinAshi`).
+const LIBRARY_REFS = new Map([
+  ['hollowCandle', 'hollowCandle'],
+  ['ohlcBar', 'ohlcBar'],
+  ['heikinAshi(ohlcData)', 'heikinAshi'],
+]);
+
 function isVarRef(v: PropValue): boolean {
-  return typeof v === 'string' && VAR_REF_NAMES.has(v);
+  return typeof v === 'string' && (VAR_REF_NAMES.has(v) || LIBRARY_REFS.has(v));
 }
 
 function collectFactoryImports(value: PropValue | Record<string, PropValue>, imports: Set<string>): void {
   if (typeof value === 'string') {
     if (isVarRef(value) && value.endsWith('()')) imports.add(value.slice(0, -2));
+
+    const libraryImport = LIBRARY_REFS.get(value);
+    if (libraryImport !== undefined) imports.add(libraryImport);
 
     return;
   }
@@ -210,9 +221,12 @@ export function generateCode(config: ChartCodeConfig, fw: Framework): string {
   // hand the underlying ChartTheme to ChartContainer). Only the import root
   // belongs in the import list.
   if (config.theme) imports.add(config.theme.split('.')[0]);
-  // Factory calls anywhere in the container props (`perf={perfHud()}`,
-  // `axis.y.scale: logScale()`) import their callee.
+  // Factory calls and library refs anywhere in the props (`perf={perfHud()}`,
+  // `axis.y.scale: logScale()`, `candlePainter: hollowCandle`) import their callee.
   collectFactoryImports(config.containerProps ?? {}, imports);
+  for (const child of config.components) {
+    collectFactoryImports(child.props ?? {}, imports);
+  }
 
   const importList = Array.from(imports).sort();
   const pkg = PACKAGES[fw];

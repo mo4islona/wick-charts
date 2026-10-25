@@ -1,10 +1,12 @@
 import { hexToRgba } from '../../utils/color';
-import { fillRoundedRect, tracePath } from './canvas-path';
+import { fillRoundedRect, tracePath, traceRoundedRect } from './canvas-path';
 import type { BarPainter, CandlePainter, LinePainter } from './types';
 
 /** Opacity of a ghost / forecast bar's fill. Low enough that grid lines read
  *  through it; high enough that the bar's color is still recognizable. */
 const PROJECTED_ALPHA = 0.25;
+
+const NO_DASH: number[] = [];
 
 /** DEFAULT line builder (`curve: 'straight'`). A plain polyline — identical to
  *  the pre-feature stroke path. */
@@ -41,19 +43,92 @@ export const roundedBarFill: BarPainter = (env, args) => {
   });
 };
 
-/** DEFAULT candle-body painter (registered as `'rounded'`). Fills with the
- *  engine-resolved `fillStyle` (gradient or flat) and never rebuilds a gradient. */
+/** DEFAULT candle painter — filled candles. The wick is a plain rect; the body
+ *  fills with the engine-resolved `fillStyle` (gradient or flat), rounded by
+ *  `cornerRadius`, and never rebuilds a gradient. */
 export const roundedCandleFill: CandlePainter = (env, args) => {
   const { ctx } = env;
-  const { geom, fillStyle, corners, radius } = args;
+  const { wick, body, fillStyle, corners, radius } = args;
 
   ctx.fillStyle = fillStyle;
+  if (args.element === 'wick') {
+    ctx.fillRect(wick.x, wick.y, wick.width, wick.height);
+
+    return;
+  }
+
   fillRoundedRect(ctx, {
-    x: geom.x,
-    y: geom.y,
-    width: geom.width,
-    height: geom.height,
+    x: body.x,
+    y: body.y,
+    width: body.width,
+    height: body.height,
     radius,
     corners,
   });
+};
+
+/** Hollow candles: a rising body (close ≥ open) is an outline one wick wide,
+ *  a falling body is filled, and the wick stops at the body edges. Pair with
+ *  `colorBy: 'previousClose'` for the usual convention, where the colour
+ *  follows the previous close. */
+export const hollowCandle: CandlePainter = (env, args) => {
+  const { ctx } = env;
+  const { wick, body, fillStyle, corners, radius } = args;
+
+  ctx.fillStyle = fillStyle;
+  if (args.element === 'wick') {
+    const bodyBottom = body.y + body.height;
+    const wickBottom = wick.y + wick.height;
+    if (body.y > wick.y) ctx.fillRect(wick.x, wick.y, wick.width, body.y - wick.y);
+    if (wickBottom > bodyBottom) ctx.fillRect(wick.x, bodyBottom, wick.width, wickBottom - bodyBottom);
+
+    return;
+  }
+
+  const outer = { x: body.x, y: body.y, width: body.width, height: body.height, radius, corners };
+  const stroke = wick.width;
+  const hasHole = body.width > stroke * 2 && body.height > stroke * 2;
+  if (!args.isBullish || !hasHole) {
+    fillRoundedRect(ctx, outer);
+
+    return;
+  }
+
+  // A stroke on the centre line, not an even-odd cut-out: GPU canvases draw a
+  // stroked rounded rect about as fast as a filled one, a cut-out ~1.6x slower.
+  const half = stroke / 2;
+  ctx.strokeStyle = fillStyle;
+  ctx.lineWidth = stroke;
+  ctx.lineJoin = 'miter';
+  ctx.setLineDash(NO_DASH);
+  ctx.beginPath();
+  traceRoundedRect(ctx, {
+    x: body.x + half,
+    y: body.y + half,
+    width: body.width - stroke,
+    height: body.height - stroke,
+    radius: Math.max(0, radius - half),
+    corners,
+  });
+  ctx.stroke();
+};
+
+/** OHLC bars: a high–low line with the open tick on the left and the close
+ *  tick on the right, all in the wick colour. Ticks reach the body edges, so
+ *  their length follows `bodyWidthRatio`; `cornerRadius` does not apply. */
+export const ohlcBar: CandlePainter = (env, args) => {
+  const { ctx } = env;
+  const { wick, body, openY, closeY } = args;
+
+  ctx.fillStyle = args.wickColor;
+  if (args.element === 'wick') {
+    ctx.fillRect(wick.x, wick.y, wick.width, wick.height);
+
+    return;
+  }
+
+  const thickness = wick.width;
+  const wickRight = wick.x + wick.width;
+  ctx.fillRect(body.x, openY - thickness / 2, wick.x - body.x, thickness);
+  ctx.fillRect(wickRight, closeY - thickness / 2, body.x + body.width - wickRight, thickness);
 };

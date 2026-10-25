@@ -540,7 +540,7 @@
                 "optional": false,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Colours for bullish candles (close ≥ open).",
+                "description": "Colours for rising candles — close ≥ open, or ≥ the previous close under `colorBy: 'previousClose'`.",
                 "see": [],
                 "nested": {
                   "name": "CandlestickDirectionColors",
@@ -572,7 +572,7 @@
                 "optional": false,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Colours for bearish candles (close < open).",
+                "description": "Colours for falling candles — the rest.",
                 "see": [],
                 "nested": {
                   "name": "CandlestickDirectionColors",
@@ -597,6 +597,15 @@
                     }
                   ]
                 }
+              },
+              {
+                "name": "colorBy",
+                "type": "'open' | 'previousClose'",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "What a candle's close is compared with to pick the `up` or `down` colours.\n`'open'` (the default) colours by the candle's own direction;\n`'previousClose'` by the move from the previous candle, the convention of\nhollow candles (`candlePainter: hollowCandle`). The first candle falls back\nto its open. The volume histogram always colours by close vs open.",
+                "see": []
               },
               {
                 "name": "bodyWidthRatio",
@@ -695,7 +704,7 @@
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Custom candle-body painter — a raw `CandlePainter` function that owns the\nbody fill. Leave unset for the built-in rounded fill (driven by\n`cornerRadius`). Read fresh each frame; a new reference is honored on the\nnext render regardless of wrapper change-detection. Keep it a stable\nreference (module scope or `useCallback`) so the wrapper diffs it cleanly.\nA throw falls back to the default fill. The wick and volume histogram are\nunaffected.",
+                "description": "How each candle is drawn — a `CandlePainter` called once per wick, then\nonce per body. Leave unset for filled candles (`roundedCandleFill`, driven\nby `cornerRadius`), or pass a shipped style: `hollowCandle` (outlined\nrising bodies) or `ohlcBar` (a high–low line with open and close ticks).\nAny other function draws its own shape on the engine's post-transform\nrects, so entry, intro and live smoothing work unchanged. Read fresh each\nframe; keep it a stable reference (module scope or `useCallback`) so the\nwrapper diffs it cleanly. A throw falls back to the default fill. The\nvolume histogram is unaffected.",
                 "see": []
               }
             ]

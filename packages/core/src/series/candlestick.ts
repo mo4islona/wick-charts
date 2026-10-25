@@ -15,7 +15,7 @@ import { resolveCandlestickBodyColor } from '../theme/resolve';
 import type { ChartTheme } from '../theme/types';
 import type { CandlestickSeriesOptions, OHLCData, OHLCInput } from '../types';
 import { hexToRgba, mixColors } from '../utils/color';
-import { clamp, lerp } from '../utils/math';
+import { binarySearch, clamp, lerp } from '../utils/math';
 import { isPoisonedNumber, reportPoisonedData } from '../utils/poisoned-data-reporter';
 import { normalizeOHLCArray, normalizeTime, sliceSample } from '../utils/time';
 import {
@@ -27,7 +27,7 @@ import {
 import type { SeriesDefinition } from './definition';
 import { fillRoundedRect } from './painters/canvas-path';
 import { resolveCandlePainter } from './painters/resolve';
-import type { CandlePainter, CornerMask, PaintEnv } from './painters/types';
+import type { CandlePaintArgs, CandlePainter, CornerMask, PaintEnv } from './painters/types';
 import type { HoverLookupOptions, SeriesRenderContext, TimeSeriesRenderer, ValueRangeOptions } from './types';
 import { fadeIntro } from './wave-intro';
 
@@ -563,6 +563,7 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     if (decimated) {
       visibleData = decimateOHLCData(visibleData, Math.round(pixelWidth * 1.5));
     }
+    const unfiltered = visibleData;
     if (yScale.getTransform() !== null) {
       visibleData = visibleData.filter((candle) => isPlottableCandle(candle, (value) => yScale.isPlottable(value)));
     }
@@ -754,6 +755,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     const bearish: OHLCData[] = [];
     const poisonedIndices: number[] = [];
     let firstPoisonedBar: OHLCData | null = null;
+    const colorByPrevious = this.options.colorBy === 'previousClose';
+    // The previous close comes from the candles before the log-scale filter: a hidden candle still sets it.
+    let previousClose = colorByPrevious ? this.#closeBefore(unfiltered[0].time) : null;
+    let source = 0;
     for (let i = 0; i < visibleData.length; i++) {
       const candle = visibleData[i];
       if (
@@ -766,7 +771,18 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
         if (firstPoisonedBar === null) firstPoisonedBar = candle;
         continue;
       }
-      if (candle.close >= candle.open) bullish.push(candle);
+
+      if (colorByPrevious) {
+        while (source < unfiltered.length && unfiltered[source].time < candle.time) {
+          const { close } = unfiltered[source];
+          if (!isPoisonedNumber(close)) previousClose = close;
+
+          source++;
+        }
+      }
+
+      const reference = colorByPrevious ? (previousClose ?? candle.open) : candle.open;
+      if (candle.close >= reference) bullish.push(candle);
       else bearish.push(candle);
     }
     if (firstPoisonedBar !== null) {
@@ -794,6 +810,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       entranceByTime,
       candlePass,
     };
+    // A custom painter may change stroke state; one save per pass keeps it out of the next series.
+    const custom = this.options.candlePainter !== undefined;
+    if (custom) context.save();
+
     this.drawCandles({
       ...baseCandleArgs,
       candles: bullish,
@@ -807,8 +827,17 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       wickColor: this.options.down.wick,
     });
 
+    if (custom) context.restore();
     if (historyClipApplied) context.restore();
     if (introClip !== undefined) context.restore();
+  }
+
+  /** Close of the last stored candle before `time`, `null` when none is stored. */
+  #closeBefore(time: number): number | null {
+    const data = this.store.getAll();
+    const index = binarySearch(data, time, (candle) => candle.time) - 1;
+
+    return index >= 0 ? data[index].close : null;
   }
 
   /**
@@ -1037,62 +1066,60 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
   }): void {
     if (candles.length === 0) return;
 
-    const style = this.options.entryAnimation ?? 'unfold';
-    const barWidth = bodyWidth + 2; // approximate slot width used for 'slide' horizontal offset
+    const frame: CandleFrame = {
+      timeScale,
+      yScale,
+      halfBody,
+      bodyWidth,
+      wickWidth,
+      // approximate slot width used for 'slide' horizontal offset
+      barWidth: bodyWidth + 2,
+      style: this.options.entryAnimation ?? 'unfold',
+      entranceByTime,
+      radius: candlePass.radius,
+      directed: this.#hasElementDirectives(),
+    };
     // Tint target for morph-style reveals — the same muted gray the skeleton
     // placeholder drew with.
     const mutedColor = candlePass.env.theme.axis.textColor ?? '#787b86';
+    const custom = this.options.candlePainter !== undefined;
+    const ownBodyColor = Array.isArray(body) ? body[0] : body;
+    const shapes = candles.map((candle) => this.#candleShape(candle, frame));
 
-    // Wicks
+    // Wicks. The default draws them as one batch of plain rects; a custom
+    // painter gets a call per wick, under the same alpha and tint.
     ctx.fillStyle = wickColor;
-    for (const c of candles) {
-      const progress = entranceByTime?.get(c.time) ?? 1;
-      const cx = timeScale.timeToBitmapX(c.time);
-      const openY = yScale.valueToBitmapY(c.open);
-      const highY = yScale.valueToBitmapY(c.high);
-      const lowY = yScale.valueToBitmapY(c.low);
-      const wickX = cx - Math.floor(wickWidth / 2);
-
-      let transformed = false;
-      let g = { x: wickX, topY: highY, bottomY: lowY, alpha: 1 };
-      if (progress < 1 && style !== 'none') {
-        const t = applyCandleTransform(progress, style, {
-          x: wickX,
-          barWidth,
-          anchorY: openY,
-          topY: highY,
-          bottomY: lowY,
-        });
-        g = { x: t.x, topY: t.topY, bottomY: t.bottomY, alpha: t.alpha };
-        transformed = true;
-      }
-
-      const intro = this.introTransform({
-        element: 'wick',
-        time: c.time,
-        x: g.x,
-        topY: g.topY,
-        bottomY: g.bottomY,
-        anchorY: openY,
-        barWidth,
-      });
-      let tint = 0;
-      if (intro !== null) {
-        g = { x: intro.x, topY: intro.topY, bottomY: intro.bottomY, alpha: g.alpha * intro.alpha };
-        tint = intro.tint ?? 0;
-        transformed = true;
-      }
-
-      if (!transformed) {
-        ctx.fillRect(wickX, highY, wickWidth, lowY - highY);
+    for (const shape of shapes) {
+      if (!shape.wickTransformed && !custom) {
+        ctx.fillRect(shape.wickX, shape.wickY, wickWidth, shape.wickHeight);
         continue;
       }
 
-      ctx.save();
-      ctx.globalAlpha = g.alpha;
-      if (tint > 0) ctx.fillStyle = mixColors(wickColor, mutedColor, tint);
-      ctx.fillRect(g.x, g.topY, wickWidth, Math.max(1, g.bottomY - g.topY));
-      ctx.restore();
+      if (shape.wickTransformed) {
+        ctx.save();
+        ctx.globalAlpha = shape.wickAlpha;
+      }
+
+      const tintedWick = tintColor(wickColor, mutedColor, shape.wickTint);
+      ctx.fillStyle = tintedWick;
+      if (custom) {
+        candlePass.painter(
+          candlePass.env,
+          paintArgs({
+            shape,
+            frame,
+            element: 'wick',
+            fillStyle: tintedWick,
+            bodyColor: tintColor(ownBodyColor, mutedColor, shape.wickTint),
+            wickColor: tintedWick,
+            shiftY: 0,
+          }),
+        );
+      } else {
+        ctx.fillRect(shape.wickX, shape.wickY, wickWidth, shape.wickHeight);
+      }
+
+      if (shape.wickTransformed) ctx.restore();
     }
 
     // Bodies. `body` is a `[top, bottom]` tuple (2-stop gradient) or a single
@@ -1100,57 +1127,8 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     // look should pass `autoGradient(color)` in their config.
     const drawsGradient = Array.isArray(body);
 
-    for (const c of candles) {
-      const progress = entranceByTime?.get(c.time) ?? 1;
-      const cx = timeScale.timeToBitmapX(c.time);
-      const openY = yScale.valueToBitmapY(c.open);
-      const closeY = yScale.valueToBitmapY(c.close);
-      const bodyTop = Math.min(openY, closeY);
-      const bodyBottom = Math.max(openY, closeY);
-      const bodyHeight = Math.max(1, bodyBottom - bodyTop);
-
-      let drawX = cx - halfBody;
-      let drawTop = bodyTop;
-      let drawBottom = bodyBottom;
-      let alpha = 1;
-      let needsTransform = false;
-      if (progress < 1 && style !== 'none') {
-        const t = applyCandleTransform(progress, style, {
-          x: drawX,
-          barWidth,
-          anchorY: openY,
-          topY: bodyTop,
-          bottomY: bodyBottom,
-        });
-        drawX = t.x;
-        drawTop = t.topY;
-        drawBottom = t.bottomY;
-        alpha = t.alpha;
-        needsTransform = true;
-      }
-
-      const intro = this.introTransform({
-        element: 'body',
-        time: c.time,
-        x: drawX,
-        topY: drawTop,
-        bottomY: drawBottom,
-        anchorY: openY,
-        barWidth,
-      });
-      let tint = 0;
-      if (intro !== null) {
-        drawX = intro.x;
-        drawTop = intro.topY;
-        drawBottom = intro.bottomY;
-        alpha *= intro.alpha;
-        tint = intro.tint ?? 0;
-        needsTransform = true;
-      }
-
-      const drawHeight = needsTransform ? Math.max(1, drawBottom - drawTop) : bodyHeight;
-
-      if (needsTransform) ctx.save();
+    for (const shape of shapes) {
+      if (shape.bodyTransformed) ctx.save();
 
       // Body fill. A ≤2px-tall candle can't show a gradient meaningfully, so
       // collapse both the tuple and single-color paths to a flat top-stop fill
@@ -1158,39 +1136,142 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
       // body would render in the wick color. The painter receives this resolved
       // fillStyle and MUST NOT rebuild the gradient (the engine built it once).
       // Gradients come from a per-(colors,height) cache anchored at y=0, so
-      // the body is drawn inside a `translate(0, drawTop)` frame — the painted
+      // the body is drawn inside a `translate(0, bodyY)` frame — the painted
       // pixels are identical, but N same-height candles share one gradient.
       // A tinted (morphing) body collapses to a flat blended fill — a
       // gradient of a half-placeholder color would read as a paint glitch.
-      const ownColor = Array.isArray(body) ? body[0] : body;
-      const bodyColor = tint > 0 ? mixColors(ownColor, mutedColor, tint) : ownColor;
-      const useGradient = drawsGradient && drawHeight > 2 && tint <= 0;
-      const fillStyle: string | CanvasGradient = useGradient ? this.#bodyGradient(ctx, body, drawHeight) : bodyColor;
+      const bodyColor = tintColor(ownBodyColor, mutedColor, shape.bodyTint);
+      const useGradient = drawsGradient && shape.bodyHeight > 2 && shape.bodyTint <= 0;
+      const fillStyle: string | CanvasGradient = useGradient
+        ? this.#bodyGradient(ctx, body, shape.bodyHeight)
+        : bodyColor;
       ctx.fillStyle = fillStyle;
 
-      if (needsTransform) ctx.globalAlpha = alpha;
-      if (useGradient) ctx.translate(0, drawTop);
-      const bodyY = useGradient ? 0 : drawTop;
+      if (shape.bodyTransformed) ctx.globalAlpha = shape.bodyAlpha;
+      if (useGradient) ctx.translate(0, shape.bodyY);
+      const shiftY = useGradient ? shape.bodyY : 0;
 
-      // Round the body via the resolved painter. radius<1 (after clamp) with no
-      // custom painter routes back through the byte-identical fillRect path.
-      const radius = clamp(candlePass.radius, 0, Math.min(bodyWidth, drawHeight) / 2);
-      if (radius < 1 && !this.options.candlePainter) {
-        ctx.fillRect(drawX, bodyY, bodyWidth, drawHeight);
+      // radius<1 (after clamp) with no custom painter routes back through the
+      // byte-identical fillRect path.
+      if (shape.radius < 1 && !custom) {
+        ctx.fillRect(shape.bodyX, shape.bodyY - shiftY, bodyWidth, shape.bodyHeight);
       } else {
-        candlePass.painter(candlePass.env, {
-          geom: { x: drawX, y: bodyY, width: bodyWidth, height: drawHeight },
-          fillStyle,
-          color: bodyColor,
-          corners: ALL_CORNERS,
-          radius,
-          progress,
-          isBullish: c.close >= c.open,
-        });
+        candlePass.painter(
+          candlePass.env,
+          paintArgs({
+            shape,
+            frame,
+            element: 'body',
+            fillStyle,
+            bodyColor,
+            wickColor: tintColor(wickColor, mutedColor, shape.bodyTint),
+            shiftY,
+          }),
+        );
       }
-      if (useGradient) ctx.translate(0, -drawTop);
-      if (needsTransform) ctx.restore();
+      if (useGradient) ctx.translate(0, -shape.bodyY);
+      if (shape.bodyTransformed) ctx.restore();
     }
+  }
+
+  /** One candle's wick and body this frame — settled, or through the entry
+   *  and intro transforms. */
+  #candleShape(candle: OHLCData, frame: CandleFrame): CandleShape {
+    const progress = frame.entranceByTime?.get(candle.time) ?? 1;
+    const cx = frame.timeScale.timeToBitmapX(candle.time);
+    const openY = frame.yScale.valueToBitmapY(candle.open);
+    const closeY = frame.yScale.valueToBitmapY(candle.close);
+    const highY = frame.yScale.valueToBitmapY(candle.high);
+    const lowY = frame.yScale.valueToBitmapY(candle.low);
+    const isBullish = candle.close >= candle.open;
+
+    const wickSettled = { x: cx - Math.floor(frame.wickWidth / 2), topY: highY, bottomY: lowY, anchorY: openY };
+    const bodySettled = {
+      x: cx - frame.halfBody,
+      topY: Math.min(openY, closeY),
+      bottomY: Math.max(openY, closeY),
+      anchorY: openY,
+    };
+
+    const animated = frame.directed || (progress < 1 && frame.style !== 'none');
+    const wick = animated
+      ? this.#elementFrame({ element: 'wick', time: candle.time, progress, frame, settled: wickSettled })
+      : settledFrame(wickSettled);
+    const body = animated
+      ? this.#elementFrame({ element: 'body', time: candle.time, progress, frame, settled: bodySettled })
+      : settledFrame(bodySettled);
+
+    // A settled wick keeps its exact high → low span, 0 on a flat candle.
+    const wickSpan = wick.bottomY - wick.topY;
+    const bodyHeight = Math.max(1, body.bottomY - body.topY);
+
+    return {
+      progress,
+      isBullish,
+      wickX: wick.x,
+      wickY: wick.topY,
+      wickHeight: wick.transformed ? Math.max(1, wickSpan) : wickSpan,
+      wickAlpha: wick.alpha,
+      wickTint: wick.tint,
+      wickTransformed: wick.transformed,
+      bodyX: body.x,
+      bodyY: body.topY,
+      bodyHeight,
+      bodyAlpha: body.alpha,
+      bodyTint: body.tint,
+      bodyTransformed: body.transformed,
+      // A bullish close sits above its open: the top edge is the close.
+      openY: isBullish ? body.bottomY : body.topY,
+      closeY: isBullish ? body.topY : body.bottomY,
+      radius: clamp(frame.radius, 0, Math.min(frame.bodyWidth, bodyHeight) / 2),
+    };
+  }
+
+  /** Whether an intro or history-reveal element directive is in flight this frame. */
+  #hasElementDirectives(): boolean {
+    const intro = this.#introDirectives?.element !== undefined && this.#introRange !== null;
+    const history = this.#historyDirectives?.element !== undefined && this.#historyRange !== null;
+
+    return intro || history;
+  }
+
+  /** One element's geometry this frame: the streaming entry transform first,
+   *  then the intro / history-reveal directive on top. */
+  #elementFrame(args: {
+    element: 'wick' | 'body';
+    time: number;
+    progress: number;
+    frame: CandleFrame;
+    settled: { x: number; topY: number; bottomY: number; anchorY: number };
+  }): ElementFrame {
+    const { element, time, progress, frame, settled } = args;
+
+    let g = { x: settled.x, topY: settled.topY, bottomY: settled.bottomY, alpha: 1 };
+    let transformed = false;
+    if (progress < 1 && frame.style !== 'none') {
+      g = applyCandleTransform(progress, frame.style, { ...settled, barWidth: frame.barWidth });
+      transformed = true;
+    }
+
+    const intro = this.introTransform({
+      element,
+      time,
+      x: g.x,
+      topY: g.topY,
+      bottomY: g.bottomY,
+      anchorY: settled.anchorY,
+      barWidth: frame.barWidth,
+    });
+    if (intro === null) return { ...g, tint: 0, transformed };
+
+    return {
+      x: intro.x,
+      topY: intro.topY,
+      bottomY: intro.bottomY,
+      alpha: g.alpha * intro.alpha,
+      tint: intro.tint ?? 0,
+      transformed: true,
+    };
   }
 
   /**
@@ -1215,6 +1296,95 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
     return gradient;
   }
+}
+
+/** Per-group inputs {@link CandlestickRenderer.drawCandles} shares across every candle. */
+interface CandleFrame {
+  timeScale: import('../scales/x-scale').XScale;
+  yScale: import('../scales/y-scale').YScale;
+  halfBody: number;
+  bodyWidth: number;
+  wickWidth: number;
+  barWidth: number;
+  style: NonNullable<CandlestickSeriesOptions['entryAnimation']>;
+  entranceByTime: Map<number, number> | null;
+  /** Unclamped body radius, bitmap px. */
+  radius: number;
+  /** An intro or history-reveal element directive is in flight. */
+  directed: boolean;
+}
+
+/** One element after the entry and intro transforms; `transformed` is false when it sits settled. */
+interface ElementFrame {
+  x: number;
+  topY: number;
+  bottomY: number;
+  alpha: number;
+  tint: number;
+  transformed: boolean;
+}
+
+/** One candle resolved for this frame, in the unshifted bitmap frame. Flat on
+ *  purpose: it is the only allocation per candle on the per-frame path. */
+interface CandleShape {
+  progress: number;
+  isBullish: boolean;
+  wickX: number;
+  wickY: number;
+  wickHeight: number;
+  wickAlpha: number;
+  wickTint: number;
+  wickTransformed: boolean;
+  bodyX: number;
+  bodyY: number;
+  bodyHeight: number;
+  bodyAlpha: number;
+  bodyTint: number;
+  bodyTransformed: boolean;
+  openY: number;
+  closeY: number;
+  /** Body radius, clamped to the body. */
+  radius: number;
+}
+
+function settledFrame(settled: { x: number; topY: number; bottomY: number }): ElementFrame {
+  return { x: settled.x, topY: settled.topY, bottomY: settled.bottomY, alpha: 1, tint: 0, transformed: false };
+}
+
+/** `color` blended toward the muted placeholder gray by `tint`; unchanged at `0`. */
+function tintColor(color: string, muted: string, tint: number): string {
+  if (tint <= 0) return color;
+
+  return mixColors(color, muted, tint);
+}
+
+/** Painter arguments for one element of `shape`, moved up by `shiftY` into the
+ *  current ctx frame (a gradient body draws inside a translated one). */
+function paintArgs(args: {
+  shape: CandleShape;
+  frame: CandleFrame;
+  element: 'wick' | 'body';
+  fillStyle: string | CanvasGradient;
+  bodyColor: string;
+  wickColor: string;
+  shiftY: number;
+}): CandlePaintArgs {
+  const { shape, frame, shiftY } = args;
+
+  return {
+    element: args.element,
+    wick: { x: shape.wickX, y: shape.wickY - shiftY, width: frame.wickWidth, height: shape.wickHeight },
+    body: { x: shape.bodyX, y: shape.bodyY - shiftY, width: frame.bodyWidth, height: shape.bodyHeight },
+    openY: shape.openY - shiftY,
+    closeY: shape.closeY - shiftY,
+    fillStyle: args.fillStyle,
+    bodyColor: args.bodyColor,
+    wickColor: args.wickColor,
+    corners: ALL_CORNERS,
+    radius: shape.radius,
+    progress: shape.progress,
+    isBullish: shape.isBullish,
+  };
 }
 
 interface CandleTransformInput {

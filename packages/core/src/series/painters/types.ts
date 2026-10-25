@@ -62,7 +62,12 @@ export interface BarPaintArgs {
 /** Paints one bar / stacked segment. Owns its fill — it calls `ctx.fill()`. */
 export type BarPainter = (env: PaintEnv, args: BarPaintArgs) => void;
 
-/** Post-transform bitmap rectangle a candle-body painter fills. */
+/**
+ * Post-transform bitmap rectangle of one candle element, in the current `ctx`
+ * frame. On a gradient body pass the engine translates the context so its
+ * cached gradient lines up — draw at these coordinates, never at price Ys you
+ * computed yourself.
+ */
 export interface CandleGeometry {
   x: number;
   y: number;
@@ -70,30 +75,52 @@ export interface CandleGeometry {
   height: number;
 }
 
-/** Arguments handed to a {@link CandlePainter} once per candle body. */
+/**
+ * Arguments handed to a {@link CandlePainter} — once per wick, then once per
+ * body. Both rects arrive on both calls, so a painter can shape one element
+ * around the other (a hollow body's wick stops at its edges).
+ */
 export interface CandlePaintArgs {
-  geom: CandleGeometry;
   /**
-   * Engine-resolved fillStyle — the 2-stop gradient when the body color is a
-   * `[top, bottom]` tuple AND the body is tall enough, else the flat color. It
-   * is ALSO pre-set on `ctx.fillStyle`, so a painter that ignores this field
-   * still fills correctly. The painter MUST NOT call `createLinearGradient` —
-   * the ≤2px collapse and gradient build already happened upstream.
+   * The element this call paints. The engine paints every wick of the frame,
+   * then every body, each under its own entrance alpha in `ctx.globalAlpha`.
+   */
+  element: 'wick' | 'body';
+  /** High → low rectangle. */
+  wick: CandleGeometry;
+  /** Open ↔ close rectangle, at least 1px tall. */
+  body: CandleGeometry;
+  /** Y of the open price — the body edge it sits on. */
+  openY: number;
+  /** Y of the close price — the other body edge. */
+  closeY: number;
+  /**
+   * Fill for `element`, also pre-set on `ctx.fillStyle`. On the body call it is
+   * the 2-stop gradient when the body color is a `[top, bottom]` tuple AND the
+   * body is tall enough, else the flat color. The painter MUST NOT call
+   * `createLinearGradient` — the ≤2px collapse and gradient build already
+   * happened upstream.
    */
   fillStyle: string | CanvasGradient;
-  /** Representative flat color (the gradient's top stop). For derived shades. */
-  color: string;
+  /** Flat body color (the gradient's top stop). For outlines and derived shades. */
+  bodyColor: string;
+  /** Flat wick color. */
+  wickColor: string;
   /** All-true for candles (no baseline); the radius is clamped per element. */
   corners: CornerMask;
-  /** Resolved, pre-clamped bitmap radius. `0` means square. */
+  /** Resolved body radius in bitmap px, pre-clamped to the body. `0` means square. */
   radius: number;
-  /** Entrance progress 0→1; advisory only — `geom` is already transformed. */
+  /** Entrance progress 0→1; advisory only — the rects are already transformed. */
   progress: number;
   /** `close >= open`. */
   isBullish: boolean;
 }
 
-/** Paints one candle body. Owns its fill. Never re-creates the gradient. */
+/**
+ * Paints one element of one candle. Owns its fill and never re-creates the
+ * body gradient. A painter that draws nothing for `'wick'` leaves the candle
+ * without one — delegate to {@link roundedCandleFill} to keep the default.
+ */
 export type CandlePainter = (env: PaintEnv, args: CandlePaintArgs) => void;
 
 /** A single bitmap-space point on a line run. */

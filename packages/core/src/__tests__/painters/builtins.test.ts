@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  hollowCandle,
+  ohlcBar,
   roundedBarFill,
   roundedCandleFill,
   smoothCurve,
   steppedCurve,
   straightCurve,
 } from '../../series/painters/builtins';
-import type { CornerMask, LinePoint, PaintEnv } from '../../series/painters/types';
+import type { CandlePaintArgs, CornerMask, LinePoint, PaintEnv } from '../../series/painters/types';
 import { createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
 
@@ -123,9 +125,26 @@ describe('roundedBarFill', () => {
   });
 });
 
-describe('roundedCandleFill', () => {
-  const geom = { x: 4, y: 8, width: 12, height: 40 };
+// A bullish candle: wick 2..62, body 8..48 (close on top), wick centered in the body.
+function candleArgs(overrides: Partial<CandlePaintArgs> = {}): CandlePaintArgs {
+  return {
+    element: 'body',
+    wick: { x: 9, y: 2, width: 2, height: 60 },
+    body: { x: 4, y: 8, width: 12, height: 40 },
+    openY: 48,
+    closeY: 8,
+    fillStyle: '#26a69a',
+    bodyColor: '#26a69a',
+    wickColor: '#115544',
+    corners: ALL,
+    radius: 3,
+    progress: 1,
+    isBullish: true,
+    ...overrides,
+  };
+}
 
+describe('roundedCandleFill', () => {
   it('uses the engine-resolved gradient fillStyle and never rebuilds a gradient', () => {
     const { ctx, spy } = createRecordingContext();
     const grad = ctx.createLinearGradient(0, 8, 0, 48);
@@ -133,19 +152,98 @@ describe('roundedCandleFill', () => {
     grad.addColorStop(1, '#1b6e66');
     const beforeGradients = spy.countOf('createLinearGradient');
 
-    roundedCandleFill(makeEnv(ctx), {
-      geom,
-      fillStyle: grad,
-      color: '#26a69a',
-      corners: ALL,
-      radius: 3,
-      progress: 1,
-      isBullish: true,
-    });
+    roundedCandleFill(makeEnv(ctx), candleArgs({ fillStyle: grad }));
 
     // The painter builds zero additional gradients.
     expect(spy.countOf('createLinearGradient')).toBe(beforeGradients);
     const fill = spy.callsOf('fill').at(-1);
     expect(fill?.fillStyle).toBe(String(grad));
+  });
+
+  it('draws the wick as one plain rect over the full high-low span', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    roundedCandleFill(makeEnv(ctx), candleArgs({ element: 'wick', fillStyle: '#115544' }));
+
+    expect(spy.callsOf('fillRect').map((c) => c.args)).toEqual([[9, 2, 2, 60]]);
+    expect(spy.callsOf('fillRect')[0].fillStyle).toBe('#115544');
+  });
+});
+
+describe('hollowCandle', () => {
+  it('stops the wick at the body edges', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    hollowCandle(makeEnv(ctx), candleArgs({ element: 'wick', fillStyle: '#115544' }));
+
+    // Above the body (2 → 8) and below it (48 → 62); nothing crosses the hole.
+    expect(spy.callsOf('fillRect').map((c) => c.args)).toEqual([
+      [9, 2, 2, 6],
+      [9, 48, 2, 14],
+    ]);
+  });
+
+  it('outlines a rising body one wick wide, stroked on the centre line', () => {
+    const { ctx, spy } = createRecordingContext();
+    ctx.setLineDash([4, 4]);
+
+    hollowCandle(makeEnv(ctx), candleArgs());
+
+    expect(spy.countOf('fill')).toBe(0);
+    const stroke = spy.callsOf('stroke');
+    expect(stroke).toHaveLength(1);
+    expect(stroke[0].strokeStyle).toBe('#26a69a');
+    expect(stroke[0].lineWidth).toBe(2);
+    // A dash left by an earlier pass must not break the outline.
+    expect(spy.callsOf('setLineDash').at(-1)?.args).toEqual([[]]);
+    // Inset by half the stroke, so the outline's outer edge is the body edge.
+    expect(spy.callsOf('moveTo')[0].args).toEqual([4 + 1 + 2, 8 + 1]);
+    expect(spy.callsOf('arcTo')[0].args).toEqual([15, 9, 15, 11, 2]);
+  });
+
+  it('fills a falling body solid', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    hollowCandle(makeEnv(ctx), candleArgs({ isBullish: false, openY: 8, closeY: 48, fillStyle: '#ef5350' }));
+
+    const fill = spy.callsOf('fill');
+    expect(fill).toHaveLength(1);
+    expect(fill[0].args).toEqual([]);
+    expect(fill[0].fillStyle).toBe('#ef5350');
+  });
+
+  it('fills a rising body too short for a hole', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    hollowCandle(makeEnv(ctx), candleArgs({ body: { x: 4, y: 26, width: 12, height: 3 }, radius: 1.5 }));
+
+    expect(spy.callsOf('fill').every((c) => c.args.length === 0)).toBe(true);
+  });
+});
+
+describe('ohlcBar', () => {
+  it('draws the high-low line in the wick colour', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    ohlcBar(makeEnv(ctx), candleArgs({ element: 'wick', fillStyle: '#26a69a' }));
+
+    const rects = spy.callsOf('fillRect');
+    expect(rects.map((c) => c.args)).toEqual([[9, 2, 2, 60]]);
+    expect(rects[0].fillStyle).toBe('#115544');
+  });
+
+  it('puts the open tick left and the close tick right, out to the body edges', () => {
+    const { ctx, spy } = createRecordingContext();
+
+    ohlcBar(makeEnv(ctx), candleArgs());
+
+    const rects = spy.callsOf('fillRect');
+    expect(rects.map((c) => c.args)).toEqual([
+      [4, 47, 5, 2],
+      [11, 7, 5, 2],
+    ]);
+    expect(rects.every((c) => c.fillStyle === '#115544')).toBe(true);
+    // No rounded body: cornerRadius does not apply.
+    expect(spy.countOf('arcTo')).toBe(0);
   });
 });

@@ -38,6 +38,29 @@ export function fillRoundedRect(ctx: CanvasRenderingContext2D, args: RoundedRect
     return;
   }
 
+  ctx.beginPath();
+  traceRoundedRect(ctx, args);
+  ctx.fill();
+}
+
+/**
+ * Add one closed rounded-rectangle subpath to the current path. Unlike
+ * {@link fillRoundedRect} it never opens, fills or strokes the path, so several
+ * rects compose into one shape — an outer and an inset rect filled `'evenodd'`
+ * make an outline that keeps the body's gradient. A sub-1px clamped radius or a
+ * non-positive dimension emits a plain `rect`.
+ */
+export function traceRoundedRect(ctx: CanvasRenderingContext2D, args: RoundedRectArgs): void {
+  const { x, y, width, height, corners } = args;
+  const r = Math.min(args.radius, width / 2, height / 2);
+
+  const anyRounded = corners.tl || corners.tr || corners.br || corners.bl;
+  if (!anyRounded || r < 1 || width <= 0 || height <= 0) {
+    ctx.rect(x, y, width, height);
+
+    return;
+  }
+
   const rtl = corners.tl ? r : 0;
   const rtr = corners.tr ? r : 0;
   const rbr = corners.br ? r : 0;
@@ -46,7 +69,6 @@ export function fillRoundedRect(ctx: CanvasRenderingContext2D, args: RoundedRect
   const right = x + width;
   const bottom = y + height;
 
-  ctx.beginPath();
   ctx.moveTo(x + rtl, y);
 
   ctx.lineTo(right - rtr, y);
@@ -62,7 +84,6 @@ export function fillRoundedRect(ctx: CanvasRenderingContext2D, args: RoundedRect
   if (rtl > 0) ctx.arcTo(x, y, x + rtl, y, rtl);
 
   ctx.closePath();
-  ctx.fill();
 }
 
 /** Path-shape selector for {@link tracePath}. */

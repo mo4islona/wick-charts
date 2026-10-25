@@ -13,22 +13,26 @@ import {
   YLabel,
 } from '@wick-charts/react';
 
-// A custom candle-body painter: the engine still computes each brick's rect from
-// the (open, close) we feed it; this just owns the fill. Insetting the body by a
-// device pixel on every side turns the touching bodies into a clean brick wall —
-// the chart background reads through as the mortar. No library change, no
-// registration — a plain function handed straight to `candlePainter`. Hoisting it
-// to module scope keeps the reference stable, so the wrapper diffs it cleanly.
+// A custom candle painter: the engine still computes each brick's rect from
+// the (open, close) we feed it; this just owns the pixels. The painter runs once
+// per wick, then once per body — bricks have no wick, so that call draws
+// nothing. Insetting the body by a device pixel on every side turns the touching
+// bodies into a clean brick wall — the chart background reads through as the
+// mortar. No library change, no registration — a plain function handed straight
+// to `candlePainter`. Hoisting it to module scope keeps the reference stable, so
+// the wrapper diffs it cleanly.
 const renkoBrick: CandlePainter = (env, args) => {
+  if (args.element === 'wick') return;
+
   const { ctx, horizontalPixelRatio, verticalPixelRatio } = env;
-  const { geom, color } = args;
+  const { body, bodyColor } = args;
 
-  const x = geom.x + horizontalPixelRatio;
-  const y = geom.y + verticalPixelRatio;
-  const width = Math.max(1, geom.width - horizontalPixelRatio * 2);
-  const height = Math.max(1, geom.height - verticalPixelRatio * 2);
+  const x = body.x + horizontalPixelRatio;
+  const y = body.y + verticalPixelRatio;
+  const width = Math.max(1, body.width - horizontalPixelRatio * 2);
+  const height = Math.max(1, body.height - verticalPixelRatio * 2);
 
-  ctx.fillStyle = color;
+  ctx.fillStyle = bodyColor;
   ctx.fillRect(x, y, width, height);
 };
 
@@ -195,7 +199,7 @@ export function CustomRendersDemo({ theme, seed }: { theme: ChartTheme; seed: OH
           up: { body: up, wick: up },
           down: { body: down, wick: down },
           // The painter owns the fill, but the engine still owns layout — so
-          // bodyWidthRatio is what sizes the rect (geom.width) handed to
+          // bodyWidthRatio is what sizes the rect (body.width) handed to
           // renkoBrick. Default 0.6 → a 60%-wide rect, so even a perfect brick
           // fill leaves column gaps; 1 → full-width rects that touch, and the
           // painter's 1px inset is the mortar. (No cornerRadius needed: with a
