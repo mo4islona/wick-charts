@@ -20,18 +20,19 @@ export const STEPS: Step[] = [
         painter the live 2D context. Everything inside that rect is yours to draw.
       </>
     ),
-    code: `const renkoBrick: CandlePainter = (env, args) => {\n  // env: live 2D context + device-pixel ratios + theme\n  const { ctx, horizontalPixelRatio, verticalPixelRatio } = env;\n  // args: the rect the engine resolved + semantics (color, isBullish, radius...)\n  const { geom, color } = args;\n  // ...draw onto ctx, within geom\n};`,
+    code: `const renkoBrick: CandlePainter = (env, args) => {\n  // env: live 2D context + device-pixel ratios + theme\n  const { ctx, horizontalPixelRatio, verticalPixelRatio } = env;\n  // args: the element to draw, the rects the engine resolved + semantics\n  // (bodyColor, isBullish, radius...)\n  const { element, body, bodyColor } = args;\n  // ...draw onto ctx, within body\n};`,
   },
   {
     heading: '02 — DRAW THE ELEMENT YOURSELF',
     body: (
       <>
-        Own the pixels. Here each candle body becomes a Renko brick: inset the engine's rect by one device pixel on
-        every side so neighbours separate into a brick wall, then fill with the semantic <code>color</code>. It's a raw
-        canvas — it could just as easily be an arc, a gradient, or a sprite.
+        Own the pixels. The painter runs once per wick, then once per body. A brick has no wick, so that call returns;
+        the body call insets the engine's rect by one device pixel on every side so neighbours separate into a brick
+        wall, then fills with the semantic <code>bodyColor</code>. It's a raw canvas — it could just as easily be an
+        arc, a gradient, or a sprite.
       </>
     ),
-    code: `const x = geom.x + horizontalPixelRatio;\nconst y = geom.y + verticalPixelRatio;\nconst w = Math.max(1, geom.width - horizontalPixelRatio * 2);\nconst h = Math.max(1, geom.height - verticalPixelRatio * 2);\n\nctx.fillStyle = color;\nctx.fillRect(x, y, w, h); // the inset gap reads through as mortar`,
+    code: `if (args.element === 'wick') return; // bricks have no wick\n\nconst x = body.x + horizontalPixelRatio;\nconst y = body.y + verticalPixelRatio;\nconst w = Math.max(1, body.width - horizontalPixelRatio * 2);\nconst h = Math.max(1, body.height - verticalPixelRatio * 2);\n\nctx.fillStyle = bodyColor;\nctx.fillRect(x, y, w, h); // the inset gap reads through as mortar`,
   },
   {
     heading: '03 — HAND IT TO THE SERIES',

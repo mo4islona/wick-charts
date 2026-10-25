@@ -90,6 +90,9 @@ export type {
 // maintenance windows), drawn on the main layer behind the series. Kept out of
 // the series model. Add via `chart.addRegion(config)`.
 export type { TimeRegionConfig, TimeRegionEnd } from './components/time-region';
+// Heikin-Ashi — a pure OHLC transform plus an O(1) incremental form for live feeds.
+export type { HeikinAshiStream } from './data/heikin-ashi';
+export { heikinAshi, heikinAshiStream } from './data/heikin-ashi';
 export type { ValueStats } from './data/store';
 // Series data reconciliation — shared by the React / Vue / Svelte wrappers so
 // every framework picks the same cheapest-correct mutation (append / keepLast /
@@ -191,6 +194,8 @@ export {
   unfoldIntro,
 } from './series/line-intro';
 export {
+  hollowCandle,
+  ohlcBar,
   roundedBarFill,
   roundedCandleFill,
   smoothCurve,
@@ -202,7 +207,7 @@ export type { CurveKind, RoundedRectArgs, TracePathArgs } from './series/painter
 // the shipped built-ins (rounded corners, line smoothing), and reusable canvas
 // primitives. A custom painter is a plain function passed to the series option;
 // there is no name registry.
-export { fillRoundedRect, tracePath } from './series/painters/canvas-path';
+export { fillRoundedRect, tracePath, traceRoundedRect } from './series/painters/canvas-path';
 export type {
   BarGeometry,
   BarPaintArgs,

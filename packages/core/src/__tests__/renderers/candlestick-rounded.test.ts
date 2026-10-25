@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TimeSeriesStore } from '../../data/store';
+import { logScale } from '../../scales/log-scale';
 import { CandlestickRenderer } from '../../series/candlestick';
+import { roundedCandleFill } from '../../series/painters/builtins';
 import type { CandlePaintArgs, CandlePainter } from '../../series/painters/types';
-import type { OHLCData } from '../../types';
+import type { CandlestickSeriesOptions, OHLCData } from '../../types';
 import { buildRenderContext } from '../helpers/render-context';
 
 function mkStore(data: OHLCData[]): TimeSeriesStore<OHLCData> {
@@ -120,35 +122,94 @@ describe('CandlestickRenderer — rounded bodies (default)', () => {
 });
 
 describe('CandlestickRenderer — custom candle painter', () => {
-  it('invokes the painter once per body with all-true corners and the isBullish flag', () => {
+  const bullAndBear = (): OHLCData[] => [
+    { time: 25, open: 20, high: 95, low: 10, close: 80 }, // bull
+    { time: 50, open: 85, high: 95, low: 20, close: 30 }, // bear
+  ];
+
+  it('invokes the painter once per wick, then once per body, with all-true corners', () => {
     const seen: CandlePaintArgs[] = [];
     const painter: CandlePainter = (_env, args) => {
       seen.push(args);
     };
-    const r = new CandlestickRenderer(
-      mkStore([
-        { time: 25, open: 20, high: 95, low: 10, close: 80 }, // bull
-        { time: 50, open: 85, high: 95, low: 20, close: 30 }, // bear
-      ]),
-      { candlePainter: painter },
-    );
+    const r = new CandlestickRenderer(mkStore(bullAndBear()), { candlePainter: painter });
     const { ctx } = buildRenderContext(WIDE);
     r.render(ctx);
 
-    expect(seen).toHaveLength(2);
+    // One color group at a time: its wicks, then its bodies.
+    expect(seen.map((a) => a.element)).toEqual(['wick', 'body', 'wick', 'body']);
     for (const args of seen) {
       expect(args.corners).toEqual({ tl: true, tr: true, br: true, bl: true });
       expect(args.radius).toBeGreaterThan(0);
-      expect(args.geom.height).toBeGreaterThan(0);
+      expect(args.body.height).toBeGreaterThan(0);
+      expect(args.wick.height).toBeGreaterThanOrEqual(args.body.height);
     }
     expect(seen.some((a) => a.isBullish)).toBe(true);
     expect(seen.some((a) => !a.isBullish)).toBe(true);
   });
 
-  it('clamps the painter radius to half the body geometry (pre-clamped contract)', () => {
+  it('hands the wick its own color and the body its fill, with both flat colors on every call', () => {
     const seen: CandlePaintArgs[] = [];
     const painter: CandlePainter = (_env, args) => {
       seen.push(args);
+    };
+    const r = new CandlestickRenderer(mkStore([bullAndBear()[0]]), {
+      up: { body: '#22cc88', wick: '#115544' },
+      candlePainter: painter,
+    });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    const [wick, body] = seen;
+    expect(wick.fillStyle).toBe('#115544');
+    expect(body.fillStyle).toBe('#22cc88');
+    for (const args of seen) {
+      expect(args.bodyColor).toBe('#22cc88');
+      expect(args.wickColor).toBe('#115544');
+    }
+  });
+
+  it('puts openY and closeY on the body edges the candle direction implies', () => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
+    };
+    const r = new CandlestickRenderer(mkStore(bullAndBear()), { cornerRadius: 0, candlePainter: painter });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    for (const args of seen) {
+      const top = args.body.y;
+      const bottom = args.body.y + args.body.height;
+      // Canvas Y grows downward: a bullish close is the top edge.
+      expect(args.closeY).toBeCloseTo(args.isBullish ? top : bottom, 5);
+      expect(args.openY).toBeCloseTo(args.isBullish ? bottom : top, 5);
+    }
+  });
+
+  it('shifts every rect into the translated frame of a gradient body', () => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      seen.push(args);
+    };
+    const r = new CandlestickRenderer(mkStore([bullAndBear()[0]]), {
+      up: { body: ['#aaff00', '#008800'], wick: '#00ff00' },
+      candlePainter: painter,
+    });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    const [wick, body] = seen;
+    expect(String(body.fillStyle)).toContain('gradient(linear');
+    expect(body.body.y).toBe(0);
+    // The wick keeps its offset from the body in either frame.
+    expect(body.wick.y - body.body.y).toBeCloseTo(wick.wick.y - wick.body.y, 5);
+  });
+
+  it('clamps the painter radius to half the body geometry (pre-clamped contract)', () => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
     };
     // A short ~2px body (close-open = 0.5 unit over [0,100] @ 400px) → half-height
     // (~1) is below the unclamped 2px default radius, so the clamp must engage.
@@ -160,8 +221,123 @@ describe('CandlestickRenderer — custom candle painter', () => {
 
     expect(seen).toHaveLength(1);
     const args = seen[0];
-    expect(args.radius).toBeCloseTo(Math.min(2, args.geom.width / 2, args.geom.height / 2), 5);
+    expect(args.radius).toBeCloseTo(Math.min(2, args.body.width / 2, args.body.height / 2), 5);
     expect(args.radius).toBeLessThan(2);
+  });
+
+  it('a painter that skips the wick leaves the candle without one', () => {
+    const bodyOnly: CandlePainter = (env, args) => {
+      if (args.element === 'wick') return;
+
+      roundedCandleFill(env, args);
+    };
+    const r = new CandlestickRenderer(mkStore([bullAndBear()[0]]), {
+      cornerRadius: 0,
+      up: { body: '#22cc88', wick: '#115544' },
+      candlePainter: bodyOnly,
+    });
+    const { ctx, spy } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    expect(spy.callsOf('fillRect').map((c) => c.fillStyle)).toEqual(['#22cc88']);
+  });
+
+  it("keeps a painter's ctx state inside the candle pass", () => {
+    const stroking: CandlePainter = (env) => {
+      env.ctx.lineWidth = 7;
+      env.ctx.strokeStyle = '#ff00ff';
+    };
+    const r = new CandlestickRenderer(mkStore(bullAndBear()), { candlePainter: stroking });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    expect(ctx.scope.context.lineWidth).toBe(1);
+    expect(ctx.scope.context.strokeStyle).toBe('#000000');
+  });
+});
+
+describe('CandlestickRenderer — colorBy', () => {
+  // Falls on its own bar (open 80 → close 60) but rises from the previous close (50).
+  const fallingButRising = (): OHLCData[] => [
+    { time: 25, open: 40, high: 55, low: 35, close: 50 },
+    { time: 50, open: 80, high: 85, low: 55, close: 60 },
+  ];
+  const colors = { up: { body: '#22cc88', wick: '#22cc88' }, down: { body: '#ee3344', wick: '#ee3344' } };
+
+  function bodyColors(options: Partial<CandlestickSeriesOptions>): string[] {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
+    };
+    const r = new CandlestickRenderer(mkStore(fallingButRising()), { ...colors, ...options, candlePainter: painter });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    return [...seen].sort((a, b) => a.body.x - b.body.x).map((a) => a.bodyColor);
+  }
+
+  it("colors by the candle's own open by default", () => {
+    expect(bodyColors({})).toEqual(['#22cc88', '#ee3344']);
+  });
+
+  it("'previousClose' colors by the move from the previous close", () => {
+    expect(bodyColors({ colorBy: 'previousClose' })).toEqual(['#22cc88', '#22cc88']);
+  });
+
+  it("'previousClose' reads the stored candle before the drawn ones", () => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
+    };
+    // The window draws from the -300 candle (its one-candle lookbehind); the close it is compared
+    // with (50) belongs to the -400 candle, which is not drawn at all.
+    const data: OHLCData[] = [
+      { time: -400, open: 40, high: 55, low: 35, close: 50 },
+      { time: -300, open: 95, high: 96, low: 85, close: 90 },
+      { time: 50, open: 80, high: 85, low: 55, close: 60 },
+    ];
+    const r = new CandlestickRenderer(mkStore(data), { ...colors, colorBy: 'previousClose', candlePainter: painter });
+    const { ctx } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    const drawn = [...seen].sort((x, y) => x.body.x - y.body.x).map((x) => x.bodyColor);
+    // -300 rises from 50 (falls on its own bar); 50 falls from 90.
+    expect(drawn).toEqual(['#22cc88', '#ee3344']);
+  });
+
+  it.each([
+    ['linear', null],
+    ['log', logScale()],
+  ])("'previousClose' takes the close of a candle the %s scale cannot plot", (_name, yTransform) => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
+    };
+    // Closes 100 → 10 → 50; the middle candle's low of 0 has no place on a log scale.
+    const data: OHLCData[] = [
+      { time: 25, open: 90, high: 110, low: 80, close: 100 },
+      { time: 50, open: 100, high: 100, low: 0, close: 10 },
+      { time: 75, open: 60, high: 65, low: 45, close: 50 },
+    ];
+    const r = new CandlestickRenderer(mkStore(data), { ...colors, colorBy: 'previousClose', candlePainter: painter });
+    const { ctx } = buildRenderContext({ yRange: { min: 1, max: 1000 }, yTransform, dataInterval: 25 });
+    r.render(ctx);
+
+    const last = [...seen].sort((x, y) => x.body.x - y.body.x).at(-1);
+    // 50 rises from 10, though it falls on its own bar and sits below 100.
+    expect(last?.bodyColor).toBe('#22cc88');
+  });
+
+  it('leaves the volume histogram on close vs open', () => {
+    const r = new CandlestickRenderer(mkStore(fallingButRising().map((c) => ({ ...c, volume: 1000 }))), {
+      ...colors,
+      colorBy: 'previousClose',
+    });
+    const { ctx, spy } = buildRenderContext(WIDE);
+    r.render(ctx);
+
+    const volumeFills = spy.calls.filter((c) => String(c.fillStyle).startsWith('rgba'));
+    expect(volumeFills.some((c) => String(c.fillStyle).includes('238, 51, 68'))).toBe(true);
   });
 });
 

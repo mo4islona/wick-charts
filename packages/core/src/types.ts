@@ -264,10 +264,18 @@ export interface CandlestickDirectionColors {
 
 /** Visual options for a candlestick series. */
 export interface CandlestickSeriesOptions {
-  /** Colours for bullish candles (close ≥ open). */
+  /** Colours for rising candles — close ≥ open, or ≥ the previous close under `colorBy: 'previousClose'`. */
   up: CandlestickDirectionColors;
-  /** Colours for bearish candles (close < open). */
+  /** Colours for falling candles — the rest. */
   down: CandlestickDirectionColors;
+  /**
+   * What a candle's close is compared with to pick the `up` or `down` colours.
+   * `'open'` (the default) colours by the candle's own direction;
+   * `'previousClose'` by the move from the previous candle, the convention of
+   * hollow candles (`candlePainter: hollowCandle`). The first candle falls back
+   * to its open. The volume histogram always colours by close vs open.
+   */
+  colorBy?: 'open' | 'previousClose';
   /** Width of candle body as a fraction of the available bar slot (0-1). */
   bodyWidthRatio: number;
   /**
@@ -384,13 +392,15 @@ export interface CandlestickSeriesOptions {
    */
   cornerRadius?: number;
   /**
-   * Custom candle-body painter — a raw `CandlePainter` function that owns the
-   * body fill. Leave unset for the built-in rounded fill (driven by
-   * `cornerRadius`). Read fresh each frame; a new reference is honored on the
-   * next render regardless of wrapper change-detection. Keep it a stable
-   * reference (module scope or `useCallback`) so the wrapper diffs it cleanly.
-   * A throw falls back to the default fill. The wick and volume histogram are
-   * unaffected.
+   * How each candle is drawn — a `CandlePainter` called once per wick, then
+   * once per body. Leave unset for filled candles (`roundedCandleFill`, driven
+   * by `cornerRadius`), or pass a shipped style: `hollowCandle` (outlined
+   * rising bodies) or `ohlcBar` (a high–low line with open and close ticks).
+   * Any other function draws its own shape on the engine's post-transform
+   * rects, so entry, intro and live smoothing work unchanged. Read fresh each
+   * frame; keep it a stable reference (module scope or `useCallback`) so the
+   * wrapper diffs it cleanly. A throw falls back to the default fill. The
+   * volume histogram is unaffected.
    */
   candlePainter?: CandlePainter;
 }

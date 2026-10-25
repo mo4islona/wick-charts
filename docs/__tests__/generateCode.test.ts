@@ -234,4 +234,24 @@ describe('generateCode', () => {
     expect(code).toMatch(/import \{[^}]*\blogScale\b[^}]*\} from '@wick-charts\/react';/);
     expect(code).toMatch(/import \{[^}]*\bspring\b[^}]*\} from '@wick-charts\/react';/);
   });
+
+  it('imports library refs used by value in component props', () => {
+    const code = generateCode(
+      {
+        components: [
+          {
+            component: 'CandlestickSeries',
+            props: { data: 'heikinAshi(ohlcData)', options: { candlePainter: 'hollowCandle' } },
+          },
+        ],
+      },
+      'react',
+    );
+
+    expect(code).toContain('data={heikinAshi(ohlcData)}');
+    expect(code).toContain('candlePainter: hollowCandle');
+    expect(code).toMatch(/import \{[^}]*\bheikinAshi\b[^}]*\} from '@wick-charts\/react';/);
+    expect(code).toMatch(/import \{[^}]*\bhollowCandle\b[^}]*\} from '@wick-charts\/react';/);
+    expect(code).not.toMatch(/import \{[^}]*\bohlcData\b/);
+  });
 });

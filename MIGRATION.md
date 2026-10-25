@@ -1,5 +1,63 @@
 # Migration guide
 
+## 0.8 → 0.9
+
+Version 0.9 adds candle styles. They are built on a wider `candlePainter`,
+which is the one breaking change; every other addition is opt-in.
+
+### Breaking: `candlePainter` draws the wick too
+
+`candlePainter` used to fill only the candle body, and the engine drew the
+wick. It now runs once per wick and once per body, so one function draws the
+whole candle. `CandlePaintArgs` changed to match:
+
+- `element: 'wick' | 'body'` — the part this call draws.
+- `geom` → `body`, the same open–close rect. `wick` (the high–low rect),
+  `openY` and `closeY` are new.
+- `color` → `bodyColor`. `wickColor` is new.
+
+A painter that only styles the body skips the wick call, or hands it to
+`roundedCandleFill` to keep the default wick:
+
+```ts
+// 0.8
+const painter: CandlePainter = (env, { geom, color }) => {
+  env.ctx.fillStyle = color;
+  env.ctx.fillRect(geom.x, geom.y, geom.width, geom.height);
+};
+
+// 0.9
+const painter: CandlePainter = (env, args) => {
+  if (args.element === 'wick') {
+    roundedCandleFill(env, args);
+
+    return;
+  }
+
+  const { body, bodyColor } = args;
+  env.ctx.fillStyle = bodyColor;
+  env.ctx.fillRect(body.x, body.y, body.width, body.height);
+};
+```
+
+TypeScript flags `geom` and `color`. In plain JavaScript an old painter keeps
+running but loses its wick, and draws its body shape a second time on the
+wick call.
+
+### New in 0.9 — no migration needed
+
+- **Candle styles** — `candlePainter: hollowCandle` (rising bodies drawn as
+  outlines) and `candlePainter: ohlcBar` (a high–low line with open and close
+  ticks). Entry, intro, history reveal and live smoothing work in every style.
+- **`colorBy: 'previousClose'`** — colours a candle by the move from the
+  previous close instead of its own open, the usual convention for hollow
+  candles. The volume histogram keeps colouring by close vs open.
+- **Heikin-Ashi** — `heikinAshi(data)` turns OHLC data into Heikin-Ashi
+  candles; `heikinAshiStream()` does the same in O(1) per `append` / `update`
+  for the imperative streaming API.
+- **`traceRoundedRect`** — adds a rounded-rect subpath without filling it,
+  for custom painters that cut one shape out of another.
+
 ## 0.7 → 0.8
 
 Version 0.8 changes how `@wick-charts/svelte` is packaged so that it works
