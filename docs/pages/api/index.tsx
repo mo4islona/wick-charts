@@ -21,6 +21,8 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/heatmap-series': 'HeatmapSeries',
   'api/depth-series': 'DepthSeries',
   'api/sankey-series': 'SankeySeries',
+  'api/gauge-series': 'GaugeSeries',
+  'api/radial-progress-series': 'RadialProgressSeries',
   'api/sparkline': 'Sparkline',
   // container & overlays
   'api/chart-container': 'ChartContainer',

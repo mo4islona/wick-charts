@@ -16,6 +16,7 @@ import type {
   DepthLevel,
   DepthSeriesOptions,
   EdgeReachedInfo,
+  GaugeSeriesOptions,
   GridOptions,
   HeatmapCellInput,
   HeatmapSeriesOptions,
@@ -24,6 +25,7 @@ import type {
   PieSeriesOptions,
   PieSliceInput,
   PointClickInfo,
+  RadialProgressSeriesOptions,
   SankeyLink,
   SankeyNode,
   SankeySeriesOptions,
@@ -297,6 +299,28 @@ export interface PieSeriesProps {
   /** Stable series ID — same value across remounts. */
   id?: string;
   /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
+  visible?: boolean;
+}
+
+export interface GaugeSeriesProps {
+  /** The value to show. A value outside `min`…`max` clamps on the arc; the center label shows it as is. */
+  value: number;
+  /** Visual options override — range, angles, zones, arc or needle style, caption, value format, colors, entry / update durations. */
+  options?: Partial<GaugeSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
+  /** Show/hide the series without unmounting it. Default `true`. Live. */
+  visible?: boolean;
+}
+
+export interface RadialProgressSeriesProps {
+  /** One ring per entry, outermost first: `{ label, value, color? }`. `<PieLegend>` lists them. */
+  data: PieSliceInput[];
+  /** Visual options override — the value of a full ring, ring colors, track color, entry / update durations. */
+  options?: Partial<RadialProgressSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
+  /** Show/hide the series without unmounting it — also hides it from `<PieLegend>`. Default `true`. Live. */
   visible?: boolean;
 }
 

@@ -71,6 +71,8 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
     ],
     selfClosingWhenEmpty: true,
   },
+  GaugeSeries: { required: [{ name: 'value', valueExpr: 'cpuLoad' }], selfClosingWhenEmpty: true },
+  RadialProgressSeries: { required: [{ name: 'data', valueExpr: 'rings' }], selfClosingWhenEmpty: true },
 
   Sparkline: {
     required: [{ name: 'data', valueExpr: 'data' }],

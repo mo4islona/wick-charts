@@ -96,7 +96,8 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
   /** Sections contributed by the page. Use `extend: 'display'` to append into a built-in. */
   sections?: SectionSpec[];
   charts: (props: PlaygroundChartProps & TExtra) => ReactNode;
-  codeConfig?: (state: PlaygroundChartProps & TExtra) => ChartCodeConfig;
+  /** The Code tab's snippet; a page with several kinds of chart returns one per chart. */
+  codeConfig?: (state: PlaygroundChartProps & TExtra) => ChartCodeConfig | ChartCodeConfig[];
   gridTemplate?: string;
   gridColumns?: string;
   /**
@@ -114,6 +115,11 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
 }
 
 // ── Helpers ──────────────────────────────────────────────────
+
+/** One code block; several charts share its imports and its Copy button. */
+function CodePanel({ config, theme }: { config: ChartCodeConfig | ChartCodeConfig[]; theme: ChartTheme }) {
+  return <CodeTabs config={config} theme={theme} />;
+}
 
 /** Flat playground state → nested library props. */
 function stateToChartProps<TExtra extends object>(
@@ -964,7 +970,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
         activeCount={activeCount}
       />
     ) : (
-      codeConfigValue && <CodeTabs config={codeConfigValue} theme={theme} />
+      codeConfigValue && <CodePanel config={codeConfigValue} theme={theme} />
     );
 
   if (mobile) {

@@ -1700,6 +1700,320 @@
         }
       ]
     },
+    "GaugeSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/GaugeSeries.tsx",
+      "alias": null,
+      "description": "Gauge: one value on an arc between `min` and `max`, with optional zones and\na center label. A new `value` glides from the one on screen.",
+      "props": [
+        {
+          "name": "value",
+          "type": "number",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "The value to show. A value outside `min`…`max` clamps on the arc; the center label shows it as is.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<GaugeSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — range, angles, zones, arc or needle style, caption, value format, colors, entry / update durations.",
+          "see": [],
+          "nested": {
+            "name": "GaugeSeriesOptions",
+            "props": [
+              {
+                "name": "min",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "Start of the range. Default: 0.",
+                "see": []
+              },
+              {
+                "name": "max",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "100",
+                "deprecated": null,
+                "description": "End of the range. Default: 100.",
+                "see": []
+              },
+              {
+                "name": "startAngle",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "-120",
+                "deprecated": null,
+                "description": "Where the arc starts, in degrees clockwise from 12 o'clock. Default: -120.",
+                "see": []
+              },
+              {
+                "name": "endAngle",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "120",
+                "deprecated": null,
+                "description": "Where the arc ends, in degrees clockwise from 12 o'clock, after `startAngle` and at most 360° on. Default: 120.",
+                "see": []
+              },
+              {
+                "name": "zones",
+                "type": "GaugeZone[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Bands of the range, drawn along the arc. The value arc (or the needle) takes\nthe color of the zone the value ends in, and `color` past the last `to`.",
+                "see": []
+              },
+              {
+                "name": "zoneColor",
+                "type": "'target' | 'morph'",
+                "optional": true,
+                "defaultValue": "'target'",
+                "deprecated": null,
+                "description": "How the value arc (or the needle) takes its zone color. `'target'`: the color of the zone\nthe value ends in, so the entrance keeps one color and a glide blends into the new one.\n`'morph'`: the color follows the arc as it moves and blends into the next zone near each\nborder. Default: `'target'`.",
+                "see": []
+              },
+              {
+                "name": "style",
+                "type": "'arc' | 'needle'",
+                "optional": true,
+                "defaultValue": "'arc'",
+                "deprecated": null,
+                "description": "`'arc'` fills the arc from `min` to the value; `'needle'` points at it. Default: `'arc'`.",
+                "see": []
+              },
+              {
+                "name": "label",
+                "type": "string",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Caption under the value. Also the series name.",
+                "see": []
+              },
+              {
+                "name": "format",
+                "type": "(value: number) => string",
+                "optional": true,
+                "defaultValue": "whole numbers as they are",
+                "deprecated": null,
+                "description": "Text of the center value. Default: whole numbers as they are, others compact (`1.2K`).",
+                "see": []
+              },
+              {
+                "name": "color",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "the first theme series color",
+                "deprecated": null,
+                "description": "Value arc / needle color where no zone applies. Default: the first theme series color.",
+                "see": []
+              },
+              {
+                "name": "trackColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "theme.gauge.trackColor",
+                "deprecated": null,
+                "description": "Color of the unfilled arc. Default: `theme.gauge.trackColor`.",
+                "see": []
+              },
+              {
+                "name": "rangeLabels",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "`min` and `max` in the arc's gap, next to its two ends; not drawn when the gap is under 60°. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "First-data sweep in milliseconds: the arc grows from `min` while the track fades in.\n`0` paints at once. Default: chart animation config (900).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Glide from the value on screen to a new one, in milliseconds. `0` snaps. Default: chart animation config (500).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
+    "RadialProgressSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/RadialProgressSeries.tsx",
+      "alias": null,
+      "description": "Radial progress: concentric rings, each filled to its value's share of\n`max`. New values glide from the ones on screen.",
+      "props": [
+        {
+          "name": "data",
+          "type": "PieSliceInput[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "One ring per entry, outermost first: `{ label, value, color? }`. `<PieLegend>` lists them.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<RadialProgressSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — the value of a full ring, ring colors, track color, entry / update durations.",
+          "see": [],
+          "nested": {
+            "name": "RadialProgressSeriesOptions",
+            "props": [
+              {
+                "name": "max",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "100",
+                "deprecated": null,
+                "description": "The value of a full ring. Default: 100.",
+                "see": []
+              },
+              {
+                "name": "startAngle",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "Where each ring starts, in degrees clockwise from 12 o'clock. Default: 0.",
+                "see": []
+              },
+              {
+                "name": "endAngle",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "360",
+                "deprecated": null,
+                "description": "Where each ring ends, in degrees clockwise from 12 o'clock, after `startAngle` and at most 360° on. Default: 360.",
+                "see": []
+              },
+              {
+                "name": "layout",
+                "type": "RadialLayout",
+                "optional": true,
+                "defaultValue": "ringsLayout()",
+                "deprecated": null,
+                "description": "Where the rings sit and how wide they are, e.g. `heroLayout()`. Default: `ringsLayout()`.",
+                "see": []
+              },
+              {
+                "name": "painter",
+                "type": "RingPainter",
+                "optional": true,
+                "defaultValue": "solidRing()",
+                "deprecated": null,
+                "description": "How each ring is drawn, e.g. `tickRing()`. Default: `solidRing()`.",
+                "see": []
+              },
+              {
+                "name": "labels",
+                "type": "RadialLabelPainter",
+                "optional": true,
+                "defaultValue": "none; use `<PieLegend>`",
+                "deprecated": null,
+                "description": "The text of the rings: `heroCenter()` or `listCenter()` in the middle, `startLabels()`\nor `headTags()` next to each ring. Default: none; use `<PieLegend>`.",
+                "see": []
+              },
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Ring colors in data order, before `theme.seriesColors`. An item's own `color` wins.",
+                "see": []
+              },
+              {
+                "name": "trackColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "theme.gauge.trackColor",
+                "deprecated": null,
+                "description": "Color of the ring tracks. Default: `theme.gauge.trackColor`.",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "First-data sweep in milliseconds: each ring grows from 0 while the tracks fade in.\n`0` paints at once. Default: chart animation config (900).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Glide of each ring from its value on screen to a new one, in milliseconds. `0` snaps. Default: chart animation config (500).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it — also hides it from `<PieLegend>`. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -2059,6 +2373,38 @@
                       "defaultValue": null,
                       "deprecated": null,
                       "description": "Ramp stops, low → high, interpolated perceptually. {@link createTheme }\nderives a two-stop single-hue ramp: a faint accent wash near the\nsurface up to the full accent — which flips anchor automatically with\ntheme polarity (low values sink into the background in both modes).",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "gauge",
+                "type": "{ trackColor: string; zoneColors: string[]; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Gauge and radial progress colors. Optional so hand-built theme literals\nkeep compiling — the renderers derive the same colors at render time.",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "trackColor",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Unfilled arc of a gauge and the ring tracks of a radial progress.",
+                      "see": []
+                    },
+                    {
+                      "name": "zoneColors",
+                      "type": "string[]",
+                      "optional": false,
+                      "defaultValue": "zone ramp",
+                      "deprecated": null,
+                      "description": "Default zone ramp, good → bad. A gauge's zones sample it evenly.",
                       "see": []
                     }
                   ]
@@ -3120,6 +3466,38 @@
                       "defaultValue": null,
                       "deprecated": null,
                       "description": "Ramp stops, low → high, interpolated perceptually. {@link createTheme }\nderives a two-stop single-hue ramp: a faint accent wash near the\nsurface up to the full accent — which flips anchor automatically with\ntheme polarity (low values sink into the background in both modes).",
+                      "see": []
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "gauge",
+                "type": "{ trackColor: string; zoneColors: string[]; }",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Gauge and radial progress colors. Optional so hand-built theme literals\nkeep compiling — the renderers derive the same colors at render time.",
+                "see": [],
+                "nested": {
+                  "name": "",
+                  "props": [
+                    {
+                      "name": "trackColor",
+                      "type": "string",
+                      "optional": false,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Unfilled arc of a gauge and the ring tracks of a radial progress.",
+                      "see": []
+                    },
+                    {
+                      "name": "zoneColors",
+                      "type": "string[]",
+                      "optional": false,
+                      "defaultValue": "zone ramp",
+                      "deprecated": null,
+                      "description": "Default zone ramp, good → bad. A gauge's zones sample it evenly.",
                       "see": []
                     }
                   ]
@@ -4271,7 +4649,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; gauge?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radialProgress?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -4576,6 +4954,70 @@
                             "defaultValue": "500ms",
                             "deprecated": null,
                             "description": "Morph from the diagram on screen to new data, and the hover\ndim ease.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "gauge",
+                      "type": "false | { entry?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Gauge tweens. `false` disables the first-data sweep and the value glide.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "900ms",
+                            "deprecated": null,
+                            "description": "First-data sweep: the arc grows from `min` to the value while\nthe track and the end labels fade in.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Glide from the value on screen to a new one.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "radialProgress",
+                      "type": "false | { entry?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Radial progress tweens. `false` disables the first-data sweep and the value glide.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "900ms",
+                            "deprecated": null,
+                            "description": "First-data sweep: each ring grows from 0 to its value while\nthe tracks fade in.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Glide of each ring from its value on screen to a new one.",
                             "see": []
                           }
                         ]
@@ -5183,7 +5625,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Owning series id. **Optional** — when omitted, the first visible pie\nseries is picked.",
+          "description": "Owning series id. **Optional** — when omitted, the first visible pie\nseries is picked, else the first visible radial progress series.",
           "see": []
         },
         {

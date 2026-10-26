@@ -12,6 +12,7 @@ import { BandPage } from '../BandPage';
 import { BarPage } from '../BarPage';
 import { CandlestickPage } from '../CandlestickPage';
 import { DepthPage } from '../DepthPage';
+import { GaugePage } from '../GaugePage';
 import { HeatmapPage } from '../HeatmapPage';
 import { LinePage } from '../LinePage';
 import { PiePage } from '../PiePage';
@@ -27,6 +28,7 @@ const CHARTS: Record<string, FC<{ theme: ChartTheme }>> = {
   'charts/heatmap': HeatmapPage,
   'charts/depth': DepthPage,
   'charts/sankey': SankeyPage,
+  'charts/gauge': GaugePage,
   'charts/sparkline': SparklinePage,
 };
 

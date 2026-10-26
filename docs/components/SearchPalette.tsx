@@ -85,6 +85,7 @@ const CHART_ICONS: Partial<Record<Route, string>> = {
   'charts/heatmap': 'M3 3h8v8H3zM14 3h8v8h-8zM25 3h8v8h-8zM3 14h8v8H3zM14 14h8v8h-8zM25 14h8v8h-8z',
   'charts/depth': 'M2 6h6v4h5v4h4v8M34 6h-6v5h-4v4h-5',
   'charts/sankey': 'M3 4h4c10 0 12 12 22 12h4M3 18h4c10 0 12-12 22-12h4',
+  'charts/gauge': 'M10.2 19.5A9 9 0 1 1 25.8 19.5M18 15l5-6',
   'charts/sparkline': 'M2 16L6 14L10 17L14 10L18 12L22 6L26 9L30 5L34 7',
 };
 const PAGE_ICON = 'M10 3h12l5 5v13H10zM22 3v5h5M14 13h9M14 17h6';

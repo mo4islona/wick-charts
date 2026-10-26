@@ -41,11 +41,15 @@ export const INTROS: Record<string, string> = {
   HeatmapSeries:
     'Renders a matrix heatmap — `(x, y)` category cells colored by value on a perceptual (OKLab) sequential ramp derived from the theme. Cells reveal with a diagonal entrance wave, morph smoothly when values update in place, and lift on hover. Pass 3 ramp stops via `options.colors` for a diverging scale. Use `<HeatmapTooltip>` for the hover overlay.',
   PieLegend:
-    'Companion to `<PieSeries>` — renders slice labels with their value or percent, anchored to one of three positions (`bottom`, `right`, `overlay`).',
+    'Companion to `<PieSeries>` and `<RadialProgressSeries>` — renders slice labels with their value or percent, anchored to one of three positions (`bottom`, `right`, `overlay`).',
   HeatmapTooltip:
     "Hover tooltip for `<HeatmapSeries>`. Shows the hovered cell's row · column label, its value, and a small intensity meter locating the value on the color ramp.",
   SankeySeries:
     'Renders a sankey diagram — flows between stages as bands whose width follows the volume. Pass `nodes` (`{ id, label?, color? }`) and `links` (`{ source, target, value, color? }`); each node takes the column of its longest path from a source, and a node with no outgoing link moves to the last column. The layout is deterministic and untangles crossing bands. Links must not form a cycle — the series throws an error that names the nodes on one. A link to an unknown node or without a value above 0 is skipped with a warning. New data morphs the diagram on screen; hovering a node or a link highlights its neighbors. Use `<SankeyTooltip>` for the hover overlay.',
+  GaugeSeries:
+    "Renders one value on an arc between `min` and `max` (default 0 and 100). `startAngle` / `endAngle` set the arc in degrees clockwise from 12 o’clock (default ±120°). `zones` (`{ to, color? }`) draw bands along the arc, and the value takes the color of the zone it ends in; zones without a color sample the theme’s good → bad ramp. `style: 'needle'` points a needle at the value instead of filling the arc. The center shows the value through `format` and the `label` caption; `min` and `max` sit in the arc’s gap, next to its ends. A value outside the range clamps on the arc, while the label shows it as is. The first value sweeps up from `min`; a new value glides from the one on screen.",
+  RadialProgressSeries:
+    'Renders concentric progress rings, outermost first — one per `{ label, value, color? }` entry, filled to its share of `max` (default 100) from 12 o’clock. Use it for a few related values against the same limit, such as CPU, memory and disk. `<PieLegend>` lists the rings with their values and percents. The first data sweeps each ring up from 0; new values glide from the ones on screen.',
   SankeyTooltip:
     'Hover tooltip for `<SankeySeries>`. Shows the hovered node (or `Source → Target` for a link), its value, and its share of the outflow — of all source nodes for a node, of the source node for a link. The render-prop exposes the hover info and the formatter.',
   PieTooltip:

@@ -3,13 +3,15 @@ import { BarSeriesDef } from './bar';
 import { CandlestickSeriesDef } from './candlestick';
 import { registerSeriesDefinition } from './definition';
 import { DepthSeriesDef } from './depth';
+import { GaugeSeriesDef } from './gauge';
 import { HeatmapSeriesDef } from './heatmap';
 import { LineSeriesDef } from './line';
 import { PieSeriesDef } from './pie';
+import { RadialProgressSeriesDef } from './radial-progress';
 import { SankeySeriesDef } from './sankey';
 
 /**
- * Register the eight built-in series so the string form
+ * Register the ten built-in series so the string form
  * `chart.addSeries('line', …)` resolves. Call it once at startup.
  *
  * Importing this helper pulls every renderer into the bundle — hosts that
@@ -25,4 +27,6 @@ export function registerBuiltinSeries(): void {
   registerSeriesDefinition(HeatmapSeriesDef);
   registerSeriesDefinition(DepthSeriesDef);
   registerSeriesDefinition(SankeySeriesDef);
+  registerSeriesDefinition(GaugeSeriesDef);
+  registerSeriesDefinition(RadialProgressSeriesDef);
 }
