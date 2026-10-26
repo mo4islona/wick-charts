@@ -35,7 +35,7 @@ export interface PieLegendRenderContext {
 export interface PieLegendProps {
   /**
    * Owning series id. **Optional** — when omitted, the first visible pie
-   * series is picked.
+   * series is picked, else the first visible radial progress series.
    */
   seriesId?: string;
   /** Default: `'both'`. See {@link PieLegendMode}. */
@@ -52,8 +52,11 @@ function resolvePieSeriesId(chart: ChartInstance, explicit: string | undefined):
   if (explicit !== undefined) return explicit;
 
   const pies = chart.getSeriesIdsByType('pie', { visibleOnly: true });
+  if (pies.length > 0) return pies[0];
 
-  return pies.length > 0 ? pies[0] : null;
+  const rings = chart.getSeriesIdsByType('radialProgress', { visibleOnly: true });
+
+  return rings.length > 0 ? rings[0] : null;
 }
 
 export function PieLegend({ seriesId, mode: modeProp, format, position, children }: PieLegendProps) {

@@ -31,6 +31,8 @@ const COMPONENTS = [
   { name: 'BandSeries', file: 'packages/react/src/BandSeries.tsx', kind: 'chart' },
   { name: 'DepthSeries', file: 'packages/react/src/DepthSeries.tsx', kind: 'chart' },
   { name: 'SankeySeries', file: 'packages/react/src/SankeySeries.tsx', kind: 'chart' },
+  { name: 'GaugeSeries', file: 'packages/react/src/GaugeSeries.tsx', kind: 'chart' },
+  { name: 'RadialProgressSeries', file: 'packages/react/src/RadialProgressSeries.tsx', kind: 'chart' },
 
   // composite chart — own playground but lives under Components
   { name: 'Sparkline', file: 'packages/react/src/ui/Sparkline.tsx', kind: 'chart' },

@@ -127,6 +127,17 @@ export interface ChartTheme {
     colors: string[];
   };
 
+  /**
+   * Gauge and radial progress colors. Optional so hand-built theme literals
+   * keep compiling — the renderers derive the same colors at render time.
+   */
+  gauge?: {
+    /** Unfilled arc of a gauge and the ring tracks of a radial progress. */
+    trackColor: string;
+    /** Default zone ramp, good → bad. A gauge's zones sample it evenly. */
+    zoneColors: string[];
+  };
+
   /** Bollinger band / envelope fill colors. */
   bands: {
     /** Fill for the upper band region (above the middle band). */

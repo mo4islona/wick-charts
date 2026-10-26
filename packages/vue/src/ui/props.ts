@@ -110,7 +110,7 @@ export interface NumberFlowProps {
 export interface PieLegendProps {
   /**
    * Owning series id. **Optional** — when omitted, the first visible pie
-   * series is picked.
+   * series is picked, else the first visible radial progress series.
    */
   seriesId?: string;
   /** 'value' shows only the value, 'percent' only the percent, 'both' shows both. Default: 'both'. */

@@ -103,6 +103,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Canvas sankey diagrams: flows between stages as bands sized by volume, with an untangled layout, node labels, smooth morphing updates, hover highlight and tooltips.',
   },
+  'charts/gauge': {
+    title: 'Gauge & Radial Progress Charts for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas gauges for one live value against its range, with zones, an arc or a needle and a center label, and radial progress rings for a few related values. Values glide on update.',
+  },
   'use-cases/realtime-data': {
     title: 'Realtime Data Streaming — Wick Charts',
     description:
@@ -169,6 +174,10 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
     'Order book series on a numeric price axis — cumulative bid and ask walls, a mid and spread marker, morphing updates and level deltas via updateData.',
   'api/sankey-series':
     'Sankey series — nodes and links drawn as flows between stages with bands sized by volume, node labels, morphing updates and hover highlight.',
+  'api/gauge-series':
+    'Gauge series — one value on an arc between min and max, with zones, an arc or needle style, a center label and a glide on update.',
+  'api/radial-progress-series':
+    'Radial progress series — concentric rings, each filled to its value’s share of max, listed by PieLegend, with a glide on update.',
   'api/sparkline':
     'Self-contained inline mini chart with an optional value label — renders without a ChartContainer (React only).',
   'api/chart-container':

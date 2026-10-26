@@ -14,7 +14,7 @@ import { CHECK_ICON, COPY_ICON } from './icons';
 
 /** Framework tabs + copy button + tokenized code.
  * Code panel inherits colors from ChartTheme — no independent theme toggle. */
-export function CodeTabs({ config, theme }: { config: ChartCodeConfig; theme: ChartTheme }) {
+export function CodeTabs({ config, theme }: { config: ChartCodeConfig | ChartCodeConfig[]; theme: ChartTheme }) {
   const [fw] = useFramework();
   const [copied, setCopied] = useState(false);
 

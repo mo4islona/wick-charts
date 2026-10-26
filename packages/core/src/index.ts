@@ -180,6 +180,7 @@ export {
   registerSeriesDefinition,
 } from './series/definition';
 export { DepthSeriesDef } from './series/depth';
+export { GaugeSeriesDef } from './series/gauge';
 export { HeatmapSeriesDef } from './series/heatmap';
 export { LineSeriesDef } from './series/line';
 // LineIntroFn contract for fully custom intros. An intro is a plain function
@@ -222,6 +223,36 @@ export type {
   PaintEnv,
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
+export { RadialProgressSeriesDef } from './series/radial-progress';
+// Radial progress parts — where the rings sit, how a ring is drawn, and what goes in the
+// middle and next to the rings. Each is a plain function passed to the series options.
+export type {
+  RadialItem,
+  RadialLabelArgs,
+  RadialLabelPainter,
+  RadialLabelRing,
+  RadialLayout,
+  RadialLayoutFrame,
+  RingPaintArgs,
+  RingPainter,
+  RingSlot,
+  TickAnimation,
+  TickFrame,
+  TickStyle,
+} from './series/radial-progress-styles';
+export {
+  flyTicks,
+  headTags,
+  heroCenter,
+  heroLayout,
+  listCenter,
+  popTicks,
+  radarTicks,
+  ringsLayout,
+  solidRing,
+  startLabels,
+  tickRing,
+} from './series/radial-progress-styles';
 export { registerBuiltinSeries } from './series/register-builtins';
 export { SankeySeriesDef } from './series/sankey';
 // The full renderer contract — everything reachable from `SeriesDefinition.create()`'s
@@ -229,12 +260,14 @@ export { SankeySeriesDef } from './series/sankey';
 export type {
   BaseSeriesRenderer,
   CustomSpatialSeriesRenderer,
+  GaugeSeriesRenderer,
   HeatmapSeriesRenderer,
   HoverInfo,
   HoverLookupOptions,
   LayerSnapshot,
   OverlayRenderContext,
   PieSeriesRenderer,
+  RadialProgressSeriesRenderer,
   RenderPadding,
   SankeySeriesRenderer,
   SeriesKind,
@@ -331,6 +364,8 @@ export type {
   DepthBookDelta,
   DepthLevel,
   DepthSeriesOptions,
+  GaugeSeriesOptions,
+  GaugeZone,
   HeatmapCellData,
   HeatmapCellInput,
   HeatmapCellLabelsOptions,
@@ -346,6 +381,7 @@ export type {
   PieSeriesOptions,
   PieSliceData,
   PieSliceInput,
+  RadialProgressSeriesOptions,
   SankeyData,
   SankeyLabelsOptions,
   SankeyLink,

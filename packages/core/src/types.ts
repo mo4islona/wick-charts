@@ -2,6 +2,7 @@ import type { BarIntroFn } from './series/bar-intro';
 import type { CandleIntroFn } from './series/candlestick-intro';
 import type { LineIntroFn } from './series/line-intro';
 import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
+import type { RadialLabelPainter, RadialLayout, RingPainter } from './series/radial-progress-styles';
 
 /**
  * Accepted time input: a timestamp in **milliseconds** (like `Date.now()`) or a `Date` object.
@@ -237,6 +238,8 @@ export type SeriesType =
   | 'heatmap'
   | 'depth'
   | 'sankey'
+  | 'gauge'
+  | 'radialProgress'
   | (string & {});
 
 /**
@@ -1280,6 +1283,90 @@ export interface SankeySeriesOptions {
    * Morph from the diagram on screen to new data, and the hover dim ease. `0` snaps.
    * Default: chart animation config (500).
    */
+  updateMs?: number;
+}
+
+/** A band of a gauge's range, from the previous zone's `to` (or `min`) up to its own `to`. */
+export interface GaugeZone {
+  /** Upper bound of the zone. Zones are read in ascending `to` order. */
+  to: number;
+  /** Zone color. Default: the theme's gauge zone ramp, good → bad. */
+  color?: string;
+}
+
+/** Visual options for a gauge series. */
+export interface GaugeSeriesOptions {
+  /** Start of the range. Default: 0. */
+  min?: number;
+  /** End of the range. Default: 100. */
+  max?: number;
+  /** Where the arc starts, in degrees clockwise from 12 o'clock. Default: -120. */
+  startAngle?: number;
+  /** Where the arc ends, in degrees clockwise from 12 o'clock, after `startAngle` and at most 360° on. Default: 120. */
+  endAngle?: number;
+  /**
+   * Bands of the range, drawn along the arc. The value arc (or the needle) takes
+   * the color of the zone the value ends in, and `color` past the last `to`.
+   */
+  zones?: GaugeZone[];
+  /**
+   * How the value arc (or the needle) takes its zone color. `'target'`: the color of the zone
+   * the value ends in, so the entrance keeps one color and a glide blends into the new one.
+   * `'morph'`: the color follows the arc as it moves and blends into the next zone near each
+   * border. Default: `'target'`.
+   */
+  zoneColor?: 'target' | 'morph';
+  /** `'arc'` fills the arc from `min` to the value; `'needle'` points at it. Default: `'arc'`. */
+  style?: 'arc' | 'needle';
+  /** Caption under the value. Also the series name. */
+  label?: string;
+  /** Text of the center value. Default: whole numbers as they are, others compact (`1.2K`). */
+  format?: (value: number) => string;
+  /** Value arc / needle color where no zone applies. Default: the first theme series color. */
+  color?: string;
+  /** Color of the unfilled arc. Default: `theme.gauge.trackColor`. */
+  trackColor?: string;
+  /** `min` and `max` in the arc's gap, next to its two ends; not drawn when the gap is under 60°. Default: `true`. */
+  rangeLabels?: boolean;
+  /**
+   * First-data sweep in milliseconds: the arc grows from `min` while the track fades in.
+   * `0` paints at once. Default: chart animation config (900).
+   */
+  entryMs?: number;
+  /** Glide from the value on screen to a new one, in milliseconds. `0` snaps. Default: chart animation config (500). */
+  updateMs?: number;
+}
+
+/**
+ * Visual options for a radial progress series: one ring per value, for a few values.
+ * Rings get thinner as more are added; past about 10, a bar chart reads better.
+ */
+export interface RadialProgressSeriesOptions {
+  /** The value of a full ring. Default: 100. */
+  max?: number;
+  /** Where each ring starts, in degrees clockwise from 12 o'clock. Default: 0. */
+  startAngle?: number;
+  /** Where each ring ends, in degrees clockwise from 12 o'clock, after `startAngle` and at most 360° on. Default: 360. */
+  endAngle?: number;
+  /** Where the rings sit and how wide they are, e.g. `heroLayout()`. Default: `ringsLayout()`. */
+  layout?: RadialLayout;
+  /** How each ring is drawn, e.g. `tickRing()`. Default: `solidRing()`. */
+  painter?: RingPainter;
+  /**
+   * The text of the rings: `heroCenter()` or `listCenter()` in the middle, `startLabels()`
+   * or `headTags()` next to each ring. Default: none; use `<PieLegend>`.
+   */
+  labels?: RadialLabelPainter;
+  /** Ring colors in data order, before `theme.seriesColors`. An item's own `color` wins. */
+  colors?: string[];
+  /** Color of the ring tracks. Default: `theme.gauge.trackColor`. */
+  trackColor?: string;
+  /**
+   * First-data sweep in milliseconds: each ring grows from 0 while the tracks fade in.
+   * `0` paints at once. Default: chart animation config (900).
+   */
+  entryMs?: number;
+  /** Glide of each ring from its value on screen to a new one, in milliseconds. `0` snaps. Default: chart animation config (500). */
   updateMs?: number;
 }
 

@@ -12,9 +12,13 @@ import {
   type AnimationsConfig,
   DEFAULT_CANDLESTICK_ENTRY,
   DEFAULT_CANDLESTICK_SMOOTH,
+  DEFAULT_GAUGE_ENTRY,
+  DEFAULT_GAUGE_UPDATE,
   DEFAULT_LINE_ENTRY,
   DEFAULT_LINE_PULSE,
   DEFAULT_LINE_SMOOTH,
+  DEFAULT_RADIAL_PROGRESS_ENTRY,
+  DEFAULT_RADIAL_PROGRESS_UPDATE,
   DEFAULT_TICKS_MS,
   DEFAULT_TOGGLE_MS,
   DEFAULT_X_GESTURE_MS,
@@ -131,6 +135,23 @@ describe('resolveAnimationsConfig', () => {
     const resolved = resolveAnimationsConfig({ series: { line: false } });
     expect(resolved.series.line).toEqual({ entryMs: 0, smoothMs: 0, pulseMs: 0, introMs: 0 });
     expect(resolved.series.candlestick.entryMs).toBe(DEFAULT_CANDLESTICK_ENTRY);
+  });
+
+  it('gauge and radial progress take entry / update durations and force them off with `false`', () => {
+    const defaults = resolveAnimationsConfig(undefined);
+    expect(defaults.defaults('gauge')).toEqual({ entryMs: DEFAULT_GAUGE_ENTRY, updateMs: DEFAULT_GAUGE_UPDATE });
+    expect(defaults.defaults('radialProgress')).toEqual({
+      entryMs: DEFAULT_RADIAL_PROGRESS_ENTRY,
+      updateMs: DEFAULT_RADIAL_PROGRESS_UPDATE,
+    });
+
+    const tuned = resolveAnimationsConfig({ series: { gauge: { entry: 1200 }, radialProgress: { update: false } } });
+    expect(tuned.defaults('gauge')).toEqual({ entryMs: 1200, updateMs: DEFAULT_GAUGE_UPDATE });
+    expect(tuned.overrides('radialProgress')).toEqual({ updateMs: 0 });
+
+    const off = resolveAnimationsConfig({ series: { gauge: false } });
+    expect(off.overrides('gauge')).toEqual({ entryMs: 0, updateMs: 0 });
+    expect(off.overrides('radialProgress')).toEqual({});
   });
 
   it('per-field false disables only that field', () => {

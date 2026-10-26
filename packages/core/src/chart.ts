@@ -91,11 +91,13 @@ import type {
   CrosshairPosition,
   DepthBookDelta,
   DepthSeriesOptions,
+  GaugeSeriesOptions,
   HeatmapSeriesOptions,
   LineSeriesOptions,
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
+  RadialProgressSeriesOptions,
   SankeySeriesOptions,
   SeriesType,
   TimePoint,
@@ -1065,6 +1067,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     options?: Partial<DepthSeriesOptions & { id?: string; labels?: (string | undefined)[] }>,
   ): string;
   addSeries(type: 'sankey', options?: Partial<SankeySeriesOptions & { id?: string; label?: string }>): string;
+  addSeries(type: 'gauge', options?: Partial<GaugeSeriesOptions & { id?: string }>): string;
+  addSeries(
+    type: 'radialProgress',
+    options?: Partial<RadialProgressSeriesOptions & { id?: string; label?: string }>,
+  ): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
     // A key the series options define (a sankey's `labels`) keeps the series' own type.
@@ -1111,6 +1118,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Layer names are an array; any other `labels` is a series option (a sankey's node labels).
     const labels = Array.isArray(rawLabels) ? (rawLabels as (string | undefined)[]) : undefined;
     if (rawLabels !== undefined && labels === undefined) rest.labels = rawLabels;
+    // `label` names the series and also reaches the renderer, where a gauge draws it as its caption.
+    if (label !== undefined) rest.label = label;
     const layerCount = layers ?? 1;
 
     // A named scale's config can land after its series (wrapper effect order), so it warns at render instead.
@@ -2119,6 +2128,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<HeatmapSeriesOptions>
       | Partial<DepthSeriesOptions>
       | Partial<SankeySeriesOptions>
+      | Partial<GaugeSeriesOptions>
+      | Partial<RadialProgressSeriesOptions>
     ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
@@ -2143,6 +2154,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // before and after the update, and only bump when they really changed.
     const prevLabels = entry.labels;
     const prevColors = entry.renderer.getLayerColors().slice();
+    // A slice list (pie, radial progress) can change past its first color: a ring color, `max`.
+    const sliceKey = () => JSON.stringify(entry.renderer.getSliceInfo?.(this.#theme) ?? null);
+    const prevSlices = sliceKey();
 
     // React / Vue / Svelte wrappers replay the user's options on every
     // render via this path. If the chart-level `animations.series.<type>`
@@ -2178,7 +2192,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const nextColors = entry.renderer.getLayerColors();
     const colorsChanged = prevColors.length !== nextColors.length || prevColors.some((c, i) => c !== nextColors[i]);
     const labelChanged = !labelsEqual(prevLabels, entry.labels);
-    if (colorsChanged || labelChanged || scaleMoved) {
+    const slicesChanged = sliceKey() !== prevSlices;
+    if (colorsChanged || labelChanged || slicesChanged || scaleMoved) {
       this.#bumpOverlayVersion();
     }
   }

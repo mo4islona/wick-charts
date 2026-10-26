@@ -10,7 +10,7 @@ type PieLegendPosition = 'bottom' | 'right' | 'overlay';
 
 /**
  * Owning series id. **Optional** — when omitted, the first visible pie
- * series is picked.
+ * series is picked, else the first visible radial progress series.
  */
 export let seriesId: string | undefined = undefined;
 /** 'value' shows only the value, 'percent' only the percent, 'both' shows both. Default: 'both'. */
@@ -56,8 +56,11 @@ function resolvePieSeriesId(c: ChartInstance, explicit: string | undefined): str
   if (explicit !== undefined) return explicit;
 
   const pies = c.getSeriesIdsByType('pie', { visibleOnly: true });
+  if (pies.length > 0) return pies[0];
 
-  return pies.length > 0 ? pies[0] : null;
+  const rings = c.getSeriesIdsByType('radialProgress', { visibleOnly: true });
+
+  return rings.length > 0 ? rings[0] : null;
 }
 
 $: chart = $chartStore;

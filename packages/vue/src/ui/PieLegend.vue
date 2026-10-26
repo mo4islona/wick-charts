@@ -54,8 +54,11 @@ function resolvePieSeriesId(c: ChartInstance, explicit: string | undefined): str
   if (explicit !== undefined) return explicit;
 
   const pies = c.getSeriesIdsByType('pie', { visibleOnly: true });
+  if (pies.length > 0) return pies[0];
 
-  return pies.length > 0 ? pies[0] : null;
+  const rings = c.getSeriesIdsByType('radialProgress', { visibleOnly: true });
+
+  return rings.length > 0 ? rings[0] : null;
 }
 
 const theme = computed(() => themeRef.value);

@@ -1,5 +1,5 @@
 import type { ValueColor } from '../types';
-import { deriveBarHoverBackground, deriveHeatmapRamp, lighten } from '../utils/color';
+import { deriveBarHoverBackground, deriveGaugeColors, deriveHeatmapRamp, lighten } from '../utils/color';
 import { resolveCandlestickBodyColor } from './resolve';
 import type { ChartTheme } from './types';
 
@@ -34,6 +34,7 @@ export interface ThemeConfig {
   bar?: Partial<NonNullable<ChartTheme['bar']>>;
   pie?: Partial<NonNullable<ChartTheme['pie']>>;
   heatmap?: Partial<NonNullable<ChartTheme['heatmap']>>;
+  gauge?: Partial<NonNullable<ChartTheme['gauge']>>;
   bands?: Partial<ChartTheme['bands']>;
   crosshair?: Partial<ChartTheme['crosshair']>;
   axis?: Partial<ChartTheme['axis']>;
@@ -135,6 +136,8 @@ export function createTheme(config: ThemeConfig): ThemePreset {
   const font = config.typography?.fontFamily ?? defFont;
   const baseFontSize = config.typography?.fontSize ?? 12;
 
+  const gaugeDefaults = deriveGaugeColors({ background: bg, muted: dim, up: upBase, down: downBase });
+
   const chartGradient: [string, string] =
     config.chartGradient ?? (dark ? [lightenHex(bg, 0.04), darkenHex(bg, 0.06)] : [lightenHex(bg, 0.06), bg]);
 
@@ -181,6 +184,10 @@ export function createTheme(config: ThemeConfig): ThemePreset {
       // renderer's no-token fallback so hand-built theme literals and
       // createTheme presets paint the same wash.
       colors: config.heatmap?.colors ?? deriveHeatmapRamp(bg, lineColor),
+    },
+    gauge: {
+      trackColor: config.gauge?.trackColor ?? gaugeDefaults.trackColor,
+      zoneColors: config.gauge?.zoneColors ?? gaugeDefaults.zoneColors,
     },
     bands: {
       upper: config.bands?.upper ?? lineColor,

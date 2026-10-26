@@ -72,14 +72,22 @@ const VAR_REF_NAMES = new Set([
   'bids',
   'catppuccin.theme.axis.textColor',
   'closePoints',
+  'clusterUsage',
+  'cpuLoad',
   'data',
   'data[0]',
+  'errorBudget',
   'formatCount',
+  'formatMs',
+  'formatPercent',
+  'latencyP95',
   'ohlcData',
   'layers',
   'layers[0]',
   'links',
   'nodes',
+  'planUsage',
+  'releaseProgress',
   'sid',
   'series',
   // Y-bound transition factory calls — rendered as bare identifiers so the
@@ -93,12 +101,20 @@ const VAR_REF_NAMES = new Set([
   'logScale()',
 ]);
 
-// Library exports a snippet references by value — rendered unquoted and added
-// to the import list (`data={heikinAshi(ohlcData)}` imports `heikinAshi`).
-const LIBRARY_REFS = new Map([
-  ['hollowCandle', 'hollowCandle'],
-  ['ohlcBar', 'ohlcBar'],
-  ['heikinAshi(ohlcData)', 'heikinAshi'],
+// Library exports a snippet references by value — rendered unquoted, with each
+// callee added to the import list (`data={heikinAshi(ohlcData)}` imports `heikinAshi`).
+const LIBRARY_REFS = new Map<string, string[]>([
+  ['hollowCandle', ['hollowCandle']],
+  ['ohlcBar', ['ohlcBar']],
+  ['heikinAshi(ohlcData)', ['heikinAshi']],
+  ['heroLayout()', ['heroLayout']],
+  ['tickRing()', ['tickRing']],
+  ['tickRing({ animation: radarTicks() })', ['tickRing', 'radarTicks']],
+  ['tickRing({ animation: flyTicks() })', ['tickRing', 'flyTicks']],
+  ['heroCenter()', ['heroCenter']],
+  ['listCenter()', ['listCenter']],
+  ['startLabels()', ['startLabels']],
+  ['headTags()', ['headTags']],
 ]);
 
 function isVarRef(v: PropValue): boolean {
@@ -109,8 +125,9 @@ function collectFactoryImports(value: PropValue | Record<string, PropValue>, imp
   if (typeof value === 'string') {
     if (isVarRef(value) && value.endsWith('()')) imports.add(value.slice(0, -2));
 
-    const libraryImport = LIBRARY_REFS.get(value);
-    if (libraryImport !== undefined) imports.add(libraryImport);
+    for (const name of LIBRARY_REFS.get(value) ?? []) {
+      imports.add(name);
+    }
 
     return;
   }
@@ -153,7 +170,7 @@ function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent
       else parts.push(`${key}="${escaped}"`);
     } else {
       const formatted = formatValue(val, indent);
-      if (fw === 'vue') parts.push(`:${key}="${formatted.replace(/'/g, "\\'")}"`);
+      if (fw === 'vue') parts.push(`:${key}="${formatted.replace(/"/g, '&quot;')}"`);
       else parts.push(`${key}={${formatted}}`);
     }
   }
@@ -210,67 +227,75 @@ function openChartContainer(themeAttr: string, containerPairs: string[]): string
   return `<ChartContainer\n  ${allPairs.join('\n  ')}\n>`;
 }
 
-export function generateCode(config: ChartCodeConfig, fw: Framework): string {
-  const useContainer = config.container !== false;
-
+function importsOf(configs: ChartCodeConfig[]): string[] {
   const imports = new Set<string>();
-  if (useContainer) imports.add('ChartContainer');
-  for (const child of config.components) imports.add(child.component);
-  // Theme expressions can be a bare identifier (`catppuccin`) or a dotted
-  // accessor (`catppuccin.theme` — what {@link createTheme} presets need to
-  // hand the underlying ChartTheme to ChartContainer). Only the import root
-  // belongs in the import list.
-  if (config.theme) imports.add(config.theme.split('.')[0]);
-  // Factory calls and library refs anywhere in the props (`perf={perfHud()}`,
-  // `axis.y.scale: logScale()`, `candlePainter: hollowCandle`) import their callee.
-  collectFactoryImports(config.containerProps ?? {}, imports);
-  for (const child of config.components) {
-    collectFactoryImports(child.props ?? {}, imports);
+  for (const config of configs) {
+    if (config.container !== false) imports.add('ChartContainer');
+    for (const child of config.components) imports.add(child.component);
+    // Theme expressions can be a bare identifier (`catppuccin`) or a dotted
+    // accessor (`catppuccin.theme` — what {@link createTheme} presets need to
+    // hand the underlying ChartTheme to ChartContainer). Only the import root
+    // belongs in the import list.
+    if (config.theme) imports.add(config.theme.split('.')[0]);
+    // Factory calls and library refs anywhere in the props (`perf={perfHud()}`,
+    // `axis.y.scale: logScale()`, `candlePainter: hollowCandle`) import their callee.
+    collectFactoryImports(config.containerProps ?? {}, imports);
+    for (const child of config.components) {
+      collectFactoryImports(child.props ?? {}, imports);
+    }
   }
 
-  const importList = Array.from(imports).sort();
-  const pkg = PACKAGES[fw];
+  return Array.from(imports).sort();
+}
 
+/** One chart's markup at the top level, without imports. */
+function chartMarkup(config: ChartCodeConfig, fw: Framework): string {
   const themeAttr = config.theme ? (fw === 'vue' ? `:theme="${config.theme}"` : `theme={${config.theme}}`) : '';
 
   // Self-contained components (e.g. Sparkline) render at the top level with no
   // ChartContainer wrapper. `theme` rides along as a prop on each component.
-  if (!useContainer) {
+  if (config.container === false) {
     const themeLeading = themeAttr ? [themeAttr] : [];
-    const children = config.components.map((c) => renderChild(c, fw, 0, themeLeading)).join('\n');
 
-    if (fw === 'react') {
-      const imp = wrapImport(importList, pkg, '');
-      return `${imp}\n\n${children}`;
-    }
-    if (fw === 'svelte') {
-      const imp = wrapImport(importList, pkg, '  ');
-      return `<script>\n${imp}\n</script>\n\n${children}`;
-    }
-    const imp = wrapImport(importList, pkg, '');
-    const tmplChildren = children.replace(/^/gm, '  ');
-    return `<script setup>\n${imp}\n</script>\n\n<template>\n${tmplChildren}\n</template>`;
+    return config.components.map((c) => renderChild(c, fw, 0, themeLeading)).join('\n');
   }
 
   const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 0) : [];
   const openTag = openChartContainer(themeAttr, containerPairs);
   const children = config.components.map((c) => renderChild(c, fw, 1)).join('\n');
 
+  return `${openTag}\n${children}\n</ChartContainer>`;
+}
+
+/** Indents every non-empty line by one level. */
+function indentLines(text: string): string {
+  return text.replace(/^(?=.)/gm, '  ');
+}
+
+/** The snippet of one chart, or of several charts under one import. */
+export function generateCode(config: ChartCodeConfig | ChartCodeConfig[], fw: Framework): string {
+  const configs = Array.isArray(config) ? config : [config];
+  const importList = importsOf(configs);
+  const pkg = PACKAGES[fw];
+  const markup = configs.map((c) => chartMarkup(c, fw)).join('\n\n');
+
   if (fw === 'react') {
     const imp = wrapImport(importList, pkg, '');
-    return `${imp}\n\n${openTag}\n${children}\n</ChartContainer>`;
+    // JSX takes one root, so several charts go in a fragment.
+    const body = configs.length > 1 ? `<>\n${indentLines(markup)}\n</>` : markup;
+
+    return `${imp}\n\n${body}`;
   }
 
   if (fw === 'svelte') {
     const imp = wrapImport(importList, pkg, '  ');
-    return `<script>\n${imp}\n</script>\n\n${openTag}\n${children}\n</ChartContainer>`;
+
+    return `<script>\n${imp}\n</script>\n\n${markup}`;
   }
 
-  // vue — indent the container block two spaces inside <template>
   const imp = wrapImport(importList, pkg, '');
-  const tmplOpen = openTag.replace(/^/gm, '  ');
-  const tmplChildren = children.replace(/^/gm, '  ');
-  return `<script setup>\n${imp}\n</script>\n\n<template>\n${tmplOpen}\n${tmplChildren}\n  </ChartContainer>\n</template>`;
+
+  return `<script setup>\n${imp}\n</script>\n\n<template>\n${indentLines(markup)}\n</template>`;
 }
 
 export type { Framework };

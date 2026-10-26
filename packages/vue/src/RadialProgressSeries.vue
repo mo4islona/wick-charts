@@ -1,0 +1,58 @@
+<script setup lang="ts">
+import { RadialProgressSeriesDef } from '@wick-charts/core';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+
+import { rawSeriesData, seriesDataSource } from './composables';
+import { useChartInstance } from './context';
+import type { RadialProgressSeriesProps } from './props';
+
+const props = withDefaults(
+  defineProps<RadialProgressSeriesProps>(),
+  // Vue's type-based `defineProps` casts an absent Boolean-typed prop to
+  // `false` (not `undefined`) without an explicit default.
+  { visible: true },
+);
+
+const chart = useChartInstance();
+const seriesId = ref<string | null>(null);
+
+onMounted(() => {
+  const id = chart.addSeries(RadialProgressSeriesDef, { ...props.options, id: props.id });
+  seriesId.value = id;
+  // Lazy watcher — apply initial data here so static-data mounts render without a no-op first frame.
+  if (props.data.length > 0) {
+    chart.setSeriesData(id, rawSeriesData(props.data));
+  }
+  chart.setSeriesVisible(id, props.visible);
+});
+
+onUnmounted(() => {
+  if (seriesId.value) chart.removeSeries(seriesId.value);
+});
+
+watch(
+  seriesDataSource(() => props.data),
+  () => {
+    if (seriesId.value) chart.setSeriesData(seriesId.value, rawSeriesData(props.data));
+  },
+);
+
+watch(
+  () => props.options,
+  (options) => {
+    if (seriesId.value && options) {
+      chart.updateSeriesOptions(seriesId.value, options);
+    }
+  },
+  { deep: true },
+);
+
+watch(
+  () => props.visible,
+  (visible) => {
+    if (seriesId.value) chart.setSeriesVisible(seriesId.value, visible);
+  },
+);
+</script>
+
+<template><span v-if="false" /></template>

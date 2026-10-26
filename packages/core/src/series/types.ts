@@ -128,6 +128,8 @@ export type SeriesKind =
   | 'heatmap'
   | 'depth'
   | 'sankey'
+  | 'gauge'
+  | 'radialProgress'
   | (string & {});
 
 /**
@@ -453,9 +455,19 @@ export interface SankeySeriesRenderer extends BaseSeriesRenderer {
   readonly kind: 'sankey';
 }
 
+/** A single-value arc renderer with no time axis (Gauge). Has no time-series queries. */
+export interface GaugeSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'gauge';
+}
+
+/** A concentric-ring renderer with no time axis (Radial progress). Has no time-series queries. */
+export interface RadialProgressSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'radialProgress';
+}
+
 /**
  * A custom spatial renderer with no time axis — implement this (rather than
- * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer} / {@link SankeySeriesRenderer}, which are reserved
+ * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer} / {@link SankeySeriesRenderer} and the other built-ins, which are reserved
  * for the built-ins) when writing a new non-time-axis series from scratch,
  * e.g. a radar or treemap chart. Pick any `kind` that isn't a built-in one.
  */
@@ -466,13 +478,15 @@ export interface CustomSpatialSeriesRenderer extends BaseSeriesRenderer {
 /**
  * Every series renderer is one of these. Discriminated on `kind`: narrow with
  * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
- * (pie, heatmap, sankey, and any custom spatial kind) have no time-series queries.
+ * (pie, heatmap, sankey, gauge, radial progress, and any custom spatial kind) have no time-series queries.
  */
 export type SeriesRenderer =
   | TimeSeriesRenderer
   | PieSeriesRenderer
   | HeatmapSeriesRenderer
   | SankeySeriesRenderer
+  | GaugeSeriesRenderer
+  | RadialProgressSeriesRenderer
   | CustomSpatialSeriesRenderer;
 
 /**

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { darken, deriveHeatmapRamp, hexToRgba, isLightColor, lighten, mixColors } from '../utils/color';
+import {
+  darken,
+  deriveGaugeColors,
+  deriveHeatmapRamp,
+  hexToRgba,
+  isLightColor,
+  lighten,
+  mixColors,
+} from '../utils/color';
 
 describe('hexToRgba', () => {
   it('converts a 6-digit hex to rgba with the supplied alpha', () => {
@@ -120,5 +128,25 @@ describe('deriveHeatmapRamp', () => {
     expect(high).toBe('#0969da');
     expect(low).not.toBe('#ffffff');
     expect(low).toBe(mixColors('#ffffff', '#0969da', 0.12));
+  });
+});
+
+describe('deriveGaugeColors', () => {
+  const base = { background: '#000000', muted: '#888888' };
+
+  it('puts an amber between a green up and a red down', () => {
+    const { zoneColors } = deriveGaugeColors({ ...base, up: '#a6e3a1', down: '#f38ba8' });
+
+    expect(zoneColors).toHaveLength(3);
+    expect(zoneColors[0]).toBe('#a6e3a1');
+    expect(zoneColors[2]).toBe('#f38ba8');
+  });
+
+  it('keeps a one-hue theme in its hue', () => {
+    expect(deriveGaugeColors({ ...base, up: '#00ff41', down: '#00802a' }).zoneColors).toEqual(['#00ff41', '#00802a']);
+  });
+
+  it('keeps a gray theme gray', () => {
+    expect(deriveGaugeColors({ ...base, up: '#111111', down: '#bbbbbb' }).zoneColors).toEqual(['#111111', '#bbbbbb']);
   });
 });

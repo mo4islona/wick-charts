@@ -217,6 +217,50 @@ export function deriveHeatmapRamp(background: string, accent: string): [string, 
   return [mixColors(background, accent, 0.12), accent];
 }
 
+/** OKLab hue of an amber, between a green "good" and a red "bad". */
+const AMBER_HUE = (78 * Math.PI) / 180;
+/** Least OKLab lightness of the amber, so it reads as amber rather than brown. */
+const AMBER_MIN_LIGHTNESS = 0.76;
+/** Up and down hues closer than this read as one hue. */
+const ONE_HUE_GAP = Math.PI / 6;
+/** OKLab chroma under which a color reads as gray. */
+const GRAY_CHROMA = 0.03;
+
+/**
+ * Theme-derived gauge colors: a track a little off the background, and a
+ * good → bad zone ramp from the up color through an amber to the down color.
+ * The amber takes the stronger chroma of the two ends. A one-hue or gray
+ * theme gets no amber: its ramp blends the up color into the down color.
+ * Single source for `createTheme` and the renderers' no-token fallback.
+ */
+export function deriveGaugeColors(args: { background: string; muted: string; up: string; down: string }): {
+  trackColor: string;
+  zoneColors: string[];
+} {
+  const { background, muted, up, down } = args;
+  const trackColor = mixColors(background, muted, 0.18);
+
+  const upChannels = parseColorChannels(up);
+  const downChannels = parseColorChannels(down);
+  if (!upChannels || !downChannels) return { trackColor, zoneColors: [up, down] };
+
+  const [upL, upA, upB] = rgbToOklab(...upChannels);
+  const [downL, downA, downB] = rgbToOklab(...downChannels);
+  const upChroma = Math.hypot(upA, upB);
+  const downChroma = Math.hypot(downA, downB);
+
+  const hueTurn = Math.atan2(upB, upA) - Math.atan2(downB, downA);
+  const hueGap = Math.abs(Math.atan2(Math.sin(hueTurn), Math.cos(hueTurn)));
+  const gray = Math.min(upChroma, downChroma) < GRAY_CHROMA;
+  if (gray || hueGap < ONE_HUE_GAP) return { trackColor, zoneColors: [up, down] };
+
+  const chroma = Math.max(upChroma, downChroma);
+  const lightness = Math.max(upL, downL, AMBER_MIN_LIGHTNESS);
+  const amber = toHex(...oklabToRgb(lightness, chroma * Math.cos(AMBER_HUE), chroma * Math.sin(AMBER_HUE)));
+
+  return { trackColor, zoneColors: [up, amber, down] };
+}
+
 /**
  * Theme-derived backdrop behind a hovered bar category: a faint wash of the
  * muted axis text tone, which already flips with theme polarity. Single

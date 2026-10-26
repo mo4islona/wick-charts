@@ -111,6 +111,16 @@ describe('generateCode', () => {
     expect(vue).toContain('position="right"');
   });
 
+  it('keeps plain single quotes for strings inside a Vue object prop', () => {
+    const config: ChartCodeConfig = {
+      components: [{ component: 'GaugeSeries', props: { options: { label: 'CPU load' } } }],
+    };
+
+    const vue = generateCode(config, 'vue');
+    expect(vue).toContain(`:options="{ label: 'CPU load' }"`);
+    expect(vue).not.toContain("\\'");
+  });
+
   describe('childrenSnippet (slot / render-prop body)', () => {
     const SNIPPET_CONFIG: ChartCodeConfig = {
       components: [
@@ -253,5 +263,53 @@ describe('generateCode', () => {
     expect(code).toMatch(/import \{[^}]*\bheikinAshi\b[^}]*\} from '@wick-charts\/react';/);
     expect(code).toMatch(/import \{[^}]*\bhollowCandle\b[^}]*\} from '@wick-charts\/react';/);
     expect(code).not.toMatch(/import \{[^}]*\bohlcData\b/);
+  });
+
+  it('imports every function of a nested library call', () => {
+    const code = generateCode(
+      {
+        components: [
+          {
+            component: 'RadialProgressSeries',
+            props: { data: 'data', options: { painter: 'tickRing({ animation: radarTicks() })' } },
+          },
+        ],
+      },
+      'react',
+    );
+
+    expect(code).toContain('painter: tickRing({ animation: radarTicks() })');
+    expect(code).toMatch(/import \{[^}]*\btickRing\b[^}]*\} from '@wick-charts\/react';/);
+    expect(code).toMatch(/import \{[^}]*\bradarTicks\b[^}]*\} from '@wick-charts\/react';/);
+  });
+
+  describe('several charts in one snippet', () => {
+    const CHARTS: ChartCodeConfig[] = [
+      { theme: 'catppuccin.theme', components: [{ component: 'GaugeSeries', props: { value: 'cpuLoad' } }] },
+      {
+        theme: 'catppuccin.theme',
+        components: [
+          { component: 'RadialProgressSeries', props: { data: 'data', options: { painter: 'tickRing()' } } },
+        ],
+      },
+    ];
+
+    it('shares one import line', () => {
+      const code = generateCode(CHARTS, 'react');
+
+      expect(code.match(/^import /gm)).toHaveLength(1);
+      expect(code).toMatch(/import \{[^}]*\bGaugeSeries\b[^}]*\bRadialProgressSeries\b[^}]*\btickRing\b/);
+      expect(code.match(/<ChartContainer/g)).toHaveLength(2);
+    });
+
+    it('wraps the charts in a fragment for React only', () => {
+      expect(generateCode(CHARTS, 'react')).toMatch(/\n<>\n {2}<ChartContainer[\s\S]*<\/ChartContainer>\n<\/>$/);
+      expect(generateCode(CHARTS, 'svelte')).not.toContain('<>');
+      expect(generateCode(CHARTS, 'vue')).not.toContain('<>');
+    });
+
+    it('leaves the blank line between charts without trailing spaces', () => {
+      expect(generateCode(CHARTS, 'vue')).toContain('</ChartContainer>\n\n  <ChartContainer');
+    });
   });
 });
