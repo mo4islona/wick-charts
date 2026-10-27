@@ -12,9 +12,23 @@ import { CHECK_ICON, COPY_ICON } from './icons';
 // FrameworkSelect is used here in compact mode (icon-only tiles) so it
 // fits the code-panel header without dominating it.
 
+/** Which chart the code is for, on a page of several. */
+export interface CodeCaption {
+  title: string;
+  sub?: string;
+}
+
 /** Framework tabs + copy button + tokenized code.
  * Code panel inherits colors from ChartTheme — no independent theme toggle. */
-export function CodeTabs({ config, theme }: { config: ChartCodeConfig | ChartCodeConfig[]; theme: ChartTheme }) {
+export function CodeTabs({
+  config,
+  theme,
+  caption,
+}: {
+  config: ChartCodeConfig | ChartCodeConfig[];
+  theme: ChartTheme;
+  caption?: CodeCaption;
+}) {
   const [fw] = useFramework();
   const [copied, setCopied] = useState(false);
 
@@ -33,6 +47,13 @@ export function CodeTabs({ config, theme }: { config: ChartCodeConfig | ChartCod
   return (
     <div className="pg-code-wrap">
       <div className="pg-head">
+        {caption && (
+          <span className="pg-code-caption">
+            {caption.title}
+            {caption.sub && <span className="pg-code-sub">{caption.sub}</span>}
+          </span>
+        )}
+
         <FrameworkSelect theme={theme} compact />
 
         <div className="pg-actions">

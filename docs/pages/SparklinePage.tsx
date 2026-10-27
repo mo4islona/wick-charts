@@ -8,20 +8,19 @@ import {
   type TimePoint,
 } from '@wick-charts/react';
 
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeConfig, PropValue } from '../components/CodePreview';
+import { CardFrame } from '../components/playground/cardPick';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { BoundInput, Select, Slider, ToggleGroup, parseBound } from '../components/playground/primitives';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
+import { BoundInput, Slider, Toggle, ToggleGroup, parseBound } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import {
   type LineStrategy,
   barStrategy,
   generateBarData,
   generateLineData,
-  generateMonotonicData,
   generateWaveData,
   lineDriftStrategy,
-  monotonicStrategy,
   waveStrategy,
 } from '../data';
 import { DEMO_INTERVAL } from '../data/demo';
@@ -60,6 +59,8 @@ interface RowMeta {
   sublabel?: string;
   color?: string;
   variant?: SparklineVariant;
+  /** A 2×2 tile of the mosaic. */
+  hero?: boolean;
 }
 
 interface RowSeed extends RowMeta {
@@ -101,39 +102,38 @@ function makeBarRow(label: string): RowSeed {
   };
 }
 
-function makeMonotonicRow(seed: number, label: string): RowSeed {
-  const startValue = 10 + seed * 30;
-  const step = 1 + seed * 0.5;
-  const data = generateMonotonicData(SPARK_HISTORY, startValue, step, DEMO_INTERVAL);
-
-  return {
-    label,
-    data,
-    strategy: monotonicStrategy(step),
-  };
-}
-
 // ── Metric card rows ────────────────────────────────────────
 
 interface MetricRow extends RowMeta {
   data: TimePoint[];
 }
 
-const CRYPTO_LABELS = ['BTC/USD', 'ETH/USD', 'SOL/USD', 'AVAX/USD', 'DOT/USD', 'LINK/USD'];
-const SERVER_LABELS = ['api-prod-1', 'api-prod-2', 'worker-01', 'worker-02', 'cache-redis', 'db-primary'];
-const METRIC_LABELS = ['Revenue', 'Users', 'Conversion', 'Latency', 'Throughput', 'Errors'];
-const MONOTONIC_LABELS = ['Counter A', 'Counter B', 'Counter C', 'Counter D', 'Counter E', 'Counter F'];
+const uptime = () => `${(95 + Math.random() * 5).toFixed(1)}% uptime`;
+
+/**
+ * Prices, server health and KPIs with a signed bar row, in mosaic order: the
+ * grid auto-places BTC top-left and Errors bottom-right as 2×2 tiles.
+ */
+function makeSeeds(): RowSeed[] {
+  return [
+    { ...makeLineRow(0, 'BTC/USD'), hero: true },
+    makeLineRow(1, 'ETH/USD'),
+    makeLineRow(2, 'SOL/USD'),
+    makeWaveRow(0, 'api-prod-1', uptime()),
+    makeWaveRow(1, 'worker-01', uptime()),
+    makeWaveRow(2, 'db-primary', uptime()),
+    makeLineRow(3, 'Revenue'),
+    { ...makeBarRow('Errors'), hero: true },
+    makeLineRow(4, 'Users'),
+  ];
+}
+
+// Fills its mosaic tile: the chart stretches to the free space.
+const TILE_STYLE = { width: '100%', height: '100%' };
+// A little taller than a sparkline's natural height.
+const TILE_ROW_HEIGHT = 76;
 
 // ── Settings ────────────────────────────────────────────────
-
-type Preset = 'crypto' | 'servers' | 'metrics' | 'monotonic';
-// - static: pre-rendered snapshot, no streaming.
-// - flow:   seed is pinned near the right edge of an empty `points`-wide window;
-//           new ticks add to the right and existing points slide LEFT until the
-//           window fills. After fill, behaves like `live` (rolling).
-// - live:   pre-filled `points`-wide window, streaming with rolling-window trim
-//           from tick 1. Equivalent to the dashboard streaming pattern.
-type SparklineMode = 'static' | 'flow' | 'live';
 
 // Where the flow-mode seed sits at mount — drives the fly-in direction. Mirrors
 // the Sparkline `flow.align` prop.
@@ -148,10 +148,21 @@ interface SparklineSettings {
   // Sparkline `yRange` prop. 'auto' on a side leaves that edge auto-scaled.
   yMin: string;
   yMax: string;
-  preset: Preset;
-  mode: SparklineMode;
+  /** Points of mock data a card shows without `flow`. */
   points: number;
+  /**
+   * The `flow` prop: a fixed `flowCapacity`-wide window. Live, the seed sits
+   * at `flowAlign` of an empty window and new points fill it.
+   */
+  flow: boolean;
+  flowCapacity: number;
   flowAlign: SparklineFlowAlign;
+}
+
+type SparkState = PlaygroundChartProps & SparklineSettings;
+
+function flowOf(s: SparklineSettings): { capacity: number; align: SparklineFlowAlign } | undefined {
+  return s.flow ? { capacity: s.flowCapacity, align: s.flowAlign } : undefined;
 }
 
 // ── Page ────────────────────────────────────────────────────
@@ -161,7 +172,7 @@ function SparklineGrid(
     SparklineSettings & {
       rows: MetricRow[];
       mobile: boolean;
-      flow?: { capacity: number; align?: SparklineFlowAlign };
+      flowWindow?: { capacity: number; align?: SparklineFlowAlign };
     },
 ) {
   const min = parseBound(props.yMin);
@@ -172,30 +183,39 @@ function SparklineGrid(
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: props.mobile ? '1fr' : 'repeat(auto-fill, minmax(310, 1fr))',
+        gridTemplateColumns: props.mobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+        gridAutoRows: TILE_ROW_HEIGHT,
         gap: 8,
         padding: 4,
       }}
     >
       {props.rows.map((row) => (
-        <Sparkline
+        <CardFrame
           key={row.label}
-          data={row.data}
-          theme={props.theme}
-          variant={row.variant ?? props.variant}
-          valuePosition={props.valuePos}
-          label={row.label}
-          sublabel={row.sublabel}
-          color={row.color}
-          area={{ visible: props.areaVisible }}
-          strokeWidth={props.strokeWidth}
-          yRange={yRange}
-          gradient={props.gradient}
-          flow={props.flow}
-          width={props.mobile ? 120 : 150}
-          height={props.mobile ? 40 : 48}
-          style={{ width: '100%' }}
-        />
+          cardId={row.label}
+          style={{
+            position: 'relative',
+            borderRadius: 8,
+            gridColumn: row.hero && !props.mobile ? 'span 2' : undefined,
+            gridRow: row.hero ? 'span 2' : undefined,
+          }}
+        >
+          <Sparkline
+            data={row.data}
+            theme={props.theme}
+            variant={row.variant ?? props.variant}
+            valuePosition={props.valuePos}
+            label={row.label}
+            sublabel={row.sublabel}
+            color={row.color}
+            area={{ visible: props.areaVisible }}
+            strokeWidth={props.strokeWidth}
+            yRange={yRange}
+            gradient={props.gradient}
+            flow={props.flowWindow}
+            style={TILE_STYLE}
+          />
+        </CardFrame>
       ))}
     </div>
   );
@@ -205,6 +225,7 @@ const SERIES_SECTION: SectionSpec = {
   id: 'series',
   title: 'Sparkline',
   icon: ICONS.series,
+  defaultOpen: true,
   rows: [
     {
       key: 'variant',
@@ -237,7 +258,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'strokeWidth',
       label: 'Stroke width',
-      hint: 'Line thickness in CSS pixels — line variant only',
       visible: (s) => s.variant === 'line',
       render: (v, onChange) => (
         <Slider
@@ -251,79 +271,8 @@ const SERIES_SECTION: SectionSpec = {
       ),
     },
     {
-      key: 'points',
-      label: 'Points',
-      hint: 'Number of data points in the visible window',
-      render: (v, onChange) => (
-        <Slider
-          value={v as number}
-          min={SPARK_POINTS_MIN}
-          max={SPARK_POINTS_MAX}
-          step={1}
-          onChange={onChange as (v: number) => void}
-        />
-      ),
-    },
-    {
-      key: 'yMin',
-      label: 'Min Y',
-      hint: 'Fixed lower bound for the line/bar (or auto). Pin to 0 for a stable baseline.',
-      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
-    },
-    {
-      key: 'yMax',
-      label: 'Max Y',
-      hint: 'Fixed upper bound for the line/bar (or auto)',
-      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
-    },
-  ] as RowSpec[],
-};
-
-// Mirrors the built-in Demo section that cartesian pages render via Playground.
-// `hideCartesian` suppresses the built-in version here, so the page owns it.
-const DEMO_SECTION: SectionSpec = {
-  id: 'demo',
-  title: 'Demo',
-  icon: ICONS.data,
-  defaultOpen: true,
-  rows: [
-    {
-      key: 'mode',
-      label: 'Mode',
-      hint: 'Static snapshot, flow-in from empty, or pre-filled live stream',
-      render: (v, onChange) => (
-        <ToggleGroup<SparklineMode>
-          value={v as SparklineMode}
-          options={[
-            { value: 'static', label: 'Static' },
-            { value: 'flow', label: 'Flow' },
-            { value: 'live', label: 'Live' },
-          ]}
-          onChange={onChange as (v: SparklineMode) => void}
-        />
-      ),
-    },
-    {
-      key: 'flowAlign',
-      label: 'Flow align',
-      hint: 'Where the seed sits at mount — drives the fly-in direction',
-      visible: (s) => s.mode === 'flow',
-      render: (v, onChange) => (
-        <Select<SparklineFlowAlign>
-          value={v as SparklineFlowAlign}
-          options={[
-            { value: 'right', label: 'Right edge' },
-            { value: 'left', label: 'Left edge' },
-            { value: 'offscreen', label: 'Off-screen' },
-          ]}
-          onChange={onChange as (v: SparklineFlowAlign) => void}
-        />
-      ),
-    },
-    {
       key: 'valuePos',
       label: 'Value position',
-      hint: 'Where the value block sits relative to the chart — a demo card concern, not a chart prop',
       render: (v, onChange) => (
         <ToggleGroup<SparklineValuePosition>
           value={v as SparklineValuePosition}
@@ -337,22 +286,88 @@ const DEMO_SECTION: SectionSpec = {
       ),
     },
     {
-      // The dataset preset only swaps the mock data the cards render — a demo
-      // concern, not a Sparkline prop — so it lives in Demo, not the chart-prop
-      // "Sparkline" section.
-      key: 'preset',
-      label: 'Dataset',
-      hint: 'Which mock dataset the preview cards render',
+      key: 'yMin',
+      label: 'Min Y',
+      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
+    },
+    {
+      key: 'yMax',
+      label: 'Max Y',
+      render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
+    },
+    {
+      key: 'flow',
+      label: 'Flow',
+      hint: 'Fixed window, fills from empty',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'flowCapacity',
+      label: 'Capacity',
+      hint: 'Points in the window',
+      visible: (s) => s.flow === true,
       render: (v, onChange) => (
-        <Select<Preset>
-          value={v as Preset}
+        <Slider
+          value={v as number}
+          min={SPARK_POINTS_MIN}
+          max={SPARK_POINTS_MAX}
+          step={1}
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'flowAlign',
+      label: 'Flow align',
+      hint: 'Where the first point sits',
+      visible: (s) => s.flow === true,
+      render: (v, onChange) => (
+        <ToggleGroup<SparklineFlowAlign>
+          value={v as SparklineFlowAlign}
           options={[
-            { value: 'crypto', label: 'Crypto prices' },
-            { value: 'servers', label: 'Server health' },
-            { value: 'metrics', label: 'KPI metrics' },
-            { value: 'monotonic', label: 'Monotonic ramp' },
+            { value: 'right', label: 'Right' },
+            { value: 'left', label: 'Left' },
+            { value: 'offscreen', label: 'Off-screen' },
           ]}
-          onChange={onChange as (v: Preset) => void}
+          onChange={onChange as (v: SparklineFlowAlign) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+// `hideCartesian` and no Perf HUD leave the page without a built-in Demo, so it brings its own.
+const DEMO_SECTION: SectionSpec = {
+  id: 'demo',
+  title: 'Demo',
+  icon: ICONS.data,
+  defaultOpen: true,
+  rows: [
+    {
+      key: 'streaming',
+      label: 'Mode',
+      render: (v, onChange) => (
+        <ToggleGroup<'live' | 'static'>
+          value={(v as boolean) ? 'live' : 'static'}
+          options={[
+            { value: 'live', label: 'Live' },
+            { value: 'static', label: 'Static' },
+          ]}
+          onChange={(next) => (onChange as (b: boolean) => void)(next === 'live')}
+        />
+      ),
+    },
+    {
+      key: 'points',
+      label: 'Points',
+      visible: (s) => s.flow !== true,
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={SPARK_POINTS_MIN}
+          max={SPARK_POINTS_MAX}
+          step={1}
+          onChange={onChange as (v: number) => void}
         />
       ),
     },
@@ -364,22 +379,18 @@ const DEMO_SECTION: SectionSpec = {
 interface AnimatedGridProps extends PlaygroundChartProps, SparklineSettings {
   seeds: RowSeed[];
   mobile: boolean;
-  /** True for `flow` mode — start near-empty, fly in from right.
-   *  False for `live` mode — start pre-filled, stream + roll. */
-  flow: boolean;
 }
 
-// Sits inside a key={preset|points|flow} boundary so switching dataset, window
+// Sits inside a key={points|flow} boundary so switching the window
 // size, or mode remounts the streaming hook with fresh seeds rather than
 // tearing through the live tail.
-function AnimatedSparklineGrid({ seeds, flow, ...props }: AnimatedGridProps) {
-  // Flow mode mounts with a SPARK_SEED-sized seed so the stream has
-  // `last`/`startIndex` to resume from; the chart pins this seed near the
-  // right edge of the empty window. Live mode mounts with the full window
-  // pre-filled to `props.points` bars.
+function AnimatedSparklineGrid({ seeds, ...props }: AnimatedGridProps) {
+  // Flow mounts with a SPARK_SEED-sized seed so the stream has `last`/`startIndex`
+  // to resume from; without flow the window starts full at `points` bars.
+  const windowSize = props.flow ? props.flowCapacity : props.points;
   const seriesHistory = useMemo(
-    () => seeds.map((s) => (flow ? s.data.slice(0, SPARK_SEED) : s.data.slice(-props.points))),
-    [seeds, flow, props.points],
+    () => seeds.map((s) => (props.flow ? s.data.slice(0, SPARK_SEED) : s.data.slice(-windowSize))),
+    [seeds, props.flow, windowSize],
   );
   const strategies = useMemo(() => seeds.map((s) => s.strategy), [seeds]);
 
@@ -388,7 +399,7 @@ function AnimatedSparklineGrid({ seeds, flow, ...props }: AnimatedGridProps) {
     speed: SPARK_SPEED,
     // STREAM_BUFFER extra points sit just off-screen left so trimming
     // doesn't yank a still-visible point off the canvas.
-    maxPoints: props.points + STREAM_BUFFER,
+    maxPoints: windowSize + STREAM_BUFFER,
     strategy: (_series, i) => strategies[i],
   });
 
@@ -397,16 +408,50 @@ function AnimatedSparklineGrid({ seeds, flow, ...props }: AnimatedGridProps) {
     sublabel: seed.sublabel,
     color: seed.color,
     variant: seed.variant,
+    hero: seed.hero,
     data: datasets[i]?.length ? datasets[i] : seriesHistory[i],
   }));
 
-  return (
-    <SparklineGrid
-      {...props}
-      rows={rows}
-      flow={flow ? { capacity: props.points, align: props.flowAlign } : undefined}
-    />
-  );
+  return <SparklineGrid {...props} rows={rows} flowWindow={flowOf(props)} />;
+}
+
+function sparklineCode(s: SparkState, row: RowMeta): ChartCodeConfig {
+  const props: Record<string, PropValue> = { data: 'data', label: row.label };
+  if (row.sublabel) props.sublabel = row.sublabel;
+  if (row.color) props.color = row.color;
+
+  const variant = row.variant ?? s.variant;
+  if (variant !== 'line') props.variant = variant;
+  if (s.valuePos !== 'right') props.valuePosition = s.valuePos;
+
+  if (s.flow) {
+    const flowProp: Record<string, PropValue> = { capacity: s.flowCapacity };
+    if (s.flowAlign !== 'right') flowProp.align = s.flowAlign;
+    props.flow = flowProp;
+  }
+
+  if (variant === 'line' && s.strokeWidth !== SPARK_STROKE_DEFAULT) props.strokeWidth = s.strokeWidth;
+  if (!s.areaVisible) props.area = { visible: false };
+
+  // `yRange` only for the sides pinned away from auto.
+  const yMin = parseBound(s.yMin);
+  const yMax = parseBound(s.yMax);
+  if (yMin !== undefined || yMax !== undefined) {
+    const range: Record<string, PropValue> = {};
+    if (yMin !== undefined) range.min = yMin as PropValue;
+    if (yMax !== undefined) range.max = yMax as PropValue;
+    props.yRange = range;
+  }
+
+  if (s.gradient) props.gradient = true;
+  props.style = TILE_STYLE;
+
+  return {
+    theme: 'catppuccin.theme',
+    // Sparkline manages its own ChartContainer — render it standalone.
+    container: false,
+    components: [{ component: 'Sparkline', props }],
+  };
 }
 
 export function SparklinePage({ theme }: { theme: ChartTheme }) {
@@ -414,16 +459,14 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
 
   // Pre-generate seeds with bundled streaming strategies — keeps history and
   // live samplers statistically aligned per row.
-  const seedsByPreset = useMemo(() => {
-    const crypto = CRYPTO_LABELS.map((label, i) => makeLineRow(i, label));
-    const servers = SERVER_LABELS.map((label, i) =>
-      makeWaveRow(i, label, `${(95 + Math.random() * 5).toFixed(1)}% uptime`),
-    );
-    const metrics = METRIC_LABELS.map((label, i) => (i === 5 ? makeBarRow(label) : makeLineRow(i + 3, label)));
-    const monotonic = MONOTONIC_LABELS.map((label, i) => makeMonotonicRow(i, label));
+  const baseSeeds = useMemo(makeSeeds, []);
 
-    return { crypto, servers, metrics, monotonic };
-  }, []);
+  /** Each line row in its own theme series color; bar rows keep the up/down colors. */
+  const themedSeeds = (seeds: RowSeed[]): RowSeed[] =>
+    seeds.map((seed, i) => ({
+      ...seed,
+      color: seed.variant === 'bar' ? undefined : theme.seriesColors[i % theme.seriesColors.length],
+    }));
 
   return (
     <Playground<SparklineSettings>
@@ -441,85 +484,49 @@ export function SparklinePage({ theme }: { theme: ChartTheme }) {
         strokeWidth: SPARK_STROKE_DEFAULT,
         yMin: 'auto',
         yMax: 'auto',
-        preset: 'crypto',
-        mode: 'live',
         points: SPARK_POINTS_DEFAULT,
+        flow: false,
+        flowCapacity: SPARK_POINTS_DEFAULT,
         flowAlign: 'right',
       }}
       sections={[DEMO_SECTION, SERIES_SECTION]}
       charts={(props) => {
-        const presetSeeds = seedsByPreset[props.preset];
-        const seeds: RowSeed[] = presetSeeds.map((seed, i) => ({
-          ...seed,
-          color: seed.variant === 'bar' ? undefined : theme.seriesColors[i % theme.seriesColors.length],
-        }));
+        const seeds = themedSeeds(baseSeeds);
 
-        if (props.mode === 'static') {
-          // Slice the tail of pre-generated history so the user sees exactly
-          // `points` of data. Static mode has no flow window — the chart
-          // fits to whatever it gets.
-          const rows: MetricRow[] = seeds.map((s) => ({
-            label: s.label,
-            sublabel: s.sublabel,
-            color: s.color,
-            variant: s.variant,
-            data: s.data.slice(-props.points),
+        if (!props.streaming) {
+          // Static: the tail of the pre-generated history, `points` long or the flow window.
+          const length = props.flow ? props.flowCapacity : props.points;
+          const rows: MetricRow[] = seeds.map((seed) => ({
+            label: seed.label,
+            sublabel: seed.sublabel,
+            color: seed.color,
+            variant: seed.variant,
+            hero: seed.hero,
+            data: seed.data.slice(-length),
           }));
 
-          return <SparklineGrid {...props} rows={rows} mobile={mobile} />;
+          return <SparklineGrid {...props} rows={rows} mobile={mobile} flowWindow={flowOf(props)} />;
         }
 
-        // Remount the streaming hook when preset, window size, or mode
-        // changes — otherwise the existing live tail would be reinterpreted
-        // mid-flight by a fresh seed or new viewport pinning.
+        // Remount the stream on a window or flow change, so a fresh
+        // seed never reinterprets the live tail mid-flight.
         return (
           <AnimatedSparklineGrid
-            key={`${props.preset}-${props.points}-${props.mode}-${props.flowAlign}`}
+            key={`${props.points}-${props.flow}-${props.flowCapacity}-${props.flowAlign}`}
             {...props}
             seeds={seeds}
             mobile={mobile}
-            flow={props.mode === 'flow'}
           />
         );
       }}
-      codeConfig={(s) => {
-        // Mirror the live props, emitting only what differs from the Sparkline
-        // defaults so the snippet stays minimal and tracks every panel control.
-        const props: Record<string, PropValue> = { data: 'data' };
-
-        if (s.variant !== 'line') props.variant = s.variant;
-        if (s.valuePos !== 'right') props.valuePosition = s.valuePos;
-
-        // Streaming modes pin a fixed-width window via `flow`. Flow mode also
-        // exposes the drive-in alignment; live just rolls at the right edge.
-        if (s.mode !== 'static') {
-          const flowProp: Record<string, PropValue> = { capacity: s.points };
-          if (s.mode === 'flow' && s.flowAlign !== 'right') flowProp.align = s.flowAlign;
-          props.flow = flowProp;
-        }
-
-        if (s.variant === 'line' && s.strokeWidth !== SPARK_STROKE_DEFAULT) props.strokeWidth = s.strokeWidth;
-        if (!s.areaVisible) props.area = { visible: false };
-
-        // Emit `yRange` only for the sides the user pinned away from auto.
-        const yMin = parseBound(s.yMin);
-        const yMax = parseBound(s.yMax);
-        if (yMin !== undefined || yMax !== undefined) {
-          const range: Record<string, PropValue> = {};
-          if (yMin !== undefined) range.min = yMin as PropValue;
-          if (yMax !== undefined) range.max = yMax as PropValue;
-          props.yRange = range;
-        }
-
-        if (s.gradient) props.gradient = true;
-
-        return {
-          theme: 'catppuccin.theme',
-          // Sparkline manages its own ChartContainer — render it standalone.
-          container: false,
-          components: [{ component: 'Sparkline', props }],
-        };
-      }}
+      cards={(s): PlaygroundCard[] =>
+        themedSeeds(baseSeeds).map((row) => ({
+          id: row.label,
+          title: row.label,
+          sub: row.sublabel,
+          code: sparklineCode(s, row),
+        }))
+      }
     />
   );
 }

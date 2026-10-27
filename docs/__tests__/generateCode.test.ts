@@ -312,4 +312,71 @@ describe('generateCode', () => {
       expect(generateCode(CHARTS, 'vue')).toContain('</ChartContainer>\n\n  <ChartContainer');
     });
   });
+
+  describe('title', () => {
+    const TITLED: ChartCodeConfig = {
+      title: { text: 'Cluster', sub: 'share of capacity' },
+      components: [{ component: 'GaugeSeries', props: { value: 'cpuLoad' } }],
+    };
+
+    it('prints the title as the first child and imports it', () => {
+      const code = generateCode(TITLED, 'react');
+
+      expect(code).toContain('<ChartContainer>\n  <Title sub="share of capacity">Cluster</Title>\n  <GaugeSeries');
+      expect(code).toMatch(/import \{[^}]*\bTitle\b/);
+    });
+
+    it('passes the subtitle as the sub slot in Vue and Svelte', () => {
+      expect(generateCode(TITLED, 'vue')).toContain(
+        '<Title>\n      Cluster\n      <template #sub>share of capacity</template>\n    </Title>',
+      );
+      expect(generateCode(TITLED, 'svelte')).toContain(
+        '<Title>\n    Cluster\n    <svelte:fragment slot="sub">share of capacity</svelte:fragment>\n  </Title>',
+      );
+    });
+
+    it('prints a title without a subtitle on one line', () => {
+      const code = generateCode({ ...TITLED, title: { text: 'Cluster' } }, 'svelte');
+
+      expect(code).toContain('  <Title>Cluster</Title>');
+    });
+  });
+
+  it('breaks a short object that holds a multi-line one', () => {
+    const config: ChartCodeConfig = {
+      components: [
+        {
+          component: 'LineSeries',
+          props: {
+            options: { area: { visible: true }, threshold: { value: 0, above: 'upColor', below: 'downColor' } },
+          },
+        },
+      ],
+    };
+
+    expect(generateCode(config, 'react')).toContain(
+      '    options={{\n      area: { visible: true },\n      threshold: {\n        value: 0,\n        above: upColor,\n        below: downColor,\n      },\n    }}',
+    );
+  });
+
+  it('indents a multi-line option object one level under its prop', () => {
+    const config: ChartCodeConfig = {
+      containerProps: { axis: { x: { visible: false }, y: { min: 0 }, crosshair: { snap: true } } },
+      components: [
+        {
+          component: 'GaugeSeries',
+          props: { value: 'cpuLoad', options: { max: 500, label: 'p95', format: 'formatMs' } },
+        },
+      ],
+    };
+
+    const code = generateCode(config, 'react');
+
+    expect(code).toContain(
+      '<ChartContainer\n  axis={{\n    x: { visible: false },\n    y: { min: 0 },\n    crosshair: { snap: true },\n  }}\n>',
+    );
+    expect(code).toContain(
+      "  <GaugeSeries\n    value={cpuLoad}\n    options={{\n      max: 500,\n      label: 'p95',\n      format: formatMs,\n    }}\n  />",
+    );
+  });
 });

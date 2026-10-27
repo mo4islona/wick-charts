@@ -685,9 +685,80 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 6px 10px 6px 8px;
   border-bottom: 1px solid var(--code-border);
   flex-shrink: 0;
+}
+.wick-playground .pg-code-caption {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 4px;
+  font: 600 13px / 1.35 var(--mono);
+  color: var(--code-fg);
+  white-space: nowrap;
+}
+.wick-playground .pg-code-sub {
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--code-btn-fg);
+  text-overflow: ellipsis;
+}
+
+/* ---------- Card pick: the chart the Code tab prints ---------- */
+.wick-playground [data-card-pickable] {
+  cursor: pointer;
+  /* A transparent base outline lets the hover and pick rings fade in. */
+  outline: 1px solid transparent;
+  outline-offset: -1px;
+  transition:
+    outline-color 150ms ease,
+    outline-width 150ms ease;
+}
+.wick-playground [data-card-pickable]:hover {
+  outline-color: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+.wick-playground [data-card-picked],
+.wick-playground [data-card-picked]:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.wick-playground .pg-card-pick {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--accent);
+  font: 500 11px / 1.4 var(--sans);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+.wick-playground [data-card-pickable]:hover .pg-card-pick,
+.wick-playground [data-card-picked] .pg-card-pick,
+.wick-playground .pg-card-pick:focus-visible {
+  opacity: 1;
+}
+.wick-playground [data-card-picked] .pg-card-pick {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg-0);
 }
 .wick-playground .pg-actions {
   display: flex;

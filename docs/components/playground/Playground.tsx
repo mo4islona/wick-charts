@@ -6,7 +6,8 @@ import { Code, SlidersHorizontal, X } from 'lucide-react';
 import { useIsMobile } from '../../hooks';
 import type { ChartCodeConfig } from '../CodePreview';
 import { Splitter } from '../Splitter';
-import { CodeTabs } from './CodeTabs';
+import { type CodeCaption, CodeTabs } from './CodeTabs';
+import { type CardPick, CardPickContext } from './cardPick';
 import { ICONS } from './icons';
 import { Panel } from './Panel';
 import { BoundInput, Select, Slider, Toggle, ToggleGroup, parseBound } from './primitives';
@@ -87,6 +88,15 @@ export type {
   SectionSpec,
 };
 
+/** One chart card of the page and its snippet. */
+export interface PlaygroundCard {
+  /** The `cardId` of the page's `<Cell>` that holds the chart. */
+  id: string;
+  title: string;
+  sub?: string;
+  code: ChartCodeConfig;
+}
+
 export interface PlaygroundProps<TExtra extends object = Record<string, never>> {
   id: string;
   theme: ChartTheme;
@@ -98,6 +108,8 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
   charts: (props: PlaygroundChartProps & TExtra) => ReactNode;
   /** The Code tab's snippet; a page with several kinds of chart returns one per chart. */
   codeConfig?: (state: PlaygroundChartProps & TExtra) => ChartCodeConfig | ChartCodeConfig[];
+  /** One snippet per card, in place of `codeConfig`: the Code tab prints the card the reader clicked. */
+  cards?: (state: PlaygroundChartProps & TExtra) => PlaygroundCard[];
   gridTemplate?: string;
   gridColumns?: string;
   /**
@@ -117,8 +129,39 @@ export interface PlaygroundProps<TExtra extends object = Record<string, never>> 
 // ── Helpers ──────────────────────────────────────────────────
 
 /** One code block; several charts share its imports and its Copy button. */
-function CodePanel({ config, theme }: { config: ChartCodeConfig | ChartCodeConfig[]; theme: ChartTheme }) {
-  return <CodeTabs config={config} theme={theme} />;
+function CodePanel({
+  config,
+  theme,
+  caption,
+}: {
+  config: ChartCodeConfig | ChartCodeConfig[];
+  theme: ChartTheme;
+  caption?: CodeCaption;
+}) {
+  return <CodeTabs config={config} theme={theme} caption={caption} />;
+}
+
+/** The grid style lives in the theme, so a style the theme lacks goes into the code as a theme override. */
+function gridThemeOverride(args: {
+  state: CommonState;
+  theme: ChartTheme;
+  hideCartesian: boolean;
+}): ChartCodeConfig['themeOverride'] {
+  const { state, theme, hideCartesian } = args;
+  const restyled = !hideCartesian && state.gridVisible && state.gridStyle !== theme.grid.style;
+
+  return restyled ? { grid: { style: state.gridStyle } } : undefined;
+}
+
+function withThemeOverride<T extends ChartCodeConfig | ChartCodeConfig[] | undefined>(
+  config: T,
+  override: ChartCodeConfig['themeOverride'],
+): T {
+  if (!config || !override) return config;
+
+  const apply = (c: ChartCodeConfig): ChartCodeConfig => (c.theme ? { ...c, themeOverride: override } : c);
+
+  return (Array.isArray(config) ? config.map(apply) : apply(config)) as T;
 }
 
 /** Flat playground state → nested library props. */
@@ -196,7 +239,7 @@ function msSliderRow({
 }: {
   key: string;
   label: string;
-  hint: string;
+  hint?: string;
   group: string;
   max: number;
   step: number;
@@ -253,7 +296,6 @@ function buildBuiltinSections({
     demoRows.push({
       key: 'streaming',
       label: 'Mode',
-      hint: 'Stream mock data vs. static snapshot',
       render: (v, onChange) => (
         <ToggleGroup<'live' | 'static'>
           value={(v as boolean) ? 'live' : 'static'}
@@ -331,7 +373,6 @@ function buildBuiltinSections({
         {
           key: 'xAxisHeight',
           label: 'Height',
-          hint: 'Reserved pixels for labels',
           visible: (s) => s.xAxisVisible === true,
           render: (v, onChange) => (
             <Slider
@@ -361,7 +402,6 @@ function buildBuiltinSections({
         {
           key: 'yAxisPosition',
           label: 'Position',
-          hint: 'Side of the plot the axis sits on',
           visible: (s) => s.yAxisVisible === true,
           render: (v, onChange) => (
             <ToggleGroup<YAxisPosition>
@@ -377,7 +417,7 @@ function buildBuiltinSections({
         {
           key: 'yScaleType',
           label: 'Scale',
-          hint: 'Log spaces powers of ten evenly; values ≤ 0 are skipped',
+          hint: 'Log skips values ≤ 0',
           render: (v, onChange) => (
             <ToggleGroup<YScaleKind>
               value={v as YScaleKind}
@@ -392,7 +432,6 @@ function buildBuiltinSections({
         {
           key: 'yAxisWidth',
           label: 'Width',
-          hint: 'Reserved pixels for labels',
           visible: (s) => s.yAxisVisible === true,
           render: (v, onChange) => (
             <Slider
@@ -408,14 +447,12 @@ function buildBuiltinSections({
         {
           key: 'minBound',
           label: 'Min',
-          hint: 'Fixed lower bound (or auto)',
           visible: (s) => s.yAxisVisible === true,
           render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
         } as RowSpec,
         {
           key: 'maxBound',
           label: 'Max',
-          hint: 'Fixed upper bound (or auto)',
           visible: (s) => s.yAxisVisible === true,
           render: (v, onChange) => <BoundInput value={v as string} onChange={onChange as (v: string) => void} />,
         } as RowSpec,
@@ -427,7 +464,6 @@ function buildBuiltinSections({
     {
       key: 'bgGradient',
       label: 'Gradient',
-      hint: 'Soft background gradient',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     } as RowSpec,
   ];
@@ -435,13 +471,13 @@ function buildBuiltinSections({
     backgroundRows.push({
       key: 'headerLayout',
       label: 'Header layout',
-      hint: 'How the header interacts with the plot area',
+      hint: 'Inline moves the plot down',
       render: (v, onChange) => (
-        <Select<HeaderLayout>
+        <ToggleGroup<HeaderLayout>
           value={v as HeaderLayout}
           options={[
-            { value: 'overlay', label: 'Overlay (grid full-height)' },
-            { value: 'inline', label: 'Inline (shift chart down)' },
+            { value: 'overlay', label: 'Overlay' },
+            { value: 'inline', label: 'Inline' },
           ]}
           onChange={onChange as (v: HeaderLayout) => void}
         />
@@ -483,7 +519,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'candleEntryMs',
           label: 'Candle entry',
-          hint: 'Per-candle entrance duration. 0 disables.',
+          hint: '0 = off',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -491,7 +527,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'candleSmoothMs',
           label: 'Candle smooth',
-          hint: 'OHLC chase duration on data updates. 0 snaps.',
+          hint: 'Glide to new OHLC · 0 snaps',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -521,7 +557,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'barEntryMs',
           label: 'Bar entry',
-          hint: 'Per-bar entrance duration. 0 disables.',
+          hint: '0 = off',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -529,7 +565,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'barSmoothMs',
           label: 'Bar smooth',
-          hint: 'Value chase duration on data updates. 0 snaps.',
+          hint: 'Glide to new values · 0 snaps',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -557,7 +593,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'lineEntryMs',
           label: 'Line entry',
-          hint: 'Per-point entrance duration. 0 disables.',
+          hint: '0 = off',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -565,7 +601,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'lineSmoothMs',
           label: 'Line smooth',
-          hint: 'Last-value chase time-constant. 0 snaps.',
+          hint: 'Glide to the last value · 0 snaps',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -573,7 +609,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'linePulseMs',
           label: 'Line pulse',
-          hint: 'Halo cycle period at the line tail. 0 disables.',
+          hint: 'Tail halo period · 0 = off',
           group: 'Series',
           max: 3000,
           step: 50,
@@ -601,7 +637,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'bandEntryMs',
           label: 'Band entry',
-          hint: 'Per-point entrance duration. 0 disables.',
+          hint: '0 = off',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -609,7 +645,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'bandSmoothMs',
           label: 'Band smooth',
-          hint: 'Edge chase duration on live updates. 0 snaps.',
+          hint: 'Glide to new edges · 0 snaps',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -621,7 +657,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'pieEntryMs',
           label: 'Pie entry',
-          hint: 'Slice grow-in duration on first paint.',
+          hint: 'First paint grow-in',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -629,7 +665,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'pieUpdateMs',
           label: 'Pie update',
-          hint: 'Slice resize duration when data changes.',
+          hint: 'Glide to new data',
           group: 'Series',
           max: 2000,
           step: 50,
@@ -644,7 +680,6 @@ function buildBuiltinSections({
           key: 'xCurve',
           label: 'X curve',
           group: 'X axis',
-          hint: 'Spring carries velocity across streaming ticks; Snap disables easing.',
           render: (v, onChange) => (
             <ToggleGroup<'spring' | 'snap'>
               value={v as 'spring' | 'snap'}
@@ -659,7 +694,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'xSettleMs',
           label: 'X settle',
-          hint: 'Streaming retarget baseline. Cadence EMA tunes this at runtime.',
+          hint: 'Scroll to new data',
           group: 'X axis',
           max: 1000,
           step: 25,
@@ -667,7 +702,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'xGestureMs',
           label: 'X gesture',
-          hint: 'Pan / zoom commit easing. 0 = instant apply.',
+          hint: 'Ease after pan or zoom · 0 = instant',
           group: 'X axis',
           max: 1000,
           step: 25,
@@ -682,7 +717,6 @@ function buildBuiltinSections({
           key: 'yCurve',
           label: 'Y curve',
           group: 'Y axis',
-          hint: 'Hermite: fixed-duration cubic. Spring: critically-damped physics. Snap: no animation.',
           render: (v, onChange) => (
             <ToggleGroup<AxisCurve>
               value={v as AxisCurve}
@@ -698,7 +732,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'ySettleMs',
           label: 'Y settle',
-          hint: 'Outward chase to a new extreme. Faster = punchier reaction to spikes.',
+          hint: 'Grow to a new extreme',
           group: 'Y axis',
           max: 2000,
           step: 50,
@@ -706,7 +740,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'yStickyMinMs',
           label: 'Y sticky min',
-          hint: 'Floor of the dynamic contract — a tiny recede. Short = snappy small re-fits.',
+          hint: 'Shrink time, small change',
           group: 'Y axis',
           max: 3000,
           step: 50,
@@ -715,7 +749,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'yStickyMaxMs',
           label: 'Y sticky max',
-          hint: 'Cap of the dynamic contract — a full-range contraction. Larger = stickier auto-fit hold.',
+          hint: 'Shrink time, full range',
           group: 'Y axis',
           max: 10000,
           step: 100,
@@ -724,7 +758,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'yGestureMs',
           label: 'Y gesture',
-          hint: 'Y override during gestures. Short = frame-per-tick interactive feel.',
+          hint: 'Y fit during pan or zoom',
           group: 'Y axis',
           max: 1000,
           step: 25,
@@ -738,7 +772,7 @@ function buildBuiltinSections({
         msSliderRow({
           key: 'ticksMs',
           label: 'Tick fade',
-          hint: 'Cross-fade duration for axis tick labels.',
+          hint: 'Axis label cross-fade',
           group: 'Other',
           max: 1000,
           step: 50,
@@ -749,7 +783,7 @@ function buildBuiltinSections({
       msSliderRow({
         key: 'toggleMs',
         label: 'Visibility toggle',
-        hint: 'Series-visibility fade plus Y re-fit duration.',
+        hint: 'Show or hide a series',
         group: 'Other',
         max: 1000,
         step: 50,
@@ -779,13 +813,12 @@ function buildBuiltinSections({
         {
           key: 'navigatorVisible',
           label: 'Visible',
-          hint: 'Miniature overview strip with a draggable zoom window — beta',
+          hint: 'Overview strip under the chart',
           render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
         } as RowSpec,
         {
           key: 'navigatorHeight',
           label: 'Height',
-          hint: 'Strip height in pixels',
           visible: (s) => s.navigatorVisible === true,
           render: (v, onChange) => (
             <Slider
@@ -847,11 +880,15 @@ function mergeSections(
       demo.rows.push({
         key: 'perfHudVisible',
         label: 'Perf HUD',
-        hint: 'FPS, frame time, draw calls, per-series ms, heap',
+        hint: 'FPS and draw calls',
         render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
       } as RowSpec);
     }
   }
+
+  // Demo opens the panel on every page, even where the page brings its own.
+  const demoIdx = out.findIndex((s) => s.id === 'demo');
+  if (demoIdx > 0) out.unshift(...out.splice(demoIdx, 1));
 
   // Respect explicit `defaultOpen` on every section. If nothing is explicitly
   // opened, the first non-empty section opens by default so the panel isn't
@@ -921,6 +958,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
   sections: extraSections,
   charts,
   codeConfig,
+  cards: cardsOf,
   gridTemplate = '1fr 1fr',
   gridColumns = '1fr',
   mobileRowHeight = 260,
@@ -950,7 +988,12 @@ export function Playground<TExtra extends object = Record<string, never>>({
   );
 
   const chartProps = useMemo(() => stateToChartProps(state, theme), [state, theme]);
-  const codeConfigValue = codeConfig?.(chartProps);
+
+  const cards = cardsOf?.(chartProps) ?? [];
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const pickedCard = cards.find((card) => card.id === pickedId) ?? cards[0];
+  const gridOverride = gridThemeOverride({ state, theme, hideCartesian });
+  const codeConfigValue = withThemeOverride(pickedCard ? pickedCard.code : codeConfig?.(chartProps), gridOverride);
 
   const { pct, containerRef, onMouseDown } = usePanelWidth();
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
@@ -959,6 +1002,21 @@ export function Playground<TExtra extends object = Record<string, never>>({
   const surfaceVars = useMemo(() => themeSurfaceVars(theme), [theme]);
 
   const mode: PanelMode = codeConfigValue ? panelMode : 'controls';
+
+  const cardPick: CardPick | null = pickedCard
+    ? {
+        pickedId: pickedCard.id,
+        // One card needs no mark: the code is for it.
+        marking: mode === 'code' && cards.length > 1,
+        titleOf: (cardId) => cards.find((card) => card.id === cardId)?.title ?? cardId,
+        pick: setPickedId,
+      }
+    : null;
+
+  const caption: CodeCaption | undefined = pickedCard && {
+    title: pickedCard.title,
+    sub: pickedCard.sub,
+  };
 
   const panelBody =
     mode === 'controls' ? (
@@ -970,7 +1028,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
         activeCount={activeCount}
       />
     ) : (
-      codeConfigValue && <CodePanel config={codeConfigValue} theme={theme} />
+      codeConfigValue && <CodePanel config={codeConfigValue} theme={theme} caption={caption} />
     );
 
   if (mobile) {
@@ -989,7 +1047,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
               paddingBottom: 72,
             }}
           >
-            {charts(chartProps)}
+            <CardPickContext.Provider value={cardPick}>{charts(chartProps)}</CardPickContext.Provider>
           </div>
         </div>
 
@@ -1041,7 +1099,7 @@ export function Playground<TExtra extends object = Record<string, never>>({
             gridTemplateColumns: gridColumns,
           }}
         >
-          {charts(chartProps)}
+          <CardPickContext.Provider value={cardPick}>{charts(chartProps)}</CardPickContext.Provider>
         </div>
 
         <Splitter theme={theme} onMouseDown={onMouseDown} />
