@@ -1,5 +1,5 @@
 import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
-import { FrameworkLink, type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
+import { type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
 
 function usageCode(block: BlockEntry): string {
   return `<script lang="ts">
@@ -26,21 +26,10 @@ const WRAPPER_CODE = `<script lang="ts">
 
 /** The shadcn-svelte registry. */
 export const SVELTE_COPY: GuideCopy = {
-  lead: (demoLink) => (
-    <p style={{ margin: 0 }}>
-      Chart blocks for shadcn-svelte. Also for <FrameworkLink framework="react">shadcn/ui</FrameworkLink> and{' '}
-      <FrameworkLink framework="vue">shadcn-vue</FrameworkLink>. {demoLink}
-    </p>
-  ),
+  lead: (demoLink) => <p style={{ margin: 0 }}>Chart blocks for shadcn-svelte. {demoLink}</p>,
   steps: (block) => [
     {
       heading: HEADINGS.add,
-      body: (
-        <>
-          It adds <code>$lib/components/{block.name}.svelte</code> and the <code>card</code> and <code>wick-chart</code>{' '}
-          components it uses.
-        </>
-      ),
       code: installCommand(block.name, 'svelte'),
     },
     {

@@ -108,7 +108,7 @@ function navClass(active: boolean): string {
 <template>
   <main v-if="embedded" class="flex min-h-svh flex-col justify-center p-4">
     <BlockView v-if="block" :entry="block" bare />
-    <div v-else class="grid gap-x-4 gap-y-8 md:grid-cols-2">
+    <div v-else class="gap-x-4 md:columns-2">
       <BlockView v-for="entry in BLOCKS" :key="entry.name" :entry="entry" />
     </div>
   </main>
@@ -151,7 +151,7 @@ function navClass(active: boolean): string {
     </header>
 
     <BlockView v-if="block" :key="block.name" :entry="block" />
-    <div v-else class="grid gap-x-4 gap-y-8 md:grid-cols-2">
+    <div v-else class="gap-x-4 md:columns-2">
       <BlockView v-for="entry in BLOCKS" :key="entry.name" :entry="entry" />
     </div>
   </div>

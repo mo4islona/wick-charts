@@ -797,6 +797,10 @@
   min-height: 0;
   min-width: 0;
 }
+/* The scroll area ends left of the copy button, so a long line never runs under it. */
+.wick-playground .pg-code-wrap--standalone .pg-code {
+  margin-right: 34px;
+}
 .wick-playground .pg-code code {
   display: block;
   min-width: max-content;
