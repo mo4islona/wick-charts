@@ -5342,8 +5342,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const intrusion = onLeft ? 0 : Math.min(endGap, column);
     const autoWidth = onLeft ? endGap + leadIn : intrusion + leadIn;
     const configured = onLeft ? this.#fade.left : this.#fade.right;
-    // The auto ramp melts data scrolling out under the column; category bands cannot scroll.
-    if (configured === null && this.#xType === 'category') return null;
+    // The auto ramp melts data scrolling out under the column; category bands and a view held on a focus cannot scroll.
+    const cannotScroll = this.#xType === 'category' || this.#xFocus() !== null;
+    if (configured === null && cannotScroll) return null;
 
     const total = configured === null ? autoWidth : Math.round(configured * hpr);
     if (total < 1) return null;

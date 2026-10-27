@@ -10,7 +10,7 @@ import { getChartContext } from './context.js';
 export let bids: readonly DepthLevel[];
 /** Ask levels as `[price, size]`, in any order. Cumulative depth is computed from them. */
 export let asks: readonly DepthLevel[];
-/** Visual options override — `span` of the default view, side colors, stroke width, intro / update durations. */
+/** Visual options override — `span` of the default view, side colors, stroke width, mid marker, fill fade, intro / update durations. */
 export let options: Partial<DepthSeriesOptions> | undefined = undefined;
 /** Stable series ID — same value across remounts. */
 export let id: string | undefined = undefined;

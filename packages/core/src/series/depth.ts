@@ -38,12 +38,18 @@ interface ResolvedDepthOptions {
   bidColor?: string;
   askColor?: string;
   strokeWidth: number;
+  midLabel: boolean;
+  midLine: boolean;
+  fillFade: number;
   introMs: number;
   updateMs: number;
 }
 
 const DEFAULT_OPTIONS: ResolvedDepthOptions = {
   strokeWidth: 1,
+  midLabel: true,
+  midLine: true,
+  fillFade: 140,
   introMs: DEFAULT_DEPTH_INTRO,
   updateMs: DEFAULT_DEPTH_UPDATE,
 };
@@ -54,6 +60,9 @@ const HOVER_FILL_ALPHA = 0.22;
 const MAX_LABEL_DECIMALS = 10;
 /** A step under this fraction of the side's depth is below a pixel on any chart. */
 const SIMPLIFY_TOLERANCE = 1e-4;
+/** The fill fade's curve: the kept alpha rises as `1 - (1 - s)^1.5` over the fade, in 8 stops. */
+const FILL_FADE_POWER = 1.5;
+const FILL_FADE_STEPS = 8;
 
 /** In-flight morph from the shape on screen when the update landed to the current target. */
 interface Morph {
@@ -67,6 +76,21 @@ interface Morph {
 interface DepthFrame {
   shapes: SideShapes;
   mid: number | null;
+}
+
+/** One wall of one frame; `reach` is the intro's reveal front, in bitmap px from mid. */
+interface WallArgs {
+  ctx: SeriesRenderContext;
+  side: Side;
+  frame: DepthFrame;
+  heightAt: (price: number) => number;
+  reach: number | undefined;
+}
+
+/** An offscreen canvas; its context is kept apart because a stand-in context may have no `canvas`. */
+interface FadeLayer {
+  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
 }
 
 function toKey(price: number, side: Side): number {
@@ -271,6 +295,32 @@ function decimalsOf(value: number): number {
 }
 
 /**
+ * A flat `color` that fades out toward both side edges of the pane: none left
+ * at an edge, full `alpha` past `fadeWidth` bitmap px in (at most a third of the pane).
+ */
+function edgeFadeGradient(args: {
+  context: CanvasRenderingContext2D;
+  paneWidth: number;
+  fadeWidth: number;
+  color: string;
+  alpha: number;
+}): CanvasGradient {
+  const { context, paneWidth, color, alpha } = args;
+  const fadeWidth = Math.min(args.fadeWidth, paneWidth / 3);
+  const gradient = context.createLinearGradient(0, 0, paneWidth, 0);
+
+  for (let i = 0; i <= FILL_FADE_STEPS; i++) {
+    const s = i / FILL_FADE_STEPS;
+    const stop = hexToRgba(color, alpha * (1 - (1 - s) ** FILL_FADE_POWER));
+    const offset = (s * fadeWidth) / paneWidth;
+    gradient.addColorStop(offset, stop);
+    gradient.addColorStop(1 - offset, stop);
+  }
+
+  return gradient;
+}
+
+/**
  * Order book: cumulative bid size stepping down to the best bid on the
  * left of mid and cumulative ask size stepping up from the best ask on the
  * right, on a numeric X axis. Bids are layer 0, asks layer 1.
@@ -300,6 +350,7 @@ export class DepthRenderer implements TimeSeriesRenderer {
   #hoverClock = 0;
 
   #dataListeners: Array<() => void> = [];
+  #layer: FadeLayer | null = null;
 
   constructor(args: { options?: Partial<DepthSeriesOptions>; theme: ChartTheme }) {
     this.#options = DepthRenderer.#normalize(DEFAULT_OPTIONS, args.options ?? {});
@@ -313,6 +364,9 @@ export class DepthRenderer implements TimeSeriesRenderer {
     return {
       ...merged,
       strokeWidth: Math.max(0, merged.strokeWidth ?? DEFAULT_OPTIONS.strokeWidth),
+      midLabel: merged.midLabel ?? DEFAULT_OPTIONS.midLabel,
+      midLine: merged.midLine ?? DEFAULT_OPTIONS.midLine,
+      fillFade: Math.max(0, merged.fillFade ?? DEFAULT_OPTIONS.fillFade),
       introMs: Math.max(0, merged.introMs ?? DEFAULT_OPTIONS.introMs),
       updateMs: Math.max(0, merged.updateMs ?? DEFAULT_OPTIONS.updateMs),
     };
@@ -614,6 +668,7 @@ export class DepthRenderer implements TimeSeriesRenderer {
     this.#levels = [new Map(), new Map()];
     this.#target = [EMPTY_SHAPE, EMPTY_SHAPE];
     this.#morph = null;
+    this.#layer = null;
   }
 
   // --- Render --------------------------------------------------------------------
@@ -635,13 +690,84 @@ export class DepthRenderer implements TimeSeriesRenderer {
     const heightAt = this.#introHeights({ ctx, mid: frame.mid });
     const reach = front < 1 ? Math.max(midX, bitmapSize.width - midX) * front : undefined;
 
-    for (const side of SIDES) {
-      if (!this.#visible[side]) continue;
+    const walls = { ctx, frame, heightAt, reach };
+    const sides = SIDES.filter((side) => this.#visible[side]);
+    this.#drawFills({ walls, sides });
 
-      this.#drawWall({ ctx, side, frame, heightAt, reach });
+    for (const side of sides) {
+      this.#strokeWall({ ...walls, side });
     }
 
     this.#drawMidMarker({ ctx, mid: frame.mid, alpha: front });
+  }
+
+  /** Fade the fills on an offscreen layer, so the grid under them stays whole at the edges. */
+  #drawFills(args: { walls: Omit<WallArgs, 'side'>; sides: readonly Side[] }): void {
+    const { walls, sides } = args;
+    const { scope, timeScale } = walls.ctx;
+    const paneWidth = Math.ceil(timeScale.getMediaWidth() * scope.horizontalPixelRatio);
+    const layer =
+      this.#options.fillFade > 0 ? this.#fadeLayer({ width: paneWidth, height: scope.bitmapSize.height }) : null;
+
+    if (layer === null) {
+      for (const side of sides) {
+        this.#fillWall({ ...walls, side });
+      }
+
+      return;
+    }
+
+    const layerCtx = { ...walls.ctx, scope: { ...scope, context: layer.context } };
+    for (const side of sides) {
+      this.#fillWall({ ...walls, ctx: layerCtx, side });
+    }
+
+    const { context, canvas } = layer;
+    context.globalCompositeOperation = 'destination-in';
+    context.fillStyle = this.#edgeFaded({ ctx: layerCtx, color: '#000000', alpha: 1 });
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.globalCompositeOperation = 'source-over';
+
+    scope.context.drawImage(canvas, 0, 0);
+  }
+
+  /** The canvas the fills fade on, cleared at `size`; `null` without a DOM. */
+  #fadeLayer(size: { width: number; height: number }): FadeLayer | null {
+    if (size.width <= 0 || size.height <= 0) return null;
+
+    if (this.#layer === null && typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      this.#layer = context === null ? null : { canvas, context };
+    }
+
+    const layer = this.#layer;
+    if (layer === null) return null;
+
+    // A size change clears the canvas; the same size needs an explicit clear.
+    if (layer.canvas.width !== size.width || layer.canvas.height !== size.height) {
+      layer.canvas.width = size.width;
+      layer.canvas.height = size.height;
+    } else {
+      layer.context.clearRect(0, 0, size.width, size.height);
+    }
+
+    return layer;
+  }
+
+  /** A flat fill in `color`, faded out toward the pane's side edges by `fillFade`. */
+  #edgeFaded(args: {
+    ctx: SeriesRenderContext | OverlayRenderContext;
+    color: string;
+    alpha: number;
+  }): string | CanvasGradient {
+    const { ctx, color, alpha } = args;
+    const hpr = ctx.scope.horizontalPixelRatio;
+    const paneWidth = ctx.timeScale.getMediaWidth() * hpr;
+    const fadeWidth = this.#options.fillFade * hpr;
+    if (fadeWidth <= 0 || paneWidth <= 0) return hexToRgba(color, alpha);
+
+    return edgeFadeGradient({ context: ctx.scope.context, paneWidth, fadeWidth, color, alpha });
   }
 
   /**
@@ -713,17 +839,11 @@ export class DepthRenderer implements TimeSeriesRenderer {
     context.closePath();
   }
 
-  #drawWall(args: {
-    ctx: SeriesRenderContext;
-    side: Side;
-    frame: DepthFrame;
-    heightAt: (price: number) => number;
-    reach: number | undefined;
-  }): void {
+  #fillWall(args: WallArgs): void {
     const { ctx, side } = args;
     if (args.frame.shapes[side].keys.length === 0) return;
 
-    const { context, verticalPixelRatio, horizontalPixelRatio } = ctx.scope;
+    const { context, verticalPixelRatio } = ctx.scope;
     const color = this.#sideColor(side);
     const baseY = ctx.yScale.valueToBitmapYExact(0);
 
@@ -733,11 +853,15 @@ export class DepthRenderer implements TimeSeriesRenderer {
     this.#traceWall({ ...args, closed: true });
     context.fillStyle = gradient;
     context.fill();
+  }
 
-    if (this.#options.strokeWidth <= 0) return;
+  #strokeWall(args: WallArgs): void {
+    const { ctx, side } = args;
+    if (args.frame.shapes[side].keys.length === 0 || this.#options.strokeWidth <= 0) return;
 
+    const { context, horizontalPixelRatio } = ctx.scope;
     this.#traceWall({ ...args, closed: false });
-    context.strokeStyle = color;
+    context.strokeStyle = this.#sideColor(side);
     context.lineWidth = this.#options.strokeWidth * horizontalPixelRatio;
     context.lineJoin = 'miter';
     context.stroke();
@@ -746,10 +870,11 @@ export class DepthRenderer implements TimeSeriesRenderer {
   /** Dashed vertical line at mid with a `mid · spread` pill at the top of the plot. */
   #drawMidMarker(args: { ctx: SeriesRenderContext; mid: number; alpha: number }): void {
     const { ctx, mid, alpha } = args;
-    if (alpha <= 0) return;
+    const { midLabel, midLine } = this.#options;
+    if (alpha <= 0 || (!midLabel && !midLine)) return;
 
     const { scope, theme, timeScale, yScale } = ctx;
-    const { context, bitmapSize, horizontalPixelRatio: hpr, verticalPixelRatio: vpr } = scope;
+    const { context, horizontalPixelRatio: hpr, verticalPixelRatio: vpr } = scope;
     const x = Math.round(timeScale.timeToBitmapXExact(mid)) + 0.5;
     const baseY = yScale.valueToBitmapYExact(0);
 
@@ -757,20 +882,34 @@ export class DepthRenderer implements TimeSeriesRenderer {
     const pillHeight = (fontSize + 10) * vpr;
     // Below the header (Title / InfoBar fold their height into padding.top), where the walls are lowest.
     const pillTop = (ctx.padding.top + 2) * vpr;
+    const lineTop = midLabel ? pillTop + pillHeight : ctx.padding.top * vpr;
 
     context.save();
     context.globalAlpha *= alpha;
 
-    context.save();
-    context.beginPath();
-    context.moveTo(x, pillTop + pillHeight);
-    context.lineTo(x, baseY);
-    context.setLineDash([4 * vpr, 4 * vpr]);
-    context.strokeStyle = resolveAxisTextColor(theme);
-    context.lineWidth = Math.max(1, Math.round(hpr));
-    context.globalAlpha *= 0.7;
-    context.stroke();
+    if (midLine) {
+      context.save();
+      context.beginPath();
+      context.moveTo(x, lineTop);
+      context.lineTo(x, baseY);
+      context.setLineDash([4 * vpr, 4 * vpr]);
+      context.strokeStyle = resolveAxisTextColor(theme);
+      context.lineWidth = Math.max(1, Math.round(hpr));
+      context.globalAlpha *= 0.7;
+      context.stroke();
+      context.restore();
+    }
+
+    if (midLabel) this.#drawMidPill({ ctx, x, top: pillTop, height: pillHeight });
+
     context.restore();
+  }
+
+  #drawMidPill(args: { ctx: SeriesRenderContext; x: number; top: number; height: number }): void {
+    const { ctx, x, top, height } = args;
+    const { scope, theme, timeScale } = ctx;
+    const { context, bitmapSize, horizontalPixelRatio: hpr } = scope;
+    const fontSize = resolveAxisFontSize(theme);
 
     context.font = `${fontSize * hpr}px ${theme.typography.fontFamily}`;
     const text = this.#midLabel(timeScale.getLocale());
@@ -781,9 +920,9 @@ export class DepthRenderer implements TimeSeriesRenderer {
     context.fillStyle = theme.tooltip.background;
     fillRoundedRect(context, {
       x: pillLeft,
-      y: pillTop,
+      y: top,
       width: pillWidth,
-      height: pillHeight,
+      height,
       radius: 6 * hpr,
       corners: { tl: true, tr: true, br: true, bl: true },
     });
@@ -791,8 +930,7 @@ export class DepthRenderer implements TimeSeriesRenderer {
     context.fillStyle = theme.tooltip.textColor;
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(text, pillLeft + pillWidth / 2, pillTop + pillHeight / 2);
-    context.restore();
+    context.fillText(text, pillLeft + pillWidth / 2, top + height / 2);
   }
 
   #midLabel(locale: string | undefined): string {
@@ -908,7 +1046,7 @@ export class DepthRenderer implements TimeSeriesRenderer {
     context.clip();
 
     this.#traceWall({ ctx, side: hover.side, frame, heightAt: FULL_HEIGHT, closed: true });
-    context.fillStyle = hexToRgba(color, HOVER_FILL_ALPHA * this.#hoverAmount);
+    context.fillStyle = this.#edgeFaded({ ctx, color, alpha: HOVER_FILL_ALPHA * this.#hoverAmount });
     context.fill();
 
     this.#traceWall({ ctx, side: hover.side, frame, heightAt: FULL_HEIGHT, closed: false });

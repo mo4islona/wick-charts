@@ -1465,7 +1465,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Visual options override — `span` of the default view, side colors, stroke width, intro / update durations.",
+          "description": "Visual options override — `span` of the default view, side colors, stroke width, mid marker, fill fade, intro / update durations.",
           "see": [],
           "nested": {
             "name": "DepthSeriesOptions",
@@ -1504,6 +1504,33 @@
                 "defaultValue": "1",
                 "deprecated": null,
                 "description": "Step line width in CSS pixels. Default: `1`.",
+                "see": []
+              },
+              {
+                "name": "midLabel",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "The `mid · spread` label at the top of the plot. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "midLine",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "The dashed vertical line at mid. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "fillFade",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "140",
+                "deprecated": null,
+                "description": "CSS px over which the fill fades out at the left and right edges of the\nplot, at most a third of its width; the line runs on to the edge. `0` turns\nit off. Default: `140`.",
                 "see": []
               },
               {

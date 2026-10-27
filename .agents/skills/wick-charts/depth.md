@@ -1,6 +1,6 @@
 # Order book (depth chart)
 
-`<DepthSeries>` plots an order book: the cumulative bid size steps down to the best bid left of mid, the cumulative ask size steps up from the best ask right of mid, with a dashed mid line and a `mid · spread` label. It needs a numeric X axis; on a time or category axis `addSeries` throws. Options (`span`, side colors, stroke width, durations): `DepthSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)).
+`<DepthSeries>` plots an order book: the cumulative bid size steps down to the best bid left of mid, the cumulative ask size steps up from the best ask right of mid, with a dashed mid line and a `mid · spread` label (`midLine: false` and `midLabel: false` hide them). The fill fades out toward the left and right plot edges (`fillFade` in CSS px, `0` turns it off). It needs a numeric X axis; on a time or category axis `addSeries` throws. Options (`span`, side colors, stroke width, durations): `DepthSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)).
 
 ```tsx
 <ChartContainer axis={{ x: { type: 'numeric' }, y: { min: 0 } }}>

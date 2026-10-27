@@ -190,7 +190,8 @@ export interface FadeConfig {
    * approach (pan / tail-scroll exit) and is fully gone before it can cross
    * any axis text; the rest of the width runs backward into the pane as a
    * soft lead-in. **Defaults to a 60px ramp** there — on out of the box,
-   * except on a category axis, whose bands cannot scroll under the column;
+   * except on a category axis and on an order book (`depth`), which cannot
+   * scroll under the column (the book fades its own fill, see its `fillFade`);
    * `0` disables. A no-op while the Y axis is hidden.
    *
    * On the side opposite the axis it's a plain zone at the pane edge —
@@ -213,7 +214,7 @@ export interface FadeConfig {
 export interface ResolvedFade {
   top: number;
   /** `null` = auto: the built-in 60px ramp on the Y-axis side, off on the other;
-   *  off on both sides of a spatial-only chart or a category axis. */
+   *  off on both sides of a spatial-only chart, a category axis or an order book. */
   right: number | null;
   left: number | null;
 }
