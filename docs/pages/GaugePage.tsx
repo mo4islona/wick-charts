@@ -422,7 +422,6 @@ const GAUGE_SECTION: SectionSpec = {
     choiceRow<GaugeStyle>({
       key: 'style',
       label: 'Style',
-      hint: 'Filled arc or a needle',
       options: [
         { value: 'arc', label: 'Arc' },
         { value: 'needle', label: 'Needle' },
@@ -447,7 +446,6 @@ const GAUGE_SECTION: SectionSpec = {
       ...choiceRow<ZonePalette>({
         key: 'zonePalette',
         label: 'Zone colors',
-        hint: 'Theme ramp or own colors',
         options: [
           { value: 'theme', label: 'Theme' },
           { value: 'custom', label: 'Custom' },
@@ -486,8 +484,8 @@ const GAUGE_SECTION: SectionSpec = {
       hint: 'Unfilled part of the arc',
       options: THEME_OR_GRAY,
     }),
-    toggleRow({ key: 'caption', label: 'Caption', hint: 'Text under the value' }),
-    toggleRow({ key: 'rangeLabels', label: 'Range labels', hint: 'Min and max at the arc ends' }),
+    toggleRow({ key: 'caption', label: 'Caption' }),
+    toggleRow({ key: 'rangeLabels', label: 'Range labels' }),
   ],
 };
 
@@ -501,7 +499,6 @@ const RADIAL_SECTION: SectionSpec = {
     choiceRow<RingColors>({
       key: 'ringColors',
       label: 'Colors',
-      hint: 'Theme palette or accent shades',
       options: [
         { value: 'theme', label: 'Theme' },
         { value: 'accent', label: 'Accent' },
@@ -516,14 +513,14 @@ const RADIAL_SECTION: SectionSpec = {
     choiceRow<TickPreset>({
       key: 'tickAnimation',
       label: 'Tick animation',
-      hint: 'How Cluster ticks come and go',
+      hint: 'Cluster card only',
       options: [
         { value: 'pop', label: 'Pop' },
         { value: 'radar', label: 'Radar' },
         { value: 'fly', label: 'Fly' },
       ],
     }),
-    toggleRow({ key: 'legendVisible', label: 'Legend', hint: 'Ring names and shares of max' }),
+    toggleRow({ key: 'legendVisible', label: 'Legend' }),
   ],
 };
 
@@ -557,7 +554,6 @@ const DEMO_EXTRA: SectionSpec = {
     sliderRow({
       key: 'rate',
       label: 'Updates',
-      hint: 'New values per second',
       range: { min: 1, max: 10, step: 1 },
       suffix: '/s',
     }),
@@ -576,7 +572,6 @@ const SECTIONS = [DEMO_EXTRA, GAUGE_SECTION, RADIAL_SECTION, MOTION_SECTION];
 function containerCode(s: PlaygroundChartProps): Record<string, PropValue> {
   const containerProps: Record<string, PropValue> = { grid: { visible: false } };
   if (s.gradient) containerProps.gradient = true;
-  if (s.perfHudVisible) containerProps.perf = 'perfHud()';
 
   return containerProps;
 }
@@ -609,6 +604,7 @@ function gaugeCode(args: { s: PlaygroundChartProps & GaugeSettings; demo: GaugeD
   if (!s.rangeLabels) options.rangeLabels = false;
 
   return {
+    title: { text: demo.title, sub: demo.sub },
     theme: 'catppuccin.theme',
     containerProps: containerCode(s),
     components: [{ component: 'GaugeSeries', props: { value: demo.code.value, options: withMotion(options, s) } }],
@@ -625,6 +621,7 @@ function radialCode(args: { s: PlaygroundChartProps & GaugeSettings; demo: Radia
   Object.assign(options, demo.lookCode(s));
 
   return {
+    title: { text: demo.title, sub: demo.sub },
     theme: 'catppuccin.theme',
     containerProps: containerCode(s),
     components: [
@@ -670,20 +667,20 @@ export function GaugePage({ theme }: { theme: ChartTheme }) {
       charts={(props) => (
         <>
           {GAUGES.map((demo) => (
-            <Cell key={demo.id} theme={props.theme}>
+            <Cell key={demo.id} theme={props.theme} cardId={demo.id}>
               <GaugeChart key={`${demo.id}-${props.perfHudVisible}-${props.entryMs}`} {...props} demo={demo} />
             </Cell>
           ))}
           {RADIALS.map((demo) => (
-            <Cell key={demo.id} theme={props.theme}>
+            <Cell key={demo.id} theme={props.theme} cardId={demo.id}>
               <RadialChart key={`${demo.id}-${props.perfHudVisible}-${props.entryMs}`} {...props} demo={demo} />
             </Cell>
           ))}
         </>
       )}
-      codeConfig={(s) => [
-        ...GAUGES.map((demo) => gaugeCode({ s, demo })),
-        ...RADIALS.map((demo) => radialCode({ s, demo })),
+      cards={(s) => [
+        ...GAUGES.map((demo) => ({ id: demo.id, title: demo.title, sub: demo.sub, code: gaugeCode({ s, demo }) })),
+        ...RADIALS.map((demo) => ({ id: demo.id, title: demo.title, sub: demo.sub, code: radialCode({ s, demo }) })),
       ]}
     />
   );

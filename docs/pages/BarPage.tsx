@@ -19,7 +19,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeChild, ChartCodeConfig, PropValue } from '../components/CodePreview';
 import {
   axisForStacking,
   buildCartesianContainerProps,
@@ -29,7 +29,7 @@ import {
   withLinearY,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { generateBarData, generateLayerData } from '../data';
@@ -111,6 +111,41 @@ const buildRegionLayers = (jitter: (value: number) => number): XPointInput[][] =
     REGIONS.map((x, i) => ({ x, value: jitter(REGION_LAYERS[i][layer]) })),
   );
 
+type BarState = PlaygroundChartProps & BarSettings;
+type CardId = 'single' | 'multi';
+
+interface CardHead {
+  title: string;
+  sub: string;
+}
+
+function multiTitle(s: BarSettings): string {
+  if (s.stacking === 'normal') return 'Stacked';
+  if (s.stacking === 'percent') return '100%';
+
+  return s.xAxisType === 'category' ? 'Grouped' : 'Overlapping';
+}
+
+/** Each card's title and subtitle, shared by the charts and the Code tab. */
+function cardHeads(s: BarState): Record<CardId, CardHead> {
+  const singleLinear = withLinearY(s.axis) !== s.axis;
+  const multiLinear = s.stacking === 'percent' && s.axis?.y?.scale !== undefined;
+  const layersSub = `${LAYER_COUNT} layers`;
+
+  return {
+    single: { title: 'Single', sub: singleLinear ? 'Up/Down · linear' : 'Up/Down' },
+    multi: { title: multiTitle(s), sub: multiLinear ? `${layersSub} · linear` : layersSub },
+  };
+}
+
+/** The multi chart's Y axis: overlapping bars read from a zero floor, which a log axis has not. */
+function multiAxis(s: BarState): AxisConfig {
+  const axis = axisForStacking(s.axis ?? {}, s.stacking);
+  if (s.stacking === 'off' && axis.y?.scale === undefined) return { ...axis, y: { min: 0, ...axis.y } };
+
+  return axis;
+}
+
 /** The playground's axis with the category X axis merged in, when that mode is on. */
 function withXAxisType(axis: AxisConfig, s: BarSettings): AxisConfig {
   if (s.xAxisType !== 'category') return axis;
@@ -118,7 +153,7 @@ function withXAxisType(axis: AxisConfig, s: BarSettings): AxisConfig {
   return { ...axis, x: { ...axis.x, type: 'category', padding: { inner: s.bandGap } } };
 }
 
-function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
+function SingleBarChart(props: BarState & { head: CardHead }) {
   // speed=5 matches the other playground pages (see CandlestickPage) so new
   // bars append about once per second and the entry animations stay visible.
   const { datasets } = useLineStreams([singleData], {
@@ -133,7 +168,6 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   const animations = useAnimationsProp(props);
   // Up/Down bars are signed, and a log axis has no place for values ≤ 0.
   const linearAxis = withLinearY(props.axis);
-  const heldLinear = linearAxis !== props.axis;
   const axis = useMemo(() => withXAxisType(linearAxis, props), [linearAxis, props.xAxisType, props.bandGap]);
 
   return (
@@ -145,7 +179,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub={heldLinear ? 'Up/Down · linear' : 'Up/Down'}>Single</Title>
+      <Title sub={props.head.sub}>{props.head.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={[display]}
@@ -169,7 +203,7 @@ function SingleBarChart(props: PlaygroundChartProps & BarSettings) {
   );
 }
 
-function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: string }) {
+function MultiBarChart(props: BarState & { head: CardHead }) {
   const { datasets } = useLineStreams(layers, {
     interval: DEMO_INTERVAL,
     speed: 5,
@@ -179,14 +213,10 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
   const regions = useLiveRegions({ live: props.streaming && category, build: buildRegionLayers });
   const timeDisplay = props.streaming ? datasets : layers;
   const display = category ? regions : timeDisplay;
-  const chartAxis = useMemo<AxisConfig>(() => {
-    const axis = withXAxisType(axisForStacking(props.axis ?? {}, props.stacking), props);
-    // Overlapping bars read from a zero floor — a log axis has no zero.
-    if (props.stacking === 'off' && axis.y?.scale === undefined) return { ...axis, y: { min: 0, ...axis.y } };
-
-    return axis;
-  }, [props.axis, props.stacking, props.xAxisType, props.bandGap]);
-  const heldLinear = props.stacking === 'percent' && props.axis?.y?.scale !== undefined;
+  const chartAxis = useMemo<AxisConfig>(
+    () => withXAxisType(multiAxis(props), props),
+    [props.axis, props.stacking, props.xAxisType, props.bandGap],
+  );
   const animations = useAnimationsProp(props);
 
   return (
@@ -198,7 +228,7 @@ function MultiBarChart(props: PlaygroundChartProps & BarSettings & { title: stri
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub={heldLinear ? `${LAYER_COUNT} layers · linear` : `${LAYER_COUNT} layers`}>{props.title}</Title>
+      <Title sub={props.head.sub}>{props.head.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       <BarSeries
         data={display}
@@ -246,7 +276,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'bandGap',
       label: 'Band gap',
-      hint: 'axis.x.padding.inner, a fraction of one step',
+      hint: 'Fraction of one step',
       visible: (s) => s.xAxisType === 'category',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={0.6} step={0.05} onChange={onChange as (v: number) => void} />
@@ -287,13 +317,13 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'valueLabels',
       label: 'Value labels',
-      hint: 'Past each bar end; none on 100%',
+      hint: 'None on 100%',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'cornerRadius',
       label: 'Corner radius',
-      hint: 'Free end only; 0 = square',
+      hint: 'Free end only · 0 = square',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={12} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -310,7 +340,6 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'On hover',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -322,7 +351,6 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'crosshairVisible',
       label: 'Crosshair',
-      hint: 'Vertical + horizontal cursor lines',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -366,6 +394,90 @@ const LEGEND_SECTION: SectionSpec = {
   ] as RowSpec[],
 };
 
+function barCode(args: {
+  s: BarState;
+  head: CardHead;
+  axis: AxisConfig;
+  series: ChartCodeChild;
+  legend: boolean;
+  navigator: ChartCodeChild[];
+}): ChartCodeConfig {
+  const { s, head, axis, series, legend, navigator } = args;
+  const category = s.xAxisType === 'category';
+  const containerProps = buildCartesianContainerProps({ ...s, axis }) ?? {};
+  if (category) {
+    // Value labels on the tallest bar would run into an overlaid title.
+    containerProps.headerLayout = 'inline';
+    const axisProps = (containerProps.axis ?? {}) as Record<string, PropValue>;
+    const x: Record<string, PropValue> = { ...((axisProps.x ?? {}) as Record<string, PropValue>), type: 'category' };
+    if (s.bandGap !== DEFAULT_BAND_GAP) x.padding = { inner: s.bandGap };
+    containerProps.axis = { ...axisProps, x };
+  }
+
+  const legendProps: Record<string, PropValue> = {};
+  if (s.legendPos !== 'bottom') legendProps.position = s.legendPos;
+  if (s.legendMode !== 'toggle') legendProps.mode = s.legendMode;
+
+  return {
+    title: { text: head.title, sub: head.sub },
+    theme: 'catppuccin.theme',
+    containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+    components: [
+      series,
+      ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
+      ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
+      ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+      ...(s.axis?.y?.visible !== false ? [{ component: 'YAxis' }] : []),
+      ...(s.axis?.x?.visible !== false ? [{ component: 'XAxis' }] : []),
+      ...(legend && s.legendPos !== 'off' ? [{ component: 'Legend', props: legendProps }] : []),
+      ...(category ? [] : navigator),
+    ],
+  };
+}
+
+function barCards(s: BarState): PlaygroundCard[] {
+  const heads = cardHeads(s);
+  const category = s.xAxisType === 'category';
+  const options: Record<string, PropValue> = {
+    ...buildCommonSeriesOptions(s, 'bar'),
+    ...(category || s.barWidth === 'normal' ? {} : { barWidthRatio: BAR_WIDTH_MAP[s.barWidth] }),
+    ...(s.valueLabels ? { valueLabels: true } : {}),
+    ...(s.cornerRadius !== BAR_DEFAULT_RADIUS ? { cornerRadius: s.cornerRadius } : {}),
+  };
+  const multiOptions = { ...options, ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}) };
+  const multiNavigator = buildNavigatorComponent(s, 'layers', 'bar').map((nav) => ({
+    ...nav,
+    props: { ...nav.props, data: { type: 'bar', series: 'layers' } },
+  }));
+
+  const codes: Record<CardId, ChartCodeConfig> = {
+    single: barCode({
+      s,
+      head: heads.single,
+      axis: withLinearY(s.axis),
+      series: {
+        component: 'BarSeries',
+        props: { data: 'data', ...(Object.keys(options).length > 0 ? { options } : {}) },
+      },
+      legend: false,
+      navigator: buildNavigatorComponent(s, 'data', 'bar'),
+    }),
+    multi: barCode({
+      s,
+      head: heads.multi,
+      axis: multiAxis(s),
+      series: {
+        component: 'BarSeries',
+        props: { data: 'layers', ...(Object.keys(multiOptions).length > 0 ? { options: multiOptions } : {}) },
+      },
+      legend: true,
+      navigator: multiNavigator,
+    }),
+  };
+
+  return (Object.keys(codes) as CardId[]).map((id) => ({ id, ...heads[id], code: codes[id] }));
+}
+
 export function BarPage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<BarSettings>
@@ -388,76 +500,28 @@ export function BarPage({ theme }: { theme: ChartTheme }) {
       animationKinds={['bar']}
       sections={[DISPLAY_EXTRA, SERIES_SECTION, LEGEND_SECTION]}
       charts={(props) => {
-        const offLabel = props.xAxisType === 'category' ? 'Grouped' : 'Overlapping';
-        const label = props.stacking === 'off' ? offLabel : props.stacking === 'normal' ? 'Stacked' : '100%';
+        const heads = cardHeads(props);
 
         return (
           <>
-            <Cell theme={props.theme}>
-              <SingleBarChart key={`s-${props.streaming}-${props.perfHudVisible}-${props.xAxisType}`} {...props} />
+            <Cell theme={props.theme} cardId="single">
+              <SingleBarChart
+                key={`s-${props.streaming}-${props.perfHudVisible}-${props.xAxisType}`}
+                {...props}
+                head={heads.single}
+              />
             </Cell>
-            <Cell theme={props.theme}>
+            <Cell theme={props.theme} cardId="multi">
               <MultiBarChart
                 key={`m-${props.streaming}-${props.stacking}-${props.perfHudVisible}-${props.xAxisType}`}
                 {...props}
-                title={label}
+                head={heads.multi}
               />
             </Cell>
           </>
         );
       }}
-      codeConfig={(s) => {
-        const category = s.xAxisType === 'category';
-        const containerProps = buildCartesianContainerProps({ ...s, axis: axisForStacking(s.axis, s.stacking) }) ?? {};
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-        if (category) {
-          // Value labels on the tallest bar would run into an overlaid title.
-          containerProps.headerLayout = 'inline';
-          const axis = (containerProps.axis ?? {}) as Record<string, PropValue>;
-          const x: Record<string, PropValue> = { ...((axis.x ?? {}) as Record<string, PropValue>), type: 'category' };
-          if (s.bandGap !== DEFAULT_BAND_GAP) x.padding = { inner: s.bandGap };
-          containerProps.axis = { ...axis, x };
-        }
-
-        const options: Record<string, PropValue> = {
-          ...buildCommonSeriesOptions(s, 'bar'),
-          ...(category ? {} : { barWidthRatio: BAR_WIDTH_MAP[s.barWidth] }),
-          stacking: s.stacking,
-          ...(s.valueLabels ? { valueLabels: true } : {}),
-          ...(s.cornerRadius !== BAR_DEFAULT_RADIUS ? { cornerRadius: s.cornerRadius } : {}),
-        };
-
-        const yVisible = s.axis?.y?.visible !== false;
-        const xVisible = s.axis?.x?.visible !== false;
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
-          components: [
-            {
-              component: 'BarSeries',
-              props: { data: 'layers', options },
-            },
-            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-            ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
-            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
-            ...(yVisible ? [{ component: 'YAxis' }] : []),
-            ...(xVisible ? [{ component: 'XAxis' }] : []),
-            ...(s.legendPos !== 'off'
-              ? [
-                  {
-                    component: 'Legend',
-                    props: {
-                      ...(s.legendPos !== 'bottom' ? { position: s.legendPos } : {}),
-                      ...(s.legendMode !== 'toggle' ? { mode: s.legendMode } : {}),
-                    },
-                  },
-                ]
-              : []),
-            ...(category ? [] : buildNavigatorComponent(s, 'layers[0]', 'bar')),
-          ],
-        };
-      }}
+      cards={barCards}
     />
   );
 }

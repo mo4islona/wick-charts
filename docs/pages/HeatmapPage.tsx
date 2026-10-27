@@ -14,9 +14,9 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeConfig, PropValue } from '../components/CodePreview';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Slider, Toggle } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 
@@ -126,6 +126,22 @@ function genLatency(tick: number): HeatmapCellData[] {
   return data;
 }
 
+type CardId = 'activity' | 'correlation' | 'traffic' | 'latency';
+
+interface HeatmapCard {
+  title: string;
+  sub: string;
+  /** This card's own options, as the Code tab prints them. */
+  code?: Record<string, PropValue>;
+}
+
+const CARDS: Record<CardId, HeatmapCard> = {
+  activity: { title: 'Contributions', sub: '16 weeks' },
+  correlation: { title: 'Correlation', sub: '90d returns', code: { colors: 'divergingColors', min: -1, max: 1 } },
+  traffic: { title: 'Traffic', sub: 'req/s by hour' },
+  latency: { title: 'Latency', sub: 'p95 ms', code: { cellLabels: true } },
+};
+
 const ACTIVITY = genActivity();
 const CORRELATION = genCorrelation();
 const TRAFFIC = genTraffic();
@@ -204,8 +220,8 @@ function LiveLatencyChart(props: PlaygroundChartProps & HeatmapSettings) {
     <HeatmapChart
       {...props}
       data={data}
-      title="Latency"
-      sub={props.live ? 'live · p95 ms' : 'p95 ms'}
+      title={CARDS.latency.title}
+      sub={CARDS.latency.sub}
       seriesOptions={{ cellLabels: true }}
     />
   );
@@ -220,25 +236,31 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'Show a tooltip for the hovered cell.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'axisLabels',
       label: 'Axis labels',
-      hint: 'Row keys down the left edge, column keys along the bottom.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'cellLabels',
       label: 'Cell values',
-      hint: 'Draw the value inside each cell when it fits.',
+      hint: 'When it fits',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
+  ] as RowSpec[],
+};
+
+const DEMO_EXTRA: SectionSpec = {
+  id: 'demo-heatmap',
+  title: 'Demo',
+  extend: 'demo',
+  rows: [
     {
       key: 'live',
       label: 'Live updates',
-      hint: 'Stream fresh values into the Latency board — same grid, tweened colors.',
+      hint: 'Latency card only',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -252,7 +274,6 @@ const GEOMETRY_SECTION: SectionSpec = {
     {
       key: 'gap',
       label: 'Cell gap',
-      hint: 'Surface gap separating adjacent cells.',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={8} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -260,7 +281,6 @@ const GEOMETRY_SECTION: SectionSpec = {
     {
       key: 'cornerRadius',
       label: 'Corner radius',
-      hint: 'Rounding applied to every cell corner.',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={12} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -276,7 +296,7 @@ const MOTION_SECTION: SectionSpec = {
     {
       key: 'entryMs',
       label: 'Entrance',
-      hint: 'Per-cell reveal duration of the diagonal entrance wave. 0 paints instantly.',
+      hint: 'Diagonal wave · 0 = off',
       render: (v, onChange) => (
         <Slider
           value={v as number}
@@ -291,7 +311,7 @@ const MOTION_SECTION: SectionSpec = {
     {
       key: 'updateMs',
       label: 'Value tween',
-      hint: 'In-place value/color morph and hover-lift ease. 0 snaps.',
+      hint: 'Glide to new values · 0 snaps',
       render: (v, onChange) => (
         <Slider
           value={v as number}
@@ -305,6 +325,30 @@ const MOTION_SECTION: SectionSpec = {
     },
   ] as RowSpec[],
 };
+
+// The library's own defaults: the Code tab prints an option only when it differs.
+const DEFAULTS = { gap: 2, cornerRadius: 3, entryMs: 600, updateMs: 300 };
+
+function heatmapCode(s: PlaygroundChartProps & HeatmapSettings, card: HeatmapCard): ChartCodeConfig {
+  const options: Record<string, PropValue> = {};
+  if (s.gap !== DEFAULTS.gap) options.gap = s.gap;
+  if (s.cornerRadius !== DEFAULTS.cornerRadius) options.cornerRadius = s.cornerRadius;
+  if (!s.axisLabels) options.axisLabels = false;
+  if (s.cellLabels) options.cellLabels = true;
+  if (s.entryMs !== DEFAULTS.entryMs) options.entryMs = s.entryMs;
+  if (s.updateMs !== DEFAULTS.updateMs) options.updateMs = s.updateMs;
+  Object.assign(options, card.code);
+
+  return {
+    title: { text: card.title, sub: card.sub },
+    theme: 'catppuccin.theme',
+    containerProps: s.gradient ? { gradient: true } : undefined,
+    components: [
+      { component: 'HeatmapSeries', props: { data: 'data', ...(Object.keys(options).length > 0 ? { options } : {}) } },
+      ...(s.tooltipVisible ? [{ component: 'HeatmapTooltip' }] : []),
+    ],
+  };
+}
 
 export function HeatmapPage({ theme }: { theme: ChartTheme }) {
   // Diverging ramp for the correlation cell: theme's down color → a neutral
@@ -333,70 +377,50 @@ export function HeatmapPage({ theme }: { theme: ChartTheme }) {
       // Heatmap motion is driven by the per-series entryMs / updateMs rows in
       // the Animation section below — suppress the built-in per-kind sliders.
       animationKinds={[]}
-      sections={[DISPLAY_EXTRA, GEOMETRY_SECTION, MOTION_SECTION]}
+      sections={[DEMO_EXTRA, DISPLAY_EXTRA, GEOMETRY_SECTION, MOTION_SECTION]}
       charts={(props) => (
         <>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId="activity">
             <HeatmapChart
               key={`activity-${props.perfHudVisible}-${props.entryMs}`}
               {...props}
               data={ACTIVITY}
-              title="Contributions"
-              sub="16 weeks"
+              title={CARDS.activity.title}
+              sub={CARDS.activity.sub}
             />
           </Cell>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId="correlation">
             <HeatmapChart
               key={`correlation-${props.perfHudVisible}-${props.entryMs}`}
               {...props}
               data={CORRELATION}
-              title="Correlation"
-              sub="90d returns"
+              title={CARDS.correlation.title}
+              sub={CARDS.correlation.sub}
               seriesOptions={{ colors: divergingColors, min: -1, max: 1, cellLabels: props.cellLabels }}
             />
           </Cell>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId="traffic">
             <HeatmapChart
               key={`traffic-${props.perfHudVisible}-${props.entryMs}`}
               {...props}
               data={TRAFFIC}
-              title="Traffic"
-              sub="req/s by hour"
+              title={CARDS.traffic.title}
+              sub={CARDS.traffic.sub}
             />
           </Cell>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId="latency">
             <LiveLatencyChart key={`latency-${props.perfHudVisible}`} {...props} />
           </Cell>
         </>
       )}
-      codeConfig={(s) => {
-        const containerProps: Record<string, PropValue> = {};
-        if (s.gradient) containerProps.gradient = true;
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
-          components: [
-            {
-              component: 'HeatmapSeries',
-              props: {
-                id: 'sid',
-                data: 'data',
-                options: {
-                  gap: s.gap,
-                  cornerRadius: s.cornerRadius,
-                  axisLabels: s.axisLabels,
-                  cellLabels: s.cellLabels,
-                  entryMs: s.entryMs,
-                  updateMs: s.updateMs,
-                },
-              },
-            },
-            ...(s.tooltipVisible ? [{ component: 'HeatmapTooltip', props: {} }] : []),
-          ],
-        };
-      }}
+      cards={(s): PlaygroundCard[] =>
+        (Object.keys(CARDS) as CardId[]).map((id) => ({
+          id,
+          title: CARDS[id].title,
+          sub: CARDS[id].sub,
+          code: heatmapCode(s, CARDS[id]),
+        }))
+      }
     />
   );
 }

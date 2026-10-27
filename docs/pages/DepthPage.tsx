@@ -15,10 +15,10 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeConfig, PropValue } from '../components/CodePreview';
 import { Button } from '../components/kit';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Slider, Toggle } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 
@@ -183,8 +183,12 @@ function useOrderBook(args: { levels: number; rate: number; volatility: number; 
   return book;
 }
 
-/** The library's own step line width — the Code tab shows `strokeWidth` only when it differs. */
+// The library's own defaults: the Code tab prints an option only when it differs.
 const DEFAULT_STROKE_WIDTH = 1;
+const DEFAULT_INTRO_MS = 500;
+const DEFAULT_UPDATE_MS = 500;
+
+const BOOK = { id: 'book', title: 'BTC/USD order book', sub: 'numeric price X axis · cumulative size on Y' };
 
 const formatSize = (value: number) => `${value.toFixed(2)} BTC`;
 
@@ -214,7 +218,7 @@ function OrderBookChart({
       perf={perfHudVisible ? perfHud() : undefined}
       style={{ minHeight: 0 }}
     >
-      <Title sub="numeric price X axis · cumulative size on Y">BTC/USD order book</Title>
+      <Title sub={BOOK.sub}>{BOOK.title}</Title>
       <DepthSeries
         bids={book.bids}
         asks={book.asks}
@@ -238,19 +242,16 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'Side, level price and cumulative size under the pointer.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'legendVisible',
       label: 'Legend',
-      hint: 'Toggle the bid and ask walls.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'crosshairVisible',
       label: 'Crosshair',
-      hint: 'Price and size labels at the cursor on the axes.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -265,7 +266,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'spanPct',
       label: 'Span',
-      hint: 'Half-width of the view around mid, in percent of mid. 0 fits the book. Wheel or pinch to zoom; double-click resets.',
+      hint: '% of mid · 0 fits the book',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={2} step={0.1} suffix="%" onChange={onChange as (v: number) => void} />
       ),
@@ -273,7 +274,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'strokeWidth',
       label: 'Line width',
-      hint: 'Width of the step line on each wall. 0 leaves only the fill.',
+      hint: '0 = fill only',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={4} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -281,73 +282,54 @@ const SERIES_SECTION: SectionSpec = {
   ] as RowSpec[],
 };
 
-// The simulated book — demo data, not chart options, so the Code tab leaves it out.
-const DEMO_EXTRA: SectionSpec = {
-  id: 'demo-depth',
-  title: 'Demo',
-  extend: 'demo',
-  rows: [
-    {
-      key: 'levels',
-      label: 'Levels',
-      hint: 'Price levels on each side of the simulated book.',
-      render: (v, onChange) => (
-        <Slider value={v as number} min={20} max={200} step={10} onChange={onChange as (v: number) => void} />
-      ),
-    },
-    {
-      key: 'rate',
-      label: 'Updates',
-      hint: 'Full snapshots per second.',
-      render: (v, onChange) => (
-        <Slider value={v as number} min={1} max={30} step={1} suffix="/s" onChange={onChange as (v: number) => void} />
-      ),
-    },
-    {
-      key: 'spread',
-      label: 'Spread',
-      hint: 'Gap between the best bid and the best ask, in USD.',
-      render: (v, onChange) => (
-        <Slider value={v as number} min={0.5} max={50} step={0.5} onChange={onChange as (v: number) => void} />
-      ),
-    },
-    {
-      key: 'volatility',
-      label: 'Volatility',
-      hint: 'Largest move of the simulated mid per update, in USD. Raise it to watch the view glide after mid.',
-      render: (v, onChange) => (
-        <Slider value={v as number} min={0} max={30} step={1} onChange={onChange as (v: number) => void} />
-      ),
-    },
-  ] as RowSpec[],
-};
-
-/** The Replay row hosts a docs-kit button, which takes the page theme. */
-function motionSection(theme: ChartTheme): SectionSpec {
+/** The simulated book and the intro replay; the Replay row hosts a docs-kit button, which takes the page theme. */
+function demoSection(theme: ChartTheme): SectionSpec {
   return {
-    id: 'motion-depth',
-    title: 'Animation',
-    icon: ICONS.display,
+    id: 'demo-depth',
+    title: 'Demo',
+    extend: 'demo',
     rows: [
       {
-        key: 'introMs',
-        label: 'Intro',
-        hint: 'Both walls grow out from mid; the full reveal lasts ~2×. 0 paints instantly.',
+        key: 'levels',
+        label: 'Levels',
+        hint: 'Per side',
+        render: (v, onChange) => (
+          <Slider value={v as number} min={20} max={200} step={10} onChange={onChange as (v: number) => void} />
+        ),
+      },
+      {
+        key: 'rate',
+        label: 'Updates',
         render: (v, onChange) => (
           <Slider
             value={v as number}
-            min={0}
-            max={1500}
-            step={50}
-            suffix="ms"
+            min={1}
+            max={30}
+            step={1}
+            suffix="/s"
             onChange={onChange as (v: number) => void}
           />
         ),
       },
       {
+        key: 'spread',
+        label: 'Spread',
+        hint: 'Best bid to best ask, USD',
+        render: (v, onChange) => (
+          <Slider value={v as number} min={0.5} max={50} step={0.5} onChange={onChange as (v: number) => void} />
+        ),
+      },
+      {
+        key: 'volatility',
+        label: 'Volatility',
+        hint: 'Largest mid move, USD',
+        render: (v, onChange) => (
+          <Slider value={v as number} min={0} max={30} step={1} onChange={onChange as (v: number) => void} />
+        ),
+      },
+      {
         key: 'introEpoch',
         label: 'Replay intro',
-        hint: 'Remount the chart to play the intro again.',
         render: (v, onChange) => (
           <Button
             theme={theme}
@@ -358,27 +340,78 @@ function motionSection(theme: ChartTheme): SectionSpec {
           </Button>
         ),
       },
-      {
-        key: 'updateMs',
-        label: 'Morph',
-        hint: 'Ease from the book on screen to each update, the mid glide and the hover highlight. 0 snaps.',
-        render: (v, onChange) => (
-          <Slider
-            value={v as number}
-            min={0}
-            max={1000}
-            step={50}
-            suffix="ms"
-            onChange={onChange as (v: number) => void}
-          />
-        ),
-      },
     ] as RowSpec[],
   };
 }
 
+const MOTION_SECTION: SectionSpec = {
+  id: 'motion-depth',
+  title: 'Animation',
+  icon: ICONS.display,
+  rows: [
+    {
+      key: 'introMs',
+      label: 'Intro',
+      hint: 'Walls grow from mid · 0 = off',
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={0}
+          max={1500}
+          step={50}
+          suffix="ms"
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+    {
+      key: 'updateMs',
+      label: 'Morph',
+      hint: 'Glide to new data · 0 snaps',
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={0}
+          max={1000}
+          step={50}
+          suffix="ms"
+          onChange={onChange as (v: number) => void}
+        />
+      ),
+    },
+  ] as RowSpec[],
+};
+
+function bookCode(s: PlaygroundChartProps & DepthSettings): ChartCodeConfig {
+  const containerProps: Record<string, PropValue> = { axis: { x: { type: 'numeric' }, y: { min: 0 } } };
+  if (s.gradient) containerProps.gradient = true;
+
+  const options: Record<string, PropValue> = {};
+  if (s.spanPct > 0) options.span = s.spanPct / 100;
+  if (s.strokeWidth !== DEFAULT_STROKE_WIDTH) options.strokeWidth = s.strokeWidth;
+  if (s.introMs !== DEFAULT_INTRO_MS) options.introMs = s.introMs;
+  if (s.updateMs !== DEFAULT_UPDATE_MS) options.updateMs = s.updateMs;
+
+  return {
+    title: { text: BOOK.title, sub: BOOK.sub },
+    theme: 'catppuccin.theme',
+    containerProps,
+    components: [
+      {
+        component: 'DepthSeries',
+        props: { bids: 'bids', asks: 'asks', ...(Object.keys(options).length > 0 ? { options } : {}) },
+      },
+      { component: 'XAxis', props: { minLabelSpacing: 64 } },
+      { component: 'YAxis' },
+      ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+      ...(s.tooltipVisible ? [{ component: 'Tooltip', props: { format: 'formatSize' } }] : []),
+      ...(s.legendVisible ? [{ component: 'Legend' }] : []),
+    ],
+  };
+}
+
 export function DepthPage({ theme }: { theme: ChartTheme }) {
-  const sections = useMemo(() => [DEMO_EXTRA, DISPLAY_EXTRA, SERIES_SECTION, motionSection(theme)], [theme]);
+  const sections = useMemo(() => [demoSection(theme), DISPLAY_EXTRA, SERIES_SECTION, MOTION_SECTION], [theme]);
 
   return (
     <Playground<DepthSettings>
@@ -407,32 +440,11 @@ export function DepthPage({ theme }: { theme: ChartTheme }) {
       animationKinds={[]}
       sections={sections}
       charts={(props) => (
-        <Cell theme={props.theme}>
+        <Cell theme={props.theme} cardId={BOOK.id}>
           <OrderBookChart key={`book-${props.perfHudVisible}-${props.introMs}-${props.introEpoch}`} {...props} />
         </Cell>
       )}
-      codeConfig={(s) => {
-        const containerProps: Record<string, PropValue> = { axis: { x: { type: 'numeric' }, y: { min: 0 } } };
-        if (s.gradient) containerProps.gradient = true;
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-
-        const options: Record<string, PropValue> = { introMs: s.introMs, updateMs: s.updateMs };
-        if (s.spanPct > 0) options.span = s.spanPct / 100;
-        if (s.strokeWidth !== DEFAULT_STROKE_WIDTH) options.strokeWidth = s.strokeWidth;
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps,
-          components: [
-            { component: 'DepthSeries', props: { bids: 'bids', asks: 'asks', options } },
-            { component: 'XAxis', props: {} },
-            { component: 'YAxis', props: {} },
-            ...(s.crosshairVisible ? [{ component: 'Crosshair', props: {} }] : []),
-            ...(s.tooltipVisible ? [{ component: 'Tooltip', props: {} }] : []),
-            ...(s.legendVisible ? [{ component: 'Legend', props: {} }] : []),
-          ],
-        };
-      }}
+      cards={(s): PlaygroundCard[] => [{ ...BOOK, code: bookCode(s) }]}
     />
   );
 }

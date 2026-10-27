@@ -283,8 +283,7 @@ function entryAnimationFor(s: PlaygroundChartProps, kind: CartesianSeriesKind): 
 
 /**
  * Build series `options` fragment for fields shared across cartesian series
- * (entry animation, and `pulse` toggle for line during streaming).
- * Callers merge this with series-specific options.
+ * (the entry animation). Callers merge this with series-specific options.
  */
 export function buildCommonSeriesOptions(
   s: PlaygroundChartProps,
@@ -299,7 +298,6 @@ export function buildCommonSeriesOptions(
   // chart-level `animations.series.{kind}.*` block via `buildAnimationsProp`,
   // which keeps the rendered snippet single-source-of-truth and matches the
   // way the public API is documented.
-  if (kind === 'line' && s.streaming) out.pulse = true;
 
   return out;
 }

@@ -20,7 +20,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeChild, ChartCodeConfig, PropValue } from '../components/CodePreview';
 import {
   axisForStacking,
   buildCartesianContainerProps,
@@ -30,7 +30,7 @@ import {
   withLinearY,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import {
@@ -59,6 +59,7 @@ interface LineSettings {
   areaBaseline: AreaBaseline;
   curve: CurveKind;
   strokeWidth: number;
+  pulse: boolean;
   pointsVisible: boolean;
   pointsRadius: number;
   stacking: StackingMode;
@@ -72,6 +73,34 @@ interface LineSettings {
 }
 
 const MULTI_COUNT = 6;
+
+type LineState = PlaygroundChartProps & LineSettings;
+type CardId = 'single' | 'multi' | 'pnl';
+
+interface CardHead {
+  title: string;
+  sub: string;
+}
+
+function stackTitle(stacking: StackingMode): string {
+  if (stacking === 'off') return 'Overlapping';
+  if (stacking === 'normal') return 'Stacked';
+
+  return '100%';
+}
+
+/** Each card's title and subtitle, shared by the charts and the Code tab. */
+function cardHeads(s: LineState): Record<CardId, CardHead> {
+  const multiLinear = axisForStacking(s.axis, s.stacking) !== s.axis;
+  const pnlLinear = withLinearY(s.axis) !== s.axis;
+  const series = `${MULTI_COUNT} series`;
+
+  return {
+    single: { title: 'Single', sub: s.areaVisible ? 'area' : 'line' },
+    multi: { title: stackTitle(s.stacking), sub: multiLinear ? `${series} · linear` : series },
+    pnl: { title: 'P&L', sub: pnlLinear ? 'Baseline 0 · linear' : 'Baseline 0' },
+  };
+}
 
 /** Compounding series, a couple of decades apart — reads best on a log axis. */
 function growthOpts(index: number): GrowthOpts {
@@ -126,7 +155,7 @@ function areaOption({ areaVisible, areaBaseline }: LineSettings): { visible: boo
   return { visible: areaVisible };
 }
 
-function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][] }) {
+function SingleChart(props: LineState & { allData: TimePoint[][]; head: CardHead }) {
   const { datasets } = useLineStreams(props.allData, {
     interval: DEMO_INTERVAL,
     speed: 5,
@@ -148,7 +177,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
       // spacing clears the density guard across the whole radius slider range.
       viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
-      <Title sub={props.areaVisible ? 'area' : 'line'}>Single</Title>
+      <Title sub={props.head.sub}>{props.head.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         id={sid}
@@ -157,7 +186,7 @@ function SingleChart(props: PlaygroundChartProps & LineSettings & { allData: Tim
           area: areaOption(props),
           curve: props.curve,
           strokeWidth: props.strokeWidth,
-          pulse: props.streaming,
+          pulse: props.pulse,
           entryAnimation: props.lineEntryAnimation,
           points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
         }}
@@ -194,7 +223,7 @@ function renderTooltip({ tooltipCustom, tooltipSort }: LineSettings) {
   );
 }
 
-function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: TimePoint[][]; title: string }) {
+function MultiChart(props: LineState & { allData: TimePoint[][]; head: CardHead }) {
   const { datasets } = useLineStreams(props.allData, {
     interval: DEMO_INTERVAL,
     speed: 5,
@@ -203,7 +232,6 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
   const display = props.streaming ? datasets : props.allData;
   const animations = useAnimationsProp(props);
   const axis = axisForStacking(props.axis, props.stacking);
-  const heldLinear = axis !== props.axis;
 
   return (
     <ChartContainer
@@ -215,7 +243,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
       animations={animations}
       viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
-      <Title sub={heldLinear ? `${MULTI_COUNT} series · linear` : `${MULTI_COUNT} series`}>{props.title}</Title>
+      <Title sub={props.head.sub}>{props.head.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         data={display}
@@ -224,7 +252,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
           area: areaOption(props),
           curve: props.curve,
           strokeWidth: props.strokeWidth,
-          pulse: props.streaming,
+          pulse: props.pulse,
           stacking: props.stacking,
           entryAnimation: props.lineEntryAnimation,
           points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
@@ -241,7 +269,7 @@ function MultiChart(props: PlaygroundChartProps & LineSettings & { allData: Time
 }
 
 /** Running P&L in the classic baseline look: the fill closes to 0, up color above it, down color below. */
-function PnlChart(props: PlaygroundChartProps & LineSettings) {
+function PnlChart(props: LineState & { head: CardHead }) {
   const [history] = useState(() => [generatePnlData(300)]);
   const { datasets } = useLineStreams(history, {
     interval: DEMO_INTERVAL,
@@ -252,7 +280,6 @@ function PnlChart(props: PlaygroundChartProps & LineSettings) {
   const animations = useAnimationsProp(props);
   // P&L is signed, and a log axis has no place for values ≤ 0.
   const axis = withLinearY(props.axis);
-  const heldLinear = axis !== props.axis;
   const { up, down } = props.theme.candlestick;
   // The pulse dot, info bar and legend read the series color — sign it by the latest P&L.
   const signColor = useMemo(() => (value: number) => (value >= 0 ? up.wick : down.wick), [up.wick, down.wick]);
@@ -267,7 +294,7 @@ function PnlChart(props: PlaygroundChartProps & LineSettings) {
       animations={animations}
       viewport={props.pointsVisible ? { maxVisibleBars: 30 } : undefined}
     >
-      <Title sub={heldLinear ? 'Baseline 0 · linear' : 'Baseline 0'}>P&amp;L</Title>
+      <Title sub={props.head.sub}>{props.head.title}</Title>
       {props.infoBarVisible && <InfoBar sort={props.tooltipSort} />}
       <LineSeries
         data={{ label: 'P&L', color: signColor, data: series }}
@@ -276,7 +303,7 @@ function PnlChart(props: PlaygroundChartProps & LineSettings) {
           threshold: { value: 0, above: up.wick, below: down.wick },
           curve: props.curve,
           strokeWidth: props.strokeWidth,
-          pulse: props.streaming,
+          pulse: props.pulse,
           entryAnimation: props.lineEntryAnimation,
           points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
         }}
@@ -305,7 +332,6 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'crosshairVisible',
       label: 'Crosshair',
-      hint: 'Vertical + horizontal cursor lines',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -319,7 +345,6 @@ const DEMO_EXTRA: SectionSpec = {
     {
       key: 'dataMode',
       label: 'Data',
-      hint: 'Mock generator used by the live preview',
       render: (v, onChange) => (
         <Select<DataMode>
           value={v as DataMode}
@@ -343,7 +368,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'curve',
       label: 'Curve',
-      hint: 'Stroke + area share one path',
       render: (v, onChange) => (
         <ToggleGroup<CurveKind>
           value={v as CurveKind}
@@ -380,9 +404,14 @@ const SERIES_SECTION: SectionSpec = {
       ),
     },
     {
+      key: 'pulse',
+      label: 'Pulse',
+      hint: 'Halo at the last point',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
       key: 'areaVisible',
       label: 'Fill',
-      hint: 'Area gradient below the line',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -404,7 +433,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'pointsVisible',
       label: 'Points',
-      hint: 'Dot at each data point',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -426,7 +454,6 @@ const TOOLTIP_SECTION: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'On hover',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -447,7 +474,7 @@ const TOOLTIP_SECTION: SectionSpec = {
     {
       key: 'tooltipCustom',
       label: 'Custom render',
-      hint: 'Top 3 rows via slot / render-prop',
+      hint: 'Top 3 rows via render prop',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -520,6 +547,118 @@ const LEGEND_SECTION: SectionSpec = {
   ] as RowSpec[],
 };
 
+/** `area` as the Code tab prints it: the library shows the area unless told otherwise. */
+function areaCode(area: { visible: boolean; baseline?: number }): Record<string, PropValue> {
+  if (!area.visible) return { area: { visible: false } };
+  if (area.baseline !== undefined) return { area: { baseline: area.baseline } };
+
+  return {};
+}
+
+/** The series look the panel sets on every card. */
+function lineOptions(s: LineState): Record<string, PropValue> {
+  return {
+    ...buildCommonSeriesOptions(s, 'line'),
+    ...areaCode({ visible: s.areaVisible, baseline: s.areaBaseline === 'zero' ? 0 : undefined }),
+    ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
+    ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
+    ...(s.pulse ? {} : { pulse: false }),
+    ...(s.pointsVisible
+      ? { points: { visible: true, ...(s.pointsRadius !== 3 ? { radius: s.pointsRadius } : {}) } }
+      : {}),
+  };
+}
+
+function lineSeries(data: string, options: Record<string, PropValue>): ChartCodeChild {
+  const props: Record<string, PropValue> = { data };
+  if (Object.keys(options).length > 0) props.options = options;
+
+  return { component: 'LineSeries', props };
+}
+
+/** Info bar, tooltip, crosshair, axes and legend, as the panel sets them. */
+function overlayCode(s: LineState, legend: boolean): ChartCodeChild[] {
+  const sort = s.tooltipSort !== 'none' ? { props: { sort: s.tooltipSort } } : {};
+  const legendProps: Record<string, PropValue> = {};
+  if (s.legendPos !== 'bottom') legendProps.position = s.legendPos;
+  if (s.legendMode !== 'toggle') legendProps.mode = s.legendMode;
+
+  return [
+    ...(s.infoBarVisible ? [{ component: 'InfoBar', ...sort }] : []),
+    ...(s.tooltipVisible
+      ? [{ component: 'Tooltip', ...sort, ...(s.tooltipCustom ? { childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS } : {}) }]
+      : []),
+    ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+    ...(s.axis?.y?.visible !== false ? [{ component: 'YAxis' }] : []),
+    ...(s.axis?.x?.visible !== false ? [{ component: 'XAxis' }] : []),
+    ...(legend && s.legendPos !== 'off' ? [{ component: 'Legend', props: legendProps }] : []),
+  ];
+}
+
+function cardCode(args: {
+  s: LineState;
+  head: CardHead;
+  axis: LineState['axis'];
+  series: ChartCodeChild;
+  legend: boolean;
+  navigator: ChartCodeChild[];
+}): ChartCodeConfig {
+  const { s, head, axis, series, legend, navigator } = args;
+  const containerProps = buildCartesianContainerProps({ ...s, axis }) ?? {};
+  // The demo data is dense: the same window cap as the preview lets the dots clear the density guard.
+  if (s.pointsVisible) containerProps.viewport = { maxVisibleBars: 30 };
+
+  return {
+    title: { text: head.title, sub: head.sub },
+    theme: 'catppuccin.theme',
+    containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+    components: [series, ...overlayCode(s, legend), ...navigator],
+  };
+}
+
+function lineCards(s: LineState): PlaygroundCard[] {
+  const heads = cardHeads(s);
+  const options = lineOptions(s);
+
+  const multiOptions = { ...options, ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}) };
+  const multiNavigator = buildNavigatorComponent(s, 'series').map((nav) => ({
+    ...nav,
+    props: { ...nav.props, data: { type: 'line', series: 'series' } },
+  }));
+
+  const pnlOptions = { ...options, ...areaCode({ visible: s.areaVisible, baseline: 0 }) };
+  pnlOptions.threshold = { value: 0, above: 'upColor', below: 'downColor' };
+
+  const codes: Record<CardId, ChartCodeConfig> = {
+    single: cardCode({
+      s,
+      head: heads.single,
+      axis: s.axis,
+      series: lineSeries('data', options),
+      legend: true,
+      navigator: buildNavigatorComponent(s, 'data[0]'),
+    }),
+    multi: cardCode({
+      s,
+      head: heads.multi,
+      axis: axisForStacking(s.axis, s.stacking),
+      series: lineSeries('series', multiOptions),
+      legend: true,
+      navigator: multiNavigator,
+    }),
+    pnl: cardCode({
+      s,
+      head: heads.pnl,
+      axis: withLinearY(s.axis),
+      series: lineSeries('pnl', pnlOptions),
+      legend: false,
+      navigator: buildNavigatorComponent(s, 'pnl'),
+    }),
+  };
+
+  return (Object.keys(codes) as CardId[]).map((id) => ({ id, ...heads[id], code: codes[id] }));
+}
+
 export function LinePage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<LineSettings>
@@ -534,6 +673,7 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         areaBaseline: 'floor',
         curve: 'straight',
         strokeWidth: 1,
+        pulse: true,
         pointsVisible: false,
         pointsRadius: 3,
         stacking: 'off',
@@ -549,93 +689,37 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
       charts={(props) => {
         const single = [makeData(props.dataMode, 300, 0)];
         const multi = Array.from({ length: MULTI_COUNT }, (_, i) => makeData(props.dataMode, 300, i));
-        const label = props.stacking === 'off' ? 'Overlapping' : props.stacking === 'normal' ? 'Stacked' : '100%';
+        const heads = cardHeads(props);
 
         return (
           <>
-            <Cell theme={props.theme}>
+            <Cell theme={props.theme} cardId="single">
               <SingleChart
                 key={`${props.dataMode}-${props.streaming}-${props.perfHudVisible}-${props.pointsVisible}-s`}
                 {...props}
                 allData={single}
+                head={heads.single}
               />
             </Cell>
-            <Cell theme={props.theme}>
+            <Cell theme={props.theme} cardId="multi">
               <MultiChart
                 key={`${props.dataMode}-${props.streaming}-${props.stacking}-${props.perfHudVisible}-${props.pointsVisible}-m`}
                 {...props}
                 allData={multi}
-                title={label}
+                head={heads.multi}
               />
             </Cell>
-            <Cell theme={props.theme}>
-              <PnlChart key={`${props.streaming}-${props.perfHudVisible}-${props.pointsVisible}-p`} {...props} />
+            <Cell theme={props.theme} cardId="pnl">
+              <PnlChart
+                key={`${props.streaming}-${props.perfHudVisible}-${props.pointsVisible}-p`}
+                {...props}
+                head={heads.pnl}
+              />
             </Cell>
           </>
         );
       }}
-      codeConfig={(s) => {
-        const containerProps = buildCartesianContainerProps({ ...s, axis: axisForStacking(s.axis, s.stacking) }) ?? {};
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-        // Mirrors the live preview: the demo data is dense, so the snippet
-        // carries the same window cap that lets the dots clear the density guard.
-        if (s.pointsVisible) containerProps.viewport = { maxVisibleBars: 30 };
-
-        const options: Record<string, PropValue> = {
-          ...buildCommonSeriesOptions(s, 'line'),
-          ...(s.areaVisible ? { area: areaOption(s) } : {}),
-          ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
-          ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
-          ...(s.pointsVisible
-            ? { points: { visible: true, ...(s.pointsRadius !== 3 ? { radius: s.pointsRadius } : {}) } }
-            : {}),
-          ...(s.stacking !== 'off' ? { stacking: s.stacking } : {}),
-        };
-
-        const yVisible = s.axis?.y?.visible !== false;
-        const xVisible = s.axis?.x?.visible !== false;
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
-          components: [
-            {
-              component: 'LineSeries',
-              props: {
-                data: 'data',
-                ...(Object.keys(options).length > 0 ? { options } : {}),
-              },
-            },
-            ...(s.infoBarVisible
-              ? [{ component: 'InfoBar', ...(s.tooltipSort !== 'none' ? { props: { sort: s.tooltipSort } } : {}) }]
-              : []),
-            ...(s.tooltipVisible
-              ? [
-                  {
-                    component: 'Tooltip',
-                    ...(s.tooltipSort !== 'none' ? { props: { sort: s.tooltipSort } } : {}),
-                    ...(s.tooltipCustom ? { childrenSnippet: CUSTOM_TOOLTIP_SNIPPETS } : {}),
-                  },
-                ]
-              : []),
-            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
-            ...(yVisible ? [{ component: 'YAxis' }] : []),
-            ...(xVisible ? [{ component: 'XAxis' }] : []),
-            ...(s.legendPos !== 'off'
-              ? [
-                  {
-                    component: 'Legend',
-                    props: {
-                      ...(s.legendPos !== 'bottom' ? { position: s.legendPos } : {}),
-                      ...(s.legendMode !== 'toggle' ? { mode: s.legendMode } : {}),
-                    },
-                  },
-                ]
-              : []),
-            ...buildNavigatorComponent(s, 'data[0]'),
-          ],
-        };
-      }}
+      cards={lineCards}
     />
   );
 }

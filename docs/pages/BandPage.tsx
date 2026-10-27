@@ -22,7 +22,7 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeConfig, PropValue } from '../components/CodePreview';
 import {
   buildCartesianContainerProps,
   buildCommonSeriesOptions,
@@ -30,7 +30,7 @@ import {
   useAnimationsProp,
 } from '../components/playground/codeMappings';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
 import { Select, Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 import { type LineStrategy, generateLineData, lineDriftStrategy } from '../data';
@@ -60,6 +60,17 @@ type ChartProps = PlaygroundChartProps & BandSettings;
 const HISTORY = 300;
 const WINDOW = 20;
 const EDGE_WIDTH_DEFAULT = 1;
+
+interface BandCard {
+  id: string;
+  title: string;
+  sub: string;
+  /** The center line's variable name in the Code tab. */
+  line: string;
+}
+
+const BOLLINGER: BandCard = { id: 'bollinger', title: 'Bollinger', sub: `SMA ${WINDOW} ± 2σ`, line: 'price' };
+const FAN: BandCard = { id: 'fan', title: 'Fan', sub: '2 bands', line: 'mean' };
 
 interface Envelope {
   mean: TimePoint[];
@@ -129,7 +140,6 @@ function lineOptions(props: ChartProps): Partial<LineSeriesOptions> {
   return {
     area: { visible: false },
     strokeWidth: 1,
-    pulse: props.streaming,
     entryAnimation: props.lineEntryAnimation,
   };
 }
@@ -174,7 +184,7 @@ function BollingerChart(props: ChartProps) {
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub={`SMA ${WINDOW} ± 2σ`}>Bollinger</Title>
+      <Title sub={BOLLINGER.sub}>{BOLLINGER.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       {/* Declared first so the price line draws over the band. */}
       <BandSeries id="band" data={{ label: 'Band', data: bands[0] }} options={bandOptions(props)} />
@@ -201,7 +211,7 @@ function FanChart(props: ChartProps) {
       perf={props.perfHudVisible ? perfHud() : undefined}
       animations={animations}
     >
-      <Title sub="2 bands">Fan</Title>
+      <Title sub={FAN.sub}>{FAN.title}</Title>
       {props.infoBarVisible && <InfoBar />}
       <BandSeries
         data={[
@@ -231,13 +241,11 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'Low – high per band on hover',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'crosshairVisible',
       label: 'Crosshair',
-      hint: 'Marks both edges of every band',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -251,7 +259,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'curve',
       label: 'Curve',
-      hint: 'Smooth never overshoots an edge',
       render: (v, onChange) => (
         <ToggleGroup<CurveKind>
           value={v as CurveKind}
@@ -267,7 +274,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'fill',
       label: 'Fill',
-      hint: 'Solid paints one flat color over every band',
       render: (v, onChange) => (
         <ToggleGroup<FillMode>
           value={v as FillMode}
@@ -282,7 +288,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'edgesVisible',
       label: 'Edges',
-      hint: 'Stroke the low and high edges',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
@@ -303,7 +308,7 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'lineVisible',
       label: 'Center line',
-      hint: 'Price on the left chart, mean on the right',
+      hint: 'Price or mean',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
   ] as RowSpec[],
@@ -361,7 +366,41 @@ function bandCodeOptions(s: ChartProps): Record<string, PropValue> {
 }
 
 function lineCodeOptions(s: ChartProps): Record<string, PropValue> {
-  return { ...buildCommonSeriesOptions(s, 'line'), area: { visible: false }, strokeWidth: 1 };
+  return { ...buildCommonSeriesOptions(s, 'line'), area: { visible: false } };
+}
+
+function bandCode(s: ChartProps, card: BandCard): ChartCodeConfig {
+  const containerProps = buildCartesianContainerProps(s) ?? {};
+  const options = bandCodeOptions(s);
+  const yVisible = s.axis?.y?.visible !== false;
+  const xVisible = s.axis?.x?.visible !== false;
+  const legendProps: Record<string, PropValue> = {};
+  if (s.legendPos !== 'bottom') legendProps.position = s.legendPos;
+  if (s.legendMode !== 'toggle') legendProps.mode = s.legendMode;
+
+  return {
+    title: { text: card.title, sub: card.sub },
+    theme: 'catppuccin.theme',
+    containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
+    components: [
+      {
+        component: 'BandSeries',
+        props: {
+          data: 'bands',
+          ...(Object.keys(options).length > 0 ? { options } : {}),
+        },
+      },
+      ...(s.lineVisible ? [{ component: 'LineSeries', props: { data: card.line, options: lineCodeOptions(s) } }] : []),
+      ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
+      ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
+      ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
+      ...(yVisible ? [{ component: 'YAxis' }] : []),
+      ...(xVisible ? [{ component: 'XAxis' }] : []),
+      ...(s.legendPos !== 'off' ? [{ component: 'Legend', props: legendProps }] : []),
+      // Both navigators show the price.
+      ...buildNavigatorComponent(s, 'price'),
+    ],
+  };
 }
 
 export function BandPage({ theme }: { theme: ChartTheme }) {
@@ -386,56 +425,17 @@ export function BandPage({ theme }: { theme: ChartTheme }) {
       sections={[DISPLAY_EXTRA, SERIES_SECTION, LEGEND_SECTION]}
       charts={(props) => (
         <>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId={BOLLINGER.id}>
             <BollingerChart key={`${props.streaming}-${props.perfHudVisible}-b`} {...props} />
           </Cell>
-          <Cell theme={props.theme}>
+          <Cell theme={props.theme} cardId={FAN.id}>
             <FanChart key={`${props.streaming}-${props.perfHudVisible}-f`} {...props} />
           </Cell>
         </>
       )}
-      codeConfig={(s) => {
-        const containerProps = buildCartesianContainerProps(s) ?? {};
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-
-        const options = bandCodeOptions(s);
-        const yVisible = s.axis?.y?.visible !== false;
-        const xVisible = s.axis?.x?.visible !== false;
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps: Object.keys(containerProps).length > 0 ? containerProps : undefined,
-          components: [
-            {
-              component: 'BandSeries',
-              props: {
-                data: 'bands',
-                ...(Object.keys(options).length > 0 ? { options } : {}),
-              },
-            },
-            ...(s.lineVisible
-              ? [{ component: 'LineSeries', props: { data: 'data', options: lineCodeOptions(s) } }]
-              : []),
-            ...(s.infoBarVisible ? [{ component: 'InfoBar' }] : []),
-            ...(s.tooltipVisible ? [{ component: 'Tooltip' }] : []),
-            ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
-            ...(yVisible ? [{ component: 'YAxis' }] : []),
-            ...(xVisible ? [{ component: 'XAxis' }] : []),
-            ...(s.legendPos !== 'off'
-              ? [
-                  {
-                    component: 'Legend',
-                    props: {
-                      ...(s.legendPos !== 'bottom' ? { position: s.legendPos } : {}),
-                      ...(s.legendMode !== 'toggle' ? { mode: s.legendMode } : {}),
-                    },
-                  },
-                ]
-              : []),
-            ...buildNavigatorComponent(s, 'data'),
-          ],
-        };
-      }}
+      cards={(s): PlaygroundCard[] =>
+        [BOLLINGER, FAN].map((card) => ({ id: card.id, title: card.title, sub: card.sub, code: bandCode(s, card) }))
+      }
     />
   );
 }

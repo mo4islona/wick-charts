@@ -16,9 +16,18 @@ export interface ChartCodeChild {
   childrenSnippet?: Partial<Record<Framework, string>>;
 }
 
+export interface ChartCodeTitle {
+  text: string;
+  sub?: string;
+}
+
 export interface ChartCodeConfig {
   components: ChartCodeChild[];
+  /** The chart's `<Title>`, printed as the container's first child. */
+  title?: ChartCodeTitle;
   theme?: string;
+  /** Theme fields set on top of `theme`, by section: `{ grid: { style: 'dashed' } }`. */
+  themeOverride?: Record<string, Record<string, PropValue>>;
   containerProps?: Record<string, PropValue>;
   /**
    * When `false`, components render at the top level without a
@@ -47,10 +56,12 @@ function formatValue(v: PropValue, indent: number): string {
   if (typeof v === 'object' && v !== null) {
     const entries = Object.entries(v).filter(([, val]) => val !== undefined);
     if (entries.length === 0) return '{}';
-    if (entries.length <= 2) {
-      const inner = entries.map(([k, val]) => `${k}: ${formatValue(val, indent)}`).join(', ');
-      return `{ ${inner} }`;
-    }
+
+    const inline = entries.map(([k, val]) => `${k}: ${formatValue(val, indent)}`);
+    // A multi-line value breaks its parent too, or the closing braces land out of line.
+    const fitsOneLine = entries.length <= 2 && inline.every((part) => !part.includes('\n'));
+    if (fitsOneLine) return `{ ${inline.join(', ')} }`;
+
     const pad = '  '.repeat(indent + 1);
     const closePad = '  '.repeat(indent);
     const inner = entries.map(([k, val]) => `${pad}${k}: ${formatValue(val, indent + 1)}`).join(',\n');
@@ -76,20 +87,29 @@ const VAR_REF_NAMES = new Set([
   'cpuLoad',
   'data',
   'data[0]',
+  'divergingColors',
+  'downColor',
   'errorBudget',
   'formatCount',
   'formatMs',
   'formatPercent',
+  'formatSize',
+  'formatSpend',
+  'formatVisitors',
   'latencyP95',
   'ohlcData',
   'layers',
   'layers[0]',
   'links',
+  'mean',
   'nodes',
   'planUsage',
+  'pnl',
+  'price',
   'releaseProgress',
   'sid',
   'series',
+  'upColor',
   // Y-bound transition factory calls — rendered as bare identifiers so the
   // snippet shows `transition: spring()` not `transition: 'spring()'`.
   'hermite()',
@@ -179,7 +199,9 @@ function renderPropPairs(props: Record<string, PropValue>, fw: Framework, indent
 
 function renderChild(child: ChartCodeChild, fw: Framework, indent: number, leadingPairs: string[] = []): string {
   const pad = '  '.repeat(indent);
-  const pairs = [...leadingPairs, ...(child.props ? renderPropPairs(child.props, fw, indent) : [])];
+  // Wrapped props sit one level under the tag, and so do their multi-line values.
+  const pairs = [...leadingPairs, ...(child.props ? renderPropPairs(child.props, fw, indent + 1) : [])];
+  const multiLine = pairs.some((pair) => pair.includes('\n'));
   const body = child.childrenSnippet?.[fw];
 
   if (body) {
@@ -192,7 +214,7 @@ function renderChild(child: ChartCodeChild, fw: Framework, indent: number, leadi
     if (pairs.length === 0) return `${pad}<${child.component}>\n${bodyText}\n${pad}</${child.component}>`;
 
     const oneLine = `${pad}<${child.component} ${pairs.join(' ')}>`;
-    if (oneLine.length <= WRAP_AT + pad.length) {
+    if (!multiLine && oneLine.length <= WRAP_AT + pad.length) {
       return `${oneLine}\n${bodyText}\n${pad}</${child.component}>`;
     }
     const wrapped = pairs.map((p) => `${innerPad}${p}`).join('\n');
@@ -203,7 +225,7 @@ function renderChild(child: ChartCodeChild, fw: Framework, indent: number, leadi
   if (pairs.length === 0) return `${pad}<${child.component} />`;
 
   const oneLine = `${pad}<${child.component} ${pairs.join(' ')} />`;
-  if (oneLine.length <= WRAP_AT + pad.length) return oneLine;
+  if (!multiLine && oneLine.length <= WRAP_AT + pad.length) return oneLine;
 
   const innerPad = '  '.repeat(indent + 1);
   const wrapped = pairs.map((p) => `${innerPad}${p}`).join('\n');
@@ -222,7 +244,8 @@ function openChartContainer(themeAttr: string, containerPairs: string[]): string
   const allPairs = [themeAttr, ...containerPairs].filter(Boolean);
   const inline = allPairs.length > 0 ? ` ${allPairs.join(' ')}` : '';
   const oneLine = `<ChartContainer${inline}>`;
-  if (oneLine.length <= WRAP_AT) return oneLine;
+  const multiLine = allPairs.some((pair) => pair.includes('\n'));
+  if (!multiLine && oneLine.length <= WRAP_AT) return oneLine;
 
   return `<ChartContainer\n  ${allPairs.join('\n  ')}\n>`;
 }
@@ -231,6 +254,7 @@ function importsOf(configs: ChartCodeConfig[]): string[] {
   const imports = new Set<string>();
   for (const config of configs) {
     if (config.container !== false) imports.add('ChartContainer');
+    if (config.title) imports.add('Title');
     for (const child of config.components) imports.add(child.component);
     // Theme expressions can be a bare identifier (`catppuccin`) or a dotted
     // accessor (`catppuccin.theme` — what {@link createTheme} presets need to
@@ -248,9 +272,29 @@ function importsOf(configs: ChartCodeConfig[]): string[] {
   return Array.from(imports).sort();
 }
 
+/** `theme`, spread with its {@link ChartCodeConfig.themeOverride} sections when there are any. */
+function themeExpression(config: ChartCodeConfig): string | undefined {
+  const root = config.theme;
+  if (!root) return undefined;
+
+  const sections = Object.entries(config.themeOverride ?? {});
+  if (sections.length === 0) return root;
+
+  const parts = sections.map(([section, fields]) => {
+    const inner = Object.entries(fields)
+      .map(([key, value]) => `${key}: ${formatValue(value, 0)}`)
+      .join(', ');
+
+    return `${section}: { ...${root}.${section}, ${inner} }`;
+  });
+
+  return `{ ...${root}, ${parts.join(', ')} }`;
+}
+
 /** One chart's markup at the top level, without imports. */
 function chartMarkup(config: ChartCodeConfig, fw: Framework): string {
-  const themeAttr = config.theme ? (fw === 'vue' ? `:theme="${config.theme}"` : `theme={${config.theme}}`) : '';
+  const theme = themeExpression(config);
+  const themeAttr = theme ? (fw === 'vue' ? `:theme="${theme}"` : `theme={${theme}}`) : '';
 
   // Self-contained components (e.g. Sparkline) render at the top level with no
   // ChartContainer wrapper. `theme` rides along as a prop on each component.
@@ -260,11 +304,26 @@ function chartMarkup(config: ChartCodeConfig, fw: Framework): string {
     return config.components.map((c) => renderChild(c, fw, 0, themeLeading)).join('\n');
   }
 
-  const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 0) : [];
+  const containerPairs = config.containerProps ? renderPropPairs(config.containerProps, fw, 1) : [];
   const openTag = openChartContainer(themeAttr, containerPairs);
-  const children = config.components.map((c) => renderChild(c, fw, 1)).join('\n');
+  const title = config.title ? [titleMarkup(config.title, fw)] : [];
+  const children = [...title, ...config.components.map((c) => renderChild(c, fw, 1))].join('\n');
 
   return `${openTag}\n${children}\n</ChartContainer>`;
+}
+
+/** The container's `<Title>`. Vue and Svelte take the subtitle as the `sub` slot: their string prop is deprecated. */
+function titleMarkup(title: ChartCodeTitle, fw: Framework): string {
+  if (title.sub === undefined) return `  <Title>${title.text}</Title>`;
+
+  if (fw === 'react') return `  <Title sub="${title.sub.replace(/"/g, '&quot;')}">${title.text}</Title>`;
+
+  const subSlot =
+    fw === 'vue'
+      ? `<template #sub>${title.sub}</template>`
+      : `<svelte:fragment slot="sub">${title.sub}</svelte:fragment>`;
+
+  return `  <Title>\n    ${title.text}\n    ${subSlot}\n  </Title>`;
 }
 
 /** Indents every non-empty line by one level. */

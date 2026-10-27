@@ -14,10 +14,10 @@ import {
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
-import type { PropValue } from '../components/CodePreview';
+import type { ChartCodeConfig, PropValue } from '../components/CodePreview';
 import { ICONS } from '../components/playground/icons';
-import { Playground, type PlaygroundChartProps } from '../components/playground/Playground';
-import { Select, Slider, Toggle } from '../components/playground/primitives';
+import { Playground, type PlaygroundCard, type PlaygroundChartProps } from '../components/playground/Playground';
+import { Slider, Toggle, ToggleGroup } from '../components/playground/primitives';
 import type { RowSpec, SectionSpec } from '../components/playground/sections';
 
 type Palette = 'theme' | 'accent';
@@ -133,6 +133,8 @@ interface Demo {
   seed: number;
   /** Tooltip value with its unit. */
   format: (value: number) => string;
+  /** {@link format}'s name in the Code tab. */
+  formatRef: string;
 }
 
 const DEMOS: Demo[] = [
@@ -144,6 +146,7 @@ const DEMOS: Demo[] = [
     links: FUNNEL_LINKS,
     seed: 11,
     format: (value) => `${formatCount(value)} visitors`,
+    formatRef: 'formatVisitors',
   },
   {
     id: 'llm',
@@ -153,6 +156,7 @@ const DEMOS: Demo[] = [
     links: LLM_LINKS,
     seed: 37,
     format: (value) => `$${formatCount(value)} / mo`,
+    formatRef: 'formatSpend',
   },
 ];
 
@@ -252,33 +256,31 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'tooltipVisible',
       label: 'Tooltip',
-      hint: 'The hovered node or link, its value and its share of the outflow.',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'labels',
       label: 'Labels',
-      hint: '`label · value` beside each node. A label that would overlap the one above it is skipped.',
+      hint: 'Name · value by each node',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'labelBackdrop',
       label: 'Label backdrop',
-      hint: 'A rounded backdrop from the theme background keeps a label readable over the bands.',
+      hint: 'Readable over the bands',
       visible: (s) => s.labels === true,
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
     {
       key: 'labelFormat',
       label: 'Value format',
-      hint: 'Formatter for the label values (`labels.format`).',
       visible: (s) => s.labels === true,
       render: (v, onChange) => (
-        <Select<LabelFormat>
+        <ToggleGroup<LabelFormat>
           value={v as LabelFormat}
           options={[
-            { value: 'default', label: 'Plain / compact (default)' },
-            { value: 'full', label: 'Full number' },
+            { value: 'default', label: 'Compact' },
+            { value: 'full', label: 'Full' },
           ]}
           onChange={onChange as (v: LabelFormat) => void}
         />
@@ -287,13 +289,12 @@ const DISPLAY_EXTRA: SectionSpec = {
     {
       key: 'labelColor',
       label: 'Label color',
-      hint: 'Label text color (`labels.color`): the theme text, or the muted axis text.',
       visible: (s) => s.labels === true,
       render: (v, onChange) => (
-        <Select<LabelColor>
+        <ToggleGroup<LabelColor>
           value={v as LabelColor}
           options={[
-            { value: 'theme', label: 'Theme text (default)' },
+            { value: 'theme', label: 'Text' },
             { value: 'muted', label: 'Muted' },
           ]}
           onChange={onChange as (v: LabelColor) => void}
@@ -312,12 +313,11 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'palette',
       label: 'Node colors',
-      hint: 'Theme palette in node order, or one accent color for every node (`colors`).',
       render: (v, onChange) => (
-        <Select<Palette>
+        <ToggleGroup<Palette>
           value={v as Palette}
           options={[
-            { value: 'theme', label: 'Theme palette' },
+            { value: 'theme', label: 'Palette' },
             { value: 'accent', label: 'Accent' },
           ]}
           onChange={onChange as (v: Palette) => void}
@@ -327,7 +327,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'nodeWidth',
       label: 'Node width',
-      hint: 'Width of each node bar.',
       render: (v, onChange) => (
         <Slider value={v as number} min={4} max={24} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -335,7 +334,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'nodePadding',
       label: 'Node gap',
-      hint: 'Vertical gap between the nodes of a column.',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={32} step={1} suffix="px" onChange={onChange as (v: number) => void} />
       ),
@@ -343,7 +341,6 @@ const SERIES_SECTION: SectionSpec = {
     {
       key: 'linkOpacity',
       label: 'Link opacity',
-      hint: 'Opacity of the bands; a hover dims the bands it leaves out.',
       render: (v, onChange) => (
         <Slider value={v as number} min={0.1} max={0.8} step={0.05} onChange={onChange as (v: number) => void} />
       ),
@@ -359,7 +356,7 @@ const MOTION_SECTION: SectionSpec = {
     {
       key: 'entryMs',
       label: 'Entrance',
-      hint: 'First-data cascade: sources grow, bands run to their targets and fill them, labels fade in. 0 paints at once.',
+      hint: 'First paint · 0 = off',
       render: (v, onChange) => (
         <Slider
           value={v as number}
@@ -374,7 +371,7 @@ const MOTION_SECTION: SectionSpec = {
     {
       key: 'updateMs',
       label: 'Morph',
-      hint: 'Ease from the diagram on screen to new data, and the hover dim. 0 snaps.',
+      hint: 'Glide to new data · 0 snaps',
       render: (v, onChange) => (
         <Slider
           value={v as number}
@@ -398,7 +395,6 @@ const DEMO_EXTRA: SectionSpec = {
     {
       key: 'rate',
       label: 'Updates',
-      hint: 'New values per second in every demo. Each morph starts from the shape on screen, so fast updates glide.',
       render: (v, onChange) => (
         <Slider value={v as number} min={1} max={10} step={1} suffix="/s" onChange={onChange as (v: number) => void} />
       ),
@@ -406,7 +402,7 @@ const DEMO_EXTRA: SectionSpec = {
     {
       key: 'driftPct',
       label: 'Drift',
-      hint: 'Largest change of a live flow per update.',
+      hint: 'Largest step per update',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={20} step={1} suffix="%" onChange={onChange as (v: number) => void} />
       ),
@@ -440,6 +436,26 @@ function codeOptions(s: SankeySettings): Record<string, PropValue> {
   return options;
 }
 
+function sankeyCode(s: PlaygroundChartProps & SankeySettings, demo: Demo): ChartCodeConfig {
+  const containerProps: Record<string, PropValue> = { grid: { visible: false } };
+  if (s.gradient) containerProps.gradient = true;
+
+  const options = codeOptions(s);
+
+  return {
+    title: { text: demo.title, sub: demo.sub },
+    theme: 'catppuccin.theme',
+    containerProps,
+    components: [
+      {
+        component: 'SankeySeries',
+        props: { nodes: 'nodes', links: 'links', ...(Object.keys(options).length > 0 ? { options } : {}) },
+      },
+      ...(s.tooltipVisible ? [{ component: 'SankeyTooltip', props: { format: demo.formatRef } }] : []),
+    ],
+  };
+}
+
 export function SankeyPage({ theme }: { theme: ChartTheme }) {
   return (
     <Playground<SankeySettings>
@@ -470,25 +486,14 @@ export function SankeyPage({ theme }: { theme: ChartTheme }) {
       sections={SECTIONS}
       charts={(props) =>
         DEMOS.map((demo) => (
-          <Cell key={demo.id} theme={props.theme}>
+          <Cell key={demo.id} theme={props.theme} cardId={demo.id}>
             <SankeyChart key={`${demo.id}-${props.perfHudVisible}-${props.entryMs}`} {...props} demo={demo} />
           </Cell>
         ))
       }
-      codeConfig={(s) => {
-        const containerProps: Record<string, PropValue> = { grid: { visible: false } };
-        if (s.gradient) containerProps.gradient = true;
-        if (s.perfHudVisible) containerProps.perf = 'perfHud()';
-
-        return {
-          theme: 'catppuccin.theme',
-          containerProps,
-          components: [
-            { component: 'SankeySeries', props: { nodes: 'nodes', links: 'links', options: codeOptions(s) } },
-            ...(s.tooltipVisible ? [{ component: 'SankeyTooltip', props: {} }] : []),
-          ],
-        };
-      }}
+      cards={(s): PlaygroundCard[] =>
+        DEMOS.map((demo) => ({ id: demo.id, title: demo.title, sub: demo.sub, code: sankeyCode(s, demo) }))
+      }
     />
   );
 }
