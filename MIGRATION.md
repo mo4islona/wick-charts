@@ -3,7 +3,8 @@
 ## 0.8 → 0.9
 
 Version 0.9 adds candle styles. They are built on a wider `candlePainter`,
-which is the one breaking change; every other addition is opt-in.
+which is the one breaking change. The `Sparkline` layout also changes; every
+other addition is opt-in.
 
 ### Breaking: `candlePainter` draws the wick too
 
@@ -43,6 +44,20 @@ const painter: CandlePainter = (env, args) => {
 TypeScript flags `geom` and `color`. In plain JavaScript an old painter keeps
 running but loses its wick, and draws its body shape a second time on the
 wick call.
+
+### Behavior: `Sparkline` fills its box
+
+The chart now runs to the border of the sparkline box, and only the value
+column keeps a padding. The value column is at least 100 px wide, so the
+charts in a grid end on one line, and `gradient` covers the whole box. A box
+sized through `style` stretches the chart:
+`style={{ width: '100%' }}` used to leave a 140 px chart next to empty space,
+and now the chart takes the free width. A sparkline with no size in `style`
+keeps its `width` × `height` chart. To inset the chart again, pass
+`style={{ padding: 8 }}`.
+
+The change percentage of data that starts below zero now has the sign of the
+change; it showed `+-21.0%` before.
 
 ### New in 0.9 — no migration needed
 

@@ -1,4 +1,4 @@
-import { type CSSProperties, useMemo } from 'react';
+import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   type AxisBound,
@@ -74,17 +74,21 @@ export interface SparklineProps {
    * offset string (`'+10%'`), or a `(values) => number` reducer.
    */
   yRange?: { min?: AxisBound; max?: AxisBound };
-  /** Chart width (default: 140) */
+  /** Chart width in px (default: 140). In a sparkline box sized through `style`, the chart stretches or shrinks to the free width. */
   width?: number;
-  /** Overall height (default: 48) */
+  /** Minimum chart height in px (default: 48). A taller sparkline box (set through `style`) stretches the chart. */
   height?: number;
   /** Stroke width in CSS pixels (default: 1) */
   strokeWidth?: number;
-  /** Show chart background gradient (default: false) */
+  /** Show the background gradient across the whole sparkline box (default: false) */
   gradient?: boolean;
   /** Container style override */
   style?: CSSProperties;
 }
+
+// Holds a typical label, value and change, so the charts in a grid of
+// sparklines end on one line.
+const VALUE_COLUMN_MIN_WIDTH = 100;
 
 function hexToRgba(color: string, alpha: number): string {
   if (color.startsWith('rgba')) return color;
@@ -112,7 +116,8 @@ function computeChange(values: number[]): { value: number; pct: number; positive
   const first = values[0];
   const last = values[values.length - 1];
   const diff = last - first;
-  const pct = first !== 0 ? (diff / first) * 100 : 0;
+  // A negative start would flip the sign of the percentage against the diff.
+  const pct = first !== 0 ? (diff / Math.abs(first)) * 100 : 0;
   return { value: diff, pct, positive: diff >= 0 };
 }
 
@@ -207,14 +212,28 @@ export function Sparkline({
     };
   }, []);
 
+  // The chart takes the free width, so a value text that changes width per tick
+  // would resize it. The value column keeps its widest width instead.
+  const valueRef = useRef<HTMLDivElement>(null);
+  const [valueMinWidth, setValueMinWidth] = useState(VALUE_COLUMN_MIN_WIDTH);
+  useLayoutEffect(() => {
+    const width = valueRef.current?.offsetWidth ?? 0;
+    if (width > valueMinWidth) setValueMinWidth(width);
+  });
+
   const valueBlock = valuePosition !== 'none' && (
     <div
+      ref={valueRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         gap: 1,
-        minWidth: 0,
+        // border-box: the measured offsetWidth includes the padding, so a
+        // content-box minWidth would grow by the padding on every render.
+        boxSizing: 'border-box',
+        padding: '8px 16px',
+        minWidth: valueMinWidth,
         flexShrink: 0,
       }}
     >
@@ -273,15 +292,29 @@ export function Sparkline({
     </div>
   );
 
+  const [gradientTop, gradientBottom] = theme.chartGradient;
+  const background = gradient
+    ? `linear-gradient(to bottom, ${gradientTop} 0%, ${theme.background} 70%, ${gradientBottom} 100%)`
+    : hexToRgba(theme.tooltip.background, 0.7);
+
   const chartBlock = (
-    <div style={{ width, height, flexShrink: 0, borderRadius: 4, overflow: 'hidden' }}>
+    <div
+      style={{
+        flex: `1 1 ${width}px`,
+        minWidth: 0,
+        alignSelf: 'stretch',
+        minHeight: height,
+        overflow: 'hidden',
+      }}
+    >
       <ChartContainer
         // ChartContainer floors its own height at 240px so a copy-pasted chart
         // in an unsized parent stays visible. A sparkline is intentionally
         // shorter than that floor — release the floor so the canvas matches
         // the `height` wrapper instead of overflowing it (the wrapper clips,
-        // leaving only the top slice of the chart visible).
-        style={{ minHeight: 0 }}
+        // leaving only the top slice of the chart visible). The box paints
+        // the background: a chart fill would show as a seam beside the value.
+        style={{ minHeight: 0, background: 'transparent' }}
         theme={theme}
         axis={{
           // `min`/`max` are stable user props (not recomputed per tick), so
@@ -293,7 +326,6 @@ export function Sparkline({
           x: { visible: false, height: 0 },
         }}
         padding={{ top: 5, right: 0, bottom: 0, left: 0 }}
-        gradient={gradient}
         interactive={false}
         grid={{ visible: false }}
         viewport={viewport}
@@ -329,10 +361,10 @@ export function Sparkline({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 12,
-        padding: '8px 12px',
         borderRadius: 8,
-        background: hexToRgba(theme.tooltip.background, 0.7),
+        // The chart runs to the border; this clips it to the rounded corners.
+        overflow: 'hidden',
+        background,
         border: `1px solid ${theme.tooltip.borderColor}`,
         fontFamily: theme.typography.fontFamily,
         ...style,

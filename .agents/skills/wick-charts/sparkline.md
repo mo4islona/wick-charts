@@ -11,7 +11,7 @@ import { Sparkline } from '@wick-charts/react';
 - **Data:** one flat `TimePoint[]` — not layers.
 - **Value block:** the last value through `format` (compact by default) and the change from the first to the last point, green when it is not negative and red otherwise. `sublabel` replaces the change; `valuePosition="none"` hides the block.
 - **Theme:** the `ThemeProvider` theme, else the default theme; `theme` overrides it.
-- **Size:** 140 × 48 by default; `width` / `height` change it, `style={{ width: '100%' }}` fills a grid cell.
+- **Size:** the chart is 140 × 48 by default; `width` / `height` change it. A box sized through `style` stretches the chart to its free space: `style={{ width: '100%', height: '100%' }}` fills a grid cell, chart included.
 - **Live data:** `flow={{ capacity: 60 }}` holds the window at 60 bars, and each new point scrolls it. Pass at least two seed points so the window can find the interval; `flow.align` places the seed (`'right'` by default, `'left'`, or `'offscreen'` to drive it in).
 
 ```tsx
