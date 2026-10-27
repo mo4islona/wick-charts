@@ -261,7 +261,7 @@ export interface DepthSeriesProps {
   bids: readonly DepthLevel[];
   /** Ask levels as `[price, size]`, in any order. Cumulative depth is computed from them. */
   asks: readonly DepthLevel[];
-  /** Visual options override — `span` of the default view, side colors, stroke width, intro / update durations. */
+  /** Visual options override — `span` of the default view, side colors, stroke width, mid marker, fill fade, intro / update durations. */
   options?: Partial<DepthSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;

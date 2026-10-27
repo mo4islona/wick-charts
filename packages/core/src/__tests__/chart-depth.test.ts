@@ -6,7 +6,7 @@ import type { ChartOptions } from '../chart/options';
 import { DepthSeriesDef } from '../series/depth';
 import { LineSeriesDef } from '../series/line';
 import { buildHoverSnapshots } from '../snapshots';
-import type { CanvasRecorder } from '../testing/recording-context';
+import type { CanvasRecorder, RecordedCall } from '../testing/recording-context';
 import type { DepthBook } from '../types';
 import { installRaf, makeChartContainer } from './helpers/fake-raf';
 
@@ -257,6 +257,13 @@ describe('ChartInstance with a depth series', () => {
   });
 });
 
+/** The highest `rgba()` alpha in a fill style: the color itself, or the full stop of an edge-faded gradient. */
+function peakAlpha(fillStyle: string): number {
+  const alphas = [...fillStyle.matchAll(/rgba\([^)]*,\s*([\d.]+)\)/g)].map((match) => Number(match[1]));
+
+  return alphas.length > 0 ? Math.max(...alphas) : Number.NaN;
+}
+
 describe('ChartInstance depth series motion', () => {
   const reducedMotionStub = globalThis.matchMedia;
   let raf: ReturnType<typeof installRaf>;
@@ -349,9 +356,7 @@ describe('ChartInstance depth series motion', () => {
 
     const glowAlphas = overlay
       .callsOf('fill')
-      .map((call) => /rgba\(.*,\s*([\d.]+)\)$/.exec(call.fillStyle)?.[1])
-      .filter((alpha): alpha is string => alpha !== undefined)
-      .map(Number)
+      .map((call) => peakAlpha(call.fillStyle))
       .filter((alpha) => alpha > 0.05 && alpha <= 0.22);
     expect(Math.max(...glowAlphas)).toBeCloseTo(0.22);
 
@@ -379,7 +384,7 @@ describe('ChartInstance depth series motion', () => {
       const frameCalls = overlay.calls.slice(before);
       const glow = frameCalls
         .filter((call) => call.method === 'fill')
-        .map((call) => Number(/rgba\(.*,\s*([\d.]+)\)$/.exec(call.fillStyle)?.[1] ?? Number.NaN))
+        .map((call) => peakAlpha(call.fillStyle))
         .filter((alpha) => alpha > 0 && alpha < 0.22);
       if (glow.length > 0) glowPerFrame.push(Math.max(...glow));
     }
@@ -548,5 +553,188 @@ describe('overlay after mouseleave', () => {
     overlay.reset();
     raf.flush(10);
     expect(overlay.calls.length).toBe(0);
+  });
+});
+
+describe('X edge fade on an order book', () => {
+  let raf: ReturnType<typeof installRaf>;
+  let container: HTMLElement;
+  let chart: ChartInstance;
+
+  beforeEach(() => {
+    raf = installRaf();
+  });
+
+  afterEach(() => {
+    chart?.destroy();
+    container?.remove();
+    raf.uninstall();
+    vi.restoreAllMocks();
+  });
+
+  /** The full-height erase rects the main layer paints for its edge fades; `setup` adds the series. */
+  function fadeRects(args: { options?: ChartOptions; setup?: (target: ChartInstance) => void } = {}): RecordedCall[] {
+    container = makeChartContainer();
+    chart = new ChartInstance(container, { animations: false, axis: { x: { type: 'numeric' } }, ...args.options });
+    const spy = container.querySelector('canvas')?.__spy;
+    if (!spy) throw new Error('recording canvas not installed');
+
+    const setup = args.setup ?? addBook;
+    setup(chart);
+    raf.flush();
+
+    const fullHeight = (call: RecordedCall) => call.args[1] === 0;
+
+    return spy
+      .callsOf('fillRect')
+      .filter((call) => call.globalCompositeOperation === 'destination-out' && fullHeight(call));
+  }
+
+  function addBook(target: ChartInstance): string {
+    const id = target.addSeries(DepthSeriesDef);
+    target.setSeriesData(id, BOOK);
+
+    return id;
+  }
+
+  /** A line across the book's price range, which a drag can pan under the axis. */
+  function addLine(target: ChartInstance): void {
+    const id = target.addSeries(LineSeriesDef);
+    target.setSeriesData(
+      id,
+      Array.from({ length: 21 }, (_, i) => ({ time: 90 + i, value: 1 + (i % 3) })),
+    );
+  }
+
+  it('fades neither wall by default: the book never scrolls under the axis', () => {
+    expect(fadeRects()).toEqual([]);
+  });
+
+  it('turns the auto fade off for a line beside a book on its mid, as drag-pan is', () => {
+    const rects = fadeRects({
+      setup: (target) => {
+        addBook(target);
+        addLine(target);
+      },
+    });
+
+    expect(chart.canDragPan()).toBe(false);
+    expect(rects).toEqual([]);
+  });
+
+  it('keeps the auto fade for a line while the book is empty', () => {
+    const rects = fadeRects({
+      setup: (target) => {
+        target.addSeries(DepthSeriesDef);
+        addLine(target);
+      },
+    });
+
+    expect(chart.canDragPan()).toBe(true);
+    expect(rects.length).toBeGreaterThan(0);
+  });
+
+  it('keeps the auto fade for a line while the book is hidden', () => {
+    const rects = fadeRects({
+      setup: (target) => {
+        const book = addBook(target);
+        addLine(target);
+        target.setSeriesVisible(book, false);
+      },
+    });
+
+    expect(chart.canDragPan()).toBe(true);
+    expect(rects.length).toBeGreaterThan(0);
+  });
+
+  it('keeps a fade that is set explicitly', () => {
+    const rects = fadeRects({ options: { fade: { right: 40 } } });
+
+    expect(rects.some((call) => call.args[2] === 40)).toBe(true);
+  });
+});
+
+describe('Order book fill fade', () => {
+  let raf: ReturnType<typeof installRaf>;
+  let container: HTMLElement;
+  let chart: ChartInstance;
+
+  beforeEach(() => {
+    raf = installRaf();
+  });
+
+  afterEach(() => {
+    chart?.destroy();
+    container?.remove();
+    raf.uninstall();
+    vi.restoreAllMocks();
+  });
+
+  function mount(args: { width?: number; fillFade?: number } = {}): { main: CanvasRecorder; overlay: CanvasRecorder } {
+    container = makeChartContainer(args.width);
+    chart = new ChartInstance(container, { animations: false, axis: { x: { type: 'numeric' } } });
+    const canvases = container.querySelectorAll('canvas');
+    const main = canvases[0]?.__spy;
+    const overlay = canvases[canvases.length - 1]?.__spy;
+    if (!main || !overlay) throw new Error('recording canvas not installed');
+
+    const id = chart.addSeries(DepthSeriesDef, args.fillFade === undefined ? {} : { fillFade: args.fillFade });
+    chart.setSeriesData(id, BOOK);
+    raf.flush();
+
+    return { main, overlay };
+  }
+
+  /** The first frame on the layer the main pass copied in: its fills and the alpha mask over them. */
+  function layerFrame(main: CanvasRecorder): { fills: number; stops: Array<{ offset: number; alpha: number }> } {
+    const copied = main.callsOf('drawImage')[0]?.args[0];
+    const calls = copied instanceof HTMLCanvasElement ? copied.__spy?.calls : undefined;
+    if (!calls) throw new Error('no layer was copied in');
+
+    const maskAt = calls.findIndex(
+      (call) => call.method === 'fillRect' && call.globalCompositeOperation === 'destination-in',
+    );
+    const fills = calls.slice(0, maskAt).filter((call) => call.method === 'fill').length;
+    const stops = [...String(calls[maskAt]?.fillStyle).matchAll(/([\d.]+):rgba\([^)]*,\s*([\d.]+)\)/g)].map(
+      (match) => ({ offset: Number(match[1]), alpha: Number(match[2]) }),
+    );
+
+    return { fills, stops };
+  }
+
+  it('fades the fills toward both side edges on a layer, then strokes the lines unfaded', () => {
+    const { main } = mount();
+    const { fills, stops } = layerFrame(main);
+    const paneWidth = chart.getLayout().chartArea.width;
+
+    expect(fills).toBe(2);
+    expect(main.matchesSequence(['drawImage', 'stroke', 'stroke'])).toBe(true);
+    expect(stops).toContainEqual({ offset: 0, alpha: 0 });
+    expect(stops).toContainEqual({ offset: 1, alpha: 0 });
+    expect(stops.find((stop) => stop.alpha === 1)?.offset).toBeCloseTo(140 / paneWidth);
+  });
+
+  it('caps the fade at a third of a narrow plot', () => {
+    const { main } = mount({ width: 300 });
+    const { stops } = layerFrame(main);
+
+    expect(stops.find((stop) => stop.alpha === 1)?.offset).toBeCloseTo(1 / 3);
+  });
+
+  it('fades the hover glow with the fill', () => {
+    const { overlay } = mount();
+    pointerAt({ container, type: 'mousemove', offsetX: chart.timeScale.timeToX(97.5) });
+    raf.flush(60);
+
+    const glow = overlay.callsOf('fill').find((call) => call.fillStyle.startsWith('gradient('));
+
+    expect(glow?.fillStyle).toMatch(/^gradient\(linear;0:rgba\([^)]*, 0\)/);
+  });
+
+  it('paints the fills straight on the main canvas with `fillFade: 0`', () => {
+    const { main } = mount({ fillFade: 0 });
+
+    expect(main.countOf('drawImage')).toBe(0);
+    expect(main.matchesSequence(['fill', 'fill', 'stroke', 'stroke'])).toBe(true);
   });
 });

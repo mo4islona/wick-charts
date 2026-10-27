@@ -129,13 +129,13 @@ describe('DepthRenderer geometry', () => {
     expect(bids[bids.length - 1].x).toBeLessThanOrEqual(0);
   });
 
-  it('fills each wall with a vertical gradient before stroking it', () => {
+  it('fills both walls with a vertical gradient, then strokes them over the fills', () => {
     const renderer = makeRenderer();
     renderer.setData(BOOK);
     const { spy } = render(renderer);
 
     expect(spy.countOf('createLinearGradient')).toBe(2);
-    expect(spy.matchesSequence(['fill', 'stroke', 'fill', 'stroke'])).toBe(true);
+    expect(spy.matchesSequence(['fill', 'fill', 'stroke', 'stroke'])).toBe(true);
   });
 
   it('marks mid with a dashed line and a mid · spread label', () => {
@@ -149,6 +149,37 @@ describe('DepthRenderer geometry', () => {
 
     const midLine = spy.callsOf('moveTo').find((call) => call.args[0] === xOf(50) + 0.5);
     expect(midLine).toBeDefined();
+  });
+
+  it('runs the mid line to the top of the plot without the label', () => {
+    const renderer = makeRenderer({ ...STILL, midLabel: false });
+    renderer.setData(BOOK);
+    const { spy } = render(renderer);
+
+    expect(spy.countOf('fillText')).toBe(0);
+
+    const midLine = spy.callsOf('moveTo').find((call) => call.args[0] === xOf(50) + 0.5);
+    expect(midLine?.args[1]).toBe(0);
+  });
+
+  it('keeps the label without the mid line', () => {
+    const renderer = makeRenderer({ ...STILL, midLine: false });
+    renderer.setData(BOOK);
+    const { spy } = render(renderer);
+
+    const dash = spy.callsOf('setLineDash').find((call) => (call.args[0] as number[]).length > 0);
+    expect(dash).toBeUndefined();
+    expect(spy.callsOf('fillText').map((call) => call.args[0])).toEqual(['mid 50 · spread 2']);
+  });
+
+  it('takes the mid marker options live', () => {
+    const renderer = makeRenderer();
+    renderer.setData(BOOK);
+    renderer.updateOptions({ midLabel: false, midLine: false });
+    const { spy } = render(renderer);
+
+    expect(spy.countOf('fillText')).toBe(0);
+    expect(spy.callsOf('setLineDash').some((call) => (call.args[0] as number[]).length > 0)).toBe(false);
   });
 
   it('prints a fractional mid with one decimal more than the prices', () => {

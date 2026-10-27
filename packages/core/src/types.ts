@@ -1202,6 +1202,16 @@ export interface DepthSeriesOptions {
   askColor?: string;
   /** Step line width in CSS pixels. Default: `1`. */
   strokeWidth?: number;
+  /** The `mid · spread` label at the top of the plot. Default: `true`. */
+  midLabel?: boolean;
+  /** The dashed vertical line at mid. Default: `true`. */
+  midLine?: boolean;
+  /**
+   * CSS px over which the fill fades out at the left and right edges of the
+   * plot, at most a third of its width; the line runs on to the edge. `0` turns
+   * it off. Default: `140`.
+   */
+  fillFade?: number;
   /**
    * Initial-load reveal: both walls grow outward from mid while their steps
    * rise from 0. The full reveal lasts ~2× `introMs`. `0` disables it.

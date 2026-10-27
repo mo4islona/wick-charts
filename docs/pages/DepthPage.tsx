@@ -26,7 +26,13 @@ interface DepthSettings {
   tooltipVisible: boolean;
   legendVisible: boolean;
   crosshairVisible: boolean;
+  /** A shared playground key; this page starts with the axis off. */
+  yAxisVisible: boolean;
   strokeWidth: number;
+  midLine: boolean;
+  midLabel: boolean;
+  /** Fill fade at each plot edge, in px; `0` cuts the fill at the edge. */
+  fillFade: number;
   /** Largest mid move per tick, in USD. */
   volatility: number;
   /** Gap between the simulated best bid and best ask, in USD. */
@@ -43,6 +49,7 @@ interface DepthSettings {
 
 // Stable outside the components: `axis.x.type` is read once, at construction.
 const DEPTH_AXIS = { x: { type: 'numeric' as const }, y: { min: 0 } };
+const DEPTH_AXIS_NO_Y = { x: DEPTH_AXIS.x, y: { min: 0, visible: false } };
 
 const TICK = 0.5;
 // How far from mid the simulated book places its levels, in USD.
@@ -185,6 +192,7 @@ function useOrderBook(args: { levels: number; rate: number; volatility: number; 
 
 // The library's own defaults: the Code tab prints an option only when it differs.
 const DEFAULT_STROKE_WIDTH = 1;
+const DEFAULT_FILL_FADE = 140;
 const DEFAULT_INTRO_MS = 500;
 const DEFAULT_UPDATE_MS = 500;
 
@@ -194,12 +202,16 @@ const formatSize = (value: number) => `${value.toFixed(2)} BTC`;
 
 function OrderBookChart({
   theme,
+  axis,
   gradient,
   perfHudVisible,
   tooltipVisible,
   legendVisible,
   crosshairVisible,
   strokeWidth,
+  midLine,
+  midLabel,
+  fillFade,
   spanPct,
   levels,
   rate,
@@ -209,11 +221,12 @@ function OrderBookChart({
   updateMs,
 }: PlaygroundChartProps & DepthSettings) {
   const book = useOrderBook({ levels, rate, volatility, spread });
+  const yAxisVisible = axis?.y?.visible !== false;
 
   return (
     <ChartContainer
       theme={theme}
-      axis={DEPTH_AXIS}
+      axis={yAxisVisible ? DEPTH_AXIS : DEPTH_AXIS_NO_Y}
       gradient={gradient}
       perf={perfHudVisible ? perfHud() : undefined}
       style={{ minHeight: 0 }}
@@ -222,10 +235,18 @@ function OrderBookChart({
       <DepthSeries
         bids={book.bids}
         asks={book.asks}
-        options={{ span: spanPct > 0 ? spanPct / 100 : undefined, strokeWidth, introMs, updateMs }}
+        options={{
+          span: spanPct > 0 ? spanPct / 100 : undefined,
+          strokeWidth,
+          midLine,
+          midLabel,
+          fillFade,
+          introMs,
+          updateMs,
+        }}
       />
       <XAxis minLabelSpacing={64} />
-      <YAxis />
+      {yAxisVisible && <YAxis />}
       {crosshairVisible && <Crosshair />}
       {tooltipVisible && <Tooltip format={formatSize} />}
       {legendVisible && <Legend />}
@@ -254,6 +275,11 @@ const DISPLAY_EXTRA: SectionSpec = {
       label: 'Crosshair',
       render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
     },
+    {
+      key: 'yAxisVisible',
+      label: 'Y axis',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
   ] as RowSpec[],
 };
 
@@ -277,6 +303,32 @@ const SERIES_SECTION: SectionSpec = {
       hint: '0 = fill only',
       render: (v, onChange) => (
         <Slider value={v as number} min={0} max={4} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
+      ),
+    },
+    {
+      key: 'midLine',
+      label: 'Mid line',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'midLabel',
+      label: 'Mid label',
+      hint: 'Mid price and spread',
+      render: (v, onChange) => <Toggle checked={v as boolean} onChange={onChange as (v: boolean) => void} />,
+    },
+    {
+      key: 'fillFade',
+      label: 'Fill fade',
+      hint: '0 = hard edge',
+      render: (v, onChange) => (
+        <Slider
+          value={v as number}
+          min={0}
+          max={300}
+          step={20}
+          suffix="px"
+          onChange={onChange as (v: number) => void}
+        />
       ),
     },
   ] as RowSpec[],
@@ -383,12 +435,17 @@ const MOTION_SECTION: SectionSpec = {
 };
 
 function bookCode(s: PlaygroundChartProps & DepthSettings): ChartCodeConfig {
-  const containerProps: Record<string, PropValue> = { axis: { x: { type: 'numeric' }, y: { min: 0 } } };
+  const yAxisVisible = s.axis?.y?.visible !== false;
+  const y: Record<string, PropValue> = yAxisVisible ? { min: 0 } : { min: 0, visible: false };
+  const containerProps: Record<string, PropValue> = { axis: { x: { type: 'numeric' }, y } };
   if (s.gradient) containerProps.gradient = true;
 
   const options: Record<string, PropValue> = {};
   if (s.spanPct > 0) options.span = s.spanPct / 100;
   if (s.strokeWidth !== DEFAULT_STROKE_WIDTH) options.strokeWidth = s.strokeWidth;
+  if (!s.midLine) options.midLine = false;
+  if (!s.midLabel) options.midLabel = false;
+  if (s.fillFade !== DEFAULT_FILL_FADE) options.fillFade = s.fillFade;
   if (s.introMs !== DEFAULT_INTRO_MS) options.introMs = s.introMs;
   if (s.updateMs !== DEFAULT_UPDATE_MS) options.updateMs = s.updateMs;
 
@@ -402,7 +459,7 @@ function bookCode(s: PlaygroundChartProps & DepthSettings): ChartCodeConfig {
         props: { bids: 'bids', asks: 'asks', ...(Object.keys(options).length > 0 ? { options } : {}) },
       },
       { component: 'XAxis', props: { minLabelSpacing: 64 } },
-      { component: 'YAxis' },
+      ...(yAxisVisible ? [{ component: 'YAxis' }] : []),
       ...(s.crosshairVisible ? [{ component: 'Crosshair' }] : []),
       ...(s.tooltipVisible ? [{ component: 'Tooltip', props: { format: 'formatSize' } }] : []),
       ...(s.legendVisible ? [{ component: 'Legend' }] : []),
@@ -421,7 +478,11 @@ export function DepthPage({ theme }: { theme: ChartTheme }) {
         tooltipVisible: true,
         legendVisible: true,
         crosshairVisible: true,
+        yAxisVisible: false,
         strokeWidth: DEFAULT_STROKE_WIDTH,
+        midLine: true,
+        midLabel: true,
+        fillFade: DEFAULT_FILL_FADE,
         spanPct: 0.25,
         levels: 80,
         rate: 3,
