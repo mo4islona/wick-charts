@@ -26,32 +26,17 @@ export interface SparklineMetric {
   lowerIsBetter?: boolean
 }
 
-const metrics: SparklineMetric[] = [
-  {
-    label: "Revenue",
-    base: 48_200,
-    volatility: 0.01,
-    format: (value) =>
-      value.toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 0,
-      }),
-  },
-  {
-    label: "Active users",
-    base: 2_350,
-    volatility: 0.02,
-    format: (value) => Math.round(value).toLocaleString("en-US"),
-  },
-  {
-    label: "p95 latency",
-    base: 182,
-    volatility: 0.04,
-    format: (value) => `${Math.round(value)} ms`,
-    lowerIsBetter: true,
-  },
-]
+const revenue: SparklineMetric = {
+  label: "Revenue",
+  base: 48_200,
+  volatility: 0.01,
+  format: (value) =>
+    value.toLocaleString("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }),
+}
 
 // Seeded, so the server render and the browser start from the same values.
 function seededRandom(seed: number): () => number {
@@ -160,12 +145,10 @@ export function SparklineCard({ metric }: { metric: SparklineMetric }) {
   )
 }
 
-export function ChartSparklineCards() {
+export function ChartSparkline() {
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
-      {metrics.map((metric) => (
-        <SparklineCard key={metric.label} metric={metric} />
-      ))}
+    <div className="mx-auto w-full max-w-sm">
+      <SparklineCard metric={revenue} />
     </div>
   )
 }

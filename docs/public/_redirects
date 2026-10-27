@@ -6,3 +6,8 @@
 /r/svelte/  /integrations/shadcn/svelte/    302
 /r          /integrations/shadcn/           302
 /r/         /integrations/shadcn/           302
+
+# Renamed registry items: an install by the old name gets the new item.
+/r/chart-sparkline-cards.json         /r/chart-sparkline.json         301
+/r/vue/chart-sparkline-cards.json     /r/vue/chart-sparkline.json     301
+/r/svelte/chart-sparkline-cards.json  /r/svelte/chart-sparkline.json  301

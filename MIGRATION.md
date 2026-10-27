@@ -59,6 +59,15 @@ keeps its `width` × `height` chart. To inset the chart again, pass
 The change percentage of data that starts below zero now has the sign of the
 change; it showed `+-21.0%` before.
 
+### shadcn: `chart-sparkline-cards` is now `chart-sparkline`
+
+The block now shows one KPI card instead of a row of three, in all three
+registries. For several metrics, put `SparklineCard` in your own grid, once
+per metric. The old name still installs, and it adds the new files:
+`chart-sparkline.tsx` with `ChartSparkline` (Vue: `ChartSparkline.vue`,
+Svelte: `chart-sparkline.svelte`). A copy that you installed before keeps
+working as it is.
+
 ### New in 0.9 — no migration needed
 
 - **Candle styles** — `candlePainter: hollowCandle` (rising bodies drawn as
