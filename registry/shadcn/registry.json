@@ -53,14 +53,14 @@
       "files": [{ "path": "blocks/chart-order-book.tsx", "type": "registry:component" }]
     },
     {
-      "name": "chart-sparkline-cards",
+      "name": "chart-sparkline",
       "type": "registry:block",
-      "title": "Sparkline Cards",
-      "description": "Three KPI cards with a live value, a change badge and an edge-to-edge sparkline.",
+      "title": "Sparkline",
+      "description": "A KPI card with a live value, a change badge and an edge-to-edge sparkline.",
       "categories": ["charts", "dashboard"],
       "dependencies": ["@wick-charts/react@^0.8.4"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
-      "files": [{ "path": "blocks/chart-sparkline-cards.tsx", "type": "registry:component" }]
+      "files": [{ "path": "blocks/chart-sparkline.tsx", "type": "registry:component" }]
     },
     {
       "name": "chart-bar-grouped",
@@ -131,6 +131,36 @@
       "dependencies": ["@wick-charts/react@^0.8.4"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-line-navigator.tsx", "type": "registry:component" }]
+    },
+    {
+      "name": "chart-sankey",
+      "type": "registry:block",
+      "title": "Sankey Chart",
+      "description": "Visitors from each source through the pages to sign-up, with a tooltip on every flow.",
+      "categories": ["charts", "dashboard"],
+      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
+      "files": [{ "path": "blocks/chart-sankey.tsx", "type": "registry:component" }]
+    },
+    {
+      "name": "chart-gauge",
+      "type": "registry:block",
+      "title": "Gauge",
+      "description": "Live CPU load on an arc, with zones from your chart colors.",
+      "categories": ["charts", "monitoring"],
+      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
+      "files": [{ "path": "blocks/chart-gauge.tsx", "type": "registry:component" }]
+    },
+    {
+      "name": "chart-radial-progress",
+      "type": "registry:block",
+      "title": "Radial Progress",
+      "description": "Plan limits as concentric rings, each with its value at the start.",
+      "categories": ["charts", "dashboard"],
+      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
+      "files": [{ "path": "blocks/chart-radial-progress.tsx", "type": "registry:component" }]
     }
   ]
 }
