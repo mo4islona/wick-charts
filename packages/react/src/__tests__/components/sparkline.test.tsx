@@ -191,6 +191,71 @@ describe('Sparkline', () => {
     expect(host.textContent).toContain(`$${data[data.length - 1].value}!!`);
   });
 
+  it('keeps the sign of the change when the series starts below zero', () => {
+    const fromNegative = [
+      { time: 1, value: -10 },
+      { time: 2, value: -5 },
+    ];
+
+    act(() => {
+      render(<Sparkline data={fromNegative} theme={catppuccin.theme} />, { container: host });
+    });
+    act(() => flushAllRaf());
+
+    expect(host.textContent).toContain('+50.0%');
+    expect(host.textContent).not.toContain('+-');
+  });
+
+  it('gives short value texts one column width, so the charts in a grid end on one line', () => {
+    const { getByText } = render(
+      <>
+        <Sparkline data={data} theme={catppuccin.theme} label="Users" />
+        <Sparkline data={data} theme={catppuccin.theme} label="api-prod-1" sublabel="99.9% uptime" />
+      </>,
+      { container: host },
+    );
+
+    const users = getByText('Users').parentElement as HTMLElement;
+    const api = getByText('api-prod-1').parentElement as HTMLElement;
+
+    expect(users.style.minWidth).not.toBe('0px');
+    expect(users.style.minWidth).toBe(api.style.minWidth);
+  });
+
+  it('keeps the value column at its widest width, so a narrower value does not resize the chart', () => {
+    // jsdom has no layout: give a text 10px per character.
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return (this.textContent?.length ?? 0) * 10;
+      },
+    });
+
+    try {
+      const wide = [
+        { time: 1, value: 10 },
+        { time: 2, value: -12345 },
+      ];
+      const narrow = [
+        { time: 1, value: 10 },
+        { time: 2, value: 11 },
+      ];
+      const { rerender, getByText } = render(<Sparkline data={wide} theme={catppuccin.theme} label="BTC" />, {
+        container: host,
+      });
+      const valueColumn = getByText('BTC').parentElement as HTMLElement;
+      const wideWidth = valueColumn.style.minWidth;
+
+      rerender(<Sparkline data={narrow} theme={catppuccin.theme} label="BTC" />);
+
+      expect(Number.parseFloat(wideWidth)).toBeGreaterThan(valueColumn.textContent.length * 10);
+      expect(valueColumn.style.minWidth).toBe(wideWidth);
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'offsetWidth', original);
+    }
+  });
+
   it('yRange clamps the vertical spread of the line', () => {
     function lineToYSpread(node: ReactElement): number {
       // Fresh child container per render — RTL caches one React root per

@@ -3098,7 +3098,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Chart width (default: 140)",
+          "description": "Chart width in px (default: 140). In a sparkline box sized through `style`, the chart stretches or shrinks to the free width.",
           "see": []
         },
         {
@@ -3107,7 +3107,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Overall height (default: 48)",
+          "description": "Minimum chart height in px (default: 48). A taller sparkline box (set through `style`) stretches the chart.",
           "see": []
         },
         {
@@ -3125,7 +3125,7 @@
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Show chart background gradient (default: false)",
+          "description": "Show the background gradient across the whole sparkline box (default: false)",
           "see": []
         },
         {
