@@ -1,10 +1,10 @@
-import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ChartTheme } from '@wick-charts/react';
 
 import { AdvancedLayout, type Step } from '../../components/AdvancedLayout';
+import { ChartSketch, type SketchName } from '../../components/ChartSketch';
 import { Segmented } from '../../components/kit';
-import { useFramework } from '../../context/framework';
 import {
   BLOCKS,
   type BlockEntry,
@@ -16,14 +16,14 @@ import {
 } from '../../demos/shadcn/catalog';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { routeToPath } from '../../router';
-import { type Route, labelForRoute, routeForFramework } from '../../routes';
+import { type Route, getSections, labelForRoute } from '../../routes';
 import { hexToRgba, isDarkColor } from '../../utils';
 
 export const HEADINGS = {
-  pick: '01 — PICK A BLOCK',
-  add: '02 — ADD IT',
-  use: '03 — USE IT',
-  own: '04 — BUILD YOUR OWN CHART',
+  pick: 'BLOCKS',
+  add: '01 — INSTALL',
+  use: '02 — USE IT',
+  own: '03 — BUILD YOUR OWN CHART',
 };
 
 const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => ({
@@ -33,19 +33,57 @@ const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => (
 
 const DEFAULT_BLOCK = BLOCKS.find((entry) => entry.name === 'chart-candlestick') ?? BLOCKS[0];
 
-/** The series that draws a block's data, and the chart page with that data's format. */
-const BLOCK_SERIES: Record<string, { series: string; chart: Route }> = {
-  'chart-line-live': { series: 'LineSeries', chart: 'charts/line' },
-  'chart-candlestick': { series: 'CandlestickSeries', chart: 'charts/candlestick' },
-  'chart-order-book': { series: 'DepthSeries', chart: 'charts/depth' },
-  'chart-sparkline-cards': { series: 'LineSeries', chart: 'charts/line' },
-  'chart-bar-grouped': { series: 'BarSeries', chart: 'charts/bar' },
-  'chart-pie-donut': { series: 'PieSeries', chart: 'charts/pie' },
-  'chart-band-latency': { series: 'BandSeries', chart: 'charts/band' },
-  'chart-area-stacked': { series: 'LineSeries', chart: 'charts/line' },
-  'chart-heatmap': { series: 'HeatmapSeries', chart: 'charts/heatmap' },
-  'chart-line-annotations': { series: 'LineSeries', chart: 'charts/line' },
-  'chart-line-navigator': { series: 'LineSeries', chart: 'charts/line' },
+interface BlockSeries {
+  series: string;
+  /** The chart page with the data format. */
+  chart: Route;
+  /** What the series takes when it is not an array. */
+  input?: ReactNode;
+  /** The Charts menu entry whose blocks the tile joins, when not `chart`. */
+  menu?: Route;
+  /** The tile icon. */
+  sketch: SketchName;
+}
+
+/** The series that draws a block's data. */
+const BLOCK_SERIES: Record<string, BlockSeries> = {
+  'chart-line-live': { series: 'LineSeries', chart: 'charts/line', sketch: 'line-live' },
+  'chart-candlestick': { series: 'CandlestickSeries', chart: 'charts/candlestick', sketch: 'candlestick' },
+  'chart-order-book': { series: 'DepthSeries', chart: 'charts/depth', sketch: 'order-book' },
+  'chart-sparkline': {
+    series: 'LineSeries',
+    chart: 'charts/line',
+    menu: 'charts/sparkline',
+    sketch: 'sparkline',
+  },
+  'chart-bar-grouped': { series: 'BarSeries', chart: 'charts/bar', sketch: 'bar-grouped' },
+  'chart-pie-donut': { series: 'PieSeries', chart: 'charts/pie', sketch: 'donut' },
+  'chart-band-latency': { series: 'BandSeries', chart: 'charts/band', sketch: 'band' },
+  'chart-area-stacked': { series: 'LineSeries', chart: 'charts/line', sketch: 'area-stacked' },
+  'chart-heatmap': { series: 'HeatmapSeries', chart: 'charts/heatmap', sketch: 'heatmap' },
+  'chart-line-annotations': { series: 'LineSeries', chart: 'charts/line', sketch: 'line-annotations' },
+  'chart-line-navigator': { series: 'LineSeries', chart: 'charts/line', sketch: 'line-navigator' },
+  'chart-sankey': {
+    series: 'SankeySeries',
+    chart: 'charts/sankey',
+    sketch: 'sankey',
+    input: (
+      <>
+        your <code>nodes</code> and <code>links</code>
+      </>
+    ),
+  },
+  'chart-gauge': {
+    series: 'GaugeSeries',
+    chart: 'charts/gauge',
+    sketch: 'gauge',
+    input: (
+      <>
+        your number as <code>value</code>
+      </>
+    ),
+  },
+  'chart-radial-progress': { series: 'RadialProgressSeries', chart: 'charts/gauge', sketch: 'radial-progress' },
 };
 
 /** How to put your data into a block; `file` is the block file the CLI added. */
@@ -61,33 +99,10 @@ export function YourData({ block, file }: { block: BlockEntry; file: string }) {
 
   return (
     <>
-      The block draws demo data. To draw yours, replace it in <code>{file}</code> and pass your array to{' '}
-      <code>&lt;{entry.series}&gt;</code>. Data format:{' '}
+      The block draws demo data. To draw yours, replace it in <code>{file}</code> and pass {entry.input ?? 'your array'}{' '}
+      to <code>&lt;{entry.series}&gt;</code>. Data format:{' '}
       <a href={routeToPath(entry.chart)}>{labelForRoute(entry.chart)}</a>.
     </>
-  );
-}
-
-/**
- * A link to the page's view for `framework` that also picks that framework, as the sidebar selector does.
- * The main URL opens the view of the chosen framework, so a plain link would send the reader back.
- */
-export function FrameworkLink({ framework, children }: { framework: Flavor; children: ReactNode }) {
-  const [, setFramework] = useFramework();
-
-  const pick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const newTab = event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
-    if (newTab) return;
-
-    // The pick re-renders this anchor as the link back before the app's link handler reads its href.
-    event.preventDefault();
-    setFramework(framework);
-  };
-
-  return (
-    <a href={routeToPath(routeForFramework('integrations/shadcn', framework))} onClick={pick}>
-      {children}
-    </a>
   );
 }
 
@@ -138,7 +153,7 @@ export function ShadcnGuide({ theme, flavor, copy }: ShadcnGuideProps) {
 
   const pickStep: Step = {
     heading: HEADINGS.pick,
-    body: <BlockList theme={theme} value={block} onPick={pickBlock} />,
+    body: <BlockTiles theme={theme} value={block} onPick={pickBlock} />,
   };
 
   const demoLink = (
@@ -180,7 +195,29 @@ export function ShadcnGuide({ theme, flavor, copy }: ShadcnGuideProps) {
   );
 }
 
-function BlockList({
+const CHART_ORDER: Route[] =
+  getSections()
+    .find((section) => section.heading === 'Charts')
+    ?.items?.map((item) => item.route) ?? [];
+
+function menuRank(entry: BlockEntry): number {
+  const series = BLOCK_SERIES[entry.name];
+  const route = series?.menu ?? series?.chart;
+  const rank = route ? CHART_ORDER.indexOf(route) : -1;
+
+  return rank === -1 ? CHART_ORDER.length : rank;
+}
+
+/** In the order of the Charts menu, so the blocks of one chart sit together. */
+const TILE_BLOCKS = [...BLOCKS].sort((a, b) => menuRank(a) - menuRank(b));
+
+/** The title without the trailing "Chart", which most tiles would repeat. */
+function tileLabel(entry: BlockEntry): string {
+  return entry.title.replace(/ Chart$/, '').replace(/^Line Chart with /, 'Line with ');
+}
+
+/** One tile per block, with a sketch of the block. */
+function BlockTiles({
   theme,
   value,
   onPick,
@@ -190,18 +227,17 @@ function BlockList({
   onPick: (next: BlockEntry) => void;
 }) {
   const text = theme.tooltip.textColor;
+  const surface = `color-mix(in srgb, ${text} 4%, transparent)`;
+  // Opaque: a translucent ink softens the thin strokes.
+  const iconColor = `color-mix(in srgb, ${text} 75%, ${theme.background})`;
 
   return (
     <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-        gap: 4,
-        marginTop: 12,
-      }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(112px, 1fr))', gap: 8, marginTop: 4 }}
     >
-      {BLOCKS.map((entry) => {
+      {TILE_BLOCKS.map((entry) => {
         const active = entry.name === value.name;
+        const sketch = BLOCK_SERIES[entry.name]?.sketch;
 
         return (
           <button
@@ -212,21 +248,29 @@ function BlockList({
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 2,
-              padding: '8px 10px',
-              border: `1px solid ${active ? hexToRgba(text, 0.28) : 'transparent'}`,
-              borderRadius: 6,
-              background: active ? hexToRgba(text, 0.08) : 'transparent',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              minHeight: 84,
+              padding: '8px 6px',
+              border: `1px solid ${active ? hexToRgba(text, 0.4) : theme.tooltip.borderColor}`,
+              borderRadius: 12,
+              background: active ? hexToRgba(text, 0.08) : surface,
               color: text,
               cursor: 'pointer',
               font: 'inherit',
-              textAlign: 'left',
+              fontSize: theme.typography.fontSize - 0.5,
+              fontWeight: active ? 500 : 400,
+              lineHeight: 1.3,
+              textAlign: 'center',
             }}
           >
-            <span style={{ fontWeight: 500 }}>{entry.title}</span>
-            <span style={{ fontSize: theme.typography.fontSize - 1, lineHeight: 1.45, color: hexToRgba(text, 0.62) }}>
-              {entry.description}
-            </span>
+            {sketch && (
+              <span style={{ display: 'flex', color: active ? text : iconColor }}>
+                <ChartSketch name={sketch} height={28} />
+              </span>
+            )}
+            {tileLabel(entry)}
           </button>
         );
       })}

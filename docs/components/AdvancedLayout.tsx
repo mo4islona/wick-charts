@@ -18,7 +18,8 @@ import { Splitter } from './Splitter';
 
 export interface Step {
   heading: string;
-  body: ReactNode;
+  /** Left out when the heading and the code say it all. */
+  body?: ReactNode;
   code?: string;
 }
 
@@ -379,15 +380,17 @@ function StepBlock({ step, theme, muted, first }: { step: Step; theme: ChartThem
       >
         {step.heading}
       </div>
-      <div
-        style={{
-          fontSize: theme.typography.fontSize + 1,
-          lineHeight: 1.65,
-          color: theme.tooltip.textColor,
-        }}
-      >
-        {step.body}
-      </div>
+      {step.body && (
+        <div
+          style={{
+            fontSize: theme.typography.fontSize + 1,
+            lineHeight: 1.65,
+            color: theme.tooltip.textColor,
+          }}
+        >
+          {step.body}
+        </div>
+      )}
       {step.code && <HighlightedCode code={step.code} theme={theme} style={{ ...DOCS_CODE_STYLE, marginTop: 4 }} />}
     </div>
   );

@@ -1,5 +1,5 @@
 import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
-import { FrameworkLink, type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
+import { type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
 
 function usageCode(block: BlockEntry): string {
   return `<script setup lang="ts">
@@ -30,21 +30,10 @@ defineProps<{ data: TimePoint[] }>();
 
 /** The shadcn-vue registry for Vue and Nuxt. */
 export const VUE_COPY: GuideCopy = {
-  lead: (demoLink) => (
-    <p style={{ margin: 0 }}>
-      Chart blocks for shadcn-vue and Nuxt. Also for <FrameworkLink framework="react">shadcn/ui</FrameworkLink> and{' '}
-      <FrameworkLink framework="svelte">shadcn-svelte</FrameworkLink>. {demoLink}
-    </p>
-  ),
+  lead: (demoLink) => <p style={{ margin: 0 }}>Chart blocks for shadcn-vue and Nuxt. {demoLink}</p>,
   steps: (block) => [
     {
       heading: HEADINGS.add,
-      body: (
-        <>
-          It adds <code>components/{block.component}.vue</code> and the <code>card</code> and <code>wick-chart</code>{' '}
-          components it uses.
-        </>
-      ),
       code: installCommand(block.name, 'vue'),
     },
     {

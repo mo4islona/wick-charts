@@ -47,11 +47,7 @@ export interface BlockEntry {
   description: string;
   /** The block's component, e.g. `ChartCandlestick`: the React file's export, the Vue file's name. */
   component: string;
-  /** Takes a full row of the gallery grid. */
-  wide: boolean;
 }
-
-const WIDE = new Set(['chart-order-book', 'chart-sparkline-cards', 'chart-line-navigator']);
 
 function pascalCase(name: string): string {
   return name
@@ -67,7 +63,6 @@ export const BLOCKS: BlockEntry[] = registry.items
     title: item.title,
     description: item.description,
     component: pascalCase(item.name),
-    wide: WIDE.has(item.name),
   }));
 
 export function installCommand(name: string, flavor: Flavor = 'react'): string {

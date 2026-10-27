@@ -9,7 +9,7 @@
       "title": "Wick Theme",
       "description": "A hook that builds a Wick Charts theme from your shadcn/ui CSS variables and follows dark mode.",
       "categories": ["charts", "theme"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "files": [{ "path": "hooks/use-wick-theme.ts", "type": "registry:hook" }]
     },
     {
@@ -18,7 +18,7 @@
       "title": "Wick Chart",
       "description": "A canvas chart container, themed from your CSS variables and sized with classes. Put Wick Charts series and overlays inside.",
       "categories": ["charts"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["https://wick-charts.eeff.io/r/wick-theme.json"],
       "files": [{ "path": "ui/wick-chart.tsx", "type": "registry:ui" }]
     },
@@ -28,7 +28,7 @@
       "title": "Live Line Chart",
       "description": "A line chart that streams a new point every second, with an animated live value in the card header.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-line-live.tsx", "type": "registry:component" }]
     },
@@ -38,7 +38,7 @@
       "title": "Candlestick Chart",
       "description": "Live OHLC candles in your chart colors, with an OHLC info bar, a crosshair and a price badge.",
       "categories": ["charts", "finance"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-candlestick.tsx", "type": "registry:component" }]
     },
@@ -48,7 +48,7 @@
       "title": "Order Book",
       "description": "Cumulative bid and ask depth around the mid price in your chart colors, updated every second.",
       "categories": ["charts", "finance"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-order-book.tsx", "type": "registry:component" }]
     },
@@ -58,7 +58,7 @@
       "title": "Sparkline",
       "description": "A KPI card with a live value, a change badge and an edge-to-edge sparkline.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-sparkline.tsx", "type": "registry:component" }]
     },
@@ -68,7 +68,7 @@
       "title": "Grouped Bar Chart",
       "description": "Two series side by side on a category axis, with a tooltip and a legend that toggles them.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-bar-grouped.tsx", "type": "registry:component" }]
     },
@@ -78,7 +78,7 @@
       "title": "Donut Chart",
       "description": "A donut with an animated total in the center; the slices resize as new data arrives.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-pie-donut.tsx", "type": "registry:component" }]
     },
@@ -88,7 +88,7 @@
       "title": "Band Chart",
       "description": "Live latency percentiles: a median line over p25–p75 and p5–p95 bands.",
       "categories": ["charts", "monitoring"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-band-latency.tsx", "type": "registry:component" }]
     },
@@ -98,7 +98,7 @@
       "title": "Stacked Area Chart",
       "description": "Two series stacked over three months, with a tooltip and a legend that toggles them.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-area-stacked.tsx", "type": "registry:component" }]
     },
@@ -108,7 +108,7 @@
       "title": "Heatmap",
       "description": "Sessions by weekday and hour on a ramp from your theme, with a cell tooltip.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-heatmap.tsx", "type": "registry:component" }]
     },
@@ -118,7 +118,7 @@
       "title": "Annotated Line Chart",
       "description": "An error rate with an SLO line, a shaded incident window and a deploy marker.",
       "categories": ["charts", "monitoring"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-line-annotations.tsx", "type": "registry:component" }]
     },
@@ -128,7 +128,7 @@
       "title": "Line Chart with Navigator",
       "description": "A year of daily closes with a navigator strip to pick the visible window.",
       "categories": ["charts", "finance"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-line-navigator.tsx", "type": "registry:component" }]
     },
@@ -138,7 +138,7 @@
       "title": "Sankey Chart",
       "description": "Visitors from each source through the pages to sign-up, with a tooltip on every flow.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-sankey.tsx", "type": "registry:component" }]
     },
@@ -148,7 +148,7 @@
       "title": "Gauge",
       "description": "Live CPU load on an arc, with zones from your chart colors.",
       "categories": ["charts", "monitoring"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-gauge.tsx", "type": "registry:component" }]
     },
@@ -158,7 +158,7 @@
       "title": "Radial Progress",
       "description": "Plan limits as concentric rings, each with its value at the start.",
       "categories": ["charts", "dashboard"],
-      "dependencies": ["@wick-charts/react@^0.8.4"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-radial-progress.tsx", "type": "registry:component" }]
     }

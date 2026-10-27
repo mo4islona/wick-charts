@@ -107,7 +107,7 @@ function navClass(active: boolean): string {
     {#if block}
       <BlockView entry={block} bare />
     {:else}
-      <div class="grid gap-x-4 gap-y-8 md:grid-cols-2">
+      <div class="gap-x-4 md:columns-2">
         {#each BLOCKS as entry (entry.name)}
           <BlockView {entry} />
         {/each}
@@ -155,7 +155,7 @@ function navClass(active: boolean): string {
     {#if block}
       <BlockView entry={block} />
     {:else}
-      <div class="grid gap-x-4 gap-y-8 md:grid-cols-2">
+      <div class="gap-x-4 md:columns-2">
         {#each BLOCKS as entry (entry.name)}
           <BlockView {entry} />
         {/each}

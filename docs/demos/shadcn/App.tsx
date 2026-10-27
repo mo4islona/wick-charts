@@ -148,7 +148,7 @@ export function App() {
 
 function Gallery() {
   return (
-    <div className="grid gap-x-4 gap-y-8 md:grid-cols-2">
+    <div className="gap-x-4 md:columns-2">
       {BLOCKS.map((entry) => (
         <BlockView key={entry.name} entry={entry} />
       ))}
@@ -163,7 +163,7 @@ function BlockView({ entry, bare = false }: { entry: BlockEntry; bare?: boolean 
   if (bare) return <Block />;
 
   return (
-    <section className={cn('flex min-w-0 flex-col gap-2', entry.wide && 'md:col-span-2')}>
+    <section className="mb-8 flex min-w-0 break-inside-avoid flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <code className="font-mono text-xs text-muted-foreground">{entry.name}</code>
         <CopyButton text={installCommand(entry.name)} />

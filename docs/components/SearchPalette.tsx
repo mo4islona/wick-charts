@@ -24,6 +24,7 @@ import { type Route, getSections, isRoute } from '../routes';
 import { type ManifestProp, type SearchEntry, buildSearchIndex, searchDocs } from '../search';
 import { metaForRoute } from '../seo';
 import { hexToRgba, isDarkColor, saturate } from '../utils';
+import { ChartSketch, type SketchName } from './ChartSketch';
 
 const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 const RECENT_KEY = 'docs-search-recent';
@@ -75,29 +76,28 @@ function shortcutLabel(): string {
   return isMac() ? '⌘K' : 'Ctrl K';
 }
 
-// Stroke icons on a 36×24 grid: a sketch of each chart type, then guides and props.
-const CHART_ICONS: Partial<Record<Route, string>> = {
-  'charts/candlestick': 'M7 4v16M4 8h6v8H4zM18 2v14M15 5h6v7h-6zM29 8v14M26 11h6v6h-6z',
-  'charts/line': 'M2 18L8 12L13 15L19 7L25 10L34 4',
-  'charts/band': 'M2 13L10 8L18 10L26 5L34 7M2 19L10 15L18 17L26 12L34 14',
-  'charts/bar': 'M4 22V12h5v10zM12 22V6h5v16zM20 22V14h5v8zM28 22V9h5v13z',
-  'charts/pie': 'M17 4a9 9 0 1 0 9 9h-9zM20 1a9 9 0 0 1 9 9h-9z',
-  'charts/heatmap': 'M3 3h8v8H3zM14 3h8v8h-8zM25 3h8v8h-8zM3 14h8v8H3zM14 14h8v8h-8zM25 14h8v8h-8z',
-  'charts/depth': 'M2 6h6v4h5v4h4v8M34 6h-6v5h-4v4h-5',
-  'charts/sankey': 'M3 4h4c10 0 12 12 22 12h4M3 18h4c10 0 12-12 22-12h4',
-  'charts/gauge': 'M10.2 19.5A9 9 0 1 1 25.8 19.5M18 15l5-6',
-  'charts/sparkline': 'M2 16L6 14L10 17L14 10L18 12L22 6L26 9L30 5L34 7',
+const CHART_SKETCHES: Partial<Record<Route, SketchName>> = {
+  'charts/candlestick': 'candlestick',
+  'charts/line': 'line-live',
+  'charts/band': 'band',
+  'charts/bar': 'bar-grouped',
+  'charts/pie': 'donut',
+  'charts/heatmap': 'heatmap',
+  'charts/depth': 'order-book',
+  'charts/sankey': 'sankey',
+  'charts/gauge': 'gauge',
+  'charts/sparkline': 'sparkline',
 };
+
+// Stroke icons of guides and props on a 36×24 grid.
 const PAGE_ICON = 'M10 3h12l5 5v13H10zM22 3v5h5M14 13h9M14 17h6';
 const PROP_ICON = 'M13 6l-6 6 6 6M23 6l6 6-6 6';
 
-function iconFor(entry: SearchEntry): string {
-  if (entry.kind === 'prop') return PROP_ICON;
+function EntryIcon({ entry, height }: { entry: SearchEntry; height: number }) {
+  const isProp = entry.kind === 'prop';
+  const sketch = isProp ? undefined : CHART_SKETCHES[entry.route];
+  if (sketch) return <ChartSketch name={sketch} height={height} />;
 
-  return CHART_ICONS[entry.route] ?? PAGE_ICON;
-}
-
-function EntryIcon({ path, height }: { path: string; height: number }) {
   return (
     <svg
       width={height * 1.5}
@@ -110,7 +110,7 @@ function EntryIcon({ path, height }: { path: string; height: number }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d={path} vectorEffect="non-scaling-stroke" />
+      <path d={isProp ? PROP_ICON : PAGE_ICON} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -163,7 +163,7 @@ interface ResultSection {
 function sectionsFor(query: string, recent: SearchEntry[]): ResultSection[] {
   if (query.trim() !== '') return searchDocs(docsIndex(), query);
 
-  const charts = docsIndex().filter((e) => e.kind === 'page' && e.route in CHART_ICONS);
+  const charts = docsIndex().filter((e) => e.kind === 'page' && e.route in CHART_SKETCHES);
   const sections: ResultSection[] = [];
   if (recent.length > 0) sections.push({ title: 'Recent', entries: recent });
   sections.push({ title: 'Charts', entries: charts, tiles: true });
@@ -677,7 +677,7 @@ function ResultRow({
         }}
       >
         <span style={{ display: 'flex', color: accent }}>
-          <EntryIcon path={iconFor(entry)} height={24} />
+          <EntryIcon entry={entry} height={24} />
         </span>
         {entry.label}
       </a>
@@ -721,7 +721,7 @@ function ResultRow({
           color: view.selected ? accent : muted,
         }}
       >
-        <EntryIcon path={iconFor(entry)} height={18} />
+        <EntryIcon entry={entry} height={18} />
       </span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
         <span
@@ -788,7 +788,7 @@ function PreviewPane({ entry, style }: { entry: SearchEntry; style: Omit<RowStyl
           color: accent,
         }}
       >
-        <EntryIcon path={iconFor(entry)} height={isProp ? 48 : 72} />
+        <EntryIcon entry={entry} height={isProp ? 48 : 72} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <span
