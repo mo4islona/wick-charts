@@ -27,7 +27,7 @@ export const FLAVORS: Record<Flavor, FlavorInfo> = {
   vue: {
     registryUrl: 'https://wick-charts.eeff.io/r/vue',
     cli: 'shadcn-vue',
-    listed: false,
+    listed: true,
     demoPath: '/demos/shadcn-vue/',
     guidePath: '/integrations/shadcn/vue/',
   },
