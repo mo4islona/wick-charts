@@ -5,7 +5,7 @@ import {
   SankeyTooltip,
   type SeriesHoverInfo,
 } from '@wick-charts/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
 
@@ -44,6 +44,36 @@ describe('<SankeySeries>', () => {
     expect(mounted.mainSpy.countOf('bezierCurveTo')).toBe(2);
     const texts = mounted.mainSpy.callsOf('fillText').map((call) => call.args[0]);
     expect(texts).toEqual(expect.arrayContaining(['Ads · 10', 'Signup · 10']));
+  });
+
+  it('logs a cycle and keeps the previous graph, then takes the next valid one', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const nodes: SankeyNode[] = [
+      { id: 'a', color: '#ff0000' },
+      { id: 'b', color: '#00ff00' },
+      { id: 'c', color: '#0000ff' },
+    ];
+    const bToC: SankeyLink[] = [{ source: 'b', target: 'c', value: 1 }];
+    const tree = (links: SankeyLink[]) => <SankeySeries id="flow" nodes={nodes} links={links} />;
+
+    try {
+      mounted = mountChart(tree(bToC));
+      mounted.flushScheduler();
+
+      mounted.rerender(tree([...bToC, { source: 'c', target: 'b', value: 1 }]));
+      mounted.flushScheduler();
+
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('cycle') }));
+      // The series color is its first drawn node's: b is still first.
+      expect(mounted.chart.getSeriesColor('flow')).toBe('#00ff00');
+
+      mounted.rerender(tree([{ source: 'a', target: 'b', value: 1 }, ...bToC]));
+      mounted.flushScheduler();
+
+      expect(mounted.chart.getSeriesColor('flow')).toBe('#ff0000');
+    } finally {
+      errors.mockRestore();
+    }
   });
 
   it('shows the hovered node and link in the tooltip', () => {

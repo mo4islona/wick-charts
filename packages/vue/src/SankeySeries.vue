@@ -20,11 +20,20 @@ function rawGraph() {
   return { nodes: toRaw(props.nodes), links: toRaw(props.links) };
 }
 
+function applyGraph(id: string): void {
+  try {
+    chart.setSeriesData(id, rawGraph());
+  } catch (error) {
+    // A cycle: the core keeps the previous graph. Uncaught, it breaks the next update of the component.
+    console.error(error);
+  }
+}
+
 onMounted(() => {
   const id = chart.addSeries(SankeySeriesDef, { ...props.options, id: props.id });
   seriesId.value = id;
   // Lazy watcher — apply the initial graph here so a static graph renders on mount.
-  chart.setSeriesData(id, rawGraph());
+  applyGraph(id);
   chart.setSeriesVisible(id, props.visible);
 });
 
@@ -51,7 +60,7 @@ function graphSource(): unknown[] {
 
 // The core skips a graph with the same fields, so a re-fire without a real change is cheap.
 watch(graphSource, () => {
-  if (seriesId.value) chart.setSeriesData(seriesId.value, rawGraph());
+  if (seriesId.value) applyGraph(seriesId.value);
 });
 
 watch(

@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import type { ChartInstance, SankeyLink, SankeyNode } from '@wick-charts/core';
 import { ChartContainer, SankeySeries, catppuccin } from '@wick-charts/vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Ref, defineComponent, h, nextTick, reactive, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
@@ -93,6 +93,30 @@ describe('Vue <SankeySeries>', () => {
     expect(view.chart().getSeriesColor('flow')).toBe('#ff0000');
 
     view.unmount();
+  });
+
+  it('logs a cycle and keeps the previous graph, then takes the next valid one', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const links = ref(B_TO_C);
+    const view = mountSankey({ links });
+
+    try {
+      await settle();
+
+      links.value = [...B_TO_C, { source: 'c', target: 'b', value: 1 }];
+      await settle();
+
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('cycle') }));
+      expect(view.chart().getSeriesColor('flow')).toBe('#00ff00');
+
+      links.value = [{ source: 'a', target: 'b', value: 1 }, ...B_TO_C];
+      await settle();
+
+      expect(view.chart().getSeriesColor('flow')).toBe('#ff0000');
+    } finally {
+      errors.mockRestore();
+      view.unmount();
+    }
   });
 
   it('removes the series when the component unmounts', async () => {

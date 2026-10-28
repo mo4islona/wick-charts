@@ -301,6 +301,9 @@ export function Sparkline({
     <div
       style={{
         flex: `1 1 ${width}px`,
+        // The root shrinks to fit its content, and a canvas gives no content width: without its own width the chart
+        // collapses to 0. A box sized through `style` still stretches or shrinks it through `flex`.
+        width,
         minWidth: 0,
         alignSelf: 'stretch',
         minHeight: height,

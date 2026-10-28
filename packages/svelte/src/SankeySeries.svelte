@@ -8,7 +8,7 @@ import { getChartContext } from './context.js';
 
 /** Stages of the flow. A node no link reaches is not drawn. */
 export let nodes: readonly SankeyNode[];
-/** Flows between nodes by `id`. Links must not form a cycle — the series throws on one. */
+/** Flows between nodes by `id`. Links must not form a cycle: on one the chart logs the error and keeps the previous graph. */
 export let links: readonly SankeyLink[];
 /** Visual options override — node colors, node width and gap, link opacity, labels, entry / update durations. */
 export let options: Partial<SankeySeriesOptions> | undefined = undefined;
@@ -36,7 +36,12 @@ onDestroy(() => {
 $: {
   const chart = $chartStore;
   if (seriesId && chart) {
-    chart.setSeriesData(seriesId, { nodes, links });
+    try {
+      chart.setSeriesData(seriesId, { nodes, links });
+    } catch (error) {
+      // A cycle: the core keeps the previous graph. Uncaught, it stops this block for good.
+      console.error(error);
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/svelte';
 import type { ChartInstance, SankeyLink, SankeyNode } from '@wick-charts/core';
 import { tick } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SankeySeriesHarness from './SankeySeriesHarness.svelte';
 
@@ -129,6 +129,28 @@ describe('Svelte <SankeySeries>', () => {
     await settle();
 
     expect(chart().getSeriesColor('flow')).toBe('#ff0000');
+  });
+
+  it('logs a cycle and keeps the previous graph, then takes the next valid one', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const { chart, rerender } = mountSankey(B_TO_C);
+      await settle();
+
+      await rerender({ links: [...B_TO_C, { source: 'c', target: 'b', value: 1 }] });
+      await settle();
+
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('cycle') }));
+      expect(chart().getSeriesColor('flow')).toBe('#00ff00');
+
+      await rerender({ links: [{ source: 'a', target: 'b', value: 1 }, ...B_TO_C] });
+      await settle();
+
+      expect(chart().getSeriesColor('flow')).toBe('#ff0000');
+    } finally {
+      errors.mockRestore();
+    }
   });
 
   it('removes the series when the component unmounts', async () => {

@@ -222,6 +222,19 @@ describe('Sparkline', () => {
     expect(users.style.minWidth).toBe(api.style.minWidth);
   });
 
+  it('gives the chart its `width`, so a box with no width in `style` does not collapse it to 0', () => {
+    render(<Sparkline data={data} theme={catppuccin.theme} label="Users" width={360} height={40} />, {
+      container: host,
+    });
+
+    const canvas = host.querySelector('canvas');
+    const root = host.firstElementChild;
+    const chartBlock = root ? [...root.children].find((child) => canvas && child.contains(canvas)) : undefined;
+
+    expect(chartBlock).toBeInstanceOf(HTMLElement);
+    expect((chartBlock as HTMLElement).style.width).toBe('360px');
+  });
+
   it('keeps the value column at its widest width, so a narrower value does not resize the chart', () => {
     // jsdom has no layout: give a text 10px per character.
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');

@@ -327,7 +327,7 @@ export interface RadialProgressSeriesProps {
 export interface SankeySeriesProps {
   /** Stages of the flow. A node no link reaches is not drawn. */
   nodes: readonly SankeyNode[];
-  /** Flows between nodes by `id`. Links must not form a cycle — the series throws on one. */
+  /** Flows between nodes by `id`. Links must not form a cycle: on one the chart logs the error and keeps the previous graph. */
   links: readonly SankeyLink[];
   /** Visual options override — node colors, node width and gap, link opacity, labels, entry / update durations. */
   options?: Partial<SankeySeriesOptions>;

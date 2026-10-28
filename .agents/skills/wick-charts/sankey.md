@@ -17,7 +17,7 @@
 ```
 
 - **Data:** `nodes: SankeyNode[]` = `{ id, label?, color? }` and `links: SankeyLink[]` = `{ source, target, value, color? }`, where `source` and `target` are node ids. Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node, or without a finite `value` above 0, is skipped with a dev warning; links with the same `source` and `target` merge; a node that no link reaches is not drawn.
-- **No cycles:** the links must form a DAG. A cycle (a self-link too) makes the update throw `Sankey links form a cycle: a → b → a`, and the series keeps its previous data. When the graph comes from user input, check it first or put an error boundary around the chart.
+- **No cycles:** the links must form a DAG. On a cycle (a self-link too) `<SankeySeries>` logs `Sankey links form a cycle: a → b → a` with `console.error` and keeps the previous graph; the next valid graph replaces it. The imperative `chart.setSeriesData` throws that error instead. To show the error in your UI, check a graph that comes from user input before you pass it.
 - **Layout:** a node's column is its longest path from a source; a node with no outgoing link goes to the last column. Node height follows its throughput. The layout is deterministic.
 - **Colors:** a link takes its own `color`, else the color of its source node.
 - **Live updates:** pass new `nodes` / `links`. Nodes ease by `id` and links by `source → target`; new ones fade in and removed ones fade out. A new array of the same graph does nothing.
