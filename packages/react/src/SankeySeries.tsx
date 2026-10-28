@@ -9,7 +9,7 @@ import { useStableOptions } from './use-stable-options';
 export interface SankeySeriesProps {
   /** Stages of the flow. A node no link reaches is not drawn. */
   nodes: readonly SankeyNode[];
-  /** Flows between nodes by `id`. Links must not form a cycle — the series throws on one. */
+  /** Flows between nodes by `id`. Links must not form a cycle: on one the chart logs the error and keeps the previous graph. */
   links: readonly SankeyLink[];
   /** Visual options override — node colors, node width and gap, link opacity, labels, entry / update durations. */
   options?: Partial<SankeySeriesOptions>;
@@ -47,8 +47,13 @@ export function SankeySeries({ nodes, links, options, id: idProp, visible }: San
 
   // `idProp` re-applies the graph to the series an id change re-created.
   useLayoutEffect(() => {
-    if (seriesRef.current) {
+    if (!seriesRef.current) return;
+
+    try {
       chart.setSeriesData(seriesRef.current, { nodes, links });
+    } catch (error) {
+      // A cycle: the core keeps the previous graph. Thrown from an effect, it would unmount the whole root.
+      console.error(error);
     }
   }, [chart, idProp, nodes, links]);
 

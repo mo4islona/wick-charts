@@ -1595,7 +1595,7 @@
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Flows between nodes by `id`. Links must not form a cycle — the series throws on one.",
+          "description": "Flows between nodes by `id`. Links must not form a cycle: on one the chart logs the error and keeps the previous graph.",
           "see": []
         },
         {
