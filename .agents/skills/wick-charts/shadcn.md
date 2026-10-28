@@ -13,13 +13,11 @@ In a shadcn/ui project (React), a shadcn-vue project (Vue, Nuxt) or a shadcn-sve
 | Index | `https://wick-charts.eeff.io/r/registry.json` | `https://wick-charts.eeff.io/r/vue/registry.json` | `https://wick-charts.eeff.io/r/svelte/index.json` |
 
 ```bash
-# React: the shadcn CLI resolves @wick-charts without config
+# React and Vue / Nuxt: the shadcn and shadcn-vue CLIs resolve @wick-charts without config
 npx shadcn@latest add @wick-charts/wick-chart @wick-charts/chart-candlestick
-# Vue / Nuxt
-npx shadcn-vue@latest add https://wick-charts.eeff.io/r/vue/wick-chart.json
+npx shadcn-vue@latest add @wick-charts/wick-chart @wick-charts/chart-candlestick
 # Svelte
 npx shadcn-svelte@latest add https://wick-charts.eeff.io/r/svelte/wick-chart.json
-# shadcn-vue: or add "@wick-charts": "<registry URL above>" under "registries" in components.json and add by name.
 ```
 
 ```tsx
