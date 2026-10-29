@@ -219,6 +219,24 @@ describe('buildHoverSnapshots', () => {
     expect((snaps[0].data as { value: number }).value).toBe(20);
   });
 
+  it('marks a candle row rising the way the chart colors it, `colorBy` applied', () => {
+    const byOpen = chart.addSeries('candlestick');
+    const byPrevious = chart.addSeries('candlestick', { colorBy: 'previousClose' });
+    // The second candle closes above its open but below the previous close.
+    const candles = [
+      { time: 1, open: 100, high: 112, low: 99, close: 110 },
+      { time: 2, open: 100, high: 106, low: 99, close: 105 },
+    ];
+    chart.setSeriesData(byOpen, candles);
+    chart.setSeriesData(byPrevious, candles);
+
+    const rising = (id: string) =>
+      buildHoverSnapshots(chart, { time: 2, cacheKey: 'tooltip' }).find((s) => s.id === id);
+    expect(rising(byOpen)?.rising).toBe(true);
+    expect(rising(byPrevious)?.rising).toBe(false);
+    expect(buildLastSnapshots(chart, { cacheKey: 'infobar' }).find((s) => s.id === byPrevious)?.rising).toBe(false);
+  });
+
   it('caches by (time, sort, overlayVersion) and returns the same reference for repeat calls', () => {
     const id = chart.addSeries('line');
     chart.setSeriesData(id, [

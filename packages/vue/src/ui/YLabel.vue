@@ -14,15 +14,14 @@ import { computed, onMounted, onUnmounted, ref, useSlots } from 'vue';
 import { vAxisLabelCover } from '../axis-label-cover';
 import { useChartInstance } from '../context';
 import NumberFlow from './NumberFlow.vue';
-import type { YLabelProps } from './props';
+import type { YLabelDirection, YLabelProps, YLabelRenderContext } from './props';
 
 // Badge motion tuning types + the resolve/reduced-motion/count-up helpers live
 // in core next to BadgeAnimator so React / Vue / Svelte share one set of
 // defaults. Re-exported here to keep YLabel's public surface stable.
 export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
 
-/** Direction of the current value vs. previous close. Drives the badge color in the default UI. */
-export type YLabelDirection = 'up' | 'down' | 'neutral';
+export type { YLabelDirection } from './props';
 
 const props = withDefaults(
   defineProps<YLabelProps>(),
@@ -31,15 +30,7 @@ const props = withDefaults(
 );
 
 defineSlots<{
-  default?(ctx: {
-    value: number;
-    y: number;
-    bgColor: string;
-    isLive: boolean;
-    direction: YLabelDirection;
-    format: ValueFormatter;
-    opacity: number;
-  }): unknown;
+  default?(ctx: YLabelRenderContext): unknown;
 }>();
 
 const chart = useChartInstance();

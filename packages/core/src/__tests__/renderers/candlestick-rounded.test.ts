@@ -305,6 +305,28 @@ describe('CandlestickRenderer — colorBy', () => {
     expect(drawn).toEqual(['#22cc88', '#ee3344']);
   });
 
+  it("'previousClose' skips a NaN close before the drawn candles, and `isRising` agrees", () => {
+    const seen: CandlePaintArgs[] = [];
+    const painter: CandlePainter = (_env, args) => {
+      if (args.element === 'body') seen.push(args);
+    };
+    // The -300 candle falls on its own bar but rises from 50, the last finite close before it.
+    const data: OHLCData[] = [
+      { time: -400, open: 40, high: 55, low: 35, close: 50 },
+      { time: -350, open: 45, high: 60, low: 40, close: Number.NaN },
+      { time: -300, open: 95, high: 96, low: 85, close: 90 },
+      { time: 50, open: 80, high: 85, low: 55, close: 60 },
+    ];
+    const r = new CandlestickRenderer(mkStore(data), { ...colors, colorBy: 'previousClose', candlePainter: painter });
+    const { ctx } = buildRenderContext(WIDE);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    r.render(ctx);
+
+    const drawn = [...seen].sort((x, y) => x.body.x - y.body.x).map((x) => x.bodyColor);
+    expect(drawn).toEqual(['#22cc88', '#ee3344']);
+    expect(r.isRising(data[2])).toBe(true);
+  });
+
   it.each([
     ['linear', null],
     ['log', logScale()],

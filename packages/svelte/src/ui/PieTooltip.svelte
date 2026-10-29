@@ -4,7 +4,12 @@ import { computeTooltipPosition, formatCompact } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext } from '../context.js';
+import SnippetSlot from '../SnippetSlot.svelte';
 import { createCrosshairPosition } from '../stores.js';
+import type { PieTooltipRenderContext } from './types.js';
+
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
 
 const DEFAULT_TOOLTIP_WIDTH = 160;
 const DEFAULT_TOOLTIP_HEIGHT = 70;
@@ -19,7 +24,7 @@ export let format: ValueFormatter = formatCompact;
 
 // biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it; the slot renders only while a slice is hovered, so `info` is never null there
 interface $$Slots {
-  default: { info: HoverInfo; format: ValueFormatter };
+  default: PieTooltipRenderContext;
 }
 
 const chartStore = getChartContext();
@@ -140,7 +145,7 @@ $: tooltipPos = (() => {
         ? 'visible'
         : 'hidden'};"
     >
-      <slot {info} {format} />
+      <slot {info} {format}><SnippetSlot snippet={children} props={{ info, format }} /></slot>
     </div>
   {:else}
     <div

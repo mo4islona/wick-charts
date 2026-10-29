@@ -1,6 +1,6 @@
 /**
  * Pure pan / zoom math for the viewport's logical X range. Extracted out
- * of `Viewport` so the hard-clamp and edge-reached classification can be
+ * of `Viewport` so the pan clamp and edge-reached classification can be
  * unit-tested in isolation and so the next refactor step can move
  * data-anchor state (dataStart / dataEnd / padding / dataInterval) onto
  * the chart without dragging the class along.
@@ -117,12 +117,18 @@ export interface PanResult {
   autoScrollOff: boolean;
 }
 
+/** Share of the view a drag keeps covered by data: well past {@link EDGE_REACHED_SHARE}, short of one stray point. */
+export const PAN_DATA_SHARE = 0.5;
+
 /**
- * Shift the visible range by a time delta. Hard-clamped to the rule
- * "at least one data point stays visible": `newFrom <= dataEnd` (the
- * last point can sit at the very left edge) and `newTo >= dataStart`
- * (the first point can sit at the very right edge). No rubber-band,
- * no overshoot — the viewport stops dead at the boundary.
+ * Shift the visible range by a time delta. Clamped so data keeps covering
+ * {@link PAN_DATA_SHARE} of the view (all of the data when it spans less):
+ * `newFrom <= dataEnd - keep` and `newTo >= dataStart + keep`. A wide
+ * padding moves the bound out to twice the {@link EDGE_REACHED_SHARE} trigger
+ * past the padded edge, so a drag can always fire `onEdgeReached`. No
+ * rubber-band, no overshoot — the viewport stops dead at the boundary. A view
+ * already past the boundary (a zoom at the cursor can leave one there) may
+ * pan back toward the data but no further away, so it never jumps.
  *
  * A pan that lands the viewport off the live-tail position (newTo no
  * longer ≈ dataEnd + paddingRight) flips autoscroll off; staying
@@ -139,16 +145,29 @@ export function computePan(input: PanInput): PanResult {
   let newFrom = from + timeDelta;
   let newTo = to + timeDelta;
 
-  // Hard clamp: keep at least one data point on screen.
-  if (dataEnd !== null && newFrom > dataEnd) {
-    const excess = newFrom - dataEnd;
-    newFrom -= excess;
-    newTo -= excess;
+  const span = dataStart !== null && dataEnd !== null ? dataEnd - dataStart : 0;
+  const keep = Math.min(range * PAN_DATA_SHARE, Math.max(span, 0));
+  const soft = computeSoftBounds({ range, chartWidth, dataInterval, padding, dataStart, dataEnd });
+  const edgeReach = range * EDGE_REACHED_SHARE * 2;
+
+  if (dataEnd !== null) {
+    const edgeFrom = soft.right === null ? Number.NEGATIVE_INFINITY : soft.right + edgeReach - range;
+    const maxFrom = Math.max(dataEnd - keep, edgeFrom, from);
+    const excess = newFrom - maxFrom;
+    if (excess > 0) {
+      newFrom -= excess;
+      newTo -= excess;
+    }
   }
-  if (dataStart !== null && newTo < dataStart) {
-    const excess = dataStart - newTo;
-    newFrom += excess;
-    newTo += excess;
+
+  if (dataStart !== null) {
+    const edgeTo = soft.left === null ? Number.POSITIVE_INFINITY : soft.left - edgeReach + range;
+    const minTo = Math.min(dataStart + keep, edgeTo, to);
+    const excess = minTo - newTo;
+    if (excess > 0) {
+      newFrom += excess;
+      newTo += excess;
+    }
   }
 
   // AutoScroll stays on only while the viewport sits at the live-tail
@@ -231,8 +250,8 @@ export interface ZoomResult {
  *   data shrinks to a useless dot.
  * - No position clamping: the cursor anchor always wins. Zooming past a
  *   data edge leaves empty space on one side of the window; pan to bring
- *   the data back into focus. The pan path enforces the "at least one
- *   point visible" rule on its own; zoom should not fight the cursor.
+ *   the data back into focus. The pan path keeps data in view on its
+ *   own; zoom should not fight the cursor.
  * - Zoom does NOT toggle autoScroll — that's a pan-only concern.
  */
 export function computeZoom(input: ZoomInput): ZoomResult {

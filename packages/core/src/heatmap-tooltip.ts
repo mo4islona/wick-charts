@@ -1,5 +1,5 @@
 import type { ChartInstance } from './chart';
-import { formatCompact } from './utils/format';
+import { formatLabelNumber } from './utils/format';
 
 /**
  * Shared logic for the framework HeatmapTooltip components (react / vue /
@@ -12,13 +12,12 @@ export const HEATMAP_TOOLTIP_WIDTH = 170;
 export const HEATMAP_TOOLTIP_HEIGHT = 78;
 
 /**
- * Default cell-value formatter: integers print plain ("8", "243");
- * fractional values fall through to the shared compact formatter ("0.45",
- * "1.2K"). Heatmap cells are typically counts, so the price-style "8.00"
- * default reads wrong.
+ * Default cell-value formatter: four significant digits with no padded zeros
+ * ("8", "0.45", "1.2K"). Heatmap cells are typically counts, so the
+ * price-style "8.00" default reads wrong.
  */
 export function defaultHeatmapFormat(value: number): string {
-  return Number.isInteger(value) ? value.toString() : formatCompact(value);
+  return formatLabelNumber(value);
 }
 
 /**

@@ -1,12 +1,16 @@
 <script lang="ts">
 import { getThemeContext, getTitleAnchor } from '../context.js';
+import SnippetSlot from '../SnippetSlot.svelte';
 import { portal } from './portal.js';
 
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
+
 /**
- * @deprecated Use the named `sub` slot instead — it accepts arbitrary
- * inline markup (icons, badges, formatted text) to mirror React's
- * `sub: ReactNode`. The string-only prop is kept as a back-compat shim
- * for callers upgrading from 0.3.1; the slot wins when both are provided.
+ * Secondary label in a muted color. Pass markup through the `sub` slot —
+ * `<span slot="sub">` on Svelte 4, `{#snippet sub()}` or `sub={snippet}` on Svelte 5 — to mirror
+ * React's `sub: ReactNode`; the slot wins when both are provided. A plain
+ * string still works but is deprecated, kept for callers upgrading from 0.3.1.
  *
  * Note: the title strip is rendered with `pointer-events: none` so it
  * doesn't intercept canvas hover events. Interactive children (`<a>`,
@@ -38,16 +42,16 @@ $: anchor = $anchorStore;
       pointer-events:none;
     "
   >
-    <span><slot /></span>
-    {#if $$slots.sub}
+    <span><slot><SnippetSlot snippet={children} /></slot></span>
+    {#if $$slots.sub || typeof sub === 'function'}
       <span
         style="
           font-weight:400;
           color:{theme.axis.textColor};
           font-size:{theme.axis.fontSize}px;
         "
-      ><slot name="sub" /></span>
-    {:else if sub}
+      ><slot name="sub"><SnippetSlot snippet={sub} /></slot></span>
+    {:else if typeof sub === 'string' && sub}
       <span
         style="
           font-weight:400;

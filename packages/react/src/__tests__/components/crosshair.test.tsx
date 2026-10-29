@@ -108,7 +108,8 @@ describe('<Crosshair>', () => {
       { width: 400, height: 240 },
     );
 
-    mounted.dispatchMouse('mousemove', { clientX: 250, clientY: 100 }, mounted.overlayCanvas);
+    // Over the slot of the time-4 point: past the last point the line would move to that point.
+    mounted.dispatchMouse('mousemove', { clientX: 150, clientY: 100 }, mounted.overlayCanvas);
     mounted.flushScheduler();
 
     const pos = mounted.chart.getCrosshairPosition();

@@ -157,6 +157,26 @@ describe('wick-theme in the React, Vue and Svelte registries', () => {
     expect(new Set(theme.seriesColors).size).toBe(RAMP.length);
   });
 
+  it.each(FIXTURES)('gives the price badge the candle colors for a %s', (_name, tokens) => {
+    const theme = reactTheme(tokens);
+
+    expect(theme.yLabel.upBackground).toBe(theme.candlestick.up.body);
+    expect(theme.yLabel.downBackground).toBe(theme.candlestick.down.body);
+  });
+
+  it.each<[string, WickThemeTokens]>([
+    ['light', LIGHT],
+    ['dark', DARK],
+    ['multi-hue', { ...LIGHT, chart: ['#e76e50', '#2a9d90', '#274754'] }],
+  ])('keeps one badge text readable on every %s badge', (_mode, tokens) => {
+    const { yLabel, axis } = reactTheme(tokens);
+    const fills = [yLabel.upBackground, yLabel.downBackground, yLabel.neutralBackground];
+    const contrasts = fills.map((fill) => contrastOf(yLabel.textColor, fill));
+
+    expect(yLabel.neutralBackground).toBe(axis.textColor);
+    expect(Math.min(...contrasts)).toBeGreaterThanOrEqual(2.5);
+  });
+
   it('keeps the token reading and color code identical', async () => {
     const shared = sharedPart(REACT_SOURCE);
 

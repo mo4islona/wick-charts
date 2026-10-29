@@ -2,11 +2,14 @@
 // an SFC's named exports from `tsc`, so `index.ts` could not re-export them.
 
 import type {
+  HoverInfo,
   LegendItem,
   MarkerShape,
-  NavigatorData,
+  NavigatorDataInput,
   NumberFlowFormat,
   ReferenceLineStyle,
+  SeriesSnapshot,
+  SliceInfo,
   SnapshotSort,
   TimeRegionEnd,
   TimeValue,
@@ -40,6 +43,59 @@ export interface LegendToggleInfo {
 export type PieLegendMode = 'value' | 'percent' | 'both';
 
 export type PieLegendPosition = 'bottom' | 'right' | 'overlay';
+
+/** Direction of the current value vs. previous close. Drives the badge color in the default UI. */
+export type YLabelDirection = 'up' | 'down' | 'neutral';
+
+/** Payload of the `<InfoBar>` default slot. */
+export interface InfoBarRenderContext {
+  readonly snapshots: readonly SeriesSnapshot[];
+  /** Timestamp displayed. In hover mode it's the crosshair time; in last-mode it's the newest point. */
+  readonly time: number;
+  /** `true` while the user's pointer is over the chart (hover mode). */
+  readonly isHover: boolean;
+}
+
+/** Payload of the `<PieLegend>` default slot. */
+export interface PieLegendRenderContext {
+  readonly slices: readonly SliceInfo[];
+  readonly mode: PieLegendMode;
+  readonly format: ValueFormatter;
+}
+
+/** Payload of the `<PieTooltip>` default slot. */
+export interface PieTooltipRenderContext {
+  readonly info: HoverInfo;
+  readonly format: ValueFormatter;
+}
+
+/** Payload of the `<SankeyTooltip>` default slot. */
+export interface SankeyTooltipRenderContext {
+  readonly info: HoverInfo;
+  readonly format: ValueFormatter;
+}
+
+/** Payload of the `<Tooltip>` default slot. */
+export interface TooltipRenderContext {
+  readonly snapshots: readonly SeriesSnapshot[];
+  /** Crosshair timestamp — the tooltip is hover-only, so this is always a real hover time. */
+  readonly time: number;
+}
+
+/** Payload of the `<YLabel>` default slot. */
+export interface YLabelRenderContext {
+  readonly value: number;
+  /** Pixel Y of the badge anchor (already account for current viewport). */
+  readonly y: number;
+  /** Final background color chosen by the built-in UI — handy if you want to match the dashed line accent. */
+  readonly bgColor: string;
+  /** `true` while the chart is tracking a live last point (still mutating). */
+  readonly isLive: boolean;
+  readonly direction: YLabelDirection;
+  readonly format: ValueFormatter;
+  /** Entrance opacity in `[0, 1]` — ramps up as the initial-load reveal completes. */
+  readonly opacity: number;
+}
 
 export interface HeatmapTooltipProps {
   /**
@@ -85,7 +141,8 @@ export interface MarkerProps {
 }
 
 export interface NavigatorProps {
-  data: NavigatorData;
+  /** Data to render in the miniature view, usually the same series the main chart gets. Time accepts ms or `Date`. */
+  data: NavigatorDataInput;
   /** Strip height in CSS pixels. Defaults to `theme.navigator.height` (60). */
   height?: number;
 }
@@ -141,6 +198,11 @@ export interface ReferenceLineProps {
   /** Optional text label drawn in an annotation chip at the line's near end. */
   label?: string;
   /** Dash style. Default: `'dashed'`. */
+  lineStyle?: ReferenceLineStyle;
+  /**
+   * @deprecated Use {@link ReferenceLineProps.lineStyle}: Vue parses a static
+   * `style="dashed"` as CSS, so only a bound `:style="'dashed'"` arrives.
+   */
   style?: ReferenceLineStyle;
   /** Stroke width in CSS pixels. Default: `1`. */
   width?: number;

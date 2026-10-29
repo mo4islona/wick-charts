@@ -219,6 +219,8 @@ export interface BaseSeriesRenderer {
   getLayerColors(): string[];
   /** The color one point at `value` paints in, for its tooltip row. Optional. */
   resolvePointColor?(layerIndex: number, value: number): string;
+  /** Whether a candle draws in the rising colours. Only candlestick renderers implement it. */
+  isRising?(candle: OHLCData): boolean;
   /**
    * Set per-layer color overrides carried in `data` (sparse — `undefined` keeps
    * the theme base). Only multi-layer (line / bar) renderers implement it.

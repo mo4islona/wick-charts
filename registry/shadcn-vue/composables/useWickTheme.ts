@@ -1,4 +1,8 @@
-import { type ChartTheme, createTheme } from "@wick-charts/vue"
+import {
+  type ChartTheme,
+  type ThemeConfig,
+  createTheme,
+} from "@wick-charts/vue"
 import {
   type MaybeRefOrGetter,
   type ShallowRef,
@@ -24,6 +28,7 @@ export interface WickThemeTokens {
 }
 
 type Rgba = [number, number, number, number]
+type Defined<T> = { [K in keyof T]?: Exclude<T[K], undefined> }
 
 const CHART_TOKENS = [
   "--chart-1",
@@ -54,7 +59,8 @@ let probe: CanvasRenderingContext2D | null | undefined
  * dark, in both modes. Series take the ramp in order. A single line, the heatmap
  * and "down" take the end of the ramp that stands out more on the card; "up"
  * takes `--chart-2`. Candles and order book sides stay in the theme's hue
- * instead of green / red.
+ * instead of green / red. The price badge follows the candles and takes
+ * `--muted-foreground` when the price has not moved.
  *
  * Pass the chart's wrapper element (a template ref) to read the tokens where the
  * chart is (a scoped `.dark` subtree) and to match the card or panel behind it.
@@ -115,43 +121,51 @@ export function themeFromTokens(tokens: WickThemeTokens): ChartTheme {
   const strong = palette[strongIndex] ?? text
   const softIndex = strongIndex === 1 ? 0 : 1
   const soft = palette[softIndex] ?? dim
-  // The ramp is the same in both modes, so the card colour alone can sink into a mid-tone badge.
-  const badgeText = readableOn(
+  // One text colour serves the up, down and neutral badge; the ramp's mid-tones can sit close to the card colour.
+  const badgeFills = [
     chartColors[softIndex] ?? muted,
-    surface,
-    foreground
-  )
+    chartColors[strongIndex] ?? foreground,
+    muted,
+  ]
+  const badgeText = readableOn(badgeFills, surface, foreground)
 
-  return createTheme({
+  // A token that does not parse stays out of the config, and createTheme derives that colour.
+  const config: ThemeConfig = {
     name: "shadcn",
     background,
-    typography: { fontFamily: tokens.fontFamily || undefined },
-    line: { color: strong },
-    bar: { color: palette[0] },
-    seriesColors: palette.length > 0 ? palette : undefined,
-    candlestick: { up: { body: soft }, down: { body: strong } },
-    yLabel: {
-      upBackground: soft,
-      downBackground: soft,
-      neutralBackground: soft,
-      textColor: badgeText,
+    typography: definedOnly({ fontFamily: tokens.fontFamily || undefined }),
+    line: definedOnly({ color: strong }),
+    bar: definedOnly({ color: palette[0] }),
+    candlestick: {
+      up: definedOnly({ body: soft }),
+      down: definedOnly({ body: strong }),
     },
-    grid: { color: cssColor(border, 0.5) },
+    // The price badge takes the candle colours, so a falling last candle never gets the rising one.
+    yLabel: definedOnly({
+      upBackground: soft,
+      downBackground: strong,
+      neutralBackground: dim,
+      textColor: badgeText,
+    }),
+    grid: definedOnly({ color: cssColor(border, 0.5) }),
     // shadcn chart ticks are `text-xs`.
-    axis: { textColor: dim, fontSize: 12 },
-    crosshair: {
+    axis: definedOnly({ textColor: dim, fontSize: 12 }),
+    crosshair: definedOnly({
       color: cssColor(muted, 0.5),
       labelBackground: text,
       labelTextColor: background,
-    },
-    tooltip: {
+    }),
+    tooltip: definedOnly({
       background,
       textColor: text,
       borderColor: cssColor(border),
       // The default --chart-1 is a light grey: series-coloured values would be unreadable on a light card.
       valueColor: text,
-    },
-  }).theme
+    }),
+  }
+  if (palette.length > 0) config.seriesColors = palette
+
+  return createTheme(config).theme
 }
 
 function subscribeTo(
@@ -274,6 +288,15 @@ function isColor(color: Rgba | null): color is Rgba {
   return color !== null
 }
 
+/** `values` without the undefined ones, which `exactOptionalPropertyTypes` rejects. */
+function definedOnly<T extends object>(values: T): Defined<T> {
+  const entries = Object.entries(values).filter(
+    ([, value]) => value !== undefined
+  )
+
+  return Object.fromEntries(entries) as Defined<T>
+}
+
 /**
  * Mixes the colors that sink into the card toward `foreground`: the weakest reaches
  * MIN_SERIES_CONTRAST, the others under LIFT_BELOW spread above it in their order.
@@ -338,19 +361,20 @@ function strongerEnd(colors: Rgba[], surface: Rgba): number {
     : colors.length - 1
 }
 
-/** `surface` or `foreground`, whichever contrasts more with `fill`. */
+/** `surface` or `foreground`, whichever contrasts more with the closest of `fills`. */
 function readableOn(
-  fill: Rgba | null,
+  fills: (Rgba | null)[],
   surface: Rgba,
   foreground: Rgba | null
 ): string {
-  if (!fill || !foreground) return formatColor(surface)
+  const colors = fills.filter(isColor)
+  if (colors.length === 0 || !foreground) return formatColor(surface)
 
-  const surfaceContrast = contrast(surface, fill)
-  const foregroundContrast = contrast(foreground, fill)
+  const weakest = (text: Rgba) =>
+    Math.min(...colors.map((fill) => contrast(text, fill)))
 
   return formatColor(
-    surfaceContrast >= foregroundContrast ? surface : foreground
+    weakest(surface) >= weakest(foreground) ? surface : foreground
   )
 }
 

@@ -18,12 +18,12 @@ import { computed, onMounted, onUnmounted, onUpdated, ref, useSlots, watchEffect
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
 import NumberText from './NumberText.vue';
-import type { TooltipProps } from './props';
+import type { TooltipProps, TooltipRenderContext } from './props';
 
 const props = defineProps<TooltipProps>();
 
 defineSlots<{
-  default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number }): unknown;
+  default?(ctx: TooltipRenderContext): unknown;
 }>();
 
 // Vue's `withDefaults` is inconsistent for function-typed props (sometimes
@@ -259,7 +259,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               color:
                 theme.tooltip.valueColor ??
                 resolveCandlestickBodyColor(
-                  (s.data as OHLCData).close >= (s.data as OHLCData).open
+                  (s.rising ?? (s.data as OHLCData).close >= (s.data as OHLCData).open)
                     ? theme.candlestick.up.body
                     : theme.candlestick.down.body,
                 ),

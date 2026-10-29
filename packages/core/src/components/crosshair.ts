@@ -1,6 +1,6 @@
 import type { BitmapCoordinateSpace } from '../canvas-manager';
 import type { ChartInstance } from '../chart';
-import { buildHoverSnapshots, formatHeaderX } from '../snapshots';
+import { buildHoverSnapshots, formatHeaderX, hoveredPointTime } from '../snapshots';
 import type { ChartTheme } from '../theme/types';
 import type { CrosshairPosition } from '../types';
 
@@ -63,14 +63,28 @@ export function renderCrosshair(args: CrosshairRenderArgs): void {
 /** The crosshair's X-axis pill, placed in container CSS px. */
 export interface CrosshairXLabel {
   text: string;
-  /** The pointer's X, which the pill centres on unless the chart edge would cut it. */
+  /** The line's X ({@link crosshairLineX}), which the pill centres on unless the chart edge would cut it. */
   left: number;
   bottom: number;
   transform: string;
 }
 
+/**
+ * The media X of the vertical line: the pointer's, unless the pointer is over
+ * an empty slot; then the point the tooltip and the pill name, so all three agree.
+ */
+export function crosshairLineX(chart: ChartInstance, pos: CrosshairPosition): number {
+  const pointTime = hoveredPointTime(chart, pos.time);
+  if (pointTime === null) return pos.mediaX;
+
+  const inPointSlot = Math.abs(pointTime - pos.time) <= chart.getDataInterval() / 2;
+  if (inPointSlot) return pos.mediaX;
+
+  return chart.plotLeft + chart.timeScale.timeToX(pointTime);
+}
+
 export function crosshairXLabel(chart: ChartInstance, pos: CrosshairPosition): CrosshairXLabel {
-  const left = pos.mediaX;
+  const left = crosshairLineX(chart, pos);
   const right = chart.getMediaSize().width - left;
   // Centred on the tick label row, so it covers the label under it; flush to the floor with no X axis.
   const bottom = chart.xAxisHeight / 2;

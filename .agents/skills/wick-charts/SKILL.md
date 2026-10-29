@@ -83,7 +83,7 @@ defineProps<{ data: TimePoint[] }>();
 
 - **Size.** `ChartContainer` fills its parent (`height: 100%`), so the parent needs a definite height. It also keeps a 240px `minHeight`: a smaller chart needs `minHeight: 0` in its `style` (Vue `style="height: 80px; min-height: 0"`, Svelte `style="min-height:0"`).
 - **Theme.** The default theme is dark (`catppuccin`). On a light page pass a light one: `theme={githubLight.theme}` ([themes.md](themes.md)).
-- **Time is epoch milliseconds** (`Date.now()`), or a `Date`. Epoch seconds draw near 1970, with a dev warning. On a numeric or category X axis, points carry `x` instead of `time` ([axes.md](axes.md)).
+- **Time is epoch milliseconds** (`Date.now()`), or a `Date`. Epoch seconds draw near 1970, with a console warning. On a numeric or category X axis, points carry `x` instead of `time` ([axes.md](axes.md)).
 - **Updates are new arrays.** Pass a new `data` array for each change; the series finds the cheap path itself (a live last point, appended points, a rolling window, prepended history). React state must not mutate in place; Vue holds data in a `shallowRef`, Svelte 5 in `$state.raw` ([realtime.md](realtime.md)).
 - **Series data shapes:**
   - `LineSeries`, `BarSeries`: `{ time, value }[]` for one layer, an array of them for several, or named layers `{ label?, color?, data }`.

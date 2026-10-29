@@ -10,7 +10,7 @@ import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vu
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
-import type { PieTooltipProps } from './props';
+import type { PieTooltipProps, PieTooltipRenderContext } from './props';
 
 const DEFAULT_TOOLTIP_WIDTH = 160;
 const DEFAULT_TOOLTIP_HEIGHT = 70;
@@ -18,7 +18,7 @@ const DEFAULT_TOOLTIP_HEIGHT = 70;
 const props = defineProps<PieTooltipProps>();
 
 defineSlots<{
-  default?(ctx: { info: HoverInfo; format: ValueFormatter }): unknown;
+  default?(ctx: PieTooltipRenderContext): unknown;
 }>();
 
 const effectiveFormat = computed<ValueFormatter>(() => props.format ?? formatCompact);

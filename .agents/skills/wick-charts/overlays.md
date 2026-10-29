@@ -41,7 +41,7 @@ The Y ticks, the `YLabel` badge, the crosshair label, `Tooltip` and `InfoBar` co
 
 ## Custom content
 
-Each overlay with a slot context lets you replace its content and keep the position, the crosshair wiring and the data in the library. React uses a function child, Vue a default scoped slot, Svelte a `let:` slot (it also works from a runes component). The context is the same in the three.
+Each overlay with a slot context lets you replace its content and keep the position, the crosshair wiring and the data in the library. React uses a function child, Vue a default scoped slot, Svelte a `let:` slot or, on Svelte 5, `{#snippet children(ctx)}`. The context is the same in the three, and each package exports its type: `TooltipRenderContext`, `InfoBarRenderContext`, `PieLegendRenderContext`, `PieTooltipRenderContext`, `SankeyTooltipRenderContext`, `YLabelRenderContext`.
 
 `snapshot.data` is an `OHLCData`, a `TimePoint` or a `BandPoint`: narrow it before you read a field.
 

@@ -92,4 +92,40 @@ describe('<ReferenceLine> (vue)', () => {
 
     wrapper.unmount();
   });
+
+  it('takes the dash style from `lineStyle`, and ignores a static `style` that Vue parsed as CSS', async () => {
+    const add = vi.spyOn(ChartInstance.prototype, 'addLine');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(
+            ChartContainer,
+            { theme: catppuccin.theme },
+            {
+              default: () => [
+                h(LineSeries, { id: 'm', data: lineData, options: { pulse: false } }),
+                h(ReferenceLine, { value: 11, lineStyle: 'solid' }),
+                h(ReferenceLine, { value: 13, style: 'solid' }),
+                // What the template compiler makes of a static `style="dashed"`.
+                h(ReferenceLine, { value: 15, style: {} }),
+              ],
+            },
+          );
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await nextTick();
+
+    const styleOf = (value: number) => add.mock.calls.find(([line]) => line.value === value)?.[0].style;
+    expect(styleOf(11)).toBe('solid');
+    expect(styleOf(13)).toBe('solid');
+    expect(styleOf(15)).toBeUndefined();
+    const ours = warn.mock.calls.filter(([message]) => String(message).startsWith('[wick-charts] ReferenceLine'));
+    expect(ours).toHaveLength(1);
+
+    wrapper.unmount();
+  });
 });

@@ -1,22 +1,5 @@
 <script context="module" lang="ts">
-/**
- * Minimal visual shape the `items` override accepts — just what the built-in
- * swatch/label UI needs. The canonical `LegendItem` (re-exported from
- * `@wick-charts/core`) carries identity plus `toggle`/`isolate` closures;
- * those aren't meaningful for a pre-baked, non-interactive legend.
- */
-export interface LegendItemOverride {
-  label: string;
-  color: string;
-}
-
-/** Payload for `onToggle` — one entry per user click, regardless of built-in vs custom rendering. */
-export interface LegendToggleInfo {
-  /** The clicked item's id (matches `LegendItem.id`). */
-  id: string;
-  /** Which interaction produced this change. */
-  action: 'toggle' | 'isolate' | 'unisolate';
-}
+export type { LegendItemOverride, LegendToggleInfo } from './types.js';
 </script>
 
 <script lang="ts">
@@ -25,6 +8,11 @@ export interface LegendToggleInfo {
 
   import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context.js';
   import { portal } from './portal.js';
+  import type { LegendItemOverride, LegendToggleInfo } from './types.js';
+  import SnippetSlot from '../SnippetSlot.svelte';
+
+  /** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+  export let children: unknown = undefined;
 
   type LegendMode = 'toggle' | 'isolate' | 'solo';
 
@@ -210,7 +198,7 @@ export interface LegendToggleInfo {
         ? 'flex-start'
         : 'center'};font-family:{theme.typography.fontFamily};font-size:{theme.axis.fontSize}px;color:{theme.axis.textColor};pointer-events:auto;flex-shrink:0;"
     >
-      <slot items={legendItems} />
+      <slot items={legendItems}><SnippetSlot snippet={children} props={{ items: legendItems }} /></slot>
     </div>
   {:else if items && items.length > 0}
     <div

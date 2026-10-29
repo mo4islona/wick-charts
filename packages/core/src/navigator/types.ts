@@ -1,13 +1,18 @@
+import type { TimeValue } from '../types';
+
 /** Series type the navigator should render in its miniature view. */
 export type NavigatorSeriesType = 'line' | 'bar' | 'candlestick';
 
-/** Minimal point shape for line and bar miniature series. */
+/** Minimal point shape for line and bar miniature series. Time is a timestamp in milliseconds. */
 export interface NavigatorLinePoint {
   time: number;
   value: number;
 }
 
-/** Minimal point shape for candlestick miniature series. */
+/** {@link NavigatorLinePoint} that also accepts `Date` for the time field. */
+export type NavigatorLinePointInput = Omit<NavigatorLinePoint, 'time'> & { time: TimeValue };
+
+/** Minimal point shape for candlestick miniature series. Time is a timestamp in milliseconds. */
 export interface NavigatorCandlePoint {
   time: number;
   open: number;
@@ -15,6 +20,9 @@ export interface NavigatorCandlePoint {
   low: number;
   close: number;
 }
+
+/** {@link NavigatorCandlePoint} that also accepts `Date` for the time field, so an `OHLCInput[]` fits. */
+export type NavigatorCandlePointInput = Omit<NavigatorCandlePoint, 'time'> & { time: TimeValue };
 
 /**
  * Data passed to the navigator. The discriminant `type` selects the miniature
@@ -27,6 +35,12 @@ export type NavigatorData =
   | { type: 'line' | 'bar'; points: readonly NavigatorLinePoint[] }
   | { type: 'line' | 'bar'; series: readonly (readonly NavigatorLinePoint[])[] }
   | { type: 'candlestick'; points: readonly NavigatorCandlePoint[] };
+
+/** {@link NavigatorData} whose points also accept `Date` times, like the series data. */
+export type NavigatorDataInput =
+  | { type: 'line' | 'bar'; points: readonly NavigatorLinePointInput[] }
+  | { type: 'line' | 'bar'; series: readonly (readonly NavigatorLinePointInput[])[] }
+  | { type: 'candlestick'; points: readonly NavigatorCandlePointInput[] };
 
 export interface NavigatorOptions {
   /**

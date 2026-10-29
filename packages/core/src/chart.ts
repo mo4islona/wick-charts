@@ -44,7 +44,7 @@ import {
   warnXTypeChange,
 } from './chart/x-guards';
 import { type YBounds, computeTargetYRange, fromScaleSpace, resolveYTarget, widenFlatRange } from './chart/y-target';
-import { type CrosshairXLabel, crosshairXLabel, renderCrosshair } from './components/crosshair';
+import { type CrosshairXLabel, crosshairLineX, crosshairXLabel, renderCrosshair } from './components/crosshair';
 import { type RenderGridArgs, renderGrid } from './components/grid';
 import type { LoadingIndicatorFn, PlaceholderBar } from './components/loading-indicator';
 import { type MarkerConfig, type MarkerShape, renderMarker } from './components/marker';
@@ -2634,6 +2634,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return getPreviousClose(seriesId, this.#series);
   }
 
+  /**
+   * The newest point of a time series. Name the point shape of a series you
+   * know to read its fields directly: `getLastData<TimePoint>(id)?.value`.
+   * The type argument is not checked at runtime.
+   */
+  getLastData<P extends OHLCData | TimePoint | BandPoint = OHLCData | TimePoint | BandPoint>(
+    seriesId: string,
+  ): P | null;
   getLastData(seriesId: string): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry || !isTimeSeriesRenderer(entry.renderer)) return null;
@@ -2677,7 +2685,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * Find the data point nearest the given timestamp: on a time axis anywhere
    * between the series' first and last points (a line spans a gap in the
    * timestamps), and within one data interval past either end.
+   *
+   * Name the point shape of a series you know to read its fields directly:
+   * `getDataAtTime<OHLCData>(id, time)?.close`. The type argument is not
+   * checked at runtime.
    */
+  getDataAtTime<P extends OHLCData | TimePoint | BandPoint = OHLCData | TimePoint | BandPoint>(
+    seriesId: string,
+    time: number,
+  ): P | null;
   getDataAtTime(seriesId: string, time: number): OHLCData | TimePoint | BandPoint | null {
     const entry = this.#series.find((s) => s.id === seriesId);
     if (!entry) return null;
@@ -2928,6 +2944,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const pointColor = entry?.renderer.resolvePointColor?.(0, value);
 
     return pointColor ?? this.getSeriesColor(seriesId);
+  }
+
+  /** Whether a candle of the series draws in its rising colours, `colorBy` applied; `null` off a candlestick series. */
+  isCandleRising(seriesId: string, candle: OHLCData): boolean | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+
+    return entry?.renderer.isRising?.(candle) ?? null;
   }
 
   /** The series' primary name (first layer). Used for single-layer overlays. */
@@ -4182,7 +4205,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const unchanged = range.from === this.#logical.from && range.to === this.#logical.to;
     if (unchanged) return null;
 
-    return this.#commitStreamingTarget(range);
+    const target = this.#commitStreamingTarget(range);
+
+    // The view centers on the drawn focus and takes only the width from the engine,
+    // so easing a pure re-center would keep the frame loop running for nothing.
+    const current = this.#engine.getAnimationState().xRange;
+    const width = range.to - range.from;
+    const recenterOnly = Math.abs(current.to - current.from - width) <= width * 1e-9;
+    if (recenterOnly) this.#engine.setXSettleMs(0);
+
+    return target;
   }
 
   /** Commit an X target that follows the data tail; the engine eases there. */
@@ -4483,8 +4515,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
-   * Shift the visible time range by `timeDelta` ms. Hard-clamped so at
-   * least one data point stays on screen — no rubber-band, no overshoot.
+   * Shift the visible time range by `timeDelta` ms. Clamped so data keeps
+   * covering half the view (all of it when shorter) — no rubber-band, no overshoot.
    * A pan that moves the viewport off the live-tail position flips
    * autoscroll off. Forwards the committed target to the engine
    * as a gesture for visual easing. Public so consumers can drive pan
@@ -5192,7 +5224,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     context.clip();
     renderCrosshair({
       scope,
-      bitmapX: pos.mediaX * scope.horizontalPixelRatio - paneLeft,
+      bitmapX: crosshairLineX(this, pos) * scope.horizontalPixelRatio - paneLeft,
       bitmapY: pos.mediaY * scope.verticalPixelRatio,
       theme: this.#theme,
       pane: { width: chartBitmapWidth, height: chartBitmapHeight },

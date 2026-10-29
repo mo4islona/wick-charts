@@ -30,7 +30,7 @@
     "readme": "node scripts/generate-readmes.mjs",
     "api:extract": "node scripts/extract-api.mjs",
     "api:check": "node scripts/check-api-parity.mjs",
-    "svelte:compat": "node scripts/check-svelte-compat.mjs",
+    "svelte:compat": "node scripts/check-svelte-compat.mjs && node scripts/check-svelte5-snippets.mjs",
     "publish:all": "pnpm -r build && pnpm -r --filter './packages/*' publish --access public"
   },
   "devDependencies": {

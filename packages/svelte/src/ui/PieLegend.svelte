@@ -3,10 +3,12 @@ import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact 
 import { onDestroy } from 'svelte';
 
 import { getChartContext, getLegendAnchor, getLegendRightAnchor, getThemeContext } from '../context.js';
+import SnippetSlot from '../SnippetSlot.svelte';
 import { portal } from './portal.js';
+import type { PieLegendMode, PieLegendPosition, PieLegendRenderContext } from './types.js';
 
-type PieLegendMode = 'value' | 'percent' | 'both';
-type PieLegendPosition = 'bottom' | 'right' | 'overlay';
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
 
 /**
  * Owning series id. **Optional** — when omitted, the first visible pie
@@ -19,6 +21,11 @@ export let mode: PieLegendMode | undefined = undefined;
 export let format: ValueFormatter | undefined = undefined;
 /** Layout placement. Default: `'bottom'`. */
 export let position: PieLegendPosition = 'bottom';
+
+// biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it to type the slot
+interface $$Slots {
+  default: PieLegendRenderContext;
+}
 
 const bottomAnchorStore = getLegendAnchor();
 const rightAnchorStore = getLegendRightAnchor();
@@ -77,7 +84,9 @@ $: slices = ((chart && resolvedId !== null && bump >= 0 ? chart.getSliceInfo(res
 {#if slices.length > 0 && theme}
   {#if $$slots.default}
     <div use:portal={portalTarget}>
-      <slot slices={slices} mode={resolvedMode} format={resolvedFormat} />
+      <slot slices={slices} mode={resolvedMode} format={resolvedFormat}>
+        <SnippetSlot snippet={children} props={{ slices, mode: resolvedMode, format: resolvedFormat }} />
+      </slot>
     </div>
   {:else}
     <div

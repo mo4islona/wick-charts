@@ -832,12 +832,24 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
     if (introClip !== undefined) context.restore();
   }
 
-  /** Close of the last stored candle before `time`, `null` when none is stored. */
+  /** Whether `candle` draws in the rising colours: by its open, or by the previous close under `colorBy`. */
+  isRising(candle: OHLCData): boolean {
+    const byPrevious = this.options.colorBy === 'previousClose';
+    const reference = byPrevious ? (this.#closeBefore(candle.time) ?? candle.open) : candle.open;
+
+    return candle.close >= reference;
+  }
+
+  /** Close of the last stored candle before `time`, past poisoned closes as the draw pass skips them; `null` when none. */
   #closeBefore(time: number): number | null {
     const data = this.store.getAll();
-    const index = binarySearch(data, time, (candle) => candle.time) - 1;
 
-    return index >= 0 ? data[index].close : null;
+    for (let i = binarySearch(data, time, (candle) => candle.time) - 1; i >= 0; i--) {
+      const { close } = data[i];
+      if (!isPoisonedNumber(close)) return close;
+    }
+
+    return null;
   }
 
   /**
@@ -1375,6 +1387,7 @@ function paintArgs(args: {
     element: args.element,
     wick: { x: shape.wickX, y: shape.wickY - shiftY, width: frame.wickWidth, height: shape.wickHeight },
     body: { x: shape.bodyX, y: shape.bodyY - shiftY, width: frame.bodyWidth, height: shape.bodyHeight },
+    slotWidth: frame.barWidth,
     openY: shape.openY - shiftY,
     closeY: shape.closeY - shiftY,
     fillStyle: args.fillStyle,

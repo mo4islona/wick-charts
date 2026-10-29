@@ -28,6 +28,8 @@ Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered
 npm install @wick-charts/svelte
 ```
 
+`@wick-charts/svelte` is ESM only: load it with `import`, not `require()`.
+
 ## Quick start
 
 ```svelte
@@ -65,8 +67,7 @@ When the data changes, pass a new array to `data`. The series compares it with t
 
 - [Candlestick](https://wick-charts.eeff.io/charts/candlestick/) · [Order book](https://wick-charts.eeff.io/charts/depth/)
 - [Line & Area](https://wick-charts.eeff.io/charts/line/) · [Band](https://wick-charts.eeff.io/charts/band/) · [Bar](https://wick-charts.eeff.io/charts/bar/)
-- [Pie & Donut](https://wick-charts.eeff.io/charts/pie/) · [Heatmap](https://wick-charts.eeff.io/charts/heatmap/)
-- [Sparkline](https://wick-charts.eeff.io/charts/sparkline/)
+- [Pie & Donut](https://wick-charts.eeff.io/charts/pie/) · [Heatmap](https://wick-charts.eeff.io/charts/heatmap/) · [Sankey](https://wick-charts.eeff.io/charts/sankey/) · [Gauge & Radial progress](https://wick-charts.eeff.io/charts/gauge/)
 
 Put them on [numeric](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [category](https://wick-charts.eeff.io/use-cases/category-bars/) X axes or a [secondary Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/), [sync several charts](https://wick-charts.eeff.io/use-cases/multi-chart-sync/), stream them [in real time](https://wick-charts.eeff.io/use-cases/realtime-data/), or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/).
 

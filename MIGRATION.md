@@ -41,9 +41,10 @@ const painter: CandlePainter = (env, args) => {
 };
 ```
 
-TypeScript flags `geom` and `color`. In plain JavaScript an old painter keeps
-running but loses its wick, and draws its body shape a second time on the
-wick call.
+TypeScript flags `geom` and `color`. In plain JavaScript an old painter throws
+on its first call, because `geom` is undefined. The series then draws the
+default candles and logs one warning: "a candle painter threw; falling back to
+the default for this series."
 
 ### Behavior: `Sparkline` fills its box
 
@@ -67,6 +68,36 @@ per metric. The old name still installs, and it adds the new files:
 `chart-sparkline.tsx` with `ChartSparkline` (Vue: `ChartSparkline.vue`,
 Svelte: `chart-sparkline.svelte`). A copy that you installed before keeps
 working as it is.
+
+### shadcn: re-add `wick-theme` after an upgrade
+
+New blocks can rely on a newer `wick-theme`. The CLI keeps an installed file
+unless you pass `--overwrite`: its prompt defaults to No and shows no diff.
+With the old hook, the blocks can draw their lightest color at low contrast.
+After each upgrade, re-add the hook:
+
+```bash
+npx shadcn@latest add @wick-charts/wick-theme --overwrite
+npx shadcn-vue@latest add @wick-charts/wick-theme --overwrite
+npx shadcn-svelte@latest add https://wick-charts.eeff.io/r/svelte/wick-theme.json --overwrite
+```
+
+An installed block is your copy and stays as it is. Re-add it the same way to
+take its fixes; `--overwrite` replaces your edits. In Nuxt, blocks from an
+older release can fail the type check until you re-add them.
+
+### Deprecated: `ReferenceLine` `style` → `lineStyle` (0.9.2)
+
+The dash style of a `ReferenceLine` is now `lineStyle`. `style` still works in
+every wrapper. In a Vue template a static `style="dashed"` never worked: Vue
+parses it as CSS before the prop sees it, so the line drew solid.
+
+```vue
+<!-- before -->
+<ReferenceLine :value="13" :style="'dashed'" />
+<!-- after -->
+<ReferenceLine :value="13" line-style="dashed" />
+```
 
 ### New in 0.9 — no migration needed
 

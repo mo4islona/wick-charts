@@ -21,6 +21,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChartInstance } from '../chart';
 
 const INTERVAL = 1000;
+/** Wall gap between the paint and the first append: a fast feed, which slides continuously. */
+const CADENCE_MS = 250;
 
 function installRaf(): {
   flush: (frames?: number) => void;
@@ -110,17 +112,17 @@ describe('first streaming tick rides the cadence-tuned settle, not the bare floo
     );
 
     // Settle the initial paint, then advance wall-clock so the first append
-    // lands exactly 1000 ms after the paint-time cadence seed. That gap is
-    // the producer cadence the first slide should pick up.
-    raf.flush(40);
-    raf.advance(1000 - 40 * 16);
+    // lands one cadence after the paint-time cadence seed. That gap is the
+    // producer cadence the first slide should pick up.
+    raf.flush(10);
+    raf.advance(CADENCE_MS - 10 * 16);
 
     chart.appendData(id, { time: 30 * INTERVAL, value: 60 });
 
     // Count frames the engine reports as animating. The bare floor (200 ms)
-    // settles in ~13 frames; even with the one-shot Y re-fit (~250 ms) the
-    // total stays well under 30. The cadence-tuned settle (~3 x 1000 ms)
-    // keeps the X spring in flight for ~180 frames, so a threshold of 60
+    // settles in ~20 frames; even with the one-shot Y re-fit (~250 ms) the
+    // total stays well under 30. The cadence-tuned settle (~3 x 250 ms)
+    // keeps the X spring in flight for ~70 frames, so a threshold of 45
     // cleanly separates the fixed path from the regressed bare-floor path.
     let animatingFrames = 0;
     for (let i = 0; i < 250; i++) {
@@ -130,6 +132,6 @@ describe('first streaming tick rides the cadence-tuned settle, not the bare floo
       animatingFrames += 1;
     }
 
-    expect(animatingFrames).toBeGreaterThan(60);
+    expect(animatingFrames).toBeGreaterThan(45);
   });
 });

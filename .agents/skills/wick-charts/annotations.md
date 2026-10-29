@@ -20,7 +20,7 @@
 ```
 
 - **`Marker`** pins a glyph (`'dot'`, `'circle'`, `'arrow-up'`, `'arrow-down'`) and an optional callout label to `time` + `value`. Omit `value` and pass `seriesId` to put it on that series' value at `time`. `pulse` adds the halo of a live line. It draws above the series.
-- **`ReferenceLine`** is a horizontal line at `value` or a vertical line at `time` (a `time` wins when both are set). `style` is `'dashed'` (default) or `'solid'`. It draws above the series.
+- **`ReferenceLine`** is a horizontal line at `value` or a vertical line at `time` (a `time` wins when both are set). `lineStyle` is `'dashed'` (default) or `'solid'`; the old `style` prop still works but is deprecated, and in a Vue template a static `style="…"` is parsed as CSS. It draws above the series.
 - **`TimeRegion`** shades `from` → `to`; omit `to` or pass `'now'` for a band that runs to the right edge. It draws behind the series. Time X axis only.
 - The Y autoscale ignores annotations: a `ReferenceLine` or `Marker` outside the data range is off the plot. To keep a threshold in view, set `axis.y.min` / `axis.y.max` to include it.
 - On a chart with [named Y scales](axes.md#a-second-y-scale), `Marker` and `ReferenceLine` take `scale`.

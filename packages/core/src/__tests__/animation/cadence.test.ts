@@ -11,6 +11,7 @@
  *  - floor clamp on `pickSettleMs(floor)`
  *  - ceiling clamp (SETTLE_MS_MAX)
  *  - slack multiplier applied above floor
+ *  - a slow feed glides per tick instead of sliding continuously
  *  - `pause()` resets the inter-arrival tracker without dropping the EMA
  *  - `seed()` primes the baseline so the first observed tick folds a real gap
  */
@@ -105,11 +106,11 @@ describe('StreamingCadence', () => {
     let now = 1000;
     cadence.observe(now);
     for (let i = 0; i < 12; i++) {
-      now += 1000;
+      now += 500;
       cadence.observe(now);
     }
-    // EMA ~1000; with default slack 3.0 = 3000; floor 200 → 3000.
-    expect(cadence.pickSettleMs(200)).toBeCloseTo(3000, -2);
+    // EMA ~500; with default slack 3.0 = 1500; floor 200 → 1500.
+    expect(cadence.pickSettleMs(200)).toBeCloseTo(1500, -1);
   });
 
   it('pickSettleMs ceiling is SETTLE_MS_MAX (5000ms)', () => {
@@ -118,11 +119,26 @@ describe('StreamingCadence', () => {
     let now = 1000;
     cadence.observe(now);
     for (let i = 0; i < 6; i++) {
-      now += 4900;
+      now += 700;
       cadence.observe(now);
     }
-    // EMA ≈ 4900, *3.0 = 14700; clamped to 5000.
-    expect(cadence.pickSettleMs(0)).toBeLessThanOrEqual(5000);
+    // EMA ≈ 700, *10 = 7000; clamped to 5000.
+    expect(cadence.pickSettleMs(0, 10)).toBe(5000);
+  });
+
+  it('pickSettleMs gives a feed slower than 750 ms a short glide that rests before the next tick', () => {
+    const cadence = new StreamingCadence();
+
+    let now = 1000;
+    cadence.observe(now);
+    for (let i = 0; i < 12; i++) {
+      now += 1000;
+      cadence.observe(now);
+    }
+
+    expect(cadence.pickSettleMs(200)).toBe(300);
+    // The configured settle stays a floor.
+    expect(cadence.pickSettleMs(1200)).toBe(1200);
   });
 
   it('pickSettleMs honors a custom slack multiplier', () => {
@@ -188,13 +204,13 @@ describe('StreamingCadence', () => {
     expect(cold.emaMs).toBe(0);
     expect(cold.pickSettleMs(200)).toBe(200);
 
-    // Seeded at paint time: the next observe measures (1800 - 1000) = 800 and
+    // Seeded at paint time: the next observe measures (1500 - 1000) = 500 and
     // folds it, so the very first tick is already cadence-tuned.
     const seeded = new StreamingCadence();
     seeded.seed(1000);
-    seeded.observe(1800);
-    expect(seeded.emaMs).toBeCloseTo(800, 0);
-    expect(seeded.pickSettleMs(200)).toBeCloseTo(2400, 0);
+    seeded.observe(1500);
+    expect(seeded.emaMs).toBeCloseTo(500, 0);
+    expect(seeded.pickSettleMs(200)).toBeCloseTo(1500, 0);
   });
 
   it('seed() never folds a sample — back-to-back seeds cannot poison the EMA', () => {

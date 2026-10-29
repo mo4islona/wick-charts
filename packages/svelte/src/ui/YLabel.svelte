@@ -1,10 +1,9 @@
 <script context="module" lang="ts">
-/** Direction of the current value vs. previous close. Drives the badge color in the default UI. */
-export type YLabelDirection = 'up' | 'down' | 'neutral';
-
 // Badge motion tuning types live in core next to BadgeAnimator so React / Vue /
 // Svelte share one set of defaults. Re-exported to keep the public surface stable.
 export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
+
+export type { YLabelDirection } from './types.js';
 </script>
 
 <script lang="ts">
@@ -25,6 +24,11 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
   import { axisLabelCover } from '../axis-label-cover.js';
   import { getChartContext } from '../context.js';
   import NumberFlow from './NumberFlow.svelte';
+  import type { YLabelDirection, YLabelRenderContext } from './types.js';
+  import SnippetSlot from '../SnippetSlot.svelte';
+
+  /** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+  export let children: unknown = undefined;
 
   /**
    * Owning series id. **Optional** — when omitted, the first visible
@@ -46,6 +50,11 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
    * default axis side for an overlay scale.
    */
   export let scale: string | undefined = undefined;
+
+  // biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it to type the slot
+  interface $$Slots {
+    default: YLabelRenderContext;
+  }
 
   const chartStore = getChartContext();
 
@@ -230,7 +239,12 @@ export type { YLabelAnimate, YLabelAnimateOptions } from '@wick-charts/core';
       {direction}
       format={effectiveFormat}
       {opacity}
-    />
+    >
+      <SnippetSlot
+        snippet={children}
+        props={{ value: last.value, y, bgColor, isLive: last.isLive, direction, format: effectiveFormat, opacity }}
+      />
+    </slot>
   {:else}
     <div
       style="position:absolute;left:{chart.plotLeft}px;right:{chart.getAxisColumnWidth('right')}px;top:{y}px;height:0;border-top:1px dashed {bgColor};opacity:{opacity * 0.5};pointer-events:none;z-index:2;"

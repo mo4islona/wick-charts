@@ -16,7 +16,35 @@
 </ChartContainer>
 ```
 
-- **Data:** `nodes: SankeyNode[]` = `{ id, label?, color? }` and `links: SankeyLink[]` = `{ source, target, value, color? }`, where `source` and `target` are node ids. Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node, or without a finite `value` above 0, is skipped with a dev warning; links with the same `source` and `target` merge; a node that no link reaches is not drawn.
+```vue
+<script setup lang="ts">
+import { ChartContainer, type SankeyLink, type SankeyNode, SankeySeries, SankeyTooltip } from '@wick-charts/vue';
+
+defineProps<{ nodes: SankeyNode[]; links: SankeyLink[] }>();
+</script>
+
+<template>
+  <ChartContainer :grid="{ visible: false }">
+    <SankeySeries :nodes="nodes" :links="links" />
+    <SankeyTooltip />
+  </ChartContainer>
+</template>
+```
+
+```svelte
+<script lang="ts">
+  import { ChartContainer, type SankeyLink, type SankeyNode, SankeySeries, SankeyTooltip } from '@wick-charts/svelte';
+
+  let { nodes, links }: { nodes: SankeyNode[]; links: SankeyLink[] } = $props();
+</script>
+
+<ChartContainer grid={{ visible: false }}>
+  <SankeySeries {nodes} {links} />
+  <SankeyTooltip />
+</ChartContainer>
+```
+
+- **Data:** `nodes: SankeyNode[]` = `{ id, label?, color? }` and `links: SankeyLink[]` = `{ source, target, value, color? }`, where `source` and `target` are node ids. Imperative: `chart.setSeriesData(id, { nodes, links })`. A link to an unknown node, or without a finite `value` above 0, is skipped with a console warning, once per series, in production builds too; links with the same `source` and `target` merge; a node that no link reaches is not drawn.
 - **No cycles:** the links must form a DAG. On a cycle (a self-link too) `<SankeySeries>` logs `Sankey links form a cycle: a → b → a` with `console.error` and keeps the previous graph; the next valid graph replaces it. The imperative `chart.setSeriesData` throws that error instead. To show the error in your UI, check a graph that comes from user input before you pass it.
 - **Layout:** a node's column is its longest path from a source; a node with no outgoing link goes to the last column. Node height follows its throughput. The layout is deterministic.
 - **Colors:** a link takes its own `color`, else the color of its source node.

@@ -15,6 +15,8 @@ const DEFAULT_MIN_LABEL_SPACING = 80;
 /** Default band spacing on a category axis, in fractions of a step. */
 const DEFAULT_INNER_PADDING = 0.3;
 const DEFAULT_OUTER_PADDING = 0.2;
+/** Least clearance, in steps, over which an entering band fades in. */
+const MIN_ENTER_RAMP = 0.25;
 
 /** Custom time-tick formatter, mirroring {@link YScale}'s `ValueFormatter` contract. */
 export type TimeFormatter = (timestamp: number, interval: number) => string;
@@ -49,6 +51,8 @@ export class XScale {
   private categories: readonly string[] = [];
   /** Category axis: bands sliding to a new index — new index → coordinate it slides from — and the bands entering. */
   private bandSlide: BandSlide | null = null;
+  /** Presence of each band entering with {@link bandSlide}. */
+  private enterPresence = new Map<number, number>();
   private bandPadding: Required<XAxisPadding> = { inner: DEFAULT_INNER_PADDING, outer: DEFAULT_OUTER_PADDING };
 
   private from = 0;
@@ -165,14 +169,34 @@ export class XScale {
   /** Slide the listed bands from their old coordinate to their index as `progress` goes 0 → 1; `null` ends it. */
   setBandSlide(slide: BandSlide | null): void {
     this.bandSlide = slide;
+    this.enterPresence = slide === null ? new Map() : this.measureEnterPresence(slide);
   }
 
-  /** Presence 0 → 1 of a band that entered with the slide; `1` for every other band. */
+  /**
+   * Presence 0 → 1 of a band that entered with the slide; `1` for every other
+   * band. It stays 0 while a sliding band has yet to pass within a bar's width
+   * of it, so the entering band never draws over one.
+   */
   bandEnterProgress(band: number): number {
-    const slide = this.bandSlide;
-    if (slide === null || !slide.entering.has(band)) return 1;
+    return this.enterPresence.get(band) ?? 1;
+  }
 
-    return slide.progress;
+  private measureEnterPresence(slide: BandSlide): Map<number, number> {
+    const rampStart = Math.min(1 - this.bandPadding.inner, 1 - MIN_ENTER_RAMP);
+    const presence = new Map<number, number>();
+
+    for (const band of slide.entering) {
+      // The remaining path only shrinks, so the clearance never drops and the band never fades back out.
+      let clearance = Number.POSITIVE_INFINITY;
+      for (const [to, from] of slide.from) {
+        const at = from + (to - from) * slide.progress;
+        clearance = Math.min(clearance, distanceToSpan({ point: band, from: at, to }));
+      }
+
+      presence.set(band, clamp((clearance - rampStart) / (1 - rampStart), 0, 1));
+    }
+
+    return presence;
   }
 
   /** Where a coordinate draws mid-slide — itself unless its band is sliding. */
@@ -579,4 +603,14 @@ function normalizeLabelCount(n: number | null | undefined): number | null {
 
 function normalizeSpacing(px: number | null | undefined): number | null {
   return typeof px === 'number' && Number.isFinite(px) && px > 0 ? px : null;
+}
+
+/** Distance from `point` to the span between `from` and `to`; 0 inside it. */
+function distanceToSpan(args: { point: number; from: number; to: number }): number {
+  const low = Math.min(args.from, args.to);
+  const high = Math.max(args.from, args.to);
+  if (args.point < low) return low - args.point;
+  if (args.point > high) return args.point - high;
+
+  return 0;
 }

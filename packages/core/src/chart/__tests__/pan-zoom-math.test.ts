@@ -2,8 +2,8 @@
  * computePan / computeZoom — pure-function unit tests.
  *
  * Guards two contracts:
- * - **Hard clamp:** pan/zoom never pushes the window past the "at least
- *   one data point visible" rule (`newFrom <= dataEnd && newTo >= dataStart`).
+ * - **Pan clamp:** a pan keeps data across half the window (all of the data
+ *   when it spans less): `newFrom <= dataEnd - keep && newTo >= dataStart + keep`.
  *   No rubber-band, no overshoot.
  * - **AutoScroll-off:** any pan that moves `newTo` outside the live-tail
  *   tolerance (≈ dataEnd + paddingRight) flips autoscroll off; only an
@@ -175,7 +175,7 @@ describe('computeZoom — cursor anchor', () => {
   });
 });
 
-describe('computePan — hard clamp', () => {
+describe('computePan — clamp', () => {
   const PAN_INPUT = {
     chartWidth: 800,
     dataInterval: INTERVAL,
@@ -184,7 +184,7 @@ describe('computePan — hard clamp', () => {
     dataEnd: 100 * INTERVAL,
   };
 
-  it('pan right past dataEnd clamps newFrom to dataEnd (one point visible)', () => {
+  it('pan right past dataEnd stops with data across half the window', () => {
     const currentLogical = { from: 80 * INTERVAL, to: 110 * INTERVAL };
     const result = computePan({
       ...PAN_INPUT,
@@ -194,12 +194,12 @@ describe('computePan — hard clamp', () => {
 
     expect(result.newLogical).not.toBeNull();
     const { from, to } = result.newLogical ?? { from: 0, to: 0 };
-    expect(from).toBeCloseTo(100 * INTERVAL, -1);
+    expect(from).toBeCloseTo(85 * INTERVAL, -1);
     // Range preserved.
     expect(to - from).toBeCloseTo(30 * INTERVAL, -1);
   });
 
-  it('pan left past dataStart clamps newTo to dataStart', () => {
+  it('pan left past dataStart stops with data across half the window', () => {
     const currentLogical = { from: 10 * INTERVAL, to: 40 * INTERVAL };
     const result = computePan({
       ...PAN_INPUT,
@@ -209,8 +209,44 @@ describe('computePan — hard clamp', () => {
 
     expect(result.newLogical).not.toBeNull();
     const { from, to } = result.newLogical ?? { from: 0, to: 0 };
-    expect(to).toBeCloseTo(0, -1);
+    expect(to).toBeCloseTo(15 * INTERVAL, -1);
     expect(to - from).toBeCloseTo(30 * INTERVAL, -1);
+  });
+
+  it('keeps all of the data in view when it spans less than half the window', () => {
+    const currentLogical = { from: -50 * INTERVAL, to: 250 * INTERVAL };
+    const result = computePan({
+      ...PAN_INPUT,
+      currentLogical,
+      timeDelta: -400 * INTERVAL,
+    });
+
+    const { to } = result.newLogical ?? { from: 0, to: 0 };
+    expect(to).toBeCloseTo(100 * INTERVAL, -1);
+  });
+
+  it('lets a view already past the bound pan back without a jump, but no further out', () => {
+    // A zoom at the cursor left 25 of 30 bars empty before the first point.
+    const currentLogical = { from: -25 * INTERVAL, to: 5 * INTERVAL };
+
+    const back = computePan({ ...PAN_INPUT, currentLogical, timeDelta: 2 * INTERVAL });
+    expect(back.newLogical?.to).toBeCloseTo(7 * INTERVAL, -1);
+
+    const away = computePan({ ...PAN_INPUT, currentLogical, timeDelta: -2 * INTERVAL });
+    expect(away.newLogical?.to).toBeCloseTo(5 * INTERVAL, -1);
+  });
+
+  it('lets a drag past a wide padding fire onEdgeReached', () => {
+    // 400 of 800 px of left padding: the padded edge sits at half the view.
+    const input = { ...PAN_INPUT, padding: { left: 400, right: 0 }, dataEnd: 100 * INTERVAL };
+    const result = computePan({
+      ...input,
+      currentLogical: { from: 0, to: 100 * INTERVAL },
+      timeDelta: -500 * INTERVAL,
+    });
+    const logical = result.newLogical ?? { from: 0, to: 0 };
+
+    expect(computeEdgeOvershoot({ ...input, logical })?.side).toBe('left');
   });
 
   it('pan inside bounds preserves the gesture', () => {
@@ -251,7 +287,7 @@ describe('computePan — hard clamp', () => {
     expect(result.autoScrollOff).toBe(true);
   });
 
-  it('pan right to the hard-clamp boundary still flips autoScroll off (newFrom=dataEnd, far from live tail)', () => {
+  it('pan right to the clamp boundary still flips autoScroll off (far from live tail)', () => {
     // Old behavior: rubber-band kept dataEnd inside the window so
     // autoScroll stayed on; streaming then visibly dragged the viewport
     // back to the tail. Under the new rule the boundary is not the live
@@ -265,7 +301,7 @@ describe('computePan — hard clamp', () => {
 
     expect(result.newLogical).not.toBeNull();
     const { from } = result.newLogical ?? { from: 0, to: 0 };
-    expect(from).toBeCloseTo(100 * INTERVAL, -1);
+    expect(from).toBeCloseTo(85 * INTERVAL, -1);
     expect(result.autoScrollOff).toBe(true);
   });
 

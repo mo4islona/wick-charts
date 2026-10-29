@@ -1,5 +1,5 @@
 import type { ChartInstance } from './chart';
-import { formatCompact } from './utils/format';
+import { formatLabelNumber } from './utils/format';
 
 /**
  * Shared logic for the framework SankeyTooltip components (react / vue /
@@ -10,9 +10,9 @@ import { formatCompact } from './utils/format';
 export const SANKEY_TOOLTIP_WIDTH = 190;
 export const SANKEY_TOOLTIP_HEIGHT = 64;
 
-/** Flows are mostly counts: whole numbers print plain ("1240"), others compact ("0.45", "1.2K"). */
+/** Four significant digits, K / M / B / T from a thousand up: `16.8`, `4.212K`. */
 export function defaultSankeyFormat(value: number): string {
-  return Number.isInteger(value) ? value.toString() : formatCompact(value);
+  return formatLabelNumber(value);
 }
 
 /**

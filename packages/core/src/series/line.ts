@@ -37,8 +37,9 @@ import type { OverlayRenderContext, SeriesRenderContext, ValueRangeOptions } fro
  *  and per-layer `data` overrides) — it is no longer a public option. */
 type ResolvedLineOptions = Omit<
   LineSeriesOptions,
-  'entryMs' | 'smoothMs' | 'pulseMs' | 'introMs' | 'historyRevealMs'
+  'area' | 'entryMs' | 'smoothMs' | 'pulseMs' | 'introMs' | 'historyRevealMs'
 > & {
+  area: LineSeriesOptions['area'] & { visible: boolean };
   colors: ValueColor[];
   entryMs: number;
   smoothMs: number;
@@ -77,7 +78,8 @@ function normalize(input: LineSeriesOptions & { colors: ValueColor[] }): Resolve
 
   return {
     ...input,
-    area,
+    // `visible` defaults on, so `{ baseline: 0 }` alone keeps the fill.
+    area: { ...area, visible: area.visible ?? true },
     entryMs: input.entryMs === false ? 0 : (input.entryMs ?? DEFAULT_LINE_ENTRY),
     smoothMs: input.smoothMs === false ? 0 : (input.smoothMs ?? DEFAULT_LINE_SMOOTH),
     pulseMs: input.pulseMs === false ? 0 : (input.pulseMs ?? DEFAULT_LINE_PULSE),
@@ -791,7 +793,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           ctx: scope.context,
           x: anchor.x,
           y: anchor.y,
-          color: this.resolveLayerColor(li, anchor.value),
+          color: this.thresholdColor(anchor.value) ?? this.resolveLayerColor(li, anchor.value),
           pixelRatio: scope.horizontalPixelRatio,
           phase: linear * 2,
           alpha: alpha * layerAlpha,
@@ -1110,12 +1112,20 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     return chained?.get(last.time) ?? { x: lastRawX, y: lastRawY };
   }
 
-  /** The color the stroke paints a point in: `above` / `below` across a threshold, else the line's own color. */
-  override resolvePointColor(layerIndex: number, value: number): string {
+  /** `above` / `below` for a value across a painted threshold, else `null`. */
+  private thresholdColor(value: number): string | null {
     const threshold = this.options.threshold;
     const thresholdPainted = threshold !== undefined && this.options.stacking === 'off';
-    if (thresholdPainted && value > threshold.value) return threshold.above;
-    if (thresholdPainted && threshold.below !== undefined) return threshold.below;
+    if (!thresholdPainted) return null;
+    if (value > threshold.value) return threshold.above;
+
+    return threshold.below ?? null;
+  }
+
+  /** The color the stroke paints a point in: `above` / `below` across a threshold, else the line's own color. */
+  override resolvePointColor(layerIndex: number, value: number): string {
+    const thresholdColor = this.thresholdColor(value);
+    if (thresholdColor !== null) return thresholdColor;
 
     // A value-fn color resolves once per line, at its last value, so the hovered value must not pick it.
     const lastValue = this.lastFinitePoint(layerIndex)?.value ?? value;
@@ -2099,7 +2109,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         const last = this.lastFinitePoint(li);
         if (!last) continue;
 
-        const color = this.resolveLayerColor(li, last.value);
+        // The color the stroke paints the last point in, threshold included.
+        const color = this.resolvePointColor(li, last.value);
 
         if (stacking === 'off') {
           if (!yScale.isPlottable(last.value)) continue;

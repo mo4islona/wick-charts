@@ -26,11 +26,21 @@ const CADENCE_EMA_ALPHA = 0.3;
 const SETTLE_MS_MAX = 5000;
 
 /**
+ * Cadence at or above which each tick gets its own short glide instead of the
+ * continuous slide, so the view rests and the frame loop idles between ticks.
+ */
+const STEP_CADENCE_MS = 750;
+
+/** Glide per tick for a feed slower than {@link STEP_CADENCE_MS}; settles well inside the gap. */
+const STEP_SETTLE_MS = 300;
+
+/**
  * Tracks the real wall-clock inter-arrival gap between streaming append
  * events and exposes an exponentially-smoothed cadence the chart uses to
- * size the X spring's settle time. Spring math is velocity-continuous; the
- * cadence just keeps `settleMs` slightly longer than the producer's tick
- * interval so the spring never settles between ticks (no stop-and-go).
+ * size the X spring's settle time. Spring math is velocity-continuous; for a
+ * fast feed the cadence keeps `settleMs` longer than the producer's tick
+ * interval so the spring never settles between ticks (no stop-and-go). A slow
+ * feed glides to each tick and rests until the next one.
  */
 export class StreamingCadence {
   #lastWall = 0;
@@ -89,6 +99,9 @@ export class StreamingCadence {
    *
    * `floor` is the user-configured baseline (typically `animations.axis.x.settle`);
    * returned value is `max(floor, ema * slack)` clamped at {@link SETTLE_MS_MAX}.
+   * A feed at or slower than {@link STEP_CADENCE_MS} gets `max(floor, STEP_SETTLE_MS)`
+   * instead: at that pace a continuous slide would keep the frame loop busy with
+   * sub-pixel steps between ticks.
    * The `slack` multiplier (default 3.0) means the spring's 99 %-settle
    * window is ~3 × the measured cadence — at any one tick the spring is at
    * roughly the 1/3 point of its decay, with significant velocity that
@@ -99,6 +112,7 @@ export class StreamingCadence {
    */
   pickSettleMs(floor: Milliseconds, slack = 3.0): Milliseconds {
     if (this.#emaMs === 0) return floor;
+    if (this.#emaMs >= STEP_CADENCE_MS) return Math.max(floor, STEP_SETTLE_MS);
 
     return Math.min(SETTLE_MS_MAX, Math.max(floor, this.#emaMs * slack));
   }

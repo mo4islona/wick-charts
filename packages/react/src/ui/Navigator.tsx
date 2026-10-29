@@ -1,6 +1,6 @@
 import { type CSSProperties, useEffect, useLayoutEffect, useRef } from 'react';
 
-import { NavigatorController, type NavigatorData } from '@wick-charts/core';
+import { NavigatorController, type NavigatorDataInput } from '@wick-charts/core';
 
 import { useChartInstance } from '../context';
 import { useTheme } from '../ThemeContext';
@@ -12,9 +12,9 @@ export interface NavigatorProps {
    *   { type: 'line' | 'bar',     points: { time, value }[] }
    *   { type: 'candlestick',      points: { time, open, high, low, close }[] }
    *
-   * Usually the same series you feed into the main chart.
+   * Usually the same series you feed into the main chart. Time accepts ms or `Date`.
    */
-  data: NavigatorData;
+  data: NavigatorDataInput;
   /** Strip height in CSS pixels. Defaults to `theme.navigator.height` (60). */
   height?: number;
   /** Style override for the outer wrapper div. */

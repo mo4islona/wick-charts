@@ -1,5 +1,5 @@
 import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
-import { type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
+import { type GuideCopy, HEADINGS, YourData, upgradeStep } from './shadcn-guide';
 
 function usageCode(block: BlockEntry): string {
   return `import { ${block.component} } from '@/components/${block.name}';
@@ -47,5 +47,6 @@ export const REACT_COPY: GuideCopy = {
       ),
       code: WRAPPER_CODE,
     },
+    upgradeStep('react'),
   ],
 };

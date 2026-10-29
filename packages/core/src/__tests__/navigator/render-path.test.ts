@@ -208,6 +208,22 @@ describe('navigator render-path split', () => {
     expect(vi.mocked(decimateLinear).mock.calls.length).toBeGreaterThan(callsBefore);
   });
 
+  it('draws `Date` times as epoch ms and passes an all-number array through by reference', () => {
+    const { nav } = env;
+    const points = Array.from({ length: 100 }, (_, i) => ({ time: 1_000_000 + i * INTERVAL, value: 100 + i }));
+    const dated = points.map((p) => ({ ...p, time: new Date(p.time) }));
+
+    nav.setData({ type: 'line', points: dated });
+    raf.flush(5);
+
+    expect(vi.mocked(decimateLinear).mock.lastCall?.[0]).toEqual(points);
+
+    nav.setData({ type: 'line', points });
+    raf.flush(5);
+
+    expect(vi.mocked(decimateLinear).mock.lastCall?.[0]).toBe(points);
+  });
+
   it('skips the canvas backing-store reset when the size is unchanged', () => {
     const { nav, navContainer } = env;
     raf.flush(80);

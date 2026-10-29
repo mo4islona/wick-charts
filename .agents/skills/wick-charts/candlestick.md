@@ -53,6 +53,35 @@ const haCandles = useMemo(() => heikinAshi(data), [data]);
 <CandlestickSeries data={haCandles} />
 ```
 
+```vue
+<script setup lang="ts">
+import { CandlestickSeries, heikinAshi, hollowCandle, type OHLCData, ohlcBar } from '@wick-charts/vue';
+import { computed } from 'vue';
+
+const props = defineProps<{ data: OHLCData[] }>();
+const haCandles = computed(() => heikinAshi(props.data));
+</script>
+
+<template>
+  <CandlestickSeries :data="data" :options="{ candlePainter: ohlcBar }" />
+  <CandlestickSeries :data="data" :options="{ candlePainter: hollowCandle, colorBy: 'previousClose' }" />
+  <CandlestickSeries :data="haCandles" />
+</template>
+```
+
+```svelte
+<script lang="ts">
+  import { CandlestickSeries, heikinAshi, hollowCandle, type OHLCData, ohlcBar } from '@wick-charts/svelte';
+
+  let { data }: { data: OHLCData[] } = $props();
+  const haCandles = $derived(heikinAshi(data));
+</script>
+
+<CandlestickSeries {data} options={{ candlePainter: ohlcBar }} />
+<CandlestickSeries {data} options={{ candlePainter: hollowCandle, colorBy: 'previousClose' }} />
+<CandlestickSeries data={haCandles} />
+```
+
 - `hollowCandle` outlines a rising body (close ≥ open) and fills a falling one. With `colorBy: 'previousClose'` the color follows the previous close, the usual hollow convention.
 - `ohlcBar` draws a high–low line with the open tick on the left and the close tick on the right, in the wick color. `bodyWidthRatio` sets the tick length; `cornerRadius` does not apply.
 - Heikin-Ashi is a data transform, not a style, so the tooltip, the axes and `YLabel` show the Heikin-Ashi values. It combines with every style. For the imperative API, `heikinAshiStream()` returns `setData`, `append` and `update` that feed `setSeriesData`, `appendData` and `updateData`.

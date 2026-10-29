@@ -451,6 +451,25 @@ function sparklineCode(s: SparkState, row: RowMeta): ChartCodeConfig {
     // Sparkline manages its own ChartContainer — render it standalone.
     container: false,
     components: [{ component: 'Sparkline', props }],
+    reactOnly: { note: SMALL_CHART_NOTE, equivalent: smallChartCode(variant) },
+  };
+}
+
+const SMALL_CHART_NOTE = 'Sparkline is React only. This small chart draws the same series, without the value block.';
+
+/** The Vue and Svelte stand-in for `<Sparkline>`: a chart with no axes, grid or interaction. */
+function smallChartCode(variant: SparklineVariant): ChartCodeConfig {
+  const series = variant === 'bar' ? 'BarSeries' : 'LineSeries';
+
+  return {
+    theme: 'catppuccin.theme',
+    containerProps: {
+      interactive: false,
+      grid: { visible: false },
+      axis: { x: { visible: false }, y: { visible: false } },
+      style: 'height: 48px; min-height: 0',
+    },
+    components: [{ component: series, props: { data: 'data' } }],
   };
 }
 

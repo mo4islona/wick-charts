@@ -4,6 +4,7 @@ import {
   collapseZeros,
   formatCompact,
   formatCompactTick,
+  formatLabelNumber,
   formatPriceAdaptive,
   formatSignificant,
   formatTooltipNumber,
@@ -107,6 +108,33 @@ describe('collapseZeros', () => {
     expect(collapseZeros('0.0001234', { from: 3 })).toBe('0.0₃1234');
     expect(collapseZeros('0,000008', { decimal: ',' })).toBe('0,0₅8');
     expect(collapseZeros('0.000008', { decimal: ',' })).toBe('0.000008');
+  });
+});
+
+describe('formatLabelNumber', () => {
+  it.each<[number, string]>([
+    [0, '0'],
+    [23.9, '23.9'],
+    [113.1, '113.1'],
+    [16.8, '16.8'],
+    [801.3, '801.3'],
+    [99, '99'],
+    [75.8, '75.8'],
+    [99.874, '99.87'],
+    [999.96, '1K'],
+    [4212, '4.212K'],
+    [23158, '23.16K'],
+    [43_030, '43.03K'],
+    [2_560_000, '2.56M'],
+    [0.45, '0.45'],
+    [0.00000812345, '0.0₅8123'],
+    [-11.6, '-11.6'],
+    [-4212, '-4.212K'],
+    [Number.NaN, '—'],
+    [Number.POSITIVE_INFINITY, '∞'],
+    [Number.NEGATIVE_INFINITY, '−∞'],
+  ])('%s → %s', (value, expected) => {
+    expect(formatLabelNumber(value)).toBe(expected);
   });
 });
 

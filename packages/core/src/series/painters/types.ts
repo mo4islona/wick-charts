@@ -90,6 +90,8 @@ export interface CandlePaintArgs {
   wick: CandleGeometry;
   /** Open ↔ close rectangle, at least 1px tall. */
   body: CandleGeometry;
+  /** Bitmap width of the candle's time slot; the body takes `bodyWidthRatio` of it. */
+  slotWidth?: number;
   /** Y of the open price — the body edge it sits on. */
   openY: number;
   /** Y of the close price — the other body edge. */

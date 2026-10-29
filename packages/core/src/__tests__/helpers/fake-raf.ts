@@ -3,12 +3,14 @@ import { vi } from 'vitest';
 export interface FakeRaf {
   /** Run up to `frames` queued frames, advancing the clock 16ms each. Stops early once the queue drains. */
   flush: (frames?: number) => void;
+  /** Run one 16ms frame, advancing the clock even when nothing is queued. Returns the number of callbacks run. */
+  step: () => number;
   uninstall: () => void;
 }
 
 /**
  * Deterministic `requestAnimationFrame` + `performance.now` for animation
- * tests: frames only advance when `flush` is called, so a test can step a
+ * tests: frames only advance when `flush` or `step` is called, so a test can step a
  * tween one frame at a time and read what that frame painted.
  */
 export function installRaf(): FakeRaf {
@@ -24,23 +26,41 @@ export function installRaf(): FakeRaf {
 
     return id;
   };
+  // Like a browser, a frame skips a callback cancelled by an earlier callback of the same frame.
+  const cancelled = new Set<number>();
   globalThis.cancelAnimationFrame = (id: number) => {
     queue = queue.filter((f) => f.id !== id);
+    cancelled.add(id);
   };
 
   const spy = vi.spyOn(performance, 'now').mockImplementation(() => now);
+
+  const runFrame = (): number => {
+    const pending = queue;
+    queue = [];
+    cancelled.clear();
+    now += 16;
+
+    let ran = 0;
+    for (const f of pending) {
+      if (cancelled.has(f.id)) continue;
+
+      f.cb(now);
+      ran++;
+    }
+
+    return ran;
+  };
 
   return {
     flush: (frames = 50) => {
       for (let i = 0; i < frames; i++) {
         if (queue.length === 0) return;
 
-        const pending = queue;
-        queue = [];
-        now += 16;
-        for (const f of pending) f.cb(now);
+        runFrame();
       }
     },
+    step: runFrame,
     uninstall: () => {
       globalThis.requestAnimationFrame = origRaf;
       globalThis.cancelAnimationFrame = origCancel;

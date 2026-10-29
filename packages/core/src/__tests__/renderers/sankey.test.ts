@@ -294,7 +294,7 @@ describe('SankeyRenderer — paint', () => {
       r.render(ctx);
 
       const texts = spy.callsOf('fillText');
-      expect(texts.map((call) => call.args[0])).toEqual(['Ads · 1240', 'Signup · 1240']);
+      expect(texts.map((call) => call.args[0])).toEqual(['Ads · 1.24K', 'Signup · 1.24K']);
       for (const text of texts) {
         expect(text.fillStyle).toBe(theme.tooltip.textColor);
       }
@@ -312,7 +312,7 @@ describe('SankeyRenderer — paint', () => {
     }
   });
 
-  it('formats label values through labels.format, else whole numbers plain and the rest compact', () => {
+  it('formats label values through labels.format, else with four significant digits', () => {
     const data: SankeyData = {
       nodes: [{ id: 'a' }, { id: 'b' }],
       links: [{ source: 'a', target: 'b', value: 1.5 }],
@@ -328,7 +328,7 @@ describe('SankeyRenderer — paint', () => {
     const plainTexts = renderOnce(plain).spy.callsOf('fillText');
     const formattedTexts = renderOnce(formatted).spy.callsOf('fillText');
 
-    expect(plainTexts[0].args[0]).toBe('a · 1.50');
+    expect(plainTexts[0].args[0]).toBe('a · 1.5');
     expect(formattedTexts[0].args[0]).toBe('a · $1.5');
     expect(formattedTexts[0].fillStyle).toBe('#123456');
   });
@@ -524,6 +524,30 @@ describe('SankeyRenderer — hover', () => {
     const midY = (band.sy + band.ty) / 2;
     expect(r.hitTest(midX, midY, 800, 400)).toBe(FUNNEL.nodes.length);
     expect(r.hitTest(midX, midY + band.width, 800, 400)).not.toBe(FUNNEL.nodes.length);
+  });
+
+  it('keeps a hairline node and its link reachable within a few pixels', () => {
+    const r = new SankeyRenderer({ options: STILL, theme: catppuccin.theme });
+    r.setData({
+      nodes: [{ id: 'grid' }, { id: 'load' }, { id: 'tiny' }],
+      links: [
+        { source: 'grid', target: 'load', value: 42_000 },
+        { source: 'grid', target: 'tiny', value: 17 },
+      ],
+    });
+    renderOnce(r);
+
+    const frame = frameOf(r);
+    const tiny = nodeOf(frame, 'tiny');
+    expect(tiny.y1 - tiny.y0).toBeLessThan(1);
+
+    const centerX = (tiny.x0 + tiny.x1) / 2;
+    const centerY = (tiny.y0 + tiny.y1) / 2;
+    expect(r.hitTest(centerX, centerY + 2, 800, 400)).toBe(2);
+
+    // An exact hit on the big neighbour still wins over the hairline's wider band.
+    const load = nodeOf(frame, 'load');
+    expect(r.hitTest(centerX, load.y1 - 1, 800, 400)).toBe(1);
   });
 
   it('reports a node as label, throughput and share of the source outflow', () => {

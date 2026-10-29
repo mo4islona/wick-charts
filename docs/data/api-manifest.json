@@ -37,7 +37,7 @@
               },
               {
                 "name": "area",
-                "type": "{ visible: boolean; baseline?: number; }",
+                "type": "{ visible?: boolean; baseline?: number; }",
                 "optional": false,
                 "defaultValue": "{ visible: true }",
                 "deprecated": null,
@@ -49,7 +49,7 @@
                     {
                       "name": "visible",
                       "type": "boolean",
-                      "optional": false,
+                      "optional": true,
                       "defaultValue": "true",
                       "deprecated": null,
                       "description": "Whether the area gradient under the line is rendered. Default: `true`.",
@@ -61,7 +61,7 @@
                       "optional": true,
                       "defaultValue": "the plot floor",
                       "deprecated": null,
-                      "description": "Y value the fill closes to, instead of the plot floor. The fill runs from\nthe line to this value's pixel row on both sides of it and fades toward\nthe row; Y autoscale keeps the value in view. A value outside the plotted\nY range clamps to the plot edge. Pair it with a `threshold` at the same\nvalue for a two-color fill (P&L around zero, deviation from a target).\n\n```\n<LineSeries\n  data={pnl}\n  options={{ area: { visible: true, baseline: 0 }, threshold: { value: 0, above: up, below: down } }}\n/>\n```\n\nIgnored in stacked mode — a stack always closes to its own zero.\nDefault: the plot floor.",
+                      "description": "Y value the fill closes to, instead of the plot floor. The fill runs from\nthe line to this value's pixel row on both sides of it and fades toward\nthe row; Y autoscale keeps the value in view. A value outside the plotted\nY range clamps to the plot edge. Pair it with a `threshold` at the same\nvalue for a two-color fill (P&L around zero, deviation from a target).\n\n```\n<LineSeries\n  data={pnl}\n  options={{ area: { baseline: 0 }, threshold: { value: 0, above: up, below: down } }}\n/>\n```\n\nIgnored in stacked mode — a stack always closes to its own zero.\nDefault: the plot floor.",
                       "see": []
                     }
                   ]
@@ -1678,9 +1678,9 @@
                       "name": "format",
                       "type": "(value: number) => string",
                       "optional": true,
-                      "defaultValue": "whole numbers as they are",
+                      "defaultValue": "four significant digits",
                       "deprecated": null,
-                      "description": "Value formatter. Default: whole numbers as they are, others compact (`1.2K`).",
+                      "description": "Value formatter. Default: four significant digits, K / M / B / T from a thousand up (`16.8`, `4.212K`).",
                       "see": []
                     }
                   ]
@@ -1795,7 +1795,7 @@
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Bands of the range, drawn along the arc. The value arc (or the needle) takes\nthe color of the zone the value ends in, and `color` past the last `to`.",
+                "description": "Bands of the range, drawn along the arc. The value arc (or the needle) takes\nthe color of the zone the value ends in, and `color` between the last `to`\nand `max`. A value over `max` is clamped first, so it takes the color at the arc end.",
                 "see": []
               },
               {
@@ -1829,9 +1829,9 @@
                 "name": "format",
                 "type": "(value: number) => string",
                 "optional": true,
-                "defaultValue": "whole numbers as they are",
+                "defaultValue": "four significant digits",
                 "deprecated": null,
-                "description": "Text of the center value. Default: whole numbers as they are, others compact (`1.2K`).",
+                "description": "Text of the center value. Default: four significant digits, K / M / B / T from a thousand up (`23.9`, `1.2K`).",
                 "see": []
               },
               {
@@ -5445,12 +5445,21 @@
           "see": []
         },
         {
-          "name": "style",
+          "name": "lineStyle",
           "type": "ReferenceLineStyle",
           "optional": true,
           "defaultValue": "'dashed'",
           "deprecated": null,
           "description": "Dash style. Default: `'dashed'`.",
+          "see": []
+        },
+        {
+          "name": "style",
+          "type": "ReferenceLineStyle",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": "Use {@link ReferenceLineProps.lineStyle}; a `style` reads as CSS, and Vue parses a static one as CSS.",
+          "description": "",
           "see": []
         },
         {
@@ -5534,11 +5543,11 @@
       "props": [
         {
           "name": "data",
-          "type": "NavigatorData",
+          "type": "NavigatorDataInput",
           "optional": false,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Data to render in the miniature view. Shape:\n  { type: 'line' | 'bar',     points: { time, value }[] }\n  { type: 'candlestick',      points: { time, open, high, low, close }[] }\n\nUsually the same series you feed into the main chart.",
+          "description": "Data to render in the miniature view. Shape:\n  { type: 'line' | 'bar',     points: { time, value }[] }\n  { type: 'candlestick',      points: { time, open, high, low, close }[] }\n\nUsually the same series you feed into the main chart. Time accepts ms or `Date`.",
           "see": []
         },
         {

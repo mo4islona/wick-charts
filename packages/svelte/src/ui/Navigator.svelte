@@ -1,11 +1,12 @@
 <script lang="ts">
-import { NavigatorController, type NavigatorData } from '@wick-charts/core';
+import { NavigatorController, type NavigatorDataInput } from '@wick-charts/core';
 import { onDestroy } from 'svelte';
 
 import { getChartContext, getNavigatorAnchor, getThemeContext } from '../context.js';
 import { portal } from './portal.js';
 
-export let data: NavigatorData;
+/** Data to render in the miniature view, usually the same series the main chart gets. Time accepts ms or `Date`. */
+export let data: NavigatorDataInput;
 /** Strip height in CSS pixels. Defaults to `theme.navigator.height` (60). */
 export let height: number | undefined = undefined;
 

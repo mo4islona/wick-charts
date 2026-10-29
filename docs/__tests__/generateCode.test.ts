@@ -227,6 +227,42 @@ describe('generateCode', () => {
     });
   });
 
+  describe('reactOnly', () => {
+    const NOTE = 'Sparkline is React only.';
+    const SPARKLINE: ChartCodeConfig = {
+      container: false,
+      components: [{ component: 'Sparkline', props: { data: 'data' } }],
+      reactOnly: {
+        note: NOTE,
+        equivalent: {
+          containerProps: { interactive: false },
+          components: [{ component: 'LineSeries', props: { data: 'data' } }],
+        },
+      },
+    };
+
+    it('keeps the React component in the React tab', () => {
+      const code = generateCode(SPARKLINE, 'react');
+
+      expect(code).toContain("import { Sparkline } from '@wick-charts/react';");
+      expect(code).not.toContain(NOTE);
+    });
+
+    it.each(['vue', 'svelte'] as const)('prints the equivalent under the note in %s', (fw) => {
+      const code = generateCode(SPARKLINE, fw);
+
+      expect(code.startsWith(`<!-- ${NOTE} -->\n`)).toBe(true);
+      expect(code).not.toContain('Sparkline }');
+      expect(code).toContain(`import { ChartContainer, LineSeries } from '@wick-charts/${fw}';`);
+    });
+
+    it('prints a shared note once for several charts', () => {
+      const code = generateCode([SPARKLINE, SPARKLINE], 'vue');
+
+      expect(code.split(NOTE)).toHaveLength(2);
+    });
+  });
+
   it('imports factory calls nested inside container props', () => {
     const code = generateCode(
       {

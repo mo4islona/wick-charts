@@ -3,7 +3,7 @@ import { type ChartInstance, type SliceInfo, type ValueFormatter, formatCompact 
 import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 
 import { LegendAnchorKey, LegendRightAnchorKey, useChartInstance, useTheme } from '../context';
-import type { PieLegendMode, PieLegendProps } from './props';
+import type { PieLegendMode, PieLegendProps, PieLegendRenderContext } from './props';
 
 const props = withDefaults(defineProps<PieLegendProps>(), {
   mode: undefined,
@@ -29,7 +29,7 @@ const teleportTarget = computed(() => {
 const isBottom = computed(() => props.position === 'bottom');
 
 defineSlots<{
-  default?(ctx: { slices: readonly SliceInfo[]; mode: PieLegendMode; format: ValueFormatter }): unknown;
+  default?(ctx: PieLegendRenderContext): unknown;
 }>();
 
 const resolvedMode = computed<PieLegendMode>(() => props.mode ?? 'both');

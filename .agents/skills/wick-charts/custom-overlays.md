@@ -78,7 +78,7 @@ A selection of the methods a custom child needs. Every method and its doc commen
 
 - `fitContent()` fits the view to all data.
 - `getVisibleRange()`, `getYRange()`, `getCrosshairPosition()` read the current state once.
-- `getLastValue(id)` → `{ value, isLive } | null`, `getPreviousClose(id)`, `getLastData(id)`, `getDataAtTime(id, time)` read the data.
+- `getLastValue(id)` → `{ value, isLive } | null`, `getPreviousClose(id)`, `getLastData(id)`, `getDataAtTime(id, time)` read the data. Name the point type to read its fields: `getDataAtTime<OHLCData>(id, time)?.close`.
 - `getStackedLastValue(id)` gives the top of a stacked series (or the last value when it is not stacked). Anchor a badge at the drawn stack top with it.
 - `getLayerLastSnapshots(id)` gives the last point of each layer, each at its own `time` (`null` for one layer).
 - `setSeriesVisible(id, visible)`, `setLayerVisible(id, layer, visible)` hide and show.
