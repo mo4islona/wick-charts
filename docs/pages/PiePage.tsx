@@ -584,7 +584,7 @@ export function PiePage({ theme }: { theme: ChartTheme }) {
       extraDefaults={{
         donut: true,
         tooltipVisible: false,
-        legendVisible: true,
+        legendVisible: false,
         animate: false,
         shadow: false,
         shadowAlpha: 0.22,
