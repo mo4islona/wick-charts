@@ -8,7 +8,7 @@ import {
   straightCurve,
 } from '../../series/painters/builtins';
 import { resolveBarPainter, resolveCandlePainter, resolveLinePainter } from '../../series/painters/resolve';
-import type { BarPaintArgs, PaintEnv } from '../../series/painters/types';
+import type { BarPaintArgs, CandleGeometry, CandlePaintArgs, PaintEnv } from '../../series/painters/types';
 import { createRecordingContext } from '../../testing/recording-context';
 import { catppuccin } from '../../theme/themes/catppuccin';
 
@@ -72,5 +72,36 @@ describe('raw function option', () => {
     expect(spy.countOf('fill')).toBeGreaterThan(0);
     // ...and the warning fired once for that painter (WeakSet once-guard).
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).not.toContain('MIGRATION.md');
+  });
+
+  it('points a throwing candle painter at the 0.8 → 0.9 migration note', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = createRecordingContext();
+    const rect = { x: 0, y: 0, width: 10, height: 40 };
+    const args: CandlePaintArgs = {
+      element: 'body',
+      wick: rect,
+      body: rect,
+      openY: 40,
+      closeY: 0,
+      fillStyle: '#26a69a',
+      bodyColor: '#26a69a',
+      wickColor: '#26a69a',
+      corners: { tl: true, tr: true, br: true, bl: true },
+      radius: 0,
+      progress: 1,
+      isBullish: true,
+    };
+    // A 0.8 painter destructures `geom`, which 0.9 renamed to `body`.
+    const legacy = (_env: PaintEnv, legacyArgs: CandlePaintArgs) => {
+      const { geom } = legacyArgs as unknown as { geom: CandleGeometry };
+      ctx.fillRect(geom.x, geom.y, geom.width, geom.height);
+    };
+
+    resolveCandlePainter(legacy)(makeEnv(ctx), args);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('MIGRATION.md, 0.8 → 0.9');
   });
 });

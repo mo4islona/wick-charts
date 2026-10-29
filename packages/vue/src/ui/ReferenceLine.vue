@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ReferenceLineStyle } from '@wick-charts/core';
 import { onMounted, onUnmounted, watch } from 'vue';
 
 import { useChartInstance } from '../context';
@@ -8,6 +9,24 @@ const props = defineProps<ReferenceLineProps>();
 
 const chart = useChartInstance();
 let lineId: string | null = null;
+let warnedStyle = false;
+
+/** `lineStyle`, else a bound `style`; a static `style` attribute arrives parsed as CSS and is not a dash style. */
+function dashStyle(): ReferenceLineStyle | undefined {
+  if (props.lineStyle !== undefined) return props.lineStyle;
+
+  const style: unknown = props.style;
+  if (style === 'solid' || style === 'dashed') return style;
+
+  if (style !== undefined && !warnedStyle) {
+    warnedStyle = true;
+    console.warn(
+      '[wick-charts] ReferenceLine: a static `style` attribute reaches Vue as CSS; use `lineStyle="dashed"`.',
+    );
+  }
+
+  return undefined;
+}
 
 onMounted(() => {
   lineId = chart.addLine({
@@ -15,7 +34,7 @@ onMounted(() => {
     time: props.time,
     color: props.color,
     label: props.label,
-    style: props.style,
+    style: dashStyle(),
     width: props.width,
     scale: props.scale,
   });
@@ -27,7 +46,7 @@ onUnmounted(() => {
 });
 
 watch(
-  () => [props.value, props.time, props.color, props.label, props.style, props.width, props.scale],
+  () => [props.value, props.time, props.color, props.label, props.lineStyle, props.style, props.width, props.scale],
   () => {
     if (lineId === null) return;
 
@@ -36,7 +55,7 @@ watch(
       time: props.time,
       color: props.color,
       label: props.label,
-      style: props.style,
+      style: dashStyle(),
       width: props.width,
       scale: props.scale,
     });

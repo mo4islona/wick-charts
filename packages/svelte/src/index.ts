@@ -86,9 +86,12 @@ export type {
   MarkerShape,
   MultiLayerData,
   NavigatorCandlePoint,
+  NavigatorCandlePointInput,
   NavigatorControllerParams,
   NavigatorData,
+  NavigatorDataInput,
   NavigatorLinePoint,
+  NavigatorLinePointInput,
   NavigatorOptions,
   NavigatorSeriesType,
   OHLCData,
@@ -307,6 +310,35 @@ export { default as GaugeSeries } from './GaugeSeries.svelte';
 export { default as HeatmapSeries } from './HeatmapSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';
+export type {
+  BandSeriesProps,
+  BarSeriesProps,
+  CandlestickSeriesProps,
+  ChartContainerProps,
+  DepthSeriesProps,
+  GaugeSeriesProps,
+  HeatmapSeriesProps,
+  HeatmapTooltipProps,
+  InfoBarProps,
+  LegendProps,
+  LineSeriesProps,
+  MarkerProps,
+  NavigatorProps,
+  NumberFlowProps,
+  PieLegendProps,
+  PieSeriesProps,
+  PieTooltipProps,
+  RadialProgressSeriesProps,
+  ReferenceLineProps,
+  SankeySeriesProps,
+  SankeyTooltipProps,
+  TimeRegionProps,
+  TitleProps,
+  TooltipProps,
+  XAxisProps,
+  YAxisProps,
+  YLabelProps,
+} from './props.js';
 export { default as RadialProgressSeries } from './RadialProgressSeries.svelte';
 export { default as SankeySeries } from './SankeySeries.svelte';
 export {
@@ -331,6 +363,19 @@ export { default as TimeRegion } from './ui/TimeRegion.svelte';
 export { default as Title } from './ui/Title.svelte';
 // UI overlays
 export { default as Tooltip } from './ui/Tooltip.svelte';
+export type {
+  InfoBarRenderContext,
+  LegendItemOverride,
+  LegendToggleInfo,
+  PieLegendMode,
+  PieLegendPosition,
+  PieLegendRenderContext,
+  PieTooltipRenderContext,
+  SankeyTooltipRenderContext,
+  TooltipRenderContext,
+  YLabelDirection,
+  YLabelRenderContext,
+} from './ui/types.js';
 export { default as TimeAxis, default as XAxis } from './ui/XAxis.svelte';
 export { default as YAxis } from './ui/YAxis.svelte';
 export { default as YLabel } from './ui/YLabel.svelte';

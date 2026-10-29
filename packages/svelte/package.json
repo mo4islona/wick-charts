@@ -44,7 +44,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "svelte-package -i src -o dist && node scripts/copy-core.mjs && node ../../scripts/inline-doc-defaults.mjs dist",
+    "build": "svelte-package -i src -o dist && node scripts/copy-core.mjs && node scripts/component-types.mjs && node ../../scripts/inline-doc-defaults.mjs dist",
     "prepublishOnly": "pnpm -w readme && pnpm build"
   },
   "publishConfig": {

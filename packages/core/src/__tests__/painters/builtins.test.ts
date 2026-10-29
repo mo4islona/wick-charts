@@ -246,4 +246,24 @@ describe('ohlcBar', () => {
     // No rounded body: cornerRadius does not apply.
     expect(spy.countOf('arcTo')).toBe(0);
   });
+
+  it('reaches past a narrow body into the gap, a pixel short of the neighbour, on whole pixel rows', () => {
+    const { ctx, spy } = createRecordingContext();
+    const env = { ...makeEnv(ctx), horizontalPixelRatio: 1, verticalPixelRatio: 1 };
+
+    // A 9 px slot: a 4 px body leaves 1 px stubs; the gap gives each tick room for 2 px.
+    ohlcBar(
+      env,
+      candleArgs({
+        wick: { x: 9, y: 2, width: 1, height: 60 },
+        body: { x: 8, y: 8, width: 3, height: 40 },
+        slotWidth: 9,
+      }),
+    );
+
+    expect(spy.callsOf('fillRect').map((c) => c.args)).toEqual([
+      [7, 48, 2, 1],
+      [10, 8, 2, 1],
+    ]);
+  });
 });

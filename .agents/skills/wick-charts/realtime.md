@@ -116,7 +116,7 @@ Vue and Svelte use the `onEdgeReached` prop of `ChartContainer` (React has it to
 </ChartContainer>
 ```
 
-`data` is `{ type: 'line' | 'bar', points }`, `{ type: 'line' | 'bar', series: [points, …] }` or `{ type: 'candlestick', points }` (`NavigatorData`). Time X axis only.
+`data` is `{ type: 'line' | 'bar', points }`, `{ type: 'line' | 'bar', series: [points, …] }` or `{ type: 'candlestick', points }` (`NavigatorDataInput`). Time is ms or a `Date`, as in the series data. Time X axis only.
 
 ## Several linked charts
 

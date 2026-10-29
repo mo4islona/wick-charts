@@ -43,18 +43,29 @@ const formatPrice = (value: number) =>
 
 const axis = { x: { type: "numeric" as const }, y: { min: 0 } }
 
-// Demo feed: the mid drifts and every level gets a fresh size each tick.
-function levelSize(distance: number): number {
-  return (0.4 + distance * 0.08) * (0.5 + Math.random())
+// Seeded, so the server render and the browser start from the same book.
+function seededRandom(seed: number): () => number {
+  let state = seed
+
+  return () => {
+    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296
+
+    return state / 4_294_967_296
+  }
 }
 
-function makeBook(mid: number): Book {
+// Demo feed: the mid drifts and every level gets a fresh size each tick.
+function levelSize(distance: number, random: () => number): number {
+  return (0.4 + distance * 0.08) * (0.5 + random())
+}
+
+function makeBook(mid: number, random: () => number = Math.random): Book {
   const bids: DepthLevel[] = []
   const asks: DepthLevel[] = []
 
   for (let i = 1; i <= LEVELS; i++) {
-    bids.push([mid - i * TICK_SIZE, levelSize(i)])
-    asks.push([mid + i * TICK_SIZE, levelSize(i)])
+    bids.push([mid - i * TICK_SIZE, levelSize(i, random)])
+    asks.push([mid + i * TICK_SIZE, levelSize(i, random)])
   }
 
   return { mid, bids, asks }
@@ -66,7 +77,7 @@ function nextBook(book: Book): Book {
   return makeBook(book.mid + step)
 }
 
-const book = shallowRef(makeBook(3_450))
+const book = shallowRef(makeBook(3_450, seededRandom(3_450)))
 
 let timer: ReturnType<typeof setInterval> | undefined
 

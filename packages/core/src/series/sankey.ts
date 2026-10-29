@@ -50,6 +50,8 @@ const LABEL_BACKDROP_ALPHA = 0.8;
  */
 export const SHADE_SPREAD = 0.6;
 export const SHADE_STEP_MAX = 0.4;
+/** Least height, CSS px, a node or a link answers a hover over: a hairline keeps a reachable tooltip. */
+const MIN_HIT = 6;
 /** Opacity a hover takes off the elements it leaves out. */
 const LINK_DIM = 0.75;
 const NODE_DIM = 0.6;
@@ -757,6 +759,25 @@ function bandCenterAt(link: DrawnLink, x: number): number | null {
   return link.sy + (link.ty - link.sy) * rise;
 }
 
+/** Whether (`bx`, `by`) is on the node, its half height at least `halfFloor`. */
+function nodeHit(args: { node: DrawnNode; bx: number; by: number; halfFloor: number }): boolean {
+  const { node, bx, by } = args;
+  if (bx < node.x0 || bx > node.x1) return false;
+
+  const center = (node.y0 + node.y1) / 2;
+  const half = Math.max((node.y1 - node.y0) / 2, args.halfFloor);
+
+  return Math.abs(by - center) <= half;
+}
+
+/** Whether (`bx`, `by`) is on the link band, its half width at least `halfFloor`. */
+function linkHit(args: { link: DrawnLink; bx: number; by: number; halfFloor: number }): boolean {
+  const center = bandCenterAt(args.link, args.bx);
+  if (center === null) return false;
+
+  return Math.abs(args.by - center) <= Math.max(args.link.width / 2, args.halfFloor);
+}
+
 // --- Entrance cascade ----------------------------------------------------------------
 
 /** The cascade in plan ms; `entryMs` stretches or squeezes the whole of it. */
@@ -1174,22 +1195,22 @@ export class SankeyRenderer implements SankeySeriesRenderer {
     const reveal = this.#revealAt({ now: performance.now(), layout, stamp: false });
     const { nodes } = this.#model;
     const frame = this.#targetFrame(layout);
-    for (const node of frame.nodes) {
-      const hidden = reveal !== null && reveal.t <= reveal.plan.nodes[node.index].visibleFrom;
-      if (hidden) continue;
-
-      const inside = bx >= node.x0 && bx <= node.x1 && by >= node.y0 && by <= node.y1;
-      if (inside) return node.index;
-    }
-
+    const shownNodes = frame.nodes.filter(
+      (node) => reveal === null || reveal.t > reveal.plan.nodes[node.index].visibleFrom,
+    );
     // Last drawn is on top.
-    for (let i = frame.links.length - 1; i >= 0; i--) {
-      const link = frame.links[i];
-      const hidden = reveal !== null && reveal.t <= reveal.plan.links[link.index - nodes.length].start;
-      if (hidden) continue;
+    const shownLinks = frame.links
+      .filter((link) => reveal === null || reveal.t > reveal.plan.links[link.index - nodes.length].start)
+      .reverse();
 
-      const center = bandCenterAt(link, bx);
-      if (center !== null && Math.abs(by - center) <= link.width / 2) return link.index;
+    // An exact hit first, so a hairline's wider hit band never takes the pointer off a neighbour.
+    const minHalf = (MIN_HIT * (this.#lastGeometry?.vpr ?? 1)) / 2;
+    for (const halfFloor of [0, minHalf]) {
+      const node = shownNodes.find((candidate) => nodeHit({ node: candidate, bx, by, halfFloor }));
+      if (node !== undefined) return node.index;
+
+      const link = shownLinks.find((candidate) => linkHit({ link: candidate, bx, by, halfFloor }));
+      if (link !== undefined) return link.index;
     }
 
     return -1;

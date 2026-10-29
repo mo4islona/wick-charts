@@ -18,14 +18,24 @@ import {
 import { onDestroy } from 'svelte';
 
 import { getChartContext, getInfoBarAnchor, getThemeContext } from '../context.js';
+import SnippetSlot from '../SnippetSlot.svelte';
 import { createCrosshairPosition } from '../stores.js';
 import NumberText from './NumberText.svelte';
 import { portal } from './portal.js';
+import type { InfoBarRenderContext } from './types.js';
+
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
 
 /** Sort order for line values (default: 'none'). */
 export let sort: SnapshotSort = 'none';
 /** Custom formatter for every displayed number (OHLC / volume / line value). Ignored when a slot is provided. */
 export let format: TooltipFormatter | undefined = undefined;
+
+// biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it to type the slot
+interface $$Slots {
+  default: InfoBarRenderContext;
+}
 
 const chartStore = getChartContext();
 const themeStore = getThemeContext();
@@ -103,7 +113,9 @@ $: displayTime =
       data-tooltip-legend=""
       style="display:flex;align-items:center;flex-shrink:0;font-size:{theme.typography.fontSize}px;font-family:{theme.typography.fontFamily};font-variant-numeric:tabular-nums;opacity:{isHover ? 1 : 0.6};transition:opacity 0.2s ease;pointer-events:none;"
     >
-      <slot {snapshots} time={displayTime} {isHover} />
+      <slot {snapshots} time={displayTime} {isHover}>
+        <SnippetSlot snippet={children} props={{ snapshots, time: displayTime, isHover }} />
+      </slot>
     </div>
   {:else}
     <div
@@ -116,7 +128,7 @@ $: displayTime =
         {@const rowFormat = rowFormatter(chart, s, format)}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
-          {@const isUp = ohlc.close >= ohlc.open}
+          {@const isUp = s.rising ?? ohlc.close >= ohlc.open}
           {@const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
             <!-- One flex item per pair, so a narrow bar wraps between values, never inside a pair. -->

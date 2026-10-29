@@ -87,6 +87,8 @@ interface BarPass {
    *  {@link BarRenderer.drawAnimatedBar} clamps it to each bar's geometry so the
    *  value handed to a painter honors the pre-clamped `radius` contract. */
   radius: number;
+  /** Presence 0 → 1 of the category band at a time coordinate; `1` off a category axis. */
+  bandPresence: (time: number) => number;
 }
 
 /** Inset in CSS px on each side of a grouped bar, so neighbours in a band keep a gap. */
@@ -556,6 +558,7 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
         verticalPixelRatio: scope.verticalPixelRatio,
       },
       radius: (this.options.cornerRadius ?? DEFAULT_CORNER_RADIUS) * scope.horizontalPixelRatio,
+      bandPresence: timeScale.getType() === 'category' ? (time: number) => timeScale.bandEnterProgress(time) : () => 1,
     };
 
     const valueAxis = {
@@ -1281,6 +1284,10 @@ export class BarRenderer extends BaseMultiLayerSeries<TimePoint> {
       progress >= 1 || style === 'none'
         ? { x, topY, barWidth, barHeight, alpha: 1 }
         : this.applyBarTransform(bar, progress);
+
+    // A category entering beside sliding bands waits for its room; its value label follows `alpha`.
+    const presence = pass.bandPresence(bar.time);
+    if (presence < 1) t = { ...t, alpha: t.alpha * presence };
 
     // Element directives (translation / opacity) — growth arrives via the
     // value directive upstream, so geometry here only shifts and fades. A

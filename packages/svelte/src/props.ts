@@ -1,0 +1,60 @@
+// Each alias reads its component's declared props (snippet props included), so it cannot drift from the
+// `export let`s. `tsc` sees a bare `SvelteComponent` here; the built declarations carry the real types.
+
+import type { ComponentProps } from 'svelte';
+
+import type BandSeries from './BandSeries.svelte';
+import type BarSeries from './BarSeries.svelte';
+import type CandlestickSeries from './CandlestickSeries.svelte';
+import type ChartContainer from './ChartContainer.svelte';
+import type DepthSeries from './DepthSeries.svelte';
+import type GaugeSeries from './GaugeSeries.svelte';
+import type HeatmapSeries from './HeatmapSeries.svelte';
+import type LineSeries from './LineSeries.svelte';
+import type PieSeries from './PieSeries.svelte';
+import type RadialProgressSeries from './RadialProgressSeries.svelte';
+import type SankeySeries from './SankeySeries.svelte';
+import type HeatmapTooltip from './ui/HeatmapTooltip.svelte';
+import type InfoBar from './ui/InfoBar.svelte';
+import type Legend from './ui/Legend.svelte';
+import type Marker from './ui/Marker.svelte';
+import type Navigator from './ui/Navigator.svelte';
+import type NumberFlow from './ui/NumberFlow.svelte';
+import type PieLegend from './ui/PieLegend.svelte';
+import type PieTooltip from './ui/PieTooltip.svelte';
+import type ReferenceLine from './ui/ReferenceLine.svelte';
+import type SankeyTooltip from './ui/SankeyTooltip.svelte';
+import type TimeRegion from './ui/TimeRegion.svelte';
+import type Title from './ui/Title.svelte';
+import type Tooltip from './ui/Tooltip.svelte';
+import type XAxis from './ui/XAxis.svelte';
+import type YAxis from './ui/YAxis.svelte';
+import type YLabel from './ui/YLabel.svelte';
+
+export type BandSeriesProps = ComponentProps<BandSeries>;
+export type BarSeriesProps = ComponentProps<BarSeries>;
+export type CandlestickSeriesProps = ComponentProps<CandlestickSeries>;
+export type ChartContainerProps = ComponentProps<ChartContainer>;
+export type DepthSeriesProps = ComponentProps<DepthSeries>;
+export type GaugeSeriesProps = ComponentProps<GaugeSeries>;
+export type HeatmapSeriesProps = ComponentProps<HeatmapSeries>;
+export type HeatmapTooltipProps = ComponentProps<HeatmapTooltip>;
+export type InfoBarProps = ComponentProps<InfoBar>;
+export type LegendProps = ComponentProps<Legend>;
+export type LineSeriesProps = ComponentProps<LineSeries>;
+export type MarkerProps = ComponentProps<Marker>;
+export type NavigatorProps = ComponentProps<Navigator>;
+export type NumberFlowProps = ComponentProps<NumberFlow>;
+export type PieLegendProps = ComponentProps<PieLegend>;
+export type PieSeriesProps = ComponentProps<PieSeries>;
+export type PieTooltipProps = ComponentProps<PieTooltip>;
+export type RadialProgressSeriesProps = ComponentProps<RadialProgressSeries>;
+export type ReferenceLineProps = ComponentProps<ReferenceLine>;
+export type SankeySeriesProps = ComponentProps<SankeySeries>;
+export type SankeyTooltipProps = ComponentProps<SankeyTooltip>;
+export type TimeRegionProps = ComponentProps<TimeRegion>;
+export type TitleProps = ComponentProps<Title>;
+export type TooltipProps = ComponentProps<Tooltip>;
+export type XAxisProps = ComponentProps<XAxis>;
+export type YAxisProps = ComponentProps<YAxis>;
+export type YLabelProps = ComponentProps<YLabel>;

@@ -26,11 +26,18 @@ const LINE_CURVES: Record<string, LinePainter> = {
 // from the browser ESM bundle): warn unconditionally but only once.
 const warnedThrowing = new WeakSet<object>();
 
+// A 0.8 candle painter reads `geom`, which 0.9 renamed, so it throws on its first call.
+const KIND_HINTS: Partial<Record<string, string>> = {
+  candle: ' A painter written for 0.8 needs the 0.9 arguments: see MIGRATION.md, 0.8 → 0.9.',
+};
+
 function warnThrowingPainter(kind: string, painter: object, error: unknown): void {
   if (warnedThrowing.has(painter)) return;
 
   warnedThrowing.add(painter);
-  console.warn(`[wick-charts] a ${kind} painter threw; falling back to the default for this series.`, error);
+
+  const hint = KIND_HINTS[kind] ?? '';
+  console.warn(`[wick-charts] a ${kind} painter threw; falling back to the default for this series.${hint}`, error);
 }
 
 /**

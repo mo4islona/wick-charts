@@ -23,9 +23,9 @@ export const INTROS: Record<string, string> = {
   ChartContainer:
     'The root component every chart starts with. Provides theme, axis configuration, padding, and the canvas; collects series and overlays from its children. Use `viewport={{ maxVisibleBars, initialRange }}` to size the streaming window and apply an initial zoom *before* the first paint (same shape as the imperative `chart.setVisibleRange`).',
   XAxis:
-    "Renders tick marks and labels along the X axis — time by default, or numbers / category names with `axis={{ x: { type: 'numeric' | 'category' } }}` on `<ChartContainer>`. Density adapts to viewport width and is bounded by the `labelCount` and `minLabelSpacing` props (which override the chart-level defaults); `format` customises the label, the crosshair label and the tooltip header.",
+    "Renders tick marks and labels along the X axis — time by default, or numbers / category names with `axis={{ x: { type: 'numeric' | 'category' } }}` on `<ChartContainer>`. Density adapts to viewport width and is bounded by the `labelCount` and `minLabelSpacing` props (which override the chart-level defaults); `format` customises the label, the crosshair label and the tooltip header. Leaving out `<XAxis>` keeps its empty row; `axis={{ x: { visible: false } }}` removes it.",
   YAxis:
-    "Renders ticks and labels in the value-axis column — on the right by default, or on the left with `axis={{ y: { position: 'left' } }}` on `<ChartContainer>`. The 1-2-5 “nice number” snap keeps tick values readable at any zoom; pass `format` to customise the label string.",
+    "Renders ticks and labels in the value-axis column — on the right by default, or on the left with `axis={{ y: { position: 'left' } }}` on `<ChartContainer>`. The 1-2-5 “nice number” snap keeps tick values readable at any zoom; pass `format` to customise the label string. Leaving out `<YAxis>` keeps its empty column; `axis={{ y: { visible: false } }}` removes it.",
   Tooltip:
     'Floating glass panel that appears on hover, showing per-series snapshots at the crosshair time. Use the render-prop child to replace the panel contents while keeping the positioned container (with flip/clamp).',
   Crosshair:

@@ -2,9 +2,9 @@
 
 In a shadcn/ui project (React), a shadcn-vue project (Vue, Nuxt) or a shadcn-svelte project (Svelte 5), install from the Wick Charts registry instead of wiring a theme by hand. The items install as source files into the project, and the three registries have the same items:
 
-- `wick-theme` — `useWickTheme(ref?)` builds a `ChartTheme` from the shadcn CSS variables (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--chart-1` … `--chart-5`) and follows light / dark switches. React: `@/hooks/use-wick-theme`. Vue: `@/composables/useWickTheme`, takes a template ref. Svelte: `$lib/hooks/wick-theme.svelte`, takes a getter for a `bind:this` element and returns `{ current }`.
-- `wick-chart` — `<WickChart>`: a `ChartContainer` themed by that hook, sized with classes (`aspect-video` by default), with horizontal grid lines only. `theme` takes a `ChartTheme`, or a function that adjusts the generated one. Import it from `@/components/ui/wick-chart` (Svelte: `$lib/components/ui/wick-chart/index.js`).
-- Blocks in a shadcn `Card`: `chart-line-live`, `chart-candlestick`, `chart-order-book`, `chart-sparkline`, `chart-bar-grouped`, `chart-pie-donut`, `chart-band-latency`, `chart-area-stacked`, `chart-heatmap`, `chart-line-annotations`, `chart-line-navigator`, `chart-sankey`, `chart-gauge`, `chart-radial-progress`. A Vue block is `@/components/ChartCandlestick.vue` (PascalCase), a Svelte block `$lib/components/chart-candlestick.svelte` (default export).
+- `wick-theme` — `useWickTheme(ref?)` builds a `ChartTheme` from the shadcn CSS variables (`--background`, `--foreground`, `--muted-foreground`, `--border`, `--chart-1` … `--chart-5`) and follows light / dark switches. React: `@/hooks/use-wick-theme`. Vue: `@/composables/useWickTheme`, takes a template ref. Svelte: `#lib/hooks/wick-theme.svelte.js`, takes a getter for a `bind:this` element and returns `{ current }`.
+- `wick-chart` — `<WickChart>`: a `ChartContainer` themed by that hook, sized with classes (`aspect-video` by default), with horizontal grid lines only. `theme` takes a `ChartTheme`, or a function that adjusts the generated one. Import it from `@/components/ui/wick-chart` (Svelte: `#lib/components/ui/wick-chart/index.js`).
+- Blocks in a shadcn `Card`: `chart-line-live`, `chart-candlestick`, `chart-order-book`, `chart-sparkline`, `chart-bar-grouped`, `chart-pie-donut`, `chart-band-latency`, `chart-area-stacked`, `chart-heatmap`, `chart-line-annotations`, `chart-line-navigator`, `chart-sankey`, `chart-gauge`, `chart-radial-progress`. A Vue block is `@/components/ChartCandlestick.vue` (PascalCase), a Svelte block `#lib/components/chart-candlestick.svelte` (default export).
 
 | | React (shadcn/ui) | Vue / Nuxt (shadcn-vue) | Svelte (shadcn-svelte) |
 |---|---|---|---|
@@ -19,6 +19,10 @@ npx shadcn-vue@latest add @wick-charts/wick-chart @wick-charts/chart-candlestick
 # Svelte
 npx shadcn-svelte@latest add https://wick-charts.eeff.io/r/svelte/wick-chart.json
 ```
+
+- **Svelte import paths** follow the aliases in `components.json`: `#lib/...` on SvelteKit 3, `$lib/...` on SvelteKit 2.
+- **A fresh SvelteKit 3 app:** when the first `shadcn-svelte add` fails with "File '$app/tsconfig' not found", run `npx svelte-kit sync` and add again.
+- **After an upgrade of `@wick-charts/*`,** re-add `wick-theme` with `--overwrite` (`npx shadcn@latest add @wick-charts/wick-theme --overwrite`, the same for the other CLIs). Without it the CLI keeps the old hook: its prompt defaults to No. An installed block stays as it is until you re-add it the same way, which replaces your edits.
 
 ```tsx
 import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/react';
@@ -60,7 +64,7 @@ defineProps<{ data: TimePoint[] }>();
 <script lang="ts">
   import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/svelte';
 
-  import { WickChart } from '$lib/components/ui/wick-chart/index.js';
+  import { WickChart } from '#lib/components/ui/wick-chart/index.js';
 
   let { data }: { data: TimePoint[] } = $props();
 </script>

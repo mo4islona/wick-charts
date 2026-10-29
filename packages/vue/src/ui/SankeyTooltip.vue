@@ -12,12 +12,12 @@ import { computed, onMounted, onUnmounted, ref, useSlots, watchEffect } from 'vu
 
 import { useCrosshairPosition } from '../composables';
 import { useChartInstance } from '../context';
-import type { SankeyTooltipProps } from './props';
+import type { SankeyTooltipProps, SankeyTooltipRenderContext } from './props';
 
 const props = defineProps<SankeyTooltipProps>();
 
 defineSlots<{
-  default?(ctx: { info: HoverInfo; format: ValueFormatter }): unknown;
+  default?(ctx: SankeyTooltipRenderContext): unknown;
 }>();
 
 const effectiveFormat = computed<ValueFormatter>(() => props.format ?? defaultSankeyFormat);

@@ -27,23 +27,35 @@ const formatRate = (value: number) => Math.round(value).toLocaleString("en-US")
 
 const viewport = { maxVisibleBars: POINTS }
 
+// Seeded, so the server render and the browser start from the same values.
+function seededRandom(seed: number): () => number {
+  let state = seed
+
+  return () => {
+    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296
+
+    return state / 4_294_967_296
+  }
+}
+
 // Demo feed: replace with your own stream and assign a new array on each update.
-function nextPoint(previous: TimePoint): TimePoint {
+function nextPoint(
+  previous: TimePoint,
+  random: () => number = Math.random
+): TimePoint {
   const drift = (1200 - previous.value) * 0.05
-  const value = Math.max(
-    0,
-    previous.value + drift + (Math.random() - 0.5) * 120
-  )
+  const value = Math.max(0, previous.value + drift + (random() - 0.5) * 120)
 
   return { time: previous.time + TICK_MS, value }
 }
 
 function seedPoints(): TimePoint[] {
+  const random = seededRandom(1_200)
   let point: TimePoint = { time: Date.now() - POINTS * TICK_MS, value: 1200 }
   const points = [point]
 
   while (points.length < POINTS) {
-    point = nextPoint(point)
+    point = nextPoint(point, random)
     points.push(point)
   }
 

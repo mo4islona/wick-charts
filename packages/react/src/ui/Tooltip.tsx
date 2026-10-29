@@ -355,7 +355,7 @@ function FloatingTooltip({
         const isOHLC = 'open' in s.data;
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
-          const isUp = ohlc.close >= ohlc.open;
+          const isUp = s.rising ?? ohlc.close >= ohlc.open;
           const valColor =
             theme.tooltip.valueColor ??
             resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);

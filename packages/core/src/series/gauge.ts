@@ -3,7 +3,7 @@ import { easeInOutCubic } from '../animation/easing';
 import type { ChartTheme } from '../theme/types';
 import type { GaugeSeriesOptions, GaugeZone } from '../types';
 import { mixColors, sampleRamp } from '../utils/color';
-import { formatCompact } from '../utils/format';
+import { formatLabelNumber } from '../utils/format';
 import { clamp } from '../utils/math';
 import { warnDataOnce } from '../utils/poisoned-data-reporter';
 import type { SeriesDefinition } from './definition';
@@ -75,11 +75,6 @@ const LABEL_WIDTH_SHARE = 0.8;
 const MIN_FONT_PX = 8;
 /** With `zoneColor: 'morph'`, the color blends over this share of the narrower zone on each side of a border. */
 const MORPH_BAND = 0.25;
-
-/** Whole numbers as they are, others compact (`1.2K`). */
-function defaultGaugeFormat(value: number): string {
-  return Number.isInteger(value) ? value.toString() : formatCompact(value);
-}
 
 /** Decimal places `value` is written with, or `null` in exponent notation. */
 function fractionDigits(value: number): number | null {
@@ -651,7 +646,7 @@ export class GaugeRenderer implements GaugeSeriesRenderer {
   ): void {
     const { cx, cy, radius, shape, drawn, fade, hpr, box } = args;
     const theme = this.#theme;
-    const format = this.#options.format ?? defaultGaugeFormat;
+    const format = this.#options.format ?? formatLabelNumber;
     const family = theme.typography.fontFamily;
     const baseAlpha = context.globalAlpha;
     const target = this.#value ?? drawn;

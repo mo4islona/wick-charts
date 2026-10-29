@@ -93,6 +93,65 @@ describe('ChartInstance — onEdgeReached', () => {
   });
 });
 
+describe('ChartInstance — drag-pan bound', () => {
+  const COUNT = 20_000;
+  let raf: ReturnType<typeof installRaf>;
+  let container: HTMLElement;
+  let chart: ChartInstance;
+  let onEdgeReached: ReturnType<typeof vi.fn<(info: EdgeReachedInfo) => void>>;
+
+  beforeEach(() => {
+    raf = installRaf();
+    container = makeChartContainer();
+    onEdgeReached = vi.fn<(info: EdgeReachedInfo) => void>();
+    chart = new ChartInstance(container, { interactive: false, onEdgeReached });
+    const id = chart.addSeries('candlestick');
+    chart.setSeriesData(id, candles(COUNT));
+    raf.flush();
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+    raf.uninstall();
+  });
+
+  function zoomToFullRange(): void {
+    let width = 0;
+    for (let i = 0; i < 40; i++) {
+      const range = chart.getVisibleRange();
+      if (range.to - range.from === width) return;
+
+      width = range.to - range.from;
+      chart.zoomAt((range.from + range.to) / 2, 2);
+    }
+  }
+
+  /** Drag the view right (into the past) by half its width, in ten pointer moves, and release. */
+  function dragHalfWidth(): void {
+    const range = chart.getVisibleRange();
+    const step = (range.to - range.from) / 20;
+    for (let i = 0; i < 10; i++) {
+      chart.pan(-step);
+    }
+
+    chart.endGesture();
+  }
+
+  it('keeps data across half the view when a full-range view is dragged off it twice', () => {
+    zoomToFullRange();
+    dragHalfWidth();
+    dragHalfWidth();
+
+    const view = chart.getVisibleRange();
+    const lastTime = T0 + (COUNT - 1) * INTERVAL;
+    const covered = Math.min(view.to, lastTime) - Math.max(view.from, T0);
+
+    expect(covered).toBeGreaterThanOrEqual(0.5 * (view.to - view.from) - INTERVAL);
+    expect(onEdgeReached).toHaveBeenCalledWith(expect.objectContaining({ side: 'left', boundaryTime: T0 }));
+  });
+});
+
 describe('InteractionHandler — gesture end', () => {
   function setup() {
     const endGesture = vi.fn();

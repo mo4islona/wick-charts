@@ -195,6 +195,23 @@ describe('LineRenderer.drawOverlay', () => {
     }
   });
 
+  it('pulse dot: takes the threshold color the stroke paints the last point in', () => {
+    const r = new LineRenderer(1, {
+      area: { visible: false },
+      pulse: true,
+      colors: ['#111111'],
+      threshold: { value: 5, above: '#ff0000', below: '#0000ff' },
+    });
+    r.setData(seed(3, 4, 2)); // 4, 6, 8: the last point is above the threshold
+    const { overlayCtx, spy } = buildRenderContext({ yRange: { min: 0, max: 10 } });
+    r.drawOverlay(overlayCtx(null));
+
+    // The glow is the same color at a lower alpha; the dot is the solid fill.
+    const fills = spy.callsOf('fill').map((call) => call.fillStyle);
+    expect(fills.at(-1)).toBe('#ff0000');
+    expect(fills).not.toContain('#111111');
+  });
+
   it('crosshair present → extra arcs for nearest-point markers', () => {
     const r = new LineRenderer(1, { area: { visible: false }, pulse: false, colors: ['#111'] });
     r.setData(seed(5), 0);

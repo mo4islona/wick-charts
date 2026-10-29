@@ -1,6 +1,6 @@
 import { hexToRgba } from '../../utils/color';
 import { fillRoundedRect, tracePath, traceRoundedRect } from './canvas-path';
-import type { BarPainter, CandlePainter, LinePainter } from './types';
+import type { BarPainter, CandlePaintArgs, CandlePainter, LinePainter, PaintEnv } from './types';
 
 /** Opacity of a ghost / forecast bar's fill. Low enough that grid lines read
  *  through it; high enough that the bar's color is still recognizable. */
@@ -113,12 +113,16 @@ export const hollowCandle: CandlePainter = (env, args) => {
   ctx.stroke();
 };
 
+/** CSS px a tick reaches past a narrow body into the gap, room permitting. */
+const OHLC_MIN_TICK = 2;
+
 /** OHLC bars: a high–low line with the open tick on the left and the close
  *  tick on the right, all in the wick colour. Ticks reach the body edges, so
- *  their length follows `bodyWidthRatio`; `cornerRadius` does not apply. */
+ *  their length follows `bodyWidthRatio`; a narrow body's ticks reach into the
+ *  gap, up to 2 px, short of the neighbour's. `cornerRadius` does not apply. */
 export const ohlcBar: CandlePainter = (env, args) => {
   const { ctx } = env;
-  const { wick, body, openY, closeY } = args;
+  const { wick, body } = args;
 
   ctx.fillStyle = args.wickColor;
   if (args.element === 'wick') {
@@ -129,6 +133,22 @@ export const ohlcBar: CandlePainter = (env, args) => {
 
   const thickness = wick.width;
   const wickRight = wick.x + wick.width;
-  ctx.fillRect(body.x, openY - thickness / 2, wick.x - body.x, thickness);
-  ctx.fillRect(wickRight, closeY - thickness / 2, body.x + body.width - wickRight, thickness);
+  const reach = gapReach(env, args);
+  const leftReach = Math.max(wick.x - body.x, reach);
+  const rightReach = Math.max(body.x + body.width - wickRight, reach);
+
+  // Whole pixel rows: a 1 px tick centred on a pixel edge paints two rows at half alpha.
+  const openY = Math.round(args.openY - thickness / 2);
+  const closeY = Math.round(args.closeY - thickness / 2);
+  ctx.fillRect(wick.x - leftReach, openY, leftReach, thickness);
+  ctx.fillRect(wickRight, closeY, rightReach, thickness);
 };
+
+/** How far a tick may reach into the gap: {@link OHLC_MIN_TICK}, leaving a pixel to the neighbour's tick. */
+function gapReach(env: PaintEnv, args: CandlePaintArgs): number {
+  if (args.slotWidth === undefined) return 0;
+
+  const room = Math.floor((args.slotWidth - args.wick.width - 1) / 2);
+
+  return Math.max(0, Math.min(room, OHLC_MIN_TICK * env.horizontalPixelRatio));
+}

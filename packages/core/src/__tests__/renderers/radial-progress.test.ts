@@ -99,6 +99,17 @@ describe('RadialProgressRenderer — rings', () => {
     expect(arcsIn(spy, palette[2])).toHaveLength(0);
   });
 
+  it('warns once about a negative value, which draws an empty ring', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = radial();
+    r.setData([{ label: 'margin', value: -11.6 }]);
+    r.setData([{ label: 'margin', value: -12 }]);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('"margin" with value -11.6');
+    warn.mockRestore();
+  });
+
   it('takes ring colors from `colors` before the theme palette', () => {
     const r = radial({ colors: ['#aa0000', '#00aa00'] });
     r.setData(RINGS.slice(0, 2));

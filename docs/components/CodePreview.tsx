@@ -37,6 +37,8 @@ export interface ChartCodeConfig {
    * Default `true`.
    */
   container?: boolean;
+  /** Vue and Svelte print `equivalent` instead, under `note` as a comment: the config uses a React-only component. */
+  reactOnly?: { note: string; equivalent: ChartCodeConfig };
 }
 
 type Framework = 'react' | 'svelte' | 'vue';
@@ -333,7 +335,8 @@ function indentLines(text: string): string {
 
 /** The snippet of one chart, or of several charts under one import. */
 export function generateCode(config: ChartCodeConfig | ChartCodeConfig[], fw: Framework): string {
-  const configs = Array.isArray(config) ? config : [config];
+  const requested = Array.isArray(config) ? config : [config];
+  const configs = fw === 'react' ? requested : requested.map((c) => c.reactOnly?.equivalent ?? c);
   const importList = importsOf(configs);
   const pkg = PACKAGES[fw];
   const markup = configs.map((c) => chartMarkup(c, fw)).join('\n\n');
@@ -346,15 +349,18 @@ export function generateCode(config: ChartCodeConfig | ChartCodeConfig[], fw: Fr
     return `${imp}\n\n${body}`;
   }
 
+  const notes = new Set(requested.flatMap((c) => (c.reactOnly ? [c.reactOnly.note] : [])));
+  const comments = [...notes].map((note) => `<!-- ${note} -->\n`).join('');
+
   if (fw === 'svelte') {
     const imp = wrapImport(importList, pkg, '  ');
 
-    return `<script>\n${imp}\n</script>\n\n${markup}`;
+    return `${comments}<script>\n${imp}\n</script>\n\n${markup}`;
   }
 
   const imp = wrapImport(importList, pkg, '');
 
-  return `<script setup>\n${imp}\n</script>\n\n<template>\n${indentLines(markup)}\n</template>`;
+  return `${comments}<script setup>\n${imp}\n</script>\n\n<template>\n${indentLines(markup)}\n</template>`;
 }
 
 export type { Framework };

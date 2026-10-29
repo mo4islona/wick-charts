@@ -38,11 +38,24 @@ interface LatencyRow {
   p95: number
 }
 
+// Seeded, so the server render and the browser start from the same values.
+function seededRandom(seed: number): () => number {
+  let state = seed
+
+  return () => {
+    state = (state * 1_664_525 + 1_013_904_223) % 4_294_967_296
+
+    return state / 4_294_967_296
+  }
+}
+
 // Demo feed: replace with your own percentiles, one row a second.
-function nextRow(previous: LatencyRow): LatencyRow {
-  const p50 =
-    previous.p50 + (120 - previous.p50) * 0.08 + (Math.random() - 0.5) * 14
-  const spread = 18 + Math.random() * 10
+function nextRow(
+  previous: LatencyRow,
+  random: () => number = Math.random
+): LatencyRow {
+  const p50 = previous.p50 + (120 - previous.p50) * 0.08 + (random() - 0.5) * 14
+  const spread = 18 + random() * 10
 
   return {
     time: previous.time + TICK_MS,
@@ -50,11 +63,12 @@ function nextRow(previous: LatencyRow): LatencyRow {
     p25: p50 - spread * 0.6,
     p50,
     p75: p50 + spread * 0.8,
-    p95: p50 + spread * 2.6 + Math.random() * 30,
+    p95: p50 + spread * 2.6 + random() * 30,
   }
 }
 
 function seedRows(): LatencyRow[] {
+  const random = seededRandom(120)
   let row: LatencyRow = {
     time: Date.now() - POINTS * TICK_MS,
     p5: 90,
@@ -66,7 +80,7 @@ function seedRows(): LatencyRow[] {
   const rows = [row]
 
   while (rows.length < POINTS) {
-    row = nextRow(row)
+    row = nextRow(row, random)
     rows.push(row)
   }
 

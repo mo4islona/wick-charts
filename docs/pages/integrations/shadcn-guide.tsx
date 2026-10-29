@@ -13,6 +13,7 @@ import {
   PALETTES,
   type PaletteName,
   demoUrl,
+  installCommand,
 } from '../../demos/shadcn/catalog';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { routeToPath } from '../../router';
@@ -24,7 +25,23 @@ export const HEADINGS = {
   add: '01 — INSTALL',
   use: '02 — USE IT',
   own: '03 — BUILD YOUR OWN CHART',
+  upgrade: '04 — UPGRADE',
 };
+
+/** The CLI keeps an installed file by default, so an upgrade leaves the old theme hook in place. */
+export function upgradeStep(flavor: Flavor): Step {
+  return {
+    heading: HEADINGS.upgrade,
+    body: (
+      <>
+        After an upgrade of <code>@wick-charts/*</code>, re-add the theme hook: the CLI keeps an installed file unless
+        you pass <code>--overwrite</code>. Re-add a block the same way to take its fixes; this replaces your edits to
+        it.
+      </>
+    ),
+    code: `${installCommand('wick-theme', flavor)} --overwrite`,
+  };
+}
 
 const PALETTE_OPTIONS = (Object.keys(PALETTES) as PaletteName[]).map((name) => ({
   value: name,

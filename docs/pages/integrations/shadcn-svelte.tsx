@@ -1,9 +1,9 @@
 import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
-import { type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
+import { type GuideCopy, HEADINGS, YourData, upgradeStep } from './shadcn-guide';
 
 function usageCode(block: BlockEntry): string {
   return `<script lang="ts">
-  import ${block.component} from '$lib/components/${block.name}.svelte';
+  import ${block.component} from '#lib/components/${block.name}.svelte';
 </script>
 
 <${block.component} />`;
@@ -12,7 +12,7 @@ function usageCode(block: BlockEntry): string {
 const WRAPPER_CODE = `<script lang="ts">
   import { LineSeries, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/svelte';
 
-  import { WickChart } from '$lib/components/ui/wick-chart/index.js';
+  import { WickChart } from '#lib/components/ui/wick-chart/index.js';
 
   let { data }: { data: TimePoint[] } = $props();
 </script>
@@ -30,11 +30,22 @@ export const SVELTE_COPY: GuideCopy = {
   steps: (block) => [
     {
       heading: HEADINGS.add,
+      body: (
+        <>
+          On a fresh SvelteKit 3 app, <code>add</code> can fail with "File '$app/tsconfig' not found": run{' '}
+          <code>npx svelte-kit sync</code> and add again.
+        </>
+      ),
       code: installCommand(block.name, 'svelte'),
     },
     {
       heading: HEADINGS.use,
-      body: <YourData block={block} file={`${block.name}.svelte`} />,
+      body: (
+        <>
+          <YourData block={block} file={`${block.name}.svelte`} /> The snippets import through <code>#lib</code>, the
+          alias of SvelteKit 3; on SvelteKit 2, use <code>$lib</code>.
+        </>
+      ),
       code: usageCode(block),
     },
     {
@@ -48,5 +59,6 @@ export const SVELTE_COPY: GuideCopy = {
       ),
       code: WRAPPER_CODE,
     },
+    upgradeStep('svelte'),
   ],
 };

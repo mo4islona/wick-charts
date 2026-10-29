@@ -4,6 +4,7 @@ import { prefersReducedMotion } from '../animation/reduced-motion';
 import type { ChartTheme } from '../theme/types';
 import type { PieSliceData, PieSliceInput, RadialProgressSeriesOptions } from '../types';
 import { clamp } from '../utils/math';
+import { warnDataOnce } from '../utils/poisoned-data-reporter';
 import type { SeriesDefinition } from './definition';
 import type { PaintEnv } from './painters/types';
 import {
@@ -108,6 +109,8 @@ export class RadialProgressRenderer implements RadialProgressSeriesRenderer {
 
       return { ...row, value };
     });
+    this.#reportNegative(next);
+
     const first = this.#data.length === 0 && next.length > 0;
     const now = performance.now();
 
@@ -131,6 +134,20 @@ export class RadialProgressRenderer implements RadialProgressSeriesRenderer {
     for (const listener of this.#dataListeners) {
       listener();
     }
+  }
+
+  #reportNegative(rows: PieSliceData[]): void {
+    const negative = rows.filter((row) => row.value < 0);
+    if (negative.length === 0) return;
+
+    const [first] = negative;
+    warnDataOnce({
+      token: this,
+      topic: 'radial-negative',
+      message:
+        `radial progress: ${negative.length} ring(s) below 0, first "${first.label}" with value ${first.value}. ` +
+        'A ring fills from 0 to `max`; a negative value draws an empty ring.',
+    });
   }
 
   onDataChanged(listener: () => void): () => void {

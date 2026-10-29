@@ -73,7 +73,7 @@ function declarationFiles(dir) {
 
     if (entry.isDirectory()) {
       files.push(...declarationFiles(path));
-    } else if (entry.name.endsWith('.d.ts')) {
+    } else if (/\.d\.c?ts$/.test(entry.name)) {
       files.push(path);
     }
   }

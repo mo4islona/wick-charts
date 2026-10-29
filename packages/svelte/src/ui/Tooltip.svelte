@@ -19,8 +19,13 @@ import {
 import { afterUpdate, onDestroy } from 'svelte';
 
 import { getChartContext } from '../context.js';
+import SnippetSlot from '../SnippetSlot.svelte';
 import { createCrosshairPosition } from '../stores.js';
 import NumberText from './NumberText.svelte';
+import type { TooltipRenderContext } from './types.js';
+
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
 
 /** Sort order for line values (default: 'none'). */
 export let sort: SnapshotSort = 'none';
@@ -30,6 +35,11 @@ export let sort: SnapshotSort = 'none';
  * (`'open' | 'high' | 'low' | 'close' | 'volume' | 'value'`).
  */
 export let format: TooltipFormatter | undefined = undefined;
+
+// biome-ignore lint/correctness/noUnusedVariables: svelte2tsx reads it to type the slot
+interface $$Slots {
+  default: TooltipRenderContext;
+}
 
 const chartStore = getChartContext();
 let crosshair: CrosshairPosition | null = null;
@@ -190,7 +200,9 @@ $: floatingPos = (() => {
       data-measured={boxSize ? 'true' : 'false'}
       style="position:absolute;left:{floatingPos.left}px;top:{floatingPos.top}px;pointer-events:none;background:{theme.tooltip.background};backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid {theme.tooltip.borderColor};border-radius:8px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.06);font-family:{theme.typography.fontFamily};font-size:{theme.tooltip.fontSize}px;font-variant-numeric:tabular-nums;color:{theme.tooltip.textColor};width:max-content;max-width:{mediaSize ? chart.getLayout().chartArea.width : 0}px;box-sizing:border-box;z-index:10;visibility:{boxSize ? 'visible' : 'hidden'};"
     >
-      <slot {snapshots} time={displayTime} />
+      <slot {snapshots} time={displayTime}>
+        <SnippetSlot snippet={children} props={{ snapshots, time: displayTime }} />
+      </slot>
     </div>
   {:else}
     <div
@@ -209,7 +221,7 @@ $: floatingPos = (() => {
         {@const rowTime = formatRowTime(chart, { time: displayTime, snapshots, interval: dataInterval, snapshot: s })}
         {#if 'open' in s.data}
           {@const ohlc = /** @type {OHLCData} */ (s.data)}
-          {@const isUp = ohlc.close >= ohlc.open}
+          {@const isUp = s.rising ?? ohlc.close >= ohlc.open}
           {@const valColor = theme.tooltip.valueColor ?? resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body)}
           <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;">
             {#if rowTime !== null}<span style="grid-column:1 / -1;opacity:0.45;white-space:nowrap;">{rowTime}</span>{/if}

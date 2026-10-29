@@ -75,6 +75,25 @@ describe('crosshair X label', () => {
     expect(tooltipHeader(time)).toBe('Oct 21, 2026 02:58');
   });
 
+  it('moves the line to the point the label names over an empty slot, and keeps it at the pointer elsewhere', () => {
+    const HOUR = 60 * MINUTE;
+    const start = Date.UTC(2026, 9, 21, 0);
+    // 16:00 is missing.
+    const points = Array.from({ length: 24 }, (_, i) => ({ time: start + i * HOUR, value: i })).filter(
+      (_, i) => i !== 16,
+    );
+    makeChart({ options: { timeZone: 'UTC' }, type: 'line', points });
+    const xOf = (time: number) => chart.plotLeft + chart.timeScale.timeToX(time);
+
+    const inGap = hover(start + 16 * HOUR + 10 * MINUTE);
+    const gapLabel = chart.getCrosshairXLabel(inGap);
+    expect(gapLabel.text).toBe('17:00');
+    expect(gapLabel.left).toBeCloseTo(xOf(start + 17 * HOUR));
+
+    const onPoint = hover(start + 12 * HOUR + 10 * MINUTE);
+    expect(chart.getCrosshairXLabel(onPoint).left).toBeCloseTo(onPoint.mediaX);
+  });
+
   it('keeps the seconds of 5-second data under minute ticks', () => {
     const start = Date.UTC(2026, 9, 21, 2, 50);
     const points = Array.from({ length: 120 }, (_, i) => ({ time: start + i * 5_000, value: i }));

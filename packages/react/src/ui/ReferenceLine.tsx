@@ -14,6 +14,8 @@ export interface ReferenceLineProps {
   /** Optional text label drawn in an annotation chip at the line's near end. */
   label?: string;
   /** Dash style. Default: `'dashed'`. */
+  lineStyle?: ReferenceLineStyle;
+  /** @deprecated Use {@link ReferenceLineProps.lineStyle}; a `style` reads as CSS, and Vue parses a static one as CSS. */
   style?: ReferenceLineStyle;
   /** Stroke width in CSS pixels. Default: `1`. */
   width?: number;
@@ -33,8 +35,9 @@ export interface ReferenceLineProps {
  * <ReferenceLine time={deployMs} label="deploy" />
  * ```
  */
-export function ReferenceLine({ value, time, color, label, style, width, scale }: ReferenceLineProps) {
+export function ReferenceLine({ value, time, color, label, lineStyle, style, width, scale }: ReferenceLineProps) {
   const chart = useChartInstance();
+  const dash = lineStyle ?? style;
   const idRef = useRef<string | null>(null);
 
   // Normalized ms keeps a fresh `Date` for the same instant from triggering a redundant update.
@@ -42,7 +45,7 @@ export function ReferenceLine({ value, time, color, label, style, width, scale }
 
   // Register once on mount; tear down on unmount.
   useLayoutEffect(() => {
-    const id = chart.addLine({ value, time, color, label, style, width, scale });
+    const id = chart.addLine({ value, time, color, label, style: dash, width, scale });
     idRef.current = id;
 
     return () => {
@@ -56,8 +59,8 @@ export function ReferenceLine({ value, time, color, label, style, width, scale }
     const id = idRef.current;
     if (id === null) return;
 
-    chart.updateLine(id, { value, time, color, label, style, width, scale });
-  }, [chart, value, timeMs, color, label, style, width, scale]);
+    chart.updateLine(id, { value, time, color, label, style: dash, width, scale });
+  }, [chart, value, timeMs, color, label, dash, width, scale]);
 
   return null;
 }

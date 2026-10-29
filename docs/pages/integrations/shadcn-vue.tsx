@@ -1,5 +1,5 @@
 import { type BlockEntry, installCommand } from '../../demos/shadcn/catalog';
-import { type GuideCopy, HEADINGS, YourData } from './shadcn-guide';
+import { type GuideCopy, HEADINGS, YourData, upgradeStep } from './shadcn-guide';
 
 function usageCode(block: BlockEntry): string {
   return `<script setup lang="ts">
@@ -51,5 +51,6 @@ export const VUE_COPY: GuideCopy = {
       ),
       code: WRAPPER_CODE,
     },
+    upgradeStep('vue'),
   ],
 };

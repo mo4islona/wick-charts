@@ -17,12 +17,12 @@ import { computed, inject, onMounted, onUnmounted, ref, useSlots } from 'vue';
 import { useCrosshairPosition } from '../composables';
 import { InfoBarAnchorKey, ThemeKey, useChartInstance } from '../context';
 import NumberText from './NumberText.vue';
-import type { InfoBarProps } from './props';
+import type { InfoBarProps, InfoBarRenderContext } from './props';
 
 const props = defineProps<InfoBarProps>();
 
 defineSlots<{
-  default?(ctx: { snapshots: readonly SeriesSnapshot[]; time: number; isHover: boolean }): unknown;
+  default?(ctx: InfoBarRenderContext): unknown;
 }>();
 
 // Use computed fallbacks — `withDefaults` is inconsistent for function props.
@@ -171,7 +171,7 @@ function isBand(data: SeriesSnapshot['data']): data is BandPoint {
               <span
                 :style="{
                   color: resolveCandlestickBodyColor(
-                    (s.data as OHLCData).close >= (s.data as OHLCData).open
+                    (s.rising ?? (s.data as OHLCData).close >= (s.data as OHLCData).open)
                       ? theme.candlestick.up.body
                       : theme.candlestick.down.body,
                   ),

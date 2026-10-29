@@ -14,6 +14,8 @@ export let color: string | undefined = undefined;
 /** Optional text label drawn in an annotation chip at the line's near end. */
 export let label: string | undefined = undefined;
 /** Dash style. Default: `'dashed'`. */
+export let lineStyle: ReferenceLineStyle | undefined = undefined;
+/** @deprecated Use `lineStyle`; a `style` reads as CSS, and Vue parses a static one as CSS. */
 export let style: ReferenceLineStyle | undefined = undefined;
 /** Stroke width in CSS pixels. Default: `1`. */
 export let width: number | undefined = undefined;
@@ -27,7 +29,7 @@ onMount(() => {
   const chart = get(chartStore);
   if (!chart) return;
 
-  lineId = chart.addLine({ value, time, color, label, style, width, scale });
+  lineId = chart.addLine({ value, time, color, label, style: lineStyle ?? style, width, scale });
 });
 
 onDestroy(() => {
@@ -41,7 +43,7 @@ onDestroy(() => {
 $: {
   const chart = $chartStore;
   if (lineId !== null && chart) {
-    chart.updateLine(lineId, { value, time, color, label, style, width, scale });
+    chart.updateLine(lineId, { value, time, color, label, style: lineStyle ?? style, width, scale });
   }
 }
 </script>

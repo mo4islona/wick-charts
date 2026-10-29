@@ -3,7 +3,8 @@ import { DEFAULT_LINE_ENTRY } from '../animation/config';
 import type { ChartInstance } from '../chart';
 import { XScale } from '../scales/x-scale';
 import { YScale } from '../scales/y-scale';
-import type { XRange, YRange } from '../types';
+import type { TimeValue, XRange, YRange } from '../types';
+import { normalizeTime } from '../utils/time';
 import { decimateCandles, decimateLinear } from './decimate';
 import { type NavigatorGesture, computePan, computeResize, computeSnapCenter, hitTest } from './interactions';
 import {
@@ -14,12 +15,12 @@ import {
   renderMiniCandlestick,
   renderMiniLine,
 } from './render';
-import type { NavigatorData, NavigatorLinePoint, NavigatorOptions } from './types';
+import type { NavigatorData, NavigatorDataInput, NavigatorLinePoint, NavigatorOptions } from './types';
 
 export interface NavigatorControllerParams {
   container: HTMLElement;
   chart: ChartInstance;
-  data: NavigatorData;
+  data: NavigatorDataInput;
   options?: NavigatorOptions;
 }
 
@@ -122,7 +123,7 @@ export class NavigatorController {
   constructor(params: NavigatorControllerParams) {
     this.#container = params.container;
     this.#chart = params.chart;
-    this.#data = params.data;
+    this.#data = toNavigatorData(params.data);
     this.#options = params.options ?? {};
 
     // Absolute-positioned children require a non-static container.
@@ -203,7 +204,8 @@ export class NavigatorController {
     this.#markDirty();
   }
 
-  setData(data: NavigatorData): void {
+  setData(input: NavigatorDataInput): void {
+    const data = toNavigatorData(input);
     const tail = tailOfData(data);
     const newLastTime = tail?.time ?? null;
     if (newLastTime !== null && this.#lastSeenTime !== null && newLastTime !== this.#lastSeenTime) {
@@ -726,6 +728,27 @@ export class NavigatorController {
 
     return { min: min - pad, max: max + pad };
   }
+}
+
+/** `data` with every `Date` time as epoch ms. */
+function toNavigatorData(data: NavigatorDataInput): NavigatorData {
+  if (data.type === 'candlestick') return { type: data.type, points: numericTimes(data.points) };
+  if ('series' in data) return { type: data.type, series: data.series.map(numericTimes) };
+
+  return { type: data.type, points: numericTimes(data.points) };
+}
+
+/** An array without dates is returned as is, so the decimation cache keyed by it still hits. */
+function numericTimes<P extends { time: TimeValue }>(points: readonly P[]): readonly (P & { time: number })[] {
+  if (hasNumericTimes(points)) return points;
+
+  return points.map((p) => ({ ...p, time: normalizeTime(p.time) }));
+}
+
+function hasNumericTimes<P extends { time: TimeValue }>(
+  points: readonly P[],
+): points is readonly (P & { time: number })[] {
+  return !points.some((p) => p.time instanceof Date);
 }
 
 /** Normalize a line/bar NavigatorData entry into an array of point arrays.

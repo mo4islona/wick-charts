@@ -231,6 +231,24 @@ export function formatSignificant(v: number, opts: SignificantFormatOptions = {}
   return sign + formatCompactUnit(abs, notation);
 }
 
+const LABEL_DIGITS = 4;
+
+/**
+ * The default value label of a gauge, a sankey or a heatmap tooltip: four
+ * significant digits with no padded zeros (`113.1`, `23.9`, `0.0₅8123`), and
+ * K / M / B / T from a thousand up (`4.212K`), whole numbers included.
+ */
+export function formatLabelNumber(v: number): string {
+  const abs = Math.abs(v);
+  const rounded = Number(abs.toPrecision(LABEL_DIGITS));
+
+  // Branch on the rounded value: 999.96 prints as 1K.
+  if (rounded >= 1e3) return formatSignificant(Math.sign(v) * rounded, { compactFrom: 1e3 });
+  if (rounded >= 1) return (v < 0 ? '-' : '') + trimZeros(toSignificant(abs, LABEL_DIGITS));
+
+  return formatSignificant(v, { digits: LABEL_DIGITS });
+}
+
 /**
  * Most decimals a series' values are counted with: a float sum such as
  * 0.1 + 0.2 carries noise past them. A count that reaches it says nothing

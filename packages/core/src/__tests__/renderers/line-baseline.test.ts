@@ -84,6 +84,14 @@ describe('LineRenderer — area.baseline', () => {
     expect(baseline.edge).toEqual(floor.edge);
   });
 
+  it('keeps the fill on when `area` sets only the baseline', () => {
+    const explicit = renderArea({ area: { visible: true, baseline: 50 } });
+    const implicit = renderArea({ area: { baseline: 50 } });
+
+    expect(implicit.closingRows.length).toBeGreaterThan(0);
+    expect(implicit).toEqual(explicit);
+  });
+
   it('fades the fill toward the baseline from both plot edges', () => {
     const { fillStyle } = renderArea({ area: { visible: true, baseline: 50 } });
 

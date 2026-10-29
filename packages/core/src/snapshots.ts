@@ -38,6 +38,8 @@ export interface SeriesSnapshot {
   readonly color: string;
   /** On a percent stack, the layer's share of the column in percent — what the chart draws it at. */
   readonly share?: number;
+  /** On a candle row, whether the chart draws the candle in its rising colours (`colorBy` applied). */
+  readonly rising?: boolean;
 }
 
 /** Sort order applied to a snapshot list by the helper. */
@@ -95,6 +97,12 @@ function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint {
   return point;
 }
 
+function candleRising(chart: ChartInstance, seriesId: string, point: SeriesPoint): boolean | undefined {
+  if (!('open' in point)) return undefined;
+
+  return chart.isCandleRising(seriesId, point) ?? undefined;
+}
+
 function sortSnapshots(snapshots: SeriesSnapshot[], sort: SnapshotSort): SeriesSnapshot[] {
   if (sort === 'none' || snapshots.length <= 1) return snapshots;
 
@@ -117,6 +125,7 @@ function freezeSnapshot(s: {
   data: SeriesPoint;
   color: string;
   share?: number;
+  rising?: boolean;
 }): SeriesSnapshot {
   // Deep-freeze: without cloning `data`, callers with `snapshot.data.close = X`
   // would mutate the chart's internal store directly.
@@ -129,6 +138,7 @@ function freezeSnapshot(s: {
     data: frozenData,
     color: s.color,
     ...(s.share === undefined ? {} : { share: s.share }),
+    ...(s.rising === undefined ? {} : { rising: s.rising }),
   };
 
   return Object.freeze(frozen);
@@ -201,6 +211,7 @@ export function buildHoverSnapshots(chart: ChartInstance, args: BuildHoverSnapsh
         data: d,
         // At the hovered value: a sign- or threshold-colored series names this point's color.
         color: chart.getSeriesColorAt(id, pointValue(d)) ?? '#888',
+        rising: candleRising(chart, id, d),
       }),
     );
   }
@@ -234,6 +245,14 @@ function nearestPointTime(time: number, snapshots: readonly SeriesSnapshot[]): n
   }
 
   return nearest;
+}
+
+/** The time of the point a hover at `time` lists, the one its header names; `null` with no point near. */
+export function hoveredPointTime(chart: ChartInstance, time: number): number | null {
+  const snapshots = buildHoverSnapshots(chart, { time, cacheKey: 'crosshair' });
+  if (snapshots.length === 0) return null;
+
+  return nearestPointTime(time, snapshots);
 }
 
 /**
@@ -376,6 +395,7 @@ export function buildLastSnapshots(chart: ChartInstance, args: BuildLastSnapshot
         label: chart.getSeriesLabel(id),
         data: d,
         color: chart.getSeriesColor(id) ?? '#888',
+        rising: candleRising(chart, id, d),
       }),
     );
   }

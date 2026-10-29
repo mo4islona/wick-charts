@@ -28,6 +28,10 @@ import {
   initThemeContext,
   initTitleAnchor,
 } from './context.js';
+import SnippetSlot from './SnippetSlot.svelte';
+
+/** Svelte 5: the default slot's snippet passed as a prop (`children={snippet}`) rather than nested. */
+export let children: unknown = undefined;
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
 
@@ -548,7 +552,7 @@ $: rootStyle =
             data-chart-series-overlay=""
             style="position:absolute;inset:0;pointer-events:none;z-index:3"
           >
-            <slot />
+            <slot><SnippetSlot snippet={children} /></slot>
           </div>
         {/if}
       </div>

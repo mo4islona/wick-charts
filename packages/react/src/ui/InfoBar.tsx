@@ -184,7 +184,7 @@ export function InfoBar({ sort = 'none', format, children }: InfoBarProps) {
         const isOHLC = 'open' in s.data;
         if (isOHLC) {
           const ohlc = s.data as OHLCData;
-          const isUp = ohlc.close >= ohlc.open;
+          const isUp = s.rising ?? ohlc.close >= ohlc.open;
           const c = resolveCandlestickBodyColor(isUp ? theme.candlestick.up.body : theme.candlestick.down.body);
           return (
             <span key={s.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>

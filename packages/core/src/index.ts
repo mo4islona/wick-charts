@@ -109,9 +109,12 @@ export {
 export type { LegendItem } from './legend';
 export type {
   NavigatorCandlePoint,
+  NavigatorCandlePointInput,
   NavigatorControllerParams,
   NavigatorData,
+  NavigatorDataInput,
   NavigatorLinePoint,
+  NavigatorLinePointInput,
   NavigatorOptions,
   NavigatorSeriesType,
 } from './navigator';

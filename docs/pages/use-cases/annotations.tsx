@@ -44,7 +44,7 @@ export const STEPS: Step[] = [
         A <code>&lt;ReferenceLine&gt;</code> is a straight line across the plot — a horizontal level pinned to a{' '}
         <code>value</code> (baseline, target, limit), or a vertical boundary pinned to a <code>time</code> (mutually
         exclusive). It draws <strong>above</strong> the series so a threshold reads on top of the data.{' '}
-        <code>style</code> is <code>'solid' | 'dashed'</code>.
+        <code>lineStyle</code> is <code>'solid' | 'dashed'</code>.
       </>
     ),
     code: `// horizontal level\n<ReferenceLine value={70} label="limit 70" color="#f0a83c" />\n\n// vertical boundary in time\n<ReferenceLine time={deployMs} label="deploy v2.1.0" color="#cba6f7" />`,

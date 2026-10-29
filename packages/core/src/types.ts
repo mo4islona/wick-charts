@@ -423,7 +423,7 @@ export interface LineSeriesOptions {
   /** Area-fill configuration. Default: `{ visible: true }`. */
   area: {
     /** Whether the area gradient under the line is rendered. Default: `true`. */
-    visible: boolean;
+    visible?: boolean;
     /**
      * Y value the fill closes to, instead of the plot floor. The fill runs from
      * the line to this value's pixel row on both sides of it and fades toward
@@ -434,7 +434,7 @@ export interface LineSeriesOptions {
      * ```
      * <LineSeries
      *   data={pnl}
-     *   options={{ area: { visible: true, baseline: 0 }, threshold: { value: 0, above: up, below: down } }}
+     *   options={{ area: { baseline: 0 }, threshold: { value: 0, above: up, below: down } }}
      * />
      * ```
      *
@@ -1267,7 +1267,7 @@ export interface SankeyLabelsOptions {
   color?: string;
   /** Fill of the rounded backdrop behind the text. Default: the theme background, translucent. */
   background?: string;
-  /** Value formatter. Default: whole numbers as they are, others compact (`1.2K`). */
+  /** Value formatter. Default: four significant digits, K / M / B / T from a thousand up (`16.8`, `4.212K`). */
   format?: (value: number) => string;
 }
 
@@ -1319,7 +1319,8 @@ export interface GaugeSeriesOptions {
   endAngle?: number;
   /**
    * Bands of the range, drawn along the arc. The value arc (or the needle) takes
-   * the color of the zone the value ends in, and `color` past the last `to`.
+   * the color of the zone the value ends in, and `color` between the last `to`
+   * and `max`. A value over `max` is clamped first, so it takes the color at the arc end.
    */
   zones?: GaugeZone[];
   /**
@@ -1333,7 +1334,7 @@ export interface GaugeSeriesOptions {
   style?: 'arc' | 'needle';
   /** Caption under the value. Also the series name. */
   label?: string;
-  /** Text of the center value. Default: whole numbers as they are, others compact (`1.2K`). */
+  /** Text of the center value. Default: four significant digits, K / M / B / T from a thousand up (`23.9`, `1.2K`). */
   format?: (value: number) => string;
   /** Value arc / needle color where no zone applies. Default: the first theme series color. */
   color?: string;

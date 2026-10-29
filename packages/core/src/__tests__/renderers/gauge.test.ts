@@ -411,11 +411,13 @@ describe('GaugeRenderer — labels', () => {
     expect(textsOf(renderOnce(r))).toEqual(['72.5%', '0%', '100%']);
   });
 
-  it('formats a fraction compactly by default', () => {
+  it('formats with four significant digits by default, compact from a thousand', () => {
     const r = gauge();
     r.setData(1234.5);
+    expect(textsOf(renderOnce(r))[0]).toBe('1.235K');
 
-    expect(textsOf(renderOnce(r))[0]).toBe('1.23K');
+    r.setData(23.9);
+    expect(textsOf(renderOnce(r))[0]).toBe('23.9');
   });
 
   it('hides the range ends with `rangeLabels: false`', () => {
