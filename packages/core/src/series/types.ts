@@ -415,6 +415,8 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
    * place; `null` when nothing plottable is in view.
    */
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
+  /** Whether a finite value lies in `[from, to]`. Without it the chart reads a non-null {@link getValueRange} as one. */
+  hasValueIn?(from: number, to: number): boolean;
   /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a Y scale with no 0. */
   readonly stacking?: StackingMode;
   /**

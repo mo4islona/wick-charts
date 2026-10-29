@@ -34,6 +34,9 @@ export let variant:
   | 'pie-legend-bottom'
   | 'pie-legend-right'
   | 'pie-legend-overlay'
+  | 'pie-legend-slot-right'
+  | 'pie-legend-slot-bottom'
+  | 'pie-legend-slot-overlay'
   | 'title-sub-slot'
   | 'title-sub-prop'
   | 'title-sub-both'
@@ -118,6 +121,17 @@ export let yAxisPosition: 'left' | 'right' = 'right';
   <ChartContainer theme={catppuccin.theme}>
     <PieSeries id="pie" data={pieData} />
     <PieLegend seriesId="pie" position="overlay" />
+  </ChartContainer>
+{:else if variant === 'pie-legend-slot-right' || variant === 'pie-legend-slot-bottom' || variant === 'pie-legend-slot-overlay'}
+  <ChartContainer theme={catppuccin.theme}>
+    <PieSeries id="pie" data={pieData} />
+    <PieLegend
+      seriesId="pie"
+      position={variant === 'pie-legend-slot-right' ? 'right' : variant === 'pie-legend-slot-bottom' ? 'bottom' : 'overlay'}
+      let:slices
+    >
+      <div data-custom-legend="">{slices.length} slices</div>
+    </PieLegend>
   </ChartContainer>
 {:else if variant === 'title-sub-slot'}
   <ChartContainer theme={catppuccin.theme}>

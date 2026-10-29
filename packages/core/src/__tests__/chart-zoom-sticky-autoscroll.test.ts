@@ -197,6 +197,75 @@ describe('ChartInstance.zoomAt — sticky-follow when autoScroll=true', () => {
   });
 });
 
+describe('ChartInstance.zoomAt — a tail of rows with no value', () => {
+  let chart: ChartInstance;
+  let container: HTMLElement;
+  let raf: ReturnType<typeof installRaf>;
+
+  beforeEach(() => {
+    raf = installRaf();
+    ({ chart, container } = makeChart());
+  });
+
+  afterEach(() => {
+    chart.destroy();
+    container.remove();
+    raf.uninstall();
+  });
+
+  it('zooms at the cursor and leaves follow-live when the followed window would hold only empty rows', () => {
+    const start = 1_000_000;
+    const id = chart.addSeries('line');
+    // A forecast: 20 hours with values, then 40 with none yet.
+    chart.setSeriesData(
+      id,
+      Array.from({ length: 60 }, (_, i) => ({ time: start + i * INTERVAL, value: i < 20 ? 10 + i : null })),
+    );
+    raf.flush();
+    expect(chart.getAutoScroll()).toBe(true);
+
+    chart.zoomAt(start + 5 * INTERVAL, 0.3);
+
+    const { from, to } = chart.getVisibleRange();
+    expect(chart.getAutoScroll()).toBe(false);
+    expect(from).toBeLessThan(start + 5 * INTERVAL);
+    expect(to).toBeGreaterThan(start + 5 * INTERVAL);
+  });
+
+  /** Two stacked layers: 20 rows with values, then 40 rows of `tail`. */
+  function stackedTail(args: { stacking: 'normal' | 'percent'; tail: number | null }): number {
+    const start = 1_000_000;
+    const id = chart.addSeries('line', { layers: 2, stacking: args.stacking });
+    const rows = Array.from({ length: 60 }, (_, i) => ({
+      time: start + i * INTERVAL,
+      value: i < 20 ? 10 + i : args.tail,
+    }));
+    chart.batch(() => {
+      chart.setSeriesData(id, rows, 0);
+      chart.setSeriesData(id, rows, 1);
+    });
+    raf.flush();
+
+    return start;
+  }
+
+  it('keeps follow-live when the tail of a stack holds zeros, which are values', () => {
+    const start = stackedTail({ stacking: 'normal', tail: 0 });
+
+    chart.zoomAt(start + 5 * INTERVAL, 0.3);
+
+    expect(chart.getAutoScroll()).toBe(true);
+  });
+
+  it('zooms at the cursor on a percent stack with an empty tail', () => {
+    const start = stackedTail({ stacking: 'percent', tail: null });
+
+    chart.zoomAt(start + 5 * INTERVAL, 0.3);
+
+    expect(chart.getAutoScroll()).toBe(false);
+  });
+});
+
 describe('ChartInstance.zoomAt — autoScroll=false (inspect mode)', () => {
   let chart: ChartInstance;
   let container: HTMLElement;

@@ -5,11 +5,12 @@ import {
   CandlestickSeries,
   ChartContainer,
   PieSeries,
+  RadialProgressSeries,
   catppuccin,
   useChartInstance,
 } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { type Ref, defineComponent, h, isProxy, nextTick, ref } from 'vue';
+import { type Component, type Ref, defineComponent, h, isProxy, nextTick, reactive, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
 
@@ -430,4 +431,40 @@ describe('Vue series watchers', () => {
 
     wrapper.unmount();
   });
+
+  for (const [name, Series] of [
+    ['PieSeries', PieSeries],
+    ['RadialProgressSeries', RadialProgressSeries],
+  ] as const) {
+    it(`${name}: an in-place edit of any item, not only the last, reaches the chart`, async () => {
+      const probeRef: { value: ChartProbe | null } = { value: null };
+      const Probe = probeFor(probeRef);
+      const items = reactive<PieSliceData[]>([
+        { label: 'CPU', value: 40 },
+        { label: 'Memory', value: 60 },
+        { label: 'Disk', value: 20 },
+      ]);
+
+      const App = defineComponent({
+        setup: () => () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(Probe),
+            h(Series as Component, { id: 'items', data: items }),
+          ]),
+      });
+
+      const wrapper = mount(App, { attachTo: host });
+      await settle();
+      if (!probeRef.value) throw new Error('probe did not run');
+
+      const setData = vi.spyOn(probeRef.value.chart, 'setSeriesData');
+      items[0].value = 90;
+      await settle();
+
+      expect(setData).toHaveBeenCalledWith('items', expect.anything());
+      expect(probeRef.value.chart.getSliceInfo('items')?.[0].value).toBe(90);
+
+      wrapper.unmount();
+    });
+  }
 });

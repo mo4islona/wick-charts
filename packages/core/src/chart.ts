@@ -4554,7 +4554,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * is locked to the tail. This avoids the next-tick `computeStreamingTarget`
    * offset clamp (which would otherwise slide X left to the follow position
    * and produce a visible jump). Cursor-anchored zoom is intentionally
-   * sacrificed in follow-live mode — pan first to inspect history.
+   * sacrificed in follow-live mode — pan first to inspect history — unless
+   * the followed window would hold no value: then it zooms at the cursor and
+   * leaves follow-live.
    *
    * While a series keeps the view on its X focus (a depth chart's mid), the
    * zoom scales the half-width around that focus instead.
@@ -4589,13 +4591,35 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       const span = newLogical.to - newLogical.from;
       const prTime = resolvePaddingTime(this.#padding.right, span, this.#dataInterval, chartWidth);
       const desiredTo = this.#dataEnd + prTime;
-      newLogical = { from: desiredTo - span, to: desiredTo };
-      this.#prevDataEnd = this.#dataEnd;
+      const followed = { from: desiredTo - span, to: desiredTo };
+
+      // Rows with no value yet at the tail (a forecast) would fill the followed window: zoom at the cursor instead.
+      const emptyTail = !this.#windowHasValues(followed) && this.#windowHasValues(newLogical);
+      if (emptyTail) {
+        this.#autoScroll = false;
+      } else {
+        newLogical = followed;
+        this.#prevDataEnd = this.#dataEnd;
+      }
     }
 
     if (this.#commitLogical(newLogical, { emitChange: true })) this.#gestureMoved = true;
     this.#cadence.pause();
     this.#emitGestureToEngine();
+  }
+
+  /** Whether a visible time series has a value inside `window`. */
+  #windowHasValues(window: XRange): boolean {
+    for (const entry of this.#series) {
+      const renderer = entry.renderer;
+      if (!entry.visible || !isTimeSeriesRenderer(renderer)) continue;
+
+      const holds =
+        renderer.hasValueIn?.(window.from, window.to) ?? renderer.getValueRange(window.from, window.to) !== null;
+      if (holds) return true;
+    }
+
+    return false;
   }
 
   /**

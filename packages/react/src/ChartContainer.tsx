@@ -9,6 +9,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 
 import {
@@ -35,6 +36,13 @@ type PerfOption = NonNullable<ChartOptions['perf']>;
 /** Run-out below the measured header (CSS px) for the auto `fade` zone —
  *  content starts dissolving this far before it slides under the header. */
 const FADE_AUTO_BAND = 24;
+
+/** Root style keys the `background` shorthand resets, prefixed ones included. */
+const BACKGROUND_KEY = /^(background|WebkitBackground|MozBackground)/;
+
+function subscribeNever(): () => void {
+  return () => {};
+}
 
 import { ChartContext } from './context';
 import { useAxisLayout } from './store-bridge';
@@ -403,6 +411,7 @@ export function ChartContainer({
   // What the chart and its overlays show: the prop, else the default the chart starts with.
   const activeTheme = resolvedTheme ?? catppuccin.theme;
 
+  const rootRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ChartInstance | null>(null);
   const [_, setRevision] = useState(0);
@@ -802,23 +811,45 @@ export function ChartContainer({
     </ChartContext.Provider>
   );
 
+  const rootStyle: CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    width: '100%',
+    height: '100%',
+    // `height: 100%` resolves to 0 when the parent has no defined height
+    // (the common copy-paste-into-an-empty-div case) — a floor keeps the
+    // chart visible instead of silently collapsing. Override via `style`.
+    minHeight: '240px',
+    overflow: 'hidden',
+    background: backgroundStyle,
+    ...style,
+  };
+
+  // Hydration keeps a server background that differs (another theme resolved on the client): React does not patch it.
+  // The server snapshot answers while React hydrates.
+  const hydrating = !useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!hydrating || !root) return;
+
+    // In style order: the shorthand first, then the longhands it reset.
+    for (const [key, value] of Object.entries(rootStyle)) {
+      if (!BACKGROUND_KEY.test(key) || value === undefined || value === null) continue;
+
+      const property = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      // As React writes it: no background property takes a unitless number.
+      const css = typeof value === 'number' ? `${value}px` : String(value);
+      root.style.setProperty(property, css);
+    }
+  }, []);
+
   return (
-    <div
-      className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        height: '100%',
-        // `height: 100%` resolves to 0 when the parent has no defined height
-        // (the common copy-paste-into-an-empty-div case) — a floor keeps the
-        // chart visible instead of silently collapsing. Override via `style`.
-        minHeight: '240px',
-        overflow: 'hidden',
-        background: backgroundStyle,
-        ...style,
-      }}
-    >
+    <div ref={rootRef} className={className} style={rootStyle}>
       {/* One stable wrapper for both legend positions. Keeping the tree
           structure identical means React reconciles canvasBlock in place
           when `isLegendRight` flips, preserving the canvas element and

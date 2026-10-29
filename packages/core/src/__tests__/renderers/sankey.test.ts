@@ -350,6 +350,48 @@ describe('SankeyRenderer — paint', () => {
     r.updateOptions({ labels: false });
     expect(renderOnce(r, { mediaHeight: 80 }).spy.countOf('fillText')).toBe(0);
   });
+
+  it('gives a label collision to the larger node', () => {
+    const r = new SankeyRenderer({ options: { entryMs: 0, updateMs: 0, nodePadding: 1 }, theme: catppuccin.theme });
+    r.setData({
+      nodes: [{ id: 'src' }, { id: 'tiny' }, { id: 'big' }],
+      links: [
+        { source: 'src', target: 'tiny', value: 1 },
+        { source: 'src', target: 'big', value: 60 },
+      ],
+    });
+    const texts = renderOnce(r, { mediaHeight: 40 })
+      .spy.callsOf('fillText')
+      .map((call) => call.args[0]);
+
+    expect(texts).toContain('big · 60');
+    expect(texts).not.toContain('tiny · 1');
+  });
+
+  it('moves a label that would cover the next column to the free side, inside the canvas', () => {
+    // The padding leaves a1 and a2 clear of b's middle, so b's left side is free.
+    const r = new SankeyRenderer({ options: { entryMs: 0, updateMs: 0, nodePadding: 40 }, theme: catppuccin.theme });
+    r.setData({
+      nodes: [{ id: 'a1' }, { id: 'a2' }, { id: 'b', label: 'Checkout started' }, { id: 'c' }],
+      links: [
+        { source: 'a1', target: 'b', value: 10 },
+        { source: 'a2', target: 'b', value: 10 },
+        { source: 'b', target: 'c', value: 20 },
+      ],
+    });
+    const texts = renderOnce(r, { mediaWidth: 300 }).spy.callsOf('fillText');
+    const frame = frameOf(r);
+
+    const checkout = texts.find((call) => call.args[0] === 'Checkout started · 20');
+    expect(checkout?.args[1]).toBeLessThan(nodeOf(frame, 'b').x0);
+    expect(texts.map((call) => call.args[0])).toContain('c · 20');
+    for (const call of texts) {
+      // The recording context measures 6 px per character; the backdrop pads 5 px each side.
+      const left = (call.args[1] as number) - 5;
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + String(call.args[0]).length * 6 + 10).toBeLessThanOrEqual(300);
+    }
+  });
 });
 
 /** The background share band `rank` of `count` from one source mixes in. */

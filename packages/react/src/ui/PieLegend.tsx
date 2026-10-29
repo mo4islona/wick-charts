@@ -17,7 +17,7 @@ export type PieLegendMode = 'value' | 'percent' | 'both';
 /**
  * Where the legend sits relative to the pie canvas.
  *
- * - `'bottom'` (default) — flex sibling below the canvas. Matches the time-series `<Legend>` layout.
+ * - `'bottom'` (default) — flex sibling below the canvas, rows side by side and wrapped, like the time-series `<Legend>`.
  * - `'right'` — flex sibling on the right of the canvas.
  * - `'overlay'` — absolute overlay on top of the canvas. Back-compat escape hatch for callers
  *   that were relying on the old positioning; stacks with any `<Title>` at the top-left and can
@@ -88,6 +88,8 @@ export function PieLegend({ seriesId, mode: modeProp, format, position, children
   // in `overlay` mode where the legend floats above the canvas and needs to
   // breathe away from the edges.
   const isOverlay = resolvedPosition === 'overlay';
+  // Rows side by side, wrapped: one row per line would take a long list the whole chart height.
+  const isBottom = resolvedPosition === 'bottom';
 
   return (
     <div
@@ -95,8 +97,10 @@ export function PieLegend({ seriesId, mode: modeProp, format, position, children
       data-chart-pie-legend-position={resolvedPosition}
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: 6,
+        flexDirection: isBottom ? 'row' : 'column',
+        flexWrap: isBottom ? 'wrap' : undefined,
+        justifyContent: isBottom ? 'center' : undefined,
+        gap: isBottom ? '6px 16px' : 6,
         padding: isOverlay ? '8px 12px' : '6px 10px',
         fontFamily: theme.typography.fontFamily,
         fontSize: theme.typography.fontSize,

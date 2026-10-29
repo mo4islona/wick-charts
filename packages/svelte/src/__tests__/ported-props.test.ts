@@ -283,6 +283,33 @@ describe('Svelte ported props parity', () => {
     result.unmount();
   });
 
+  it('<PieLegend> custom content goes where `position` says', async () => {
+    for (const [variant, anchorSelector] of [
+      ['pie-legend-slot-right', '[data-legend-right-anchor]'],
+      ['pie-legend-slot-bottom', '[data-legend-anchor]'],
+      ['pie-legend-slot-overlay', '[data-chart-series-overlay]'],
+    ] as const) {
+      const result = render(PortedPropsHarness, { variant, pieData });
+      await settle();
+
+      const anchor = result.container.querySelector(anchorSelector) as HTMLElement;
+      const custom = result.container.querySelectorAll('[data-custom-legend]');
+      expect(custom).toHaveLength(1);
+      expect(anchor.contains(custom[0])).toBe(true);
+      result.unmount();
+    }
+  });
+
+  it('<PieLegend position="bottom"> wraps its rows side by side', async () => {
+    const result = render(PortedPropsHarness, { variant: 'pie-legend-bottom', pieData });
+    await settle();
+
+    const legend = result.container.querySelector('[data-chart-pie-legend]') as HTMLElement;
+    expect(legend.style.flexDirection).toBe('row');
+    expect(legend.style.flexWrap).toBe('wrap');
+    result.unmount();
+  });
+
   it('<Title> renders the named "sub" slot as rich content', async () => {
     const result = render(PortedPropsHarness, { variant: 'title-sub-slot', candlestickData });
     await settle();

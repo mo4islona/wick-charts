@@ -688,8 +688,42 @@ describe('ChartInstance X axis types', () => {
       expect(spans.map((span) => span.textContent)).toEqual(
         Array.from({ length: Math.ceil(30 / stride) }, (_, i) => `Region ${i * stride}`),
       );
-      for (const span of spans) {
+      // The first name's slot is cut at the chart edge.
+      for (const span of spans.slice(1)) {
         expect(span.style.maxWidth).toBe(`${stride * step - 8}px`);
+      }
+
+      unmount();
+    });
+
+    it('keeps a name moved inside at the chart edge clear of the next name', () => {
+      // A name measures 100 px unless capped narrower.
+      vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        const cap = Number.parseFloat(this.style.maxWidth);
+
+        return Number.isNaN(cap) ? 100 : Math.min(100, cap);
+      });
+      makeChart({ axis: { x: { type: 'category' } } });
+      const id = chart.addSeries('bar');
+      chart.setSeriesData(
+        id,
+        Array.from({ length: 17 }, (_, i) => ({ x: `Power source ${i}`, value: 17 - i })),
+      );
+      raf.flush(5);
+      const strip = document.createElement('div');
+      container.appendChild(strip);
+      const unmount = mountAxisLabels({ chart, container: strip, axis: 'x' });
+
+      const extents = [...strip.querySelectorAll('span')].map((span) => {
+        const center = Number.parseFloat(span.style.left);
+        const half = span.offsetWidth / 2;
+
+        return { from: center - half, to: center + half };
+      });
+      expect(extents.length).toBeGreaterThan(2);
+      expect(extents[0].from).toBeGreaterThanOrEqual(0);
+      for (let i = 1; i < extents.length; i++) {
+        expect(extents[i].from - extents[i - 1].to).toBeGreaterThanOrEqual(8);
       }
 
       unmount();

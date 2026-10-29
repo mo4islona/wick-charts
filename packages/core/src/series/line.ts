@@ -11,7 +11,7 @@ import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba } from '../utils/color';
-import { lerp } from '../utils/math';
+import { clamp, lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
 import { type EdgeStrip, edgeStripAlpha } from './edge-strip';
@@ -1021,10 +1021,10 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     const { timeScale, yScale } = ctx;
     // A fading bottom slice is drawn collapsed toward the baseline, so the raw
     // cumulative is not where its edge is — apply the same lerp.
-    const bitmapBottom = ctx.scope.bitmapSize.height;
+    const floorY = stackFloorY(ctx);
     const alpha = collapse[li] ?? 1;
     const rawY = yScale.valueToBitmapYExact(values[idx]);
-    const y = alpha >= 1 ? rawY : bitmapBottom + (rawY - bitmapBottom) * alpha;
+    const y = alpha >= 1 ? rawY : floorY + (rawY - floorY) * alpha;
 
     // Columns behind the grow chain sit at their raw X; inside it, replay the
     // same chained lerp `applyGrowChain` painted with.
@@ -1731,13 +1731,12 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     };
 
     // Find the lowest visible layer — that slice anchors its lower edge to
-    // the canvas baseline (through padding) so the stacked fill always
-    // reaches the X-axis. The NEXT visible slice above it (which may be
-    // several layers up when intermediate layers are hidden) also has to
-    // lerp its lower toward the baseline as the current bottom fades —
+    // the stack's floor ({@link stackFloorY}). The NEXT visible slice above
+    // it (which may be several layers up when intermediate layers are hidden)
+    // also has to lerp its lower toward the floor as the current bottom fades —
     // otherwise the moment we hit alpha=0 and the bottom is dropped, the
     // new bottom would jump down by `padding.bottom` pixels.
-    const bitmapBottom = scope.bitmapSize.height;
+    const floorY = stackFloorY(ctx);
     let bottomVisibleLi = -1;
     let secondBottomVisibleLi = -1;
     for (let li = 0; li < this.stores.length; li++) {
@@ -1772,24 +1771,24 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const isBottomVisible = li === bottomVisibleLi;
       // The next visible slice above the bottom-most smoothly hands off
       // baseline anchoring as that bottom fades: lerp its lower from the
-      // natural cumulative position toward bitmapBottom by `1 - bottomAlpha`.
+      // natural cumulative position toward the floor by `1 - bottomAlpha`.
       // Uses `secondBottomVisibleLi` instead of `bottomVisibleLi + 1` so
       // hidden intermediate layers (alpha=0) don't break the handoff —
       // otherwise toggling between, say, layer 0 and layer 2 (with layer 1
       // hidden) would leave layer 2 unwrapped and visibly jump at alpha=0.
       const isHandoffSlice = secondBottomVisibleLi >= 0 && li === secondBottomVisibleLi && bottomAlpha < 1;
 
-      // Lower edge. Bottom-most visible anchors to bitmapBottom (drops through
-      // padding to the X-axis). Handoff slice lerps. Other slices use the
-      // natural alpha-weighted cumulative for their predecessor.
+      // Lower edge. Bottom-most visible anchors to the floor. Handoff slice
+      // lerps. Other slices use the natural alpha-weighted cumulative for
+      // their predecessor.
       const lowerXY: [number, number][] = [];
       for (let ti = 0; ti < times.length; ti++) {
-        const naturalLowerY = li > 0 ? yScale.valueToBitmapYExact(cumulative[li - 1][ti]) : bitmapBottom;
+        const naturalLowerY = li > 0 ? yScale.valueToBitmapYExact(cumulative[li - 1][ti]) : floorY;
         let lowerY = naturalLowerY;
         if (isBottomVisible) {
-          lowerY = bitmapBottom;
+          lowerY = floorY;
         } else if (isHandoffSlice) {
-          lowerY = naturalLowerY + (bitmapBottom - naturalLowerY) * (1 - bottomAlpha);
+          lowerY = naturalLowerY + (floorY - naturalLowerY) * (1 - bottomAlpha);
         }
         lowerXY.push([timeScale.timeToBitmapXExact(times[ti]), lowerY]);
       }
@@ -1799,14 +1798,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       if (style === 'grow') applyGrowChain(lowerXY, growChain);
 
       // Upper edge = alpha-weighted cumulative. For the bottom-most slice
-      // during a fade we additionally lerp it down to bitmapBottom so the
+      // during a fade we additionally lerp it down to the floor so the
       // slice collapses through the padding region — otherwise it leaves a
       // residual padding-tall strip until alpha hits exactly 0.
       const upperXY: [number, number][] = [];
       for (let ti = 0; ti < times.length; ti++) {
         let upperY = yScale.valueToBitmapYExact(cumulative[li][ti]);
         if (isBottomVisible && layerAlpha < 1) {
-          upperY = bitmapBottom + (upperY - bitmapBottom) * layerAlpha;
+          upperY = floorY + (upperY - floorY) * layerAlpha;
         }
         upperXY.push([timeScale.timeToBitmapXExact(times[ti]), upperY]);
       }
@@ -1896,11 +1895,28 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       for (let i = 1; i < lowerXY.length; i++) {
         if (lowerXY[i][1] > lowerMaxY) lowerMaxY = lowerXY[i][1];
       }
+
+      let upperMaxY = upperXY[0][1];
+      for (let i = 1; i < upperXY.length; i++) {
+        if (upperXY[i][1] > upperMaxY) upperMaxY = upperXY[i][1];
+      }
+      // A bottom slice closing at the zero row fills down to its dips as well.
+      const dipsBelowFloor = isBottomVisible && upperMaxY > lowerMaxY + 0.5;
+
       // Degenerate slice (single pixel tall after alpha shrink) — skip the
       // gradient stop math and paint solid; createLinearGradient with
       // collapsed endpoints renders unpredictably across browsers.
       let fillStyle: string | CanvasGradient = hexToRgba(color, 0.25);
-      if (lowerMaxY > upperMinY + 0.5) {
+      if (dipsBelowFloor) {
+        // Faint at the zero row, strong away from it on both sides.
+        const top = Math.min(upperMinY, lowerMaxY);
+        const row = (lowerMaxY - top) / (upperMaxY - top);
+        const grad = context.createLinearGradient(0, top, 0, upperMaxY);
+        if (row > 0) grad.addColorStop(0, hexToRgba(color, 0.25));
+        grad.addColorStop(row, hexToRgba(color, 0.05));
+        grad.addColorStop(1, hexToRgba(color, 0.25));
+        fillStyle = grad;
+      } else if (lowerMaxY > upperMinY + 0.5) {
         const grad = context.createLinearGradient(0, upperMinY, 0, lowerMaxY);
         grad.addColorStop(0, hexToRgba(color, 0.25));
         grad.addColorStop(1, hexToRgba(color, 0.05));
@@ -2223,6 +2239,25 @@ function baselineFadeAlpha(args: { offset: number; row: number; peak: number }):
   const distance = reach > 0 ? Math.abs(offset - row) / reach : 0;
 
   return BASELINE_EDGE_ALPHA + (peak - BASELINE_EDGE_ALPHA) * distance;
+}
+
+/**
+ * Bitmap row the bottom stacked slice closes to: the zero row, or the canvas
+ * bottom (through the padding to the X axis) while zero sits on the data floor.
+ * Eases between the two as the zero row crosses the bottom padding, so the
+ * fill never jumps when values or the Y range move zero.
+ */
+function stackFloorY(ctx: Pick<SeriesRenderContext, 'scope' | 'yScale' | 'padding'>): number {
+  const { scope, yScale, padding } = ctx;
+  const bottom = scope.bitmapSize.height;
+  const pad = padding.bottom * scope.verticalPixelRatio;
+  const zeroRow = clamp(yScale.valueToBitmapYExact(yScale.baselineValue()), 0, bottom);
+  if (pad <= 0) return zeroRow;
+
+  // 0 with zero a full padding above the data floor, 1 with zero on it or below.
+  const onFloor = clamp((zeroRow - (bottom - 2 * pad)) / pad, 0, 1);
+
+  return lerp(zeroRow, bottom, onFloor);
 }
 
 /** Index runs `[from, to)` of the columns between gap columns. */

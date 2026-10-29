@@ -76,13 +76,17 @@ $: slices = ((chart && resolvedId !== null && bump >= 0 ? chart.getSliceInfo(res
 
 {#if slices.length > 0 && theme}
   {#if $$slots.default}
-    <slot slices={slices} mode={resolvedMode} format={resolvedFormat} />
+    <div use:portal={portalTarget}>
+      <slot slices={slices} mode={resolvedMode} format={resolvedFormat} />
+    </div>
   {:else}
     <div
       use:portal={portalTarget}
       data-chart-pie-legend=""
       data-chart-pie-legend-position={position}
-      style="display:flex;flex-direction:column;gap:6px;padding:{position === 'overlay'
+      style="display:flex;{position === 'bottom'
+        ? 'flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px;'
+        : 'flex-direction:column;gap:6px;'}padding:{position === 'overlay'
         ? '8px 12px'
         : '6px 10px'};font-family:{theme.typography.fontFamily};font-size:{theme.typography.fontSize}px;color:{theme.tooltip.textColor};pointer-events:auto;"
     >
