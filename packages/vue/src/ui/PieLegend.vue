@@ -25,6 +25,8 @@ const teleportTarget = computed(() => {
 
   return null;
 });
+// Rows side by side, wrapped: one row per line would take a long list the whole chart height.
+const isBottom = computed(() => props.position === 'bottom');
 
 defineSlots<{
   default?(ctx: { slices: readonly SliceInfo[]; mode: PieLegendMode; format: ValueFormatter }): unknown;
@@ -76,14 +78,24 @@ const slices = computed<readonly SliceInfo[]>(() => {
 </script>
 
 <template>
+  <Teleport
+    v-if="hasCustomSlot && slices.length > 0 && teleportTarget"
+    :to="teleportTarget"
+  >
+    <slot
+      :slices="slices"
+      :mode="resolvedMode"
+      :format="resolvedFormat"
+    />
+  </Teleport>
   <slot
-    v-if="hasCustomSlot && slices.length > 0"
+    v-else-if="hasCustomSlot && slices.length > 0 && position === 'overlay'"
     :slices="slices"
     :mode="resolvedMode"
     :format="resolvedFormat"
   />
   <Teleport
-    v-else-if="slices.length > 0 && teleportTarget"
+    v-else-if="!hasCustomSlot && slices.length > 0 && teleportTarget"
     :to="teleportTarget"
   >
     <div
@@ -91,8 +103,10 @@ const slices = computed<readonly SliceInfo[]>(() => {
       :data-chart-pie-legend-position="position"
       :style="{
         display: 'flex',
-        flexDirection: 'column',
-        gap: '6px',
+        flexDirection: isBottom ? 'row' : 'column',
+        flexWrap: isBottom ? 'wrap' : undefined,
+        justifyContent: isBottom ? 'center' : undefined,
+        gap: isBottom ? '6px 16px' : '6px',
         padding: '6px 10px',
         fontFamily: theme.typography.fontFamily,
         fontSize: theme.typography.fontSize + 'px',
@@ -135,7 +149,7 @@ const slices = computed<readonly SliceInfo[]>(() => {
     </div>
   </Teleport>
   <div
-    v-else-if="slices.length > 0"
+    v-else-if="!hasCustomSlot && slices.length > 0"
     data-chart-pie-legend=""
     data-chart-pie-legend-position="overlay"
     :style="{

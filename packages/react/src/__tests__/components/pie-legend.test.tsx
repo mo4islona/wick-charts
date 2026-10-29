@@ -114,4 +114,35 @@ describe('PieLegend', () => {
     // Default swatch markers absent.
     expect(mounted.container.querySelectorAll('span[style*="border-radius: 50%"]').length).toBe(0);
   });
+
+  it('places custom content where `position` says, beside the canvas or over it', () => {
+    for (const position of ['right', 'bottom', 'overlay'] as const) {
+      mounted = mountChart(
+        <>
+          <PieSeries id={id} data={slices} />
+          <PieLegend position={position}>{() => <div data-testid="custom-pie-legend" />}</PieLegend>
+        </>,
+      );
+      const custom = mounted.container.querySelector('[data-testid="custom-pie-legend"]');
+      const overlay = mounted.container.querySelector('[data-chart-series-overlay]');
+
+      expect(custom).not.toBeNull();
+      expect(overlay?.contains(custom ?? null)).toBe(position === 'overlay');
+      mounted.unmount();
+      mounted = null;
+    }
+  });
+
+  it('position="bottom" wraps its rows side by side', () => {
+    mounted = mountChart(
+      <>
+        <PieSeries id={id} data={slices} />
+        <PieLegend seriesId={id} position="bottom" />
+      </>,
+    );
+    const legend = mounted.container.querySelector<HTMLElement>('[data-chart-pie-legend]');
+
+    expect(legend?.style.flexDirection).toBe('row');
+    expect(legend?.style.flexWrap).toBe('wrap');
+  });
 });

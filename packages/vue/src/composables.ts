@@ -64,6 +64,22 @@ export function seriesDataSource(getData: () => unknown): () => unknown[] {
   };
 }
 
+/**
+ * Watch source for the items of a pie or radial series: a short list where any
+ * item can change, so it reads every field of every item through the Proxy.
+ */
+export function itemsDataSource(getData: () => readonly object[]): () => unknown[] {
+  return () => {
+    const data = getData();
+    const deps: unknown[] = [data, data.length];
+    for (const item of data) {
+      deps.push(item, ...Object.values(item));
+    }
+
+    return deps;
+  };
+}
+
 export function useVisibleRange(chart: ChartInstance): Ref<VisibleRange> {
   const range = ref<VisibleRange>(chart.getVisibleRange()) as Ref<VisibleRange>;
   const handler = () => {

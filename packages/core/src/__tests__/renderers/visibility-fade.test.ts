@@ -254,9 +254,9 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
       );
 
       // Layer 1 already fully hidden. Layer 0 begins fading. Layer 2 stays.
-      // Use yRange.min < 0 to simulate the chart's bottom padding — without
-      // negative min, yScale.valueToBitmapY(0) already equals bitmapBottom
-      // and the padding-residual issue this test guards against doesn't show.
+      // Use yRange.min < 0 with the matching bottom padding — without it,
+      // yScale.valueToBitmapY(0) already equals bitmapBottom and the
+      // padding-residual issue this test guards against doesn't show.
       r.setLayerAlpha(1, 0, 0);
       r.setLayerAlpha(0, 0, 250);
       advance(125);
@@ -264,6 +264,7 @@ describe('Visibility fade — renderer geometry tracks layerAlpha', () => {
       const { ctx, spy, yScale } = buildRenderContext({
         timeRange: { from: 0, to: 100 },
         yRange: { min: -50, max: 50 },
+        padding: { top: 0, bottom: 200 },
       });
       r.render(ctx);
 

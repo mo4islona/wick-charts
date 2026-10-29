@@ -1281,7 +1281,10 @@ export interface SankeySeriesOptions {
   nodePadding?: number;
   /** Opacity of the link bands, 0 to 1, over their (shaded) color. Default: 0.35. */
   linkOpacity?: number;
-  /** `label · value` beside each node. `false` hides them. Default: `true`. */
+  /**
+   * `label · value` beside each node. A label with no room on either side of its
+   * node is left out, the smaller node's first. `false` hides them. Default: `true`.
+   */
   labels?: boolean | SankeyLabelsOptions;
   /**
    * First-data cascade in milliseconds, start to end: sources grow, bands run to

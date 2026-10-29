@@ -2,7 +2,7 @@
 import { PieSeriesDef } from '@wick-charts/core';
 import { onMounted, onUnmounted, ref, watch } from 'vue';
 
-import { rawSeriesData, seriesDataSource } from './composables';
+import { itemsDataSource, rawSeriesData } from './composables';
 import { useChartInstance } from './context';
 import type { PieSeriesProps } from './props';
 
@@ -32,7 +32,7 @@ onUnmounted(() => {
 });
 
 watch(
-  seriesDataSource(() => props.data),
+  itemsDataSource(() => props.data),
   () => {
     if (seriesId.value && props.data.length > 0) {
       chart.setSeriesData(seriesId.value, rawSeriesData(props.data));

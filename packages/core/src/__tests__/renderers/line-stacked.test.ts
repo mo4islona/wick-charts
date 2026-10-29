@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { LineRenderer } from '../../series/line';
 import type { CanvasRecorder } from '../../testing/recording-context';
@@ -227,5 +227,70 @@ describe('LineRenderer — percent stack with a zero-total column', () => {
     // Two layers × three columns, each a stroke dot and a marker.
     expect(arcXs).toHaveLength(12);
     expect(new Set(arcXs)).toEqual(new Set(columnXs));
+  });
+});
+
+describe('LineRenderer — stacked area floor', () => {
+  const layer = (values: number[]) => values.map((value, i) => ({ time: i * 10 + 5, value }));
+
+  /** Y of each straight vertex on the bottom slice's fill path — the slice drawn last. */
+  function bottomFillYs(r: LineRenderer, view: Parameters<typeof buildRenderContext>[0]) {
+    const built = buildRenderContext(view);
+    r.render(built.ctx);
+
+    const methods = built.spy.calls.map((call) => call.method);
+    const fill = methods.lastIndexOf('fill');
+    const start = methods.lastIndexOf('stroke', fill);
+    const ys = built.spy.calls
+      .slice(start + 1, fill)
+      .filter((call) => call.method === 'lineTo')
+      .map((call) => call.args[1] as number);
+
+    return { ys, yScale: built.yScale };
+  }
+
+  function stack(bottom: number[]): LineRenderer {
+    const r = new LineRenderer(2, { stacking: 'normal', entryAnimation: 'none', colors: ['#111', '#222'] });
+    r.setData(layer(bottom), 0);
+    r.setData(layer([10, 10, 10, 10, 10]), 1);
+
+    return r;
+  }
+
+  it('closes a stack that dips below zero at the zero row', () => {
+    const r = stack([-50, 30, -40, 20, 30]);
+    const { ys, yScale } = bottomFillYs(r, { ...VIEW, yRange: { min: -100, max: 100 } });
+    const zeroRow = yScale.valueToBitmapYExact(0);
+
+    expect(ys.filter((y) => Math.abs(y - zeroRow) < 0.5)).toHaveLength(5);
+    expect(ys.some((y) => y > yScale.valueToBitmapYExact(-50) + 0.5)).toBe(false);
+  });
+
+  it('keeps an all-positive stack filled through the padding to the X axis', () => {
+    // 40 px of bottom padding over data 0..100 in 400 px puts zero on the data floor.
+    const view = { ...VIEW, yRange: { min: -10, max: 100 }, padding: { top: 0, bottom: 40 } };
+    const { ys } = bottomFillYs(stack([10, 20, 30, 40, 50]), view);
+
+    expect(ys.filter((y) => y === 400)).toHaveLength(5);
+  });
+
+  it('keeps the floor at the zero row while a negative bottom layer hides', () => {
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => now);
+    const r = stack([-10, -10, -10, -10, -10]);
+    const view = { ...VIEW, yRange: { min: -100, max: 100 }, padding: { top: 0, bottom: 20 } };
+    bottomFillYs(r, view);
+
+    r.setLayerVisible(0, false);
+    r.setLayerAlpha(0, 0, 300);
+    for (const step of [100, 150, 100]) {
+      now += step;
+      const { ys } = bottomFillYs(r, view);
+
+      // The -10 dip reaches 220 px; the canvas bottom is 400 px.
+      expect(Math.max(...ys)).toBeLessThan(220.5);
+    }
+
+    vi.restoreAllMocks();
   });
 });

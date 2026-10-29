@@ -1043,6 +1043,13 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     return this.stores[0]?.getVisibleData(from, to) ?? [];
   }
 
+  /** Whether a visible layer has a finite value in `[from, to]`. */
+  hasValueIn(from: number, to: number): boolean {
+    return this.stores.some(
+      (store) => store.isVisible() && store.getVisibleData(from, to).some((point) => Number.isFinite(point.value)),
+    );
+  }
+
   get stacking(): StackingMode {
     return this.options.stacking;
   }

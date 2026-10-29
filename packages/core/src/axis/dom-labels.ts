@@ -111,14 +111,12 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   // Returns the label's opacity factor for the chart edge.
   function positionSpan(el: HTMLSpanElement, value: number): number {
     if (axis === 'x') {
+      const x = chart.timeScale.timeToSnappedX(value);
       // A category name longer than its slot ends in an ellipsis instead of running into the next one.
       // Capped before `justifiedX` measures it, or the edge clamp uses the uncapped width.
-      if (chart.timeScale.getType() === 'category') {
-        const slot = categoryStride * chart.timeScale.barWidthMedia(1);
-        el.style.maxWidth = `${Math.max(0, slot - CATEGORY_GAP_PX)}px`;
-      }
+      if (chart.timeScale.getType() === 'category') el.style.maxWidth = `${categoryNameRoom(x)}px`;
 
-      const placement = justifiedX(el, chart.timeScale.timeToSnappedX(value));
+      const placement = justifiedX(el, x);
       el.style.left = `${placement.left}px`;
 
       return placement.opacity;
@@ -128,6 +126,18 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
     el.style.top = `${placement.top}px`;
 
     return placement.opacity;
+  }
+
+  // A name's slot, cut where the chart ends: `justifiedX` would push a wider edge name into its neighbour.
+  function categoryNameRoom(x: number): number {
+    const half = (categoryStride * chart.timeScale.barWidthMedia(1) - CATEGORY_GAP_PX) / 2;
+    const mediaWidth = chart.timeScale.getMediaWidth();
+    // A name fading out past the edge is held there, so it keeps the room it had at the edge.
+    const anchor = clamp(x, 0, mediaWidth);
+    const cutLeft = Math.max(0, -chart.getAxisColumnWidth('left') - (anchor - half));
+    const cutRight = Math.max(0, anchor + half - (mediaWidth + chart.getAxisColumnWidth('right')));
+
+    return Math.max(0, 2 * half - cutLeft - cutRight);
   }
 
   // A label on a tick near the chart's edge shifts inward just enough to fit; the

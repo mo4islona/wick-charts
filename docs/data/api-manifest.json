@@ -1651,7 +1651,7 @@
                 "optional": true,
                 "defaultValue": "true",
                 "deprecated": null,
-                "description": "`label · value` beside each node. `false` hides them. Default: `true`.",
+                "description": "`label · value` beside each node. A label with no room on either side of its\nnode is left out, the smaller node's first. `false` hides them. Default: `true`.",
                 "see": [],
                 "nested": {
                   "name": "SankeyLabelsOptions",

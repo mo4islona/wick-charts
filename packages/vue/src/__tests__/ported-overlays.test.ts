@@ -296,6 +296,54 @@ describe('Vue overlays — ported props', () => {
     wrapper.unmount();
   });
 
+  it('<PieLegend> custom content goes where `position` says', async () => {
+    for (const [position, anchorSelector] of [
+      ['right', '[data-legend-right-anchor]'],
+      ['bottom', '[data-legend-anchor]'],
+      ['overlay', '[data-chart-series-overlay]'],
+    ] as const) {
+      const App = defineComponent({
+        setup() {
+          return () =>
+            h(ChartContainer, { theme: catppuccin.theme }, () => [
+              h(PieSeries, { data: pieData }),
+              h(PieLegend, { position }, { default: () => h('div', { 'data-custom-legend': '' }, 'custom') }),
+            ]);
+        },
+      });
+      const wrapper = mount(App, { attachTo: host });
+      await settle();
+
+      const anchor = host.querySelector(anchorSelector) as HTMLElement;
+      const custom = host.querySelectorAll('[data-custom-legend]');
+      expect(custom).toHaveLength(1);
+      expect(anchor.contains(custom[0])).toBe(true);
+      expect(host.querySelector('[data-chart-pie-legend]')).toBeNull();
+
+      wrapper.unmount();
+    }
+  });
+
+  it('<PieLegend position="bottom"> wraps its rows side by side', async () => {
+    const App = defineComponent({
+      setup() {
+        return () =>
+          h(ChartContainer, { theme: catppuccin.theme }, () => [
+            h(PieSeries, { data: pieData }),
+            h(PieLegend, { position: 'bottom' }),
+          ]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    const legend = host.querySelector('[data-chart-pie-legend]') as HTMLElement;
+    expect(legend.style.flexDirection).toBe('row');
+    expect(legend.style.flexWrap).toBe('wrap');
+
+    wrapper.unmount();
+  });
+
   it('<Title> renders the named "sub" slot as rich content', async () => {
     const App = defineComponent({
       setup() {

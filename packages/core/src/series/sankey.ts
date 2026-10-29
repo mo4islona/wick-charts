@@ -41,7 +41,7 @@ const LABEL_OFFSET = 6;
 const LABEL_PAD_X = 5;
 const LABEL_PAD_Y = 3;
 const LABEL_RADIUS = 4;
-/** Least vertical room between two labels of a column, CSS px. */
+/** Least room between a label and another label or node, CSS px. */
 const LABEL_SPACING = 2;
 const LABEL_BACKDROP_ALPHA = 0.8;
 /**
@@ -1483,7 +1483,8 @@ export class SankeyRenderer implements SankeySeriesRenderer {
 
     const labels = this.#options.labels;
     if (labels !== false) {
-      this.#drawLabels({ context, frame, dims, labels, theme, layout, hpr, vpr, baseAlpha, reveal });
+      const width = bitmapSize.width;
+      this.#drawLabels({ context, frame, dims, labels, theme, layout, width, hpr, vpr, baseAlpha, reveal });
     }
 
     context.globalAlpha = baseAlpha;
@@ -1562,7 +1563,7 @@ export class SankeyRenderer implements SankeySeriesRenderer {
     context.fill();
   }
 
-  /** `label · value` beside each node on a backdrop; one that would overlap the label above it is skipped. */
+  /** `label · value` beside each node on a backdrop, where {@link placeLabels} finds room for it. */
   #drawLabels(args: {
     context: CanvasRenderingContext2D;
     frame: SankeyFrame;
@@ -1570,12 +1571,14 @@ export class SankeyRenderer implements SankeySeriesRenderer {
     labels: SankeyLabelsOptions;
     theme: ChartTheme;
     layout: SankeyLayout;
+    /** Canvas width, bitmap px. */
+    width: number;
     hpr: number;
     vpr: number;
     baseAlpha: number;
     reveal: Reveal | null;
   }): void {
-    const { context, frame, dims, labels, theme, layout, hpr, vpr, baseAlpha, reveal } = args;
+    const { context, frame, dims, labels, theme, layout, width, hpr, vpr, baseAlpha, reveal } = args;
     const fontSize = resolveAxisFontSize(theme);
     const format = labels.format ?? defaultSankeyFormat;
     const textColor = labels.color ?? theme.tooltip.textColor;
@@ -1586,42 +1589,31 @@ export class SankeyRenderer implements SankeySeriesRenderer {
     context.textAlign = 'left';
 
     const boxHeight = (fontSize + 2 * LABEL_PAD_Y) * vpr;
-    const ordered = frame.nodes.filter((node) => node.alpha > 0);
-    ordered.sort((a, b) => a.column - b.column || a.y0 + a.y1 - (b.y0 + b.y1));
-
-    let column = Number.NaN;
-    let previousBottom = Number.NEGATIVE_INFINITY;
-    for (const node of ordered) {
-      if (node.column !== column) {
-        column = node.column;
-        previousBottom = Number.NEGATIVE_INFINITY;
-      }
-
+    const nodes = frame.nodes.filter((node) => node.alpha > 0);
+    const candidates = nodes.map((node) => {
+      const text = `${node.label} · ${format(node.value)}`;
       const center = clamp((node.y0 + node.y1) / 2, layout.top + boxHeight / 2, layout.bottom - boxHeight / 2);
-      const boxTop = center - boxHeight / 2;
-      if (boxTop < previousBottom + LABEL_SPACING * vpr) continue;
 
-      previousBottom = boxTop + boxHeight;
+      return { node, text, center, width: context.measureText(text).width + 2 * LABEL_PAD_X * hpr };
+    });
+    const placed = placeLabels({ candidates, nodes, area: { width, boxHeight }, hpr, vpr });
 
+    for (const placement of placed) {
+      const { node, text, center, left } = placement;
       // Mid-cascade, a label fades and slides in once its node is full.
       const fullAt = reveal !== null && node.index >= 0 ? reveal.plan.nodes[node.index].full : null;
       const shown =
         reveal !== null && fullAt !== null ? easeOutCubic(clamp((reveal.t - fullAt) / CASCADE.labelMs, 0, 1)) : 1;
       if (shown <= 0) continue;
 
-      const text = `${node.label} · ${format(node.value)}`;
-      const boxWidth = context.measureText(text).width + 2 * LABEL_PAD_X * hpr;
-      const offset = LABEL_OFFSET * hpr;
-      const slide = CASCADE.labelSlidePx * hpr * (1 - shown);
-      const boxLeft = (node.side === 1 ? node.x1 + offset : node.x0 - offset - boxWidth) - slide;
-
+      const boxLeft = left - CASCADE.labelSlidePx * hpr * (1 - shown);
       const dim = node.index >= 0 ? (dims[node.index] ?? 0) : 0;
       context.globalAlpha = baseAlpha * node.alpha * shown * (1 - NODE_DIM * dim);
       context.fillStyle = background;
       fillRoundedRect(context, {
         x: boxLeft,
-        y: boxTop,
-        width: boxWidth,
+        y: center - boxHeight / 2,
+        width: placement.width,
         height: boxHeight,
         radius: LABEL_RADIUS * hpr,
         corners: { tl: true, tr: true, br: true, bl: true },
@@ -1631,6 +1623,75 @@ export class SankeyRenderer implements SankeySeriesRenderer {
       context.fillText(text, boxLeft + LABEL_PAD_X * hpr, center);
     }
   }
+}
+
+interface LabelCandidate {
+  node: DrawnNode;
+  text: string;
+  /** Bitmap Y of the label's middle, kept inside the plot. */
+  center: number;
+  width: number;
+}
+
+interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+function boxesOverlap(a: Box, b: Box, gap: { x: number; y: number }): boolean {
+  const apartX = a.right + gap.x <= b.left || b.right + gap.x <= a.left;
+  const apartY = a.bottom + gap.y <= b.top || b.bottom + gap.y <= a.top;
+
+  return !apartX && !apartY;
+}
+
+/**
+ * Where each label goes, larger nodes first: beside its node on the side facing
+ * the center, else on the other side. A label that would leave the canvas, or
+ * cover another node or a placed label, is left out. Returns the placed labels
+ * in column order, top to bottom.
+ */
+function placeLabels(args: {
+  candidates: readonly LabelCandidate[];
+  nodes: readonly DrawnNode[];
+  area: { width: number; boxHeight: number };
+  hpr: number;
+  vpr: number;
+}): (LabelCandidate & { left: number })[] {
+  const { candidates, nodes, area, hpr, vpr } = args;
+  const offset = LABEL_OFFSET * hpr;
+  const gap = { x: LABEL_SPACING * hpr, y: LABEL_SPACING * vpr };
+  const nodeBoxes = nodes.map((node) => ({
+    node,
+    box: { left: node.x0, top: node.y0, right: node.x1, bottom: node.y1 },
+  }));
+
+  const byNodeSize = [...candidates].sort(
+    (a, b) => b.node.value - a.node.value || a.node.column - b.node.column || a.node.y0 - b.node.y0,
+  );
+  const taken: Box[] = [];
+  const placed: (LabelCandidate & { left: number })[] = [];
+  for (const candidate of byNodeSize) {
+    const { node, center, width } = candidate;
+    const top = center - area.boxHeight / 2;
+
+    for (const side of [node.side, -node.side]) {
+      const left = side === 1 ? node.x1 + offset : node.x0 - offset - width;
+      const box = { left, top, right: left + width, bottom: top + area.boxHeight };
+      if (box.left < 0 || box.right > area.width) continue;
+
+      const coversNode = nodeBoxes.some((other) => other.node !== node && boxesOverlap(box, other.box, gap));
+      if (coversNode || taken.some((other) => boxesOverlap(box, other, gap))) continue;
+
+      taken.push(box);
+      placed.push({ ...candidate, left });
+      break;
+    }
+  }
+
+  return placed.sort((a, b) => a.node.column - b.node.column || a.center - b.center);
 }
 
 /** Series definition for `chart.addSeries` — hosts that never draw a sankey don't bundle this module. */
