@@ -6,6 +6,7 @@ import type {
   LegendToggleInfo as ReactLegendToggleInfo,
   PieLegendRenderContext as ReactPieLegendRenderContext,
   PieTooltipRenderContext as ReactPieTooltipRenderContext,
+  RadarTooltipRenderContext as ReactRadarTooltipRenderContext,
   SankeyTooltipRenderContext as ReactSankeyTooltipRenderContext,
   TooltipRenderContext as ReactTooltipRenderContext,
   YLabelRenderContext as ReactYLabelRenderContext,
@@ -18,6 +19,7 @@ import type {
   LegendToggleInfo,
   PieLegendRenderContext,
   PieTooltipRenderContext,
+  RadarTooltipRenderContext,
   SankeyTooltipRenderContext,
   TooltipRenderContext,
   YLabelRenderContext,
@@ -26,6 +28,7 @@ import type {
 describe('@wick-charts/svelte public types', () => {
   it('names the slot payloads like the React render contexts', () => {
     expectTypeOf<SankeyTooltipRenderContext>().toEqualTypeOf<ReactSankeyTooltipRenderContext>();
+    expectTypeOf<RadarTooltipRenderContext>().toEqualTypeOf<ReactRadarTooltipRenderContext>();
     expectTypeOf<PieLegendRenderContext>().toEqualTypeOf<ReactPieLegendRenderContext>();
     expectTypeOf<PieTooltipRenderContext>().toEqualTypeOf<ReactPieTooltipRenderContext>();
     expectTypeOf<TooltipRenderContext>().toEqualTypeOf<ReactTooltipRenderContext>();

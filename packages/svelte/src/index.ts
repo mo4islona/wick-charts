@@ -69,6 +69,7 @@ export type {
   HeatmapSeriesRenderer,
   HeikinAshiStream,
   HoverInfo,
+  HoverRow,
   LayerSnapshot,
   LegendItem,
   LineIntroDirectives,
@@ -108,6 +109,14 @@ export type {
   PieSliceData,
   PieSliceInput,
   PointClickInfo,
+  RadarData,
+  RadarIntroDirectives,
+  RadarIntroFn,
+  RadarIntroFrame,
+  RadarIntroVertex,
+  RadarLayer,
+  RadarSeriesOptions,
+  RadarSeriesRenderer,
   RadialItem,
   RadialLabelArgs,
   RadialLabelPainter,
@@ -201,6 +210,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  RadarSeriesDef,
   RadialProgressSeriesDef,
   SankeySeriesDef,
   XScale,
@@ -264,6 +274,11 @@ export {
   plotterIntro,
   popTicks,
   quietLight,
+  radarCascadeIntro,
+  radarGrowIntro,
+  radarInflateIntro,
+  radarScanIntro,
+  radarSpinIntro,
   radarTicks,
   registerBuiltinSeries,
   registerSeriesDefinition,
@@ -328,6 +343,8 @@ export type {
   PieLegendProps,
   PieSeriesProps,
   PieTooltipProps,
+  RadarSeriesProps,
+  RadarTooltipProps,
   RadialProgressSeriesProps,
   ReferenceLineProps,
   SankeySeriesProps,
@@ -339,6 +356,7 @@ export type {
   YAxisProps,
   YLabelProps,
 } from './props.js';
+export { default as RadarSeries } from './RadarSeries.svelte';
 export { default as RadialProgressSeries } from './RadialProgressSeries.svelte';
 export { default as SankeySeries } from './SankeySeries.svelte';
 export {
@@ -357,6 +375,7 @@ export { default as Navigator } from './ui/Navigator.svelte';
 export { default as NumberFlow } from './ui/NumberFlow.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
+export { default as RadarTooltip } from './ui/RadarTooltip.svelte';
 export { default as ReferenceLine } from './ui/ReferenceLine.svelte';
 export { default as SankeyTooltip } from './ui/SankeyTooltip.svelte';
 export { default as TimeRegion } from './ui/TimeRegion.svelte';
@@ -371,6 +390,7 @@ export type {
   PieLegendPosition,
   PieLegendRenderContext,
   PieTooltipRenderContext,
+  RadarTooltipRenderContext,
   SankeyTooltipRenderContext,
   TooltipRenderContext,
   YLabelDirection,

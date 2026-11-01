@@ -135,6 +135,14 @@ export type {
 } from './perf';
 export { PerfMonitor, perfHud } from './perf';
 export {
+  RADAR_TOOLTIP_HEADER_HEIGHT,
+  RADAR_TOOLTIP_ROW_HEIGHT,
+  RADAR_TOOLTIP_WIDTH,
+  defaultRadarFormat,
+  radarTooltipHeight,
+  resolveRadarSeriesId,
+} from './radar-tooltip';
+export {
   SANKEY_TOOLTIP_HEIGHT,
   SANKEY_TOOLTIP_WIDTH,
   defaultSankeyFormat,
@@ -226,6 +234,20 @@ export type {
   PaintEnv,
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
+export { RadarSeriesDef, niceRadarMax } from './series/radar';
+export type {
+  RadarIntroDirectives,
+  RadarIntroFn,
+  RadarIntroFrame,
+  RadarIntroVertex,
+} from './series/radar-intro';
+export {
+  radarCascadeIntro,
+  radarGrowIntro,
+  radarInflateIntro,
+  radarScanIntro,
+  radarSpinIntro,
+} from './series/radar-intro';
 export { RadialProgressSeriesDef } from './series/radial-progress';
 // Radial progress parts — where the rings sit, how a ring is drawn, and what goes in the
 // middle and next to the rings. Each is a plain function passed to the series options.
@@ -267,9 +289,11 @@ export type {
   HeatmapSeriesRenderer,
   HoverInfo,
   HoverLookupOptions,
+  HoverRow,
   LayerSnapshot,
   OverlayRenderContext,
   PieSeriesRenderer,
+  RadarSeriesRenderer,
   RadialProgressSeriesRenderer,
   RenderPadding,
   SankeySeriesRenderer,
@@ -384,6 +408,9 @@ export type {
   PieSeriesOptions,
   PieSliceData,
   PieSliceInput,
+  RadarData,
+  RadarLayer,
+  RadarSeriesOptions,
   RadialProgressSeriesOptions,
   SankeyData,
   SankeyLabelsOptions,

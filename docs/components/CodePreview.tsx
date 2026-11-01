@@ -81,6 +81,7 @@ function formatValue(v: PropValue, indent: number): string {
 const VAR_REF_NAMES = new Set([
   'accentColors',
   'asks',
+  'axes',
   'bands',
   'bids',
   'catppuccin.theme.axis.textColor',
@@ -137,6 +138,11 @@ const LIBRARY_REFS = new Map<string, string[]>([
   ['listCenter()', ['listCenter']],
   ['startLabels()', ['startLabels']],
   ['headTags()', ['headTags']],
+  ['radarGrowIntro()', ['radarGrowIntro']],
+  ['radarScanIntro()', ['radarScanIntro']],
+  ['radarSpinIntro()', ['radarSpinIntro']],
+  ['radarCascadeIntro()', ['radarCascadeIntro']],
+  ['radarInflateIntro()', ['radarInflateIntro']],
 ]);
 
 function isVarRef(v: PropValue): boolean {

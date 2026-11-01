@@ -69,6 +69,7 @@ export type {
   HeatmapSeriesRenderer,
   HeikinAshiStream,
   HoverInfo,
+  HoverRow,
   LayerSnapshot,
   LegendItem,
   LineIntroDirectives,
@@ -108,6 +109,14 @@ export type {
   PieSliceData,
   PieSliceInput,
   PointClickInfo,
+  RadarData,
+  RadarIntroDirectives,
+  RadarIntroFn,
+  RadarIntroFrame,
+  RadarIntroVertex,
+  RadarLayer,
+  RadarSeriesOptions,
+  RadarSeriesRenderer,
   RadialItem,
   RadialLabelArgs,
   RadialLabelPainter,
@@ -201,6 +210,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  RadarSeriesDef,
   RadialProgressSeriesDef,
   SankeySeriesDef,
   XScale,
@@ -264,6 +274,11 @@ export {
   plotterIntro,
   popTicks,
   quietLight,
+  radarCascadeIntro,
+  radarGrowIntro,
+  radarInflateIntro,
+  radarScanIntro,
+  radarSpinIntro,
   radarTicks,
   registerBuiltinSeries,
   registerSeriesDefinition,
@@ -321,9 +336,11 @@ export type {
   HeatmapSeriesProps,
   LineSeriesProps,
   PieSeriesProps,
+  RadarSeriesProps,
   RadialProgressSeriesProps,
   SankeySeriesProps,
 } from './props';
+export { default as RadarSeries } from './RadarSeries.vue';
 export { default as RadialProgressSeries } from './RadialProgressSeries.vue';
 export { default as SankeySeries } from './SankeySeries.vue';
 export { default as Crosshair } from './ui/Crosshair.vue';
@@ -351,6 +368,8 @@ export type {
   PieLegendRenderContext,
   PieTooltipProps,
   PieTooltipRenderContext,
+  RadarTooltipProps,
+  RadarTooltipRenderContext,
   ReferenceLineProps,
   SankeyTooltipProps,
   SankeyTooltipRenderContext,
@@ -364,6 +383,7 @@ export type {
   YLabelProps,
   YLabelRenderContext,
 } from './ui/props';
+export { default as RadarTooltip } from './ui/RadarTooltip.vue';
 export { default as ReferenceLine } from './ui/ReferenceLine.vue';
 export { default as SankeyTooltip } from './ui/SankeyTooltip.vue';
 export { default as TimeRegion } from './ui/TimeRegion.vue';

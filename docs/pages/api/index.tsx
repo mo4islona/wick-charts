@@ -23,6 +23,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/sankey-series': 'SankeySeries',
   'api/gauge-series': 'GaugeSeries',
   'api/radial-progress-series': 'RadialProgressSeries',
+  'api/radar-series': 'RadarSeries',
   'api/sparkline': 'Sparkline',
   // container & overlays
   'api/chart-container': 'ChartContainer',
@@ -42,6 +43,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/pie-tooltip': 'PieTooltip',
   'api/heatmap-tooltip': 'HeatmapTooltip',
   'api/sankey-tooltip': 'SankeyTooltip',
+  'api/radar-tooltip': 'RadarTooltip',
   'api/number-flow': 'NumberFlow',
   'api/y-label': 'YLabel',
 };

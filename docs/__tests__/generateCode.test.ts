@@ -319,6 +319,28 @@ describe('generateCode', () => {
     expect(code).toMatch(/import \{[^}]*\bradarTicks\b[^}]*\} from '@wick-charts\/react';/);
   });
 
+  it('passes the radar axes and data as variables and imports the intro factory', () => {
+    const config: ChartCodeConfig = {
+      theme: 'catppuccin.theme',
+      components: [
+        {
+          component: 'RadarSeries',
+          props: { axes: 'axes', data: 'series', options: { introAnimation: 'radarScanIntro()' } },
+        },
+      ],
+    };
+
+    const react = generateCode(config, 'react');
+    expect(react).toContain('axes={axes}');
+    expect(react).toContain('data={series}');
+    expect(react).toContain('introAnimation: radarScanIntro()');
+    expect(react).not.toContain("'radarScanIntro()'");
+    expect(react).toMatch(/import \{[^}]*\bradarScanIntro\b[^}]*\} from '@wick-charts\/react';/);
+
+    expect(generateCode(config, 'vue')).toContain(':axes="axes"');
+    expect(generateCode(config, 'svelte')).toContain('{axes}');
+  });
+
   describe('several charts in one snippet', () => {
     const CHARTS: ChartCodeConfig[] = [
       { theme: 'catppuccin.theme', components: [{ component: 'GaugeSeries', props: { value: 'cpuLoad' } }] },

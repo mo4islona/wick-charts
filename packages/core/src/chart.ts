@@ -97,6 +97,7 @@ import type {
   OHLCData,
   OHLCInput,
   PieSeriesOptions,
+  RadarSeriesOptions,
   RadialProgressSeriesOptions,
   SankeySeriesOptions,
   SeriesType,
@@ -1072,6 +1073,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     type: 'radialProgress',
     options?: Partial<RadialProgressSeriesOptions & { id?: string; label?: string }>,
   ): string;
+  addSeries(type: 'radar', options?: Partial<RadarSeriesOptions & { id?: string }>): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
     // A key the series options define (a sankey's `labels`) keeps the series' own type.
@@ -2130,6 +2132,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<SankeySeriesOptions>
       | Partial<GaugeSeriesOptions>
       | Partial<RadialProgressSeriesOptions>
+      | Partial<RadarSeriesOptions>
     ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
@@ -2955,12 +2958,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** The series' primary name (first layer). Used for single-layer overlays. */
   getSeriesLabel(seriesId: string): string | undefined {
-    return this.#series.find((s) => s.id === seriesId)?.labels?.[0];
+    return this.getLayerLabel(seriesId, 0);
   }
 
-  /** The display name of one layer, or `undefined` when that layer is unnamed. */
+  /** The display name of one layer, or `undefined` when that layer is unnamed. A name in the data (radar) comes after a set one. */
   getLayerLabel(seriesId: string, layerIndex: number): string | undefined {
-    return this.#series.find((s) => s.id === seriesId)?.labels?.[layerIndex];
+    const entry = this.#series.find((s) => s.id === seriesId);
+
+    return entry?.labels?.[layerIndex] ?? entry?.renderer.getLayerLabel?.(layerIndex);
   }
 
   /**

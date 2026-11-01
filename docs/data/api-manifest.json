@@ -2041,6 +2041,235 @@
         }
       ]
     },
+    "RadarSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/RadarSeries.tsx",
+      "alias": null,
+      "description": "Radar: several series compared across the same axes on a shared scale, one\nfilled polygon each. `<Legend>` toggles the polygons, `<RadarTooltip>` lists\nevery axis value of the hovered one.",
+      "props": [
+        {
+          "name": "axes",
+          "type": "string[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Axis names, clockwise from `options.startAngle`.",
+          "see": []
+        },
+        {
+          "name": "data",
+          "type": "RadarLayer[]",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "One polygon per compared series: `{ label, data, color? }`, a value per axis. A kept `label` morphs to its new values.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<RadarSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Visual options override — scale, rings, grid shape, fill, dots, labels, hover, colors, entry / update durations.",
+          "see": [],
+          "nested": {
+            "name": "RadarSeriesOptions",
+            "props": [
+              {
+                "name": "min",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "Value at the center. Default: 0.",
+                "see": []
+              },
+              {
+                "name": "max",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "a round number at or above the largest value",
+                "deprecated": null,
+                "description": "Value at the outer ring. Default: a round number at or above the largest value, so every ring gets a round label.",
+                "see": []
+              },
+              {
+                "name": "rings",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "4",
+                "deprecated": null,
+                "description": "Number of rings of the web. Default: 4.",
+                "see": []
+              },
+              {
+                "name": "gridShape",
+                "type": "'polygon' | 'circle'",
+                "optional": true,
+                "defaultValue": "'polygon'",
+                "deprecated": null,
+                "description": "`'polygon'` draws the rings as straight-edged polygons, `'circle'` as circles. Default: `'polygon'`.",
+                "see": []
+              },
+              {
+                "name": "startAngle",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "Bearing of the first axis, in degrees clockwise from 12 o'clock. Default: 0.",
+                "see": []
+              },
+              {
+                "name": "fillOpacity",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0.22",
+                "deprecated": null,
+                "description": "Opacity of a polygon's fill at its edge, `0`…`1`; the fill fades toward the center. Default: 0.22.",
+                "see": []
+              },
+              {
+                "name": "lineWidth",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "2",
+                "deprecated": null,
+                "description": "Polygon outline width, CSS px. Default: 2.",
+                "see": []
+              },
+              {
+                "name": "dotRadius",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "3",
+                "deprecated": null,
+                "description": "Radius of the vertex dots, CSS px. `0` hides them. Default: 3.",
+                "see": []
+              },
+              {
+                "name": "axisLabels",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "Axis names outside the web. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "ringLabels",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "Ring values along the first axis. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "hoverValues",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "The value of each vertex of the hovered polygon, next to the vertex; the ring values fade out meanwhile. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "glow",
+                "type": "boolean",
+                "optional": true,
+                "defaultValue": "true",
+                "deprecated": null,
+                "description": "A soft glow around the hovered polygon. Default: `true`.",
+                "see": []
+              },
+              {
+                "name": "format",
+                "type": "(value: number) => string",
+                "optional": true,
+                "defaultValue": "four significant digits",
+                "deprecated": null,
+                "description": "Text of ring values and hover values. Default: four significant digits, K / M / B / T from a thousand up.",
+                "see": []
+              },
+              {
+                "name": "colors",
+                "type": "string[]",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Polygon colors in layer order, before `theme.seriesColors`. A layer's own `color` wins.",
+                "see": []
+              },
+              {
+                "name": "gridColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "theme.grid.color",
+                "deprecated": null,
+                "description": "Color of the rings and the spokes. Default: `theme.grid.color`.",
+                "see": []
+              },
+              {
+                "name": "labelColor",
+                "type": "string",
+                "optional": true,
+                "defaultValue": "theme.axis.textColor",
+                "deprecated": null,
+                "description": "Color of the axis names and ring values. Default: `theme.axis.textColor`.",
+                "see": []
+              },
+              {
+                "name": "introAnimation",
+                "type": "RadarIntroFn",
+                "optional": true,
+                "defaultValue": "radarGrowIntro()",
+                "deprecated": null,
+                "description": "How the polygons enter on the first data, e.g. `radarScanIntro()`. A plain function of\nRadarIntroFn; the web has its own reveal. Default: `radarGrowIntro()`.",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "First-data growth in milliseconds: the web draws in and each polygon grows from the\ncenter, axis by axis. `0` paints at once. Default: chart animation config (1100).",
+                "see": []
+              },
+              {
+                "name": "updateMs",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "Morph to new values, the hover focus and the legend toggle, in milliseconds. `0` snaps.\nDefault: chart animation config (500).",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it. Default `true`. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -4676,7 +4905,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; gauge?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radialProgress?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; gauge?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radialProgress?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radar?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -5045,6 +5274,38 @@
                             "defaultValue": "500ms",
                             "deprecated": null,
                             "description": "Glide of each ring from its value on screen to a new one.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "radar",
+                      "type": "false | { entry?: AnimationTime; update?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Radar tweens. `false` disables the first-data growth, the morph and the hover focus ease.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "1100ms",
+                            "deprecated": null,
+                            "description": "First-data growth: the web draws in and each polygon grows\nfrom the center, axis by axis.",
+                            "see": []
+                          },
+                          {
+                            "name": "update",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "500ms",
+                            "deprecated": null,
+                            "description": "Morph from the polygons on screen to new values, the hover\nfocus and the legend toggle.",
                             "see": []
                           }
                         ]
@@ -5790,6 +6051,41 @@
         {
           "name": "children",
           "type": "(ctx: SankeyTooltipRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch — receives hover info + format, replaces default UI.",
+          "see": []
+        }
+      ]
+    },
+    "RadarTooltip": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/RadarTooltip.tsx",
+      "alias": null,
+      "description": "Tooltip for radar charts: the hovered polygon's name and its value on every axis, with a bar of each value's share of the scale.",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible radar series is picked.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "four significant digits",
+          "deprecated": null,
+          "description": "Custom formatter for the axis values. Default: four significant digits, K / M / B / T.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: RadarTooltipRenderContext) => ReactNode",
           "optional": true,
           "defaultValue": null,
           "deprecated": null,

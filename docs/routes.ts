@@ -15,6 +15,7 @@ export type Route =
   | 'charts/depth'
   | 'charts/sankey'
   | 'charts/gauge'
+  | 'charts/radar'
   | 'charts/sparkline'
   // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
   // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
@@ -46,6 +47,8 @@ export type Route =
   | 'api/sankey-series'
   | 'api/gauge-series'
   | 'api/radial-progress-series'
+  | 'api/radar-series'
+  | 'api/radar-tooltip'
   | 'api/sparkline'
   | 'api/chart-container'
   | 'api/edge-loader'
@@ -133,6 +136,7 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/depth', label: 'Order Book', title: 'Order Book' },
   { route: 'charts/sankey', label: 'Sankey', title: 'Sankey' },
   { route: 'charts/gauge', label: 'Gauge & Radial', title: 'Gauge & Radial' },
+  { route: 'charts/radar', label: 'Radar', title: 'Radar' },
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
@@ -166,6 +170,7 @@ const API_CHARTS: RouteEntry[] = [
   { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
   { route: 'api/line-series', label: 'LineSeries', title: '' },
   { route: 'api/pie-series', label: 'PieSeries', title: '' },
+  { route: 'api/radar-series', label: 'RadarSeries', title: '' },
   { route: 'api/radial-progress-series', label: 'RadialProgressSeries', title: '' },
   { route: 'api/sankey-series', label: 'SankeySeries', title: '' },
   { route: 'api/sparkline', label: 'Sparkline', title: '' },
@@ -185,6 +190,7 @@ const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/pie-tooltip', label: 'PieTooltip', title: '' },
   { route: 'api/reference-line', label: 'ReferenceLine', title: '' },
   { route: 'api/sankey-tooltip', label: 'SankeyTooltip', title: '' },
+  { route: 'api/radar-tooltip', label: 'RadarTooltip', title: '' },
   { route: 'api/time-region', label: 'TimeRegion', title: '' },
   { route: 'api/title', label: 'Title', title: '' },
   { route: 'api/tooltip', label: 'Tooltip', title: '' },
@@ -405,6 +411,7 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   // The demo page links back to the last series listed for it.
   'api/radial-progress-series': 'charts/gauge',
   'api/gauge-series': 'charts/gauge',
+  'api/radar-series': 'charts/radar',
   'api/sparkline': 'charts/sparkline',
 };
 
@@ -435,6 +442,7 @@ export const CHART_GUIDES: Partial<Record<Route, Route[]>> = {
   'charts/depth': ['use-cases/realtime-data'],
   'charts/sankey': ['use-cases/realtime-data'],
   'charts/gauge': ['use-cases/realtime-data'],
+  'charts/radar': ['use-cases/realtime-data'],
 };
 
 /** The guides before and after `route` in sidebar order, for the Previous / Next links. */

@@ -33,6 +33,7 @@ const COMPONENTS = [
   { name: 'SankeySeries', file: 'packages/react/src/SankeySeries.tsx', kind: 'chart' },
   { name: 'GaugeSeries', file: 'packages/react/src/GaugeSeries.tsx', kind: 'chart' },
   { name: 'RadialProgressSeries', file: 'packages/react/src/RadialProgressSeries.tsx', kind: 'chart' },
+  { name: 'RadarSeries', file: 'packages/react/src/RadarSeries.tsx', kind: 'chart' },
 
   // composite chart — own playground but lives under Components
   { name: 'Sparkline', file: 'packages/react/src/ui/Sparkline.tsx', kind: 'chart' },
@@ -54,6 +55,7 @@ const COMPONENTS = [
   { name: 'PieTooltip', file: 'packages/react/src/ui/PieTooltip.tsx', kind: 'subcomponent' },
   { name: 'HeatmapTooltip', file: 'packages/react/src/ui/HeatmapTooltip.tsx', kind: 'subcomponent' },
   { name: 'SankeyTooltip', file: 'packages/react/src/ui/SankeyTooltip.tsx', kind: 'subcomponent' },
+  { name: 'RadarTooltip', file: 'packages/react/src/ui/RadarTooltip.tsx', kind: 'subcomponent' },
   { name: 'NumberFlow', file: 'packages/react/src/ui/NumberFlow.tsx', kind: 'subcomponent' },
   { name: 'YLabel', file: 'packages/react/src/ui/YLabel.tsx', kind: 'subcomponent' },
   // React-only — no Vue/Svelte port yet (see REACT_ONLY in check-api-parity.mjs).

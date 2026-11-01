@@ -105,6 +105,17 @@ const SKETCHES = {
       <path d="M24 7a7 7 0 0 1 6 10" strokeWidth="2" />
     </>
   ),
+  radar: (
+    <>
+      <path d="M24 3l10.5 7.6-4 12.3h-13l-4-12.3z" strokeWidth="1" strokeOpacity="0.35" />
+      <path
+        d="M24 14V3M24 14l10.5-3.4M24 14l6.5 8.9M24 14l-6.5 8.9M24 14l-10.5-3.4"
+        strokeWidth="1"
+        strokeOpacity="0.35"
+      />
+      <path d="M24 4.1l6.3 7.9-1.1 9.1-8.45-2.65-4.1-6.85z" fill="currentColor" fillOpacity="0.25" />
+    </>
+  ),
   sparkline: (
     <>
       <rect x="3" y="3" width="42" height="22" rx="3" strokeWidth="1" />

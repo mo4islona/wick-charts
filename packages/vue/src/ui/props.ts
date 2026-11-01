@@ -69,6 +69,13 @@ export interface PieTooltipRenderContext {
   readonly format: ValueFormatter;
 }
 
+/** Payload of the `<RadarTooltip>` default slot. */
+export interface RadarTooltipRenderContext {
+  /** The hovered polygon; `info.rows` holds every axis value. */
+  readonly info: HoverInfo;
+  readonly format: ValueFormatter;
+}
+
 /** Payload of the `<SankeyTooltip>` default slot. */
 export interface SankeyTooltipRenderContext {
   readonly info: HoverInfo;
@@ -208,6 +215,13 @@ export interface ReferenceLineProps {
   width?: number;
   /** Named Y scale (`ChartContainer` `scales`) the `value` maps through. Default: the default scale. */
   scale?: string;
+}
+
+export interface RadarTooltipProps {
+  /** Owning series id. **Optional** — when omitted, the first visible radar series is picked. */
+  seriesId?: string;
+  /** Custom formatter for the axis values. Default: four significant digits, K / M / B / T. */
+  format?: ValueFormatter;
 }
 
 export interface SankeyTooltipProps {

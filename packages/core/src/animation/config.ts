@@ -93,6 +93,11 @@ export const DEFAULT_RADIAL_PROGRESS_ENTRY = 900;
 /** Radial progress glide of each ring from its value on screen to a new one. */
 export const DEFAULT_RADIAL_PROGRESS_UPDATE = 500;
 
+/** Radar first-data growth of each polygon from the center, with the web drawing in. */
+export const DEFAULT_RADAR_ENTRY = 1100;
+/** Radar morph to new values, the hover focus and the legend toggle. */
+export const DEFAULT_RADAR_UPDATE = 500;
+
 /** Depth initial-load reveal — the walls grow outward from mid; the full reveal lasts ~2×. */
 export const DEFAULT_DEPTH_INTRO = DEFAULT_SERIES_INTRO;
 /** Depth morph between order-book updates, mid-marker glide and hover ease. */
@@ -184,7 +189,7 @@ export const DEFAULT_GRID_MS = 400;
  * - `axis.ticks` — axis tick label cross-fade.
  * - `toggle` — series visibility (alpha fade + Y re-fit, locked to one
  *   duration so they finish on the same frame).
- * - `series.{line,candlestick,bar,band,pie,heatmap,depth,sankey,gauge,radialProgress}` — per-series-type data tweens.
+ * - `series.{line,candlestick,bar,band,pie,heatmap,depth,sankey,gauge,radialProgress,radar}` — per-series-type data tweens.
  *
  * Top-level `false` disables every animation category. `axis: false`
  * disables both axes and ticks. `axis.y: false` / `axis.x: false` disables
@@ -565,6 +570,27 @@ export interface AnimationsConfig {
                */
               update?: AnimationTime;
             };
+        /**
+         * Radar tweens. `false` disables the first-data growth, the morph and the hover focus ease.
+         */
+        radar?:
+          | false
+          | {
+              /**
+               * First-data growth: the web draws in and each polygon grows
+               * from the center, axis by axis.
+               *
+               * @default {@link DEFAULT_RADAR_ENTRY}
+               */
+              entry?: AnimationTime;
+              /**
+               * Morph from the polygons on screen to new values, the hover
+               * focus and the legend toggle.
+               *
+               * @default {@link DEFAULT_RADAR_UPDATE}
+               */
+              update?: AnimationTime;
+            };
       };
 }
 
@@ -602,6 +628,7 @@ export interface ResolvedSeriesAnimations {
   sankey: { entryMs: number; updateMs: number };
   gauge: { entryMs: number; updateMs: number };
   radialProgress: { entryMs: number; updateMs: number };
+  radar: { entryMs: number; updateMs: number };
 }
 
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
@@ -615,6 +642,7 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   sankey: { entryMs: 0, updateMs: 0 },
   gauge: { entryMs: 0, updateMs: 0 },
   radialProgress: { entryMs: 0, updateMs: 0 },
+  radar: { entryMs: 0, updateMs: 0 },
 };
 
 /**
@@ -798,6 +826,12 @@ export class AnimationConfig {
       return { entryMs, updateMs };
     }
 
+    if (kind === 'radar') {
+      const { entryMs, updateMs } = this.series.radar;
+
+      return { entryMs, updateMs };
+    }
+
     if (kind === 'bar') {
       const { entryMs, smoothMs, introMs } = this.series.bar;
 
@@ -881,6 +915,14 @@ export class AnimationConfig {
       return out;
     }
 
+    if (kind === 'radar') {
+      const { entryMs, updateMs } = this.series.radar;
+      if (entryMs === 0) out.entryMs = 0;
+      if (updateMs === 0) out.updateMs = 0;
+
+      return out;
+    }
+
     const timed = this.#timedSeries(kind);
     if (timed === null) {
       // A custom series kind isn't named by `animations.series.*` — no forced override.
@@ -918,6 +960,7 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
   const rawSankey = raw?.sankey;
   const rawGauge = raw?.gauge;
   const rawRadialProgress = raw?.radialProgress;
+  const rawRadar = raw?.radar;
 
   const line =
     rawLine === false
@@ -1004,5 +1047,13 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           updateMs: resolveAnimationTime(rawRadialProgress?.update, DEFAULT_RADIAL_PROGRESS_UPDATE),
         };
 
-  return { line, candlestick, bar, band, pie, heatmap, depth, sankey, gauge, radialProgress };
+  const radar =
+    rawRadar === false
+      ? { entryMs: 0, updateMs: 0 }
+      : {
+          entryMs: resolveAnimationTime(rawRadar?.entry, DEFAULT_RADAR_ENTRY),
+          updateMs: resolveAnimationTime(rawRadar?.update, DEFAULT_RADAR_UPDATE),
+        };
+
+  return { line, candlestick, bar, band, pie, heatmap, depth, sankey, gauge, radialProgress, radar };
 }

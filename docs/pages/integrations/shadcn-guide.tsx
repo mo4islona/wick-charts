@@ -101,6 +101,16 @@ const BLOCK_SERIES: Record<string, BlockSeries> = {
     ),
   },
   'chart-radial-progress': { series: 'RadialProgressSeries', chart: 'charts/gauge', sketch: 'radial-progress' },
+  'chart-radar': {
+    series: 'RadarSeries',
+    chart: 'charts/radar',
+    sketch: 'radar',
+    input: (
+      <>
+        your <code>axes</code> and <code>data</code>
+      </>
+    ),
+  },
 };
 
 /** How to put your data into a block; `file` is the block file the CLI added. */

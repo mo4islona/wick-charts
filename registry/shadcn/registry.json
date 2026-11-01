@@ -161,6 +161,16 @@
       "dependencies": ["@wick-charts/react@^0.9.0"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
       "files": [{ "path": "blocks/chart-radial-progress.tsx", "type": "registry:component" }]
+    },
+    {
+      "name": "chart-radar",
+      "type": "registry:block",
+      "title": "Radar Chart",
+      "description": "Two models compared across six skills, with the values on hover and a legend that toggles each one.",
+      "categories": ["charts", "dashboard"],
+      "dependencies": ["@wick-charts/react@^0.9.0"],
+      "registryDependencies": ["card", "https://wick-charts.eeff.io/r/wick-chart.json"],
+      "files": [{ "path": "blocks/chart-radar.tsx", "type": "registry:component" }]
     }
   ]
 }
