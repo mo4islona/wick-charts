@@ -82,6 +82,16 @@ export interface HoverInfo {
   value: number;
   percent: number;
   color: string;
+  /** Every axis value of a hovered radar polygon, in axis order. Absent on other kinds. */
+  rows?: readonly HoverRow[];
+}
+
+/** One axis of a hovered radar polygon. `value` and `percent` are `null` for no reading. */
+export interface HoverRow {
+  label: string;
+  value: number | null;
+  /** Where the value sits between the scale's `min` and `max`, 0–100. */
+  percent: number | null;
 }
 
 export type SliceInfo = HoverInfo;
@@ -130,6 +140,7 @@ export type SeriesKind =
   | 'sankey'
   | 'gauge'
   | 'radialProgress'
+  | 'radar'
   | (string & {});
 
 /**
@@ -250,6 +261,8 @@ export interface BaseSeriesRenderer {
   hitTest?(bx: number, by: number, bitmapWidth: number, bitmapHeight: number, padding?: RenderPadding): number;
   /** Set the currently hovered index. Returns true if the value changed. Optional. */
   setHoverIndex?(index: number): boolean;
+  /** Display name of a layer carried in the data (a radar polygon's `label`). Optional. */
+  getLayerLabel?(index: number): string | undefined;
   /** Get info about the currently hovered element, or null. Optional. */
   getHoverInfo?(theme: ChartTheme): HoverInfo | null;
 
@@ -469,11 +482,16 @@ export interface RadialProgressSeriesRenderer extends BaseSeriesRenderer {
   readonly kind: 'radialProgress';
 }
 
+/** A multi-polygon renderer on radial axes, with no time axis (Radar). Has no time-series queries. */
+export interface RadarSeriesRenderer extends BaseSeriesRenderer {
+  readonly kind: 'radar';
+}
+
 /**
  * A custom spatial renderer with no time axis — implement this (rather than
  * {@link PieSeriesRenderer} / {@link HeatmapSeriesRenderer} / {@link SankeySeriesRenderer} and the other built-ins, which are reserved
  * for the built-ins) when writing a new non-time-axis series from scratch,
- * e.g. a radar or treemap chart. Pick any `kind` that isn't a built-in one.
+ * e.g. a treemap chart. Pick any `kind` that isn't a built-in one.
  */
 export interface CustomSpatialSeriesRenderer extends BaseSeriesRenderer {
   readonly kind: string;
@@ -482,7 +500,7 @@ export interface CustomSpatialSeriesRenderer extends BaseSeriesRenderer {
 /**
  * Every series renderer is one of these. Discriminated on `kind`: narrow with
  * {@link isTimeSeriesRenderer} to reach the time-axis surface — spatial kinds
- * (pie, heatmap, sankey, gauge, radial progress, and any custom spatial kind) have no time-series queries.
+ * (pie, heatmap, sankey, gauge, radial progress, radar, and any custom spatial kind) have no time-series queries.
  */
 export type SeriesRenderer =
   | TimeSeriesRenderer
@@ -491,6 +509,7 @@ export type SeriesRenderer =
   | SankeySeriesRenderer
   | GaugeSeriesRenderer
   | RadialProgressSeriesRenderer
+  | RadarSeriesRenderer
   | CustomSpatialSeriesRenderer;
 
 /**

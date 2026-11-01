@@ -69,6 +69,7 @@ export type {
   HeatmapSeriesRenderer,
   HeikinAshiStream,
   HoverInfo,
+  HoverRow,
   LayerSnapshot,
   LegendItem,
   LineIntroDirectives,
@@ -108,6 +109,14 @@ export type {
   PieSliceData,
   PieSliceInput,
   PointClickInfo,
+  RadarData,
+  RadarIntroDirectives,
+  RadarIntroFn,
+  RadarIntroFrame,
+  RadarIntroVertex,
+  RadarLayer,
+  RadarSeriesOptions,
+  RadarSeriesRenderer,
   RadialItem,
   RadialLabelArgs,
   RadialLabelPainter,
@@ -201,6 +210,7 @@ export {
   NavigatorController,
   PerfMonitor,
   PieSeriesDef,
+  RadarSeriesDef,
   RadialProgressSeriesDef,
   SankeySeriesDef,
   XScale,
@@ -264,6 +274,11 @@ export {
   plotterIntro,
   popTicks,
   quietLight,
+  radarCascadeIntro,
+  radarGrowIntro,
+  radarInflateIntro,
+  radarScanIntro,
+  radarSpinIntro,
   radarTicks,
   registerBuiltinSeries,
   registerSeriesDefinition,
@@ -321,6 +336,8 @@ export type { LineSeriesProps } from './LineSeries';
 export { LineSeries } from './LineSeries';
 export type { PieSeriesProps } from './PieSeries';
 export { PieSeries } from './PieSeries';
+export type { RadarSeriesProps } from './RadarSeries';
+export { RadarSeries } from './RadarSeries';
 export type { RadialProgressSeriesProps } from './RadialProgressSeries';
 export { RadialProgressSeries } from './RadialProgressSeries';
 export type { SankeySeriesProps } from './SankeySeries';
@@ -352,6 +369,8 @@ export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderC
 export { PieLegend } from './ui/PieLegend';
 export type { PieTooltipProps, PieTooltipRenderContext } from './ui/PieTooltip';
 export { PieTooltip } from './ui/PieTooltip';
+export type { RadarTooltipProps, RadarTooltipRenderContext } from './ui/RadarTooltip';
+export { RadarTooltip } from './ui/RadarTooltip';
 // Reference lines — horizontal threshold / vertical event boundary
 export type { ReferenceLineProps } from './ui/ReferenceLine';
 export { ReferenceLine } from './ui/ReferenceLine';

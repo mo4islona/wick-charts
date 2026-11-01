@@ -73,6 +73,13 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
   },
   GaugeSeries: { required: [{ name: 'value', valueExpr: 'cpuLoad' }], selfClosingWhenEmpty: true },
   RadialProgressSeries: { required: [{ name: 'data', valueExpr: 'rings' }], selfClosingWhenEmpty: true },
+  RadarSeries: {
+    required: [
+      { name: 'axes', valueExpr: 'axes' },
+      { name: 'data', valueExpr: 'series' },
+    ],
+    selfClosingWhenEmpty: true,
+  },
 
   Sparkline: {
     required: [{ name: 'data', valueExpr: 'data' }],
@@ -220,6 +227,19 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
         svelte: '<div>{info.label}: {format(info.value)}</div>',
       },
       ctxTypeName: 'SankeyTooltipRenderContext',
+    },
+  },
+
+  RadarTooltip: {
+    required: [{ name: 'seriesId', valueExpr: "'models'" }],
+    slot: {
+      ctxBindings: ['info', 'format'],
+      bodyExample: {
+        react: '<div>{info.label}: {info.rows?.length} axes</div>',
+        vue: '<div>{{ info.label }}: {{ info.rows?.length }} axes</div>',
+        svelte: '<div>{info.label}: {info.rows?.length} axes</div>',
+      },
+      ctxTypeName: 'RadarTooltipRenderContext',
     },
   },
 

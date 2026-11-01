@@ -50,6 +50,13 @@ export interface PieTooltipRenderContext {
   readonly format: ValueFormatter;
 }
 
+/** Props of the `<RadarTooltip>` default slot (`let:` or `{#snippet children(ctx)}`). */
+export interface RadarTooltipRenderContext {
+  /** The hovered polygon; `info.rows` holds every axis value. */
+  readonly info: HoverInfo;
+  readonly format: ValueFormatter;
+}
+
 /** Props of the `<SankeyTooltip>` default slot (`let:` or `{#snippet children(ctx)}`). */
 export interface SankeyTooltipRenderContext {
   readonly info: HoverInfo;

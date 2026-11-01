@@ -2,6 +2,7 @@ import type { BarIntroFn } from './series/bar-intro';
 import type { CandleIntroFn } from './series/candlestick-intro';
 import type { LineIntroFn } from './series/line-intro';
 import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
+import type { RadarIntroFn } from './series/radar-intro';
 import type { RadialLabelPainter, RadialLayout, RingPainter } from './series/radial-progress-styles';
 
 /**
@@ -240,6 +241,7 @@ export type SeriesType =
   | 'sankey'
   | 'gauge'
   | 'radialProgress'
+  | 'radar'
   | (string & {});
 
 /**
@@ -1381,6 +1383,74 @@ export interface RadialProgressSeriesOptions {
    */
   entryMs?: number;
   /** Glide of each ring from its value on screen to a new one, in milliseconds. `0` snaps. Default: chart animation config (500). */
+  updateMs?: number;
+}
+
+/** One compared series of a radar: a value per axis, in the order of the axes. */
+export interface RadarLayer {
+  /** Series name — the legend and tooltip show it. Also the key a morph matches layers by. */
+  label: string;
+  /** One value per axis. `null` is no reading: the vertex sits on the center and gets no dot. */
+  data: (number | null)[];
+  /** Polygon color. Default: `options.colors`, then `theme.seriesColors`, in layer order. */
+  color?: string;
+}
+
+/** The data of a radar series: the axes and one polygon per compared series. */
+export interface RadarData {
+  /** Axis names, clockwise from `startAngle`. */
+  axes: string[];
+  series: RadarLayer[];
+}
+
+/** Visual options for a radar series. */
+export interface RadarSeriesOptions {
+  /** Value at the center. Default: 0. */
+  min?: number;
+  /** Value at the outer ring. Default: a round number at or above the largest value, so every ring gets a round label. */
+  max?: number;
+  /** Number of rings of the web. Default: 4. */
+  rings?: number;
+  /** `'polygon'` draws the rings as straight-edged polygons, `'circle'` as circles. Default: `'polygon'`. */
+  gridShape?: 'polygon' | 'circle';
+  /** Bearing of the first axis, in degrees clockwise from 12 o'clock. Default: 0. */
+  startAngle?: number;
+  /** Opacity of a polygon's fill at its edge, `0`…`1`; the fill fades toward the center. Default: 0.22. */
+  fillOpacity?: number;
+  /** Polygon outline width, CSS px. Default: 2. */
+  lineWidth?: number;
+  /** Radius of the vertex dots, CSS px. `0` hides them. Default: 3. */
+  dotRadius?: number;
+  /** Axis names outside the web. Default: `true`. */
+  axisLabels?: boolean;
+  /** Ring values along the first axis. Default: `true`. */
+  ringLabels?: boolean;
+  /** The value of each vertex of the hovered polygon, next to the vertex; the ring values fade out meanwhile. Default: `true`. */
+  hoverValues?: boolean;
+  /** A soft glow around the hovered polygon. Default: `true`. */
+  glow?: boolean;
+  /** Text of ring values and hover values. Default: four significant digits, K / M / B / T from a thousand up. */
+  format?: (value: number) => string;
+  /** Polygon colors in layer order, before `theme.seriesColors`. A layer's own `color` wins. */
+  colors?: string[];
+  /** Color of the rings and the spokes. Default: `theme.grid.color`. */
+  gridColor?: string;
+  /** Color of the axis names and ring values. Default: `theme.axis.textColor`. */
+  labelColor?: string;
+  /**
+   * How the polygons enter on the first data, e.g. `radarScanIntro()`. A plain function of
+   * {@link RadarIntroFn}; the web has its own reveal. Default: `radarGrowIntro()`.
+   */
+  introAnimation?: RadarIntroFn;
+  /**
+   * First-data growth in milliseconds: the web draws in and each polygon grows from the
+   * center, axis by axis. `0` paints at once. Default: chart animation config (1100).
+   */
+  entryMs?: number;
+  /**
+   * Morph to new values, the hover focus and the legend toggle, in milliseconds. `0` snaps.
+   * Default: chart animation config (500).
+   */
   updateMs?: number;
 }
 

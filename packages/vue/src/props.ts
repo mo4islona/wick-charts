@@ -25,6 +25,8 @@ import type {
   PieSeriesOptions,
   PieSliceInput,
   PointClickInfo,
+  RadarLayer,
+  RadarSeriesOptions,
   RadialProgressSeriesOptions,
   SankeyLink,
   SankeyNode,
@@ -307,6 +309,19 @@ export interface GaugeSeriesProps {
   value: number;
   /** Visual options override — range, angles, zones, arc or needle style, caption, value format, colors, entry / update durations. */
   options?: Partial<GaugeSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
+  /** Show/hide the series without unmounting it. Default `true`. Live. */
+  visible?: boolean;
+}
+
+export interface RadarSeriesProps {
+  /** Axis names, clockwise from `options.startAngle`. */
+  axes: string[];
+  /** One polygon per compared series: `{ label, data, color? }`, a value per axis. A kept `label` morphs to its new values. */
+  data: RadarLayer[];
+  /** Visual options override — scale, rings, grid shape, fill, dots, labels, hover, colors, entry / update durations. */
+  options?: Partial<RadarSeriesOptions>;
   /** Stable series ID — same value across remounts. */
   id?: string;
   /** Show/hide the series without unmounting it. Default `true`. Live. */

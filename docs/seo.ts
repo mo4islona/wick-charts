@@ -108,6 +108,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Canvas gauges for one live value against its range, with zones, an arc or a needle and a center label, and radial progress rings for a few related values. Values glide on update.',
   },
+  'charts/radar': {
+    title: 'Radar Charts for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas radar (spider) charts: several series compared across the same axes on a shared scale, with a polygon or circle web, hover focus, a value tooltip, legend toggles and polygons that grow and morph.',
+  },
   'use-cases/realtime-data': {
     title: 'Realtime Data Streaming — Wick Charts',
     description:
@@ -176,6 +181,8 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
     'Sankey series — nodes and links drawn as flows between stages with bands sized by volume, node labels, morphing updates and hover highlight.',
   'api/gauge-series':
     'Gauge series — one value on an arc between min and max, with zones, an arc or needle style, a center label and a glide on update.',
+  'api/radar-series':
+    'Radar series — axes plus one filled polygon per compared series on a shared scale, with a polygon or circle web, ring values, hover focus and morphing updates.',
   'api/radial-progress-series':
     'Radial progress series — concentric rings, each filled to its value’s share of max, listed by PieLegend, with a glide on update.',
   'api/sparkline':
@@ -204,6 +211,8 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
   'api/pie-tooltip': 'Hover tooltip for pie slices with formatting and a custom render slot.',
   'api/sankey-tooltip':
     'Hover tooltip for sankey nodes and links — label, flow value and share of the outflow, with formatting and a custom render slot.',
+  'api/radar-tooltip':
+    'Hover tooltip for radar polygons — the series name and its value on every axis, with formatting and a custom render slot.',
   'api/title': 'Chart title bar with optional subtitle, hoisted above the canvas.',
   'api/tooltip':
     'Floating tooltip near the cursor with per-series value snapshots, sorting, formatting and a custom render slot.',
