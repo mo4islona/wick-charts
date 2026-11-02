@@ -11,10 +11,15 @@ import {
   type ChartTheme,
   Crosshair,
   InfoBar,
+  Legend,
   type LineIntroFn,
   LineSeries,
   type PerfHudOptions,
   PerfMonitor,
+  type RadarIntroFn,
+  type RadarLayer,
+  RadarSeries,
+  RadarTooltip,
   TimeAxis,
   type TimePoint,
   Title,
@@ -27,6 +32,11 @@ import {
   growIntro,
   perfHud,
   plotterIntro,
+  radarCascadeIntro,
+  radarGrowIntro,
+  radarInflateIntro,
+  radarScanIntro,
+  radarSpinIntro,
   riseIntro,
   springIntro,
   sweepIntro,
@@ -45,7 +55,7 @@ import { WickWordmark } from '../components/WickWordmark';
 import '../components/playground/styles.css';
 
 import type { LineStrategy } from '../data';
-import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, multiLines, ohlcBTC, upperBand } from '../data/demo';
+import { DEMO_INTERVAL, areaLine, barSingle, lowerBand, ohlcBTC, upperBand } from '../data/demo';
 import {
   type Framework,
   lineDriftStrategy,
@@ -74,19 +84,19 @@ const BAND_WINDOW = MAX_POINTS - 1;
 const BAND_HALF_WIDTH =
   upperBand.reduce((sum, point, i) => sum + Math.abs(point.value - lowerBand[i].value), 0) / (2 * upperBand.length);
 
-// Shipped intro styles the hero shuffles between. Line-intro charts (area +
-// band, portfolio) draw from one pool; candle and bar each get their own —
+// Shipped intro styles the hero shuffles between. Each chart draws from its own pool —
 // `riseIntro`/`fadeIntro`/`wipeIntro` are shared factories that type-check
 // for both.
 const LINE_INTROS = [unfoldIntro, sweepIntro, traceIntro, plotterIntro, centerOutIntro];
 const CANDLE_INTROS = [candleUnfoldIntro, wickBodyIntro, riseIntro, fadeIntro, wipeIntro];
 const BAR_INTROS = [growIntro, springIntro, riseIntro, fadeIntro, wipeIntro];
+const RADAR_INTROS = [radarGrowIntro, radarScanIntro, radarSpinIntro, radarCascadeIntro, radarInflateIntro];
 
 interface IntroSet {
   candle: CandleIntroFn;
   areaBands: LineIntroFn;
-  portfolio: LineIntroFn;
   bar: BarIntroFn;
+  radar: RadarIntroFn;
 }
 
 // The shuffle button steps each chart to the NEXT style in its pool rather
@@ -96,8 +106,8 @@ interface IntroSet {
 interface IntroIndices {
   candle: number;
   areaBands: number;
-  portfolio: number;
   bar: number;
+  radar: number;
 }
 
 function randomIndexIn(pool: readonly unknown[]): number {
@@ -105,14 +115,11 @@ function randomIndexIn(pool: readonly unknown[]): number {
 }
 
 function randomIntroIndices(): IntroIndices {
-  const areaBands = randomIndexIn(LINE_INTROS);
-
   return {
     candle: randomIndexIn(CANDLE_INTROS),
-    areaBands,
-    // Offset the second line chart so the two never start with the same style.
-    portfolio: (areaBands + 1) % LINE_INTROS.length,
+    areaBands: randomIndexIn(LINE_INTROS),
     bar: randomIndexIn(BAR_INTROS),
+    radar: randomIndexIn(RADAR_INTROS),
   };
 }
 
@@ -120,8 +127,8 @@ function nextIntroIndices(indices: IntroIndices): IntroIndices {
   return {
     candle: (indices.candle + 1) % CANDLE_INTROS.length,
     areaBands: (indices.areaBands + 1) % LINE_INTROS.length,
-    portfolio: (indices.portfolio + 1) % LINE_INTROS.length,
     bar: (indices.bar + 1) % BAR_INTROS.length,
+    radar: (indices.radar + 1) % RADAR_INTROS.length,
   };
 }
 
@@ -129,8 +136,8 @@ function introSetFrom(indices: IntroIndices): IntroSet {
   return {
     candle: CANDLE_INTROS[indices.candle](),
     areaBands: LINE_INTROS[indices.areaBands](),
-    portfolio: LINE_INTROS[indices.portfolio](),
     bar: BAR_INTROS[indices.bar](),
+    radar: RADAR_INTROS[indices.radar](),
   };
 }
 
@@ -271,23 +278,6 @@ function AreaBandsChart({ theme, speed, perf, introAnimation }: StreamProps & { 
   );
 }
 
-function MultiLineChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: LineIntroFn }) {
-  const { datasets } = useLineStreams(multiLines, { interval: DEMO_INTERVAL, speed, maxPoints: MAX_POINTS });
-  return (
-    <ChartContainer theme={theme} perf={perf} style={HERO_CHART_STYLE}>
-      <Title sub="10 assets · Live">Portfolio</Title>
-      <LineSeries
-        id="portfolio"
-        data={datasets}
-        options={{ area: { visible: false }, strokeWidth: 1, introAnimation }}
-      />
-      <Crosshair />
-      <YAxis />
-      <TimeAxis />
-    </ChartContainer>
-  );
-}
-
 function BarChart({ theme, speed, perf, introAnimation }: StreamProps & { introAnimation: BarIntroFn }) {
   const { datasets } = useLineStreams(BAR_SERIES, {
     interval: DEMO_INTERVAL,
@@ -304,6 +294,80 @@ function BarChart({ theme, speed, perf, introAnimation }: StreamProps & { introA
       <Crosshair />
       <YAxis />
       <TimeAxis />
+    </ChartContainer>
+  );
+}
+
+// ── Radar ─────────────────────────────────────────────────────
+
+/** Ticks per second of the radar drift. */
+const DRIFT_RATE = 3;
+
+// Deterministic PRNG (mulberry32) so the prerendered and the hydrated first frame match.
+function mulberry32(seed: number): () => number {
+  let a = seed;
+
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Values that random-walk around `bases`, pulled back toward them, inside `[min, max]`. */
+function useDrift(args: { bases: readonly number[]; seed: number; drift: number; min: number; max: number }): number[] {
+  const { bases, seed, drift, min, max } = args;
+  const [rand] = useState(() => mulberry32(seed));
+  const [values, setValues] = useState<number[]>(() => [...bases]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      // A hidden tab throttles timers, then fires a burst on return.
+      if (document.hidden) return;
+
+      setValues((previous) =>
+        previous.map((value, i) => {
+          const next = value + (bases[i] - value) * 0.15 + (rand() * 2 - 1) * drift;
+
+          return Math.round(Math.min(max, Math.max(min, next)));
+        }),
+      );
+    }, 1000 / DRIFT_RATE);
+
+    return () => window.clearInterval(timer);
+  }, [bases, rand, drift, min, max]);
+
+  return values;
+}
+
+const NO_AXES = { y: { visible: false, width: 0 }, x: { visible: false, height: 0 } };
+
+const RADAR_AXES = ['CPU', 'Memory', 'Disk I/O', 'Network', 'Latency', 'Errors'];
+const RADAR_BASES = {
+  euWest: [64, 72, 38, 55, 42, 18],
+  usEast: [48, 58, 66, 71, 61, 34],
+};
+
+// Quieter look so the radar does not pull focus from the candles.
+const CALM_RADAR = { glow: false, fillOpacity: 0.1, lineWidth: 1.5, dotRadius: 0, ringLabels: false };
+
+function RadarChart({ theme, perf, introAnimation }: Omit<StreamProps, 'speed'> & { introAnimation: RadarIntroFn }) {
+  const euWest = useDrift({ bases: RADAR_BASES.euWest, seed: 19, drift: 6, min: 0, max: 100 });
+  const usEast = useDrift({ bases: RADAR_BASES.usEast, seed: 23, drift: 6, min: 0, max: 100 });
+  const data: RadarLayer[] = [
+    { label: 'eu-west', data: euWest },
+    { label: 'us-east', data: usEast },
+  ];
+
+  return (
+    <ChartContainer theme={theme} perf={perf} axis={NO_AXES} grid={{ visible: false }} style={HERO_CHART_STYLE}>
+      <Title sub="Live Radar">Service health</Title>
+      <RadarSeries axes={RADAR_AXES} data={data} options={{ max: 100, introAnimation, ...CALM_RADAR }} />
+      <RadarTooltip />
+      <Legend position="bottom" />
     </ChartContainer>
   );
 }
@@ -962,30 +1026,29 @@ export function OverviewPage({ theme }: { theme: ChartTheme }) {
       <div
         key={introEpoch}
         style={{
-          minHeight: mobile ? undefined : 500,
+          minHeight: mobile ? undefined : 540,
           display: 'grid',
-          gridTemplateColumns: mobile ? '1fr' : '1fr 1fr',
+          gridTemplateColumns: mobile ? '1fr' : '1fr 1fr 0.7fr',
           gridTemplateRows: mobile ? undefined : '1fr 1fr',
+          gridTemplateAreas: mobile ? undefined : '"candle candle radar" "band bar radar"',
           gap: mobile ? 6 : 10,
           padding: mobile ? 6 : 12,
         }}
       >
-        <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell theme={theme} style={mobile ? { height: 220 } : { gridArea: 'candle' }}>
           <CandleChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.candle} />
         </Cell>
-        <Cell theme={theme} style={mobile ? { height: 220 } : undefined}>
+        <Cell theme={theme} style={mobile ? { height: 220 } : { gridArea: 'band' }}>
           <AreaBandsChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.areaBands} />
         </Cell>
         {!mobile && (
-          <>
-            <Cell theme={theme}>
-              <MultiLineChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.portfolio} />
-            </Cell>
-            <Cell theme={theme}>
-              <BarChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.bar} />
-            </Cell>
-          </>
+          <Cell theme={theme} style={{ gridArea: 'bar' }}>
+            <BarChart theme={theme} speed={speed} perf={monitor} introAnimation={intros.bar} />
+          </Cell>
         )}
+        <Cell theme={theme} style={mobile ? { height: 260 } : { gridArea: 'radar' }}>
+          <RadarChart theme={theme} perf={monitor} introAnimation={intros.radar} />
+        </Cell>
       </div>
 
       <GettingStarted theme={theme} mobile={mobile} />
