@@ -1,6 +1,6 @@
 import { render } from '@testing-library/svelte';
 import { tick } from 'svelte';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import SmokeHarness from './SmokeHarness.svelte';
 
@@ -114,6 +114,16 @@ describe('Svelte wrapper smoke', () => {
     const main = result.container.querySelectorAll('canvas')[0] as HTMLCanvasElement;
     main.getContext('2d');
     expect(main.__spy!.countOf('lineTo')).toBeGreaterThan(0);
+    result.unmount();
+  });
+
+  it('passes points.pointPainter through to the line series', async () => {
+    const pointPainter = vi.fn();
+    const lineOptions = { points: { visible: true, minSpacing: false as const, pointPainter } };
+    const result = render(SmokeHarness, { variant: 'line', lineData, lineOptions });
+    await settle();
+
+    expect(pointPainter).toHaveBeenCalled();
     result.unmount();
   });
 

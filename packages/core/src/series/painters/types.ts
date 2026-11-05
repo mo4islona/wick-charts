@@ -163,3 +163,43 @@ export interface LinePaintArgs {
  * area polygon.
  */
 export type LinePainter = (env: PaintEnv, args: LinePaintArgs) => void;
+
+/** Arguments handed to a {@link PointPainter} once per marker. */
+export interface PointPaintArgs {
+  /** Bitmap X on the animated line, already past the entrance and live smoothing. */
+  x: number;
+  /** Bitmap Y on the animated line. On a stack, the layer's upper edge. */
+  y: number;
+  /** The raw data value, not the animated one and not the stacked sum. */
+  value: number;
+  time: number;
+  /** Position in the layer's data; `-1` for a point that already left a rolling window. */
+  index: number;
+  /** `points.color`, else the color the stroke paints this point in. */
+  color: string;
+  /** `points.radius` in bitmap px. */
+  radius: number;
+  /** `true` on the overlay call for the point under the crosshair. */
+  hovered: boolean;
+  /** The layer's latest finite point. */
+  isLast: boolean;
+  /** The first lowest point in view. */
+  isMin: boolean;
+  /** The first highest point in view. */
+  isMax: boolean;
+}
+
+/**
+ * Draws one marker. Owns its `beginPath` and fill; the engine isolates each call
+ * with `save` / `restore`, so a painter can set any canvas state.
+ *
+ * Runs on the main layer for each point with `hovered: false`, and again on the
+ * overlay for the point under the crosshair. Returning `false` draws nothing on
+ * the main layer, and keeps the default crosshair dot on the overlay.
+ */
+export interface PointPainter {
+  // biome-ignore lint/suspicious/noConfusingVoidType: a painter that returns nothing has drawn its marker.
+  (env: PaintEnv, point: PointPaintArgs): void | false;
+  /** Draws few markers, so the density check of `points.minSpacing` does not apply. */
+  selective?: boolean;
+}

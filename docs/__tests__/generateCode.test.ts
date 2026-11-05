@@ -301,6 +301,24 @@ describe('generateCode', () => {
     expect(code).not.toMatch(/import \{[^}]*\bohlcData\b/);
   });
 
+  it('imports a point painter and its shape, unquoted', () => {
+    const code = generateCode(
+      {
+        components: [
+          {
+            component: 'LineSeries',
+            props: { data: 'data', options: { points: { visible: true, pointPainter: 'lastPointOnly(ringPoint())' } } },
+          },
+        ],
+      },
+      'react',
+    );
+
+    expect(code).toContain('pointPainter: lastPointOnly(ringPoint())');
+    expect(code).toMatch(/import \{[^}]*\blastPointOnly\b[^}]*\} from '@wick-charts\/react';/);
+    expect(code).toMatch(/import \{[^}]*\bringPoint\b[^}]*\} from '@wick-charts\/react';/);
+  });
+
   it('imports every function of a nested library call', () => {
     const code = generateCode(
       {

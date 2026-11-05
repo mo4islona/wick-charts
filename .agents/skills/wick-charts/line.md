@@ -53,7 +53,30 @@ A `color` function in the data colors the whole line by its latest value; `thres
 
 ### `points`
 
-Dots at each data point, for sparse series where each sample matters: `options={{ points: { visible: true, radius: 4 } }}`. When the dots get too dense to read (far zoomed out), they hide until the user zooms in.
+Dots at each data point, for sparse series where each sample matters: `options={{ points: { visible: true, radius: 4 } }}`. When the dots get too dense to read (far zoomed out), they hide until the user zooms in. `minSpacing` sets that limit in CSS pixels (default 1.5 dot diameters); `minSpacing: false` always draws them.
+
+`pointPainter` draws each marker. All of these come from the wrapper package, and a chart that does not use them does not bundle them:
+
+```ts
+points: { visible: true, pointPainter: ringPoint() }                        // also dotPoint, squarePoint, diamondPoint, trianglePoint
+points: { visible: true, pointPainter: ringPoint({ radius: 5, fill: '#fff', stroke: '#0a0', strokeWidth: 2 }) }
+points: { visible: true, pointPainter: lastPointOnly() }                    // only the latest point
+points: { visible: true, pointPainter: extremaPoints(diamondPoint()) }      // lowest and highest point in view
+points: { visible: true, pointPainter: pointsWhere((p) => p.value > 70) }   // any selection: every Nth, a threshold, times in a Set
+points: { visible: true, pointPainter: pointsWhere((p) => p.hovered, ringPoint()) } // none until hover
+```
+
+Your own painter is a function of `(env, point)`. `env` holds `ctx`, `theme` and the pixel ratios; `point` holds `x`, `y`, `radius` (bitmap px), `value`, `time`, `index`, `color`, `hovered`, `isLast`, `isMin`, `isMax`. To change one marker, delegate to a preset:
+
+```ts
+const big = ringPoint({ radius: 6 });
+const small = dotPoint();
+const painter: PointPainter = (env, point) => (point.isLast ? big(env, point) : small(env, point));
+```
+
+- The painter runs on the main layer with `hovered: false`, and again on the overlay for the hovered point, where it replaces the crosshair dot. The presets grow and get a halo on hover. Return `false` to skip a marker; on hover, that keeps the crosshair dot.
+- The density limit applies to your own painter, but not to `pointsWhere`, `lastPointOnly` and `extremaPoints`. Use `minSpacing: false` on a hand-written painter that returns `false` for most points.
+- A painter that throws falls back to the default dot. On a stack, a painter runs only where the layer has its own sample.
 
 ## React
 

@@ -1,5 +1,12 @@
-import { roundedBarFill, roundedCandleFill, smoothCurve, steppedCurve, straightCurve } from './builtins';
-import type { BarPainter, CandlePainter, LinePainter, PaintEnv } from './types';
+import {
+  defaultPointDot,
+  roundedBarFill,
+  roundedCandleFill,
+  smoothCurve,
+  steppedCurve,
+  straightCurve,
+} from './builtins';
+import type { BarPainter, CandlePainter, LinePainter, PaintEnv, PointPainter } from './types';
 
 /**
  * Painter resolution.
@@ -83,4 +90,28 @@ export function resolveLinePainter(value: 'straight' | 'smooth' | 'stepped' | Li
   if (typeof value === 'string') return LINE_CURVES[value] ?? straightCurve;
 
   return straightCurve;
+}
+
+/**
+ * Isolate a point painter's canvas state, and contain a throw. The fallback starts
+ * from a clean state, as a painter can throw with its own alpha or transform set.
+ */
+export function resolvePointPainter(painter: PointPainter): PointPainter {
+  return (env, point) => {
+    const { ctx } = env;
+
+    ctx.save();
+    ctx.beginPath();
+    try {
+      return painter(env, point);
+    } catch (error) {
+      warnThrowingPainter('point', painter, error);
+      ctx.restore();
+      ctx.save();
+
+      return defaultPointDot(env, point);
+    } finally {
+      ctx.restore();
+    }
+  };
 }
