@@ -1,6 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { BarSeries, CandlestickSeries, ChartContainer, LineSeries, PieSeries, catppuccin } from '@wick-charts/vue';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick, ref } from 'vue';
 
 import { flushAllRaf, installRaf, uninstallRaf } from '../../../react/src/__tests__/helpers/raf';
@@ -111,6 +111,22 @@ describe('Vue wrapper smoke', () => {
     main.getContext('2d');
     expect(main.__spy).toBeDefined();
     expect(main.__spy!.countOf('fillRect')).toBeGreaterThan(0);
+    wrapper.unmount();
+  });
+
+  it('passes points.pointPainter through to the line series', async () => {
+    const pointPainter = vi.fn();
+    const options = { points: { visible: true, minSpacing: false as const, pointPainter } };
+    const App = defineComponent({
+      setup() {
+        return () => h(ChartContainer, { theme: catppuccin.theme }, () => [h(LineSeries, { data: lineData, options })]);
+      },
+    });
+
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect(pointPainter).toHaveBeenCalled();
     wrapper.unmount();
   });
 

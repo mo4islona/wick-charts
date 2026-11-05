@@ -11,7 +11,7 @@ import type { YScale } from '../scales/y-scale';
 import type { ChartTheme } from '../theme/types';
 import type { LineSeriesOptions, TimePoint, ValueColor } from '../types';
 import { hexToRgba } from '../utils/color';
-import { clamp, lerp } from '../utils/math';
+import { binarySearch, clamp, lerp } from '../utils/math';
 import { BaseMultiLayerSeries } from './base-multi-layer';
 import type { SeriesDefinition } from './definition';
 import { type EdgeStrip, edgeStripAlpha } from './edge-strip';
@@ -25,8 +25,8 @@ import {
 } from './line-intro';
 import type { CurveKind } from './painters/canvas-path';
 import { buildCurveSegments, replaySegmentsForward, replaySegmentsReversed } from './painters/canvas-path';
-import { resolveLinePainter } from './painters/resolve';
-import type { LinePoint, PaintEnv } from './painters/types';
+import { resolveLinePainter, resolvePointPainter } from './painters/resolve';
+import type { LinePoint, PaintEnv, PointPaintArgs, PointPainter } from './painters/types';
 import { ScaleStack } from './scale-stack';
 import type { OverlayRenderContext, SeriesRenderContext, ValueRangeOptions } from './types';
 
@@ -91,6 +91,51 @@ function normalize(input: LineSeriesOptions & { colors: ValueColor[] }): Resolve
 /** Convert the stacked renderer's `[x, y]` tuples to {@link LinePoint}s. */
 function toPoints(xy: readonly [number, number][]): LinePoint[] {
   return xy.map(([x, y]) => ({ x, y }));
+}
+
+/** Times of the lowest and highest point in view, for a point painter's `isMin` / `isMax`. */
+interface PointExtent {
+  minTime: number;
+  maxTime: number;
+}
+
+// The data slice runs past each pane edge, and an extreme out there has no marker to show.
+function extentInView(samples: readonly (TimePoint | null)[], view: { from: number; to: number }): PointExtent | null {
+  let min: TimePoint | null = null;
+  let max: TimePoint | null = null;
+
+  for (const sample of samples) {
+    if (!sample || sample.time < view.from || sample.time > view.to) continue;
+
+    if (min === null || sample.value < min.value) min = sample;
+    if (max === null || sample.value > max.value) max = sample;
+  }
+
+  return min && max ? { minTime: min.time, maxTime: max.time } : null;
+}
+
+/** The layer's own sample at each drawn column. Null on a column it only holds a value through. */
+function stackColumnSamples(params: {
+  layer: readonly TimePoint[];
+  times: readonly number[];
+  gapColumns: readonly boolean[];
+  plottable: (value: number) => boolean;
+}): (TimePoint | null)[] {
+  const { layer, times, gapColumns, plottable } = params;
+  const byTime = new Map<number, TimePoint>();
+  for (const sample of layer) {
+    byTime.set(sample.time, sample);
+  }
+
+  const samples: (TimePoint | null)[] = [];
+  for (let ti = 0; ti < times.length; ti++) {
+    if (gapColumns[ti]) continue;
+
+    const sample = byTime.get(times[ti]);
+    samples.push(sample && plottable(sample.value) ? sample : null);
+  }
+
+  return samples;
 }
 
 /** Fraction of the intro window the head glow fades in/out over; the settled
@@ -405,6 +450,9 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    * instead of re-deriving the entrance from a different chain.
    * `null` when the stacked path didn't run.
    */
+  /** Per layer, from the last main pass: the overlay's hovered marker has no slice of its own to scan. */
+  private pointExtents: (PointExtent | null)[] = [];
+
   private stackedEdges: {
     times: readonly number[];
     cumulative: readonly number[][];
@@ -1249,25 +1297,44 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
    * animated vertices the stroke was built from, so the dots glide with the
    * entrance unfurl and live-value smoothing instead of snapping to raw
    * geometry. Skipped for the frame when the average horizontal spacing falls
-   * under ~1.5 dot diameters — dots that dense melt into a fat line and hide
-   * the stroke.
+   * under `minSpacing` (~1.5 dot diameters by default) — dots that dense melt
+   * into a fat line and hide the stroke. `samples` aligns with `points`; a `null`
+   * entry is a column where the layer has no reading for a painter to describe.
    */
   private drawPointMarkers(params: {
-    context: CanvasRenderingContext2D;
+    env: PaintEnv;
+    layerIndex: number;
     points: readonly LinePoint[];
-    pixelRatio: number;
+    samples: readonly (TimePoint | null)[];
     color: string;
+    view: { from: number; to: number };
   }): void {
     const config = this.options.points;
     if (!config?.visible) return;
 
-    const { context, points, pixelRatio, color } = params;
+    const { env, layerIndex, points, samples, color, view } = params;
+    const context = env.ctx;
+    const pixelRatio = env.horizontalPixelRatio;
+    const painter = config.pointPainter;
+    if (painter) this.pointExtents[layerIndex] = extentInView(samples, view);
+
     if (points.length === 0) return;
 
     const radius = Math.max(1, (config.radius ?? 3) * pixelRatio);
-    if (points.length > 1) {
+    let minSpacing = radius * 3;
+    if (config.minSpacing !== undefined) {
+      minSpacing = config.minSpacing === false ? 0 : config.minSpacing * pixelRatio;
+    }
+
+    if (points.length > 1 && !painter?.selective) {
       const spacing = (points[points.length - 1].x - points[0].x) / (points.length - 1);
-      if (spacing < radius * 3) return;
+      if (spacing < minSpacing) return;
+    }
+
+    if (painter) {
+      this.paintMarkers({ env, layerIndex, points, samples, painter });
+
+      return;
     }
 
     context.beginPath();
@@ -1277,6 +1344,54 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     }
     context.fillStyle = config.color ?? color;
     context.fill();
+  }
+
+  private paintMarkers(params: {
+    env: PaintEnv;
+    layerIndex: number;
+    points: readonly LinePoint[];
+    samples: readonly (TimePoint | null)[];
+    painter: PointPainter;
+  }): void {
+    const { env, layerIndex, points, samples } = params;
+    const paint = resolvePointPainter(params.painter);
+
+    for (let i = 0; i < points.length; i++) {
+      const sample = samples[i];
+      if (!sample) continue;
+
+      paint(env, this.pointPaintArgs({ env, layerIndex, at: points[i], sample, hovered: false }));
+    }
+  }
+
+  private pointPaintArgs(params: {
+    env: PaintEnv;
+    layerIndex: number;
+    at: LinePoint;
+    sample: TimePoint;
+    hovered: boolean;
+  }): PointPaintArgs {
+    const { env, layerIndex, at, sample, hovered } = params;
+    const { time, value } = sample;
+    const config = this.options.points;
+    const extent = this.pointExtents[layerIndex];
+
+    const all = this.stores[layerIndex].getAll();
+    const found = binarySearch(all, time, (d) => d.time);
+
+    return {
+      x: at.x,
+      y: at.y,
+      value,
+      time,
+      index: all[found]?.time === time ? found : -1,
+      color: config?.color ?? this.resolvePointColor(layerIndex, value),
+      radius: Math.max(1, (config?.radius ?? 3) * env.horizontalPixelRatio),
+      hovered,
+      isLast: this.lastFinitePoint(layerIndex)?.time === time,
+      isMin: extent?.minTime === time,
+      isMax: extent?.maxTime === time,
+    };
   }
 
   /** Each layer drawn independently */
@@ -1365,6 +1480,8 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
 
       const bodyEnd = data.length - 1;
       const runs: { x: number; y: number }[][] = [];
+      // Aligned with the flattened runs, for a point painter.
+      const runSamples: TimePoint[] = [];
       let current: { x: number; y: number }[] | null = null;
       for (let i = 0; i < bodyEnd; i++) {
         const v = data[i].value;
@@ -1376,6 +1493,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           current = [];
           runs.push(current);
         }
+        runSamples.push(data[i]);
         // Chained tail positions win (overlapping entrances mid-unfurl);
         // otherwise effectiveValue picks up the pinned chase on the
         // penultimate point — the vertex keeps gliding to its final stored
@@ -1399,6 +1517,7 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       const growing = style === 'grow' && progress < 1;
       let growingRun: { x: number; y: number }[] | null = null;
       if (trailingFinite) {
+        runSamples.push(data[bodyEnd]);
         if (current) {
           current.push({ x: trailingX, y: trailingY });
           growingRun = current;
@@ -1494,7 +1613,14 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
         for (const run of runs) {
           for (const point of run) flat.push(point);
         }
-        this.drawPointMarkers({ context, points: flat, pixelRatio: scope.horizontalPixelRatio, color });
+        this.drawPointMarkers({
+          env: paintEnv,
+          layerIndex: li,
+          points: flat,
+          samples: runSamples,
+          color,
+          view: timeScale.getRange(),
+        });
       }
 
       if (trailingFade || layerFaded) context.restore();
@@ -1848,12 +1974,21 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
       // layerAlpha in lockstep with the stroke.
       if (this.options.points?.visible) {
         const markers = toPoints(upperXY).filter((_, ti) => !gapColumns[ti]);
+        const samples = this.options.points.pointPainter
+          ? stackColumnSamples({ layer: layers[li], times, gapColumns, plottable: (v) => yScale.isPlottable(v) })
+          : [];
         const dotsFaded = layerAlpha < 1;
         if (dotsFaded) {
           context.save();
           context.globalAlpha *= layerAlpha;
         }
-        this.drawPointMarkers({ context, points: markers, pixelRatio: scope.horizontalPixelRatio, color });
+        const env: PaintEnv = {
+          ctx: context,
+          theme: ctx.theme,
+          horizontalPixelRatio: scope.horizontalPixelRatio,
+          verticalPixelRatio,
+        };
+        this.drawPointMarkers({ env, layerIndex: li, points: markers, samples, color, view: timeScale.getRange() });
         if (dotsFaded) context.restore();
       }
 
@@ -2002,6 +2137,27 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
     context.restore();
   }
 
+  /** The point painter's take on the hovered point. `false` leaves it to the default crosshair dot. */
+  private paintHoveredMarker(
+    ctx: OverlayRenderContext,
+    params: { layerIndex: number; at: LinePoint; sample: TimePoint },
+  ): boolean {
+    const config = this.options.points;
+    if (!config?.visible || !config.pointPainter) return false;
+    if (!Number.isFinite(params.sample.value)) return false;
+
+    const { scope, theme } = ctx;
+    const env: PaintEnv = {
+      ctx: scope.context,
+      theme,
+      horizontalPixelRatio: scope.horizontalPixelRatio,
+      verticalPixelRatio: scope.verticalPixelRatio,
+    };
+    const paint = resolvePointPainter(config.pointPainter);
+
+    return paint(env, this.pointPaintArgs({ env, ...params, hovered: true })) !== false;
+  }
+
   /**
    * Overlay hook: draws crosshair nearest-point dots and last-point pulse dots.
    * Chart invokes this during the overlay pass for any renderer that implements it.
@@ -2059,22 +2215,25 @@ export class LineRenderer extends BaseMultiLayerSeries<TimePoint> {
           scope.context.globalAlpha *= dotAlpha;
         }
 
-        // Halo: the series color at reduced alpha via globalAlpha rather than
-        // splicing an alpha into the color string — the old regex/concat path
-        // produced an invalid fillStyle for shorthand hex, 8-digit hex, hsl()
-        // and named colors (it only handled #rrggbb / rgb()).
-        scope.context.save();
-        scope.context.globalAlpha *= 0.25;
-        scope.context.beginPath();
-        scope.context.arc(px, py, haloRadius, 0, Math.PI * 2);
-        scope.context.fillStyle = color;
-        scope.context.fill();
-        scope.context.restore();
+        const painted = this.paintHoveredMarker(ctx, { layerIndex: li, at: { x: px, y: py }, sample: closest });
+        if (!painted) {
+          // Halo: the series color at reduced alpha via globalAlpha rather than
+          // splicing an alpha into the color string — the old regex/concat path
+          // produced an invalid fillStyle for shorthand hex, 8-digit hex, hsl()
+          // and named colors (it only handled #rrggbb / rgb()).
+          scope.context.save();
+          scope.context.globalAlpha *= 0.25;
+          scope.context.beginPath();
+          scope.context.arc(px, py, haloRadius, 0, Math.PI * 2);
+          scope.context.fillStyle = color;
+          scope.context.fill();
+          scope.context.restore();
 
-        scope.context.beginPath();
-        scope.context.arc(px, py, r, 0, Math.PI * 2);
-        scope.context.fillStyle = color;
-        scope.context.fill();
+          scope.context.beginPath();
+          scope.context.arc(px, py, r, 0, Math.PI * 2);
+          scope.context.fillStyle = color;
+          scope.context.fill();
+        }
 
         if (dotFaded) scope.context.restore();
       }

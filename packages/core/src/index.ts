@@ -229,6 +229,17 @@ export type { CurveKind, RoundedRectArgs, TracePathArgs } from './series/painter
 // primitives. A custom painter is a plain function passed to the series option;
 // there is no name registry.
 export { fillRoundedRect, tracePath, traceRoundedRect } from './series/painters/canvas-path';
+export type { PointShapeOptions } from './series/painters/point-markers';
+export {
+  diamondPoint,
+  dotPoint,
+  extremaPoints,
+  lastPointOnly,
+  pointsWhere,
+  ringPoint,
+  squarePoint,
+  trianglePoint,
+} from './series/painters/point-markers';
 export type {
   BarGeometry,
   BarPaintArgs,
@@ -241,6 +252,8 @@ export type {
   LinePainter,
   LinePoint,
   PaintEnv,
+  PointPaintArgs,
+  PointPainter,
 } from './series/painters/types';
 export { PieSeriesDef } from './series/pie';
 export { RadarSeriesDef, niceRadarMax } from './series/radar';

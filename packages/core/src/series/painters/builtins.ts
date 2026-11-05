@@ -1,6 +1,6 @@
 import { hexToRgba } from '../../utils/color';
 import { fillRoundedRect, tracePath, traceRoundedRect } from './canvas-path';
-import type { BarPainter, CandlePaintArgs, CandlePainter, LinePainter, PaintEnv } from './types';
+import type { BarPainter, CandlePaintArgs, CandlePainter, LinePainter, PaintEnv, PointPainter } from './types';
 
 /** Opacity of a ghost / forecast bar's fill. Low enough that grid lines read
  *  through it; high enough that the bar's color is still recognizable. */
@@ -23,6 +23,16 @@ export const steppedCurve: LinePainter = (env, args) => {
  *  while the trailing endpoint is growing so the head can't wobble / overshoot. */
 export const smoothCurve: LinePainter = (env, args) => {
   tracePath(env, { points: args.points, kind: 'smooth', settledOnly: args.grew });
+};
+
+/** One default marker, for a {@link PointPainter} that threw. */
+export const defaultPointDot: PointPainter = (env, point) => {
+  const { ctx } = env;
+
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, point.radius, 0, Math.PI * 2);
+  ctx.fillStyle = point.color;
+  ctx.fill();
 };
 
 /** DEFAULT bar painter (registered as `'rounded'`). Trusts the engine-supplied

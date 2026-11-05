@@ -229,11 +229,11 @@
               },
               {
                 "name": "points",
-                "type": "{ visible: boolean; radius?: number; color?: string; }",
+                "type": "{ visible: boolean; radius?: number; color?: string; pointPainter?: PointPainter; minSpacing?: number | false; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
-                "description": "Dot markers at each data point. Hidden by default.\n\nDots ride the same animated geometry as the stroke (entrance unfurl,\nlive-value smoothing, stacked cumulative), so they glide with the line\ninstead of snapping. When the visible points sit too dense to read as\ndiscrete markers (average spacing under ~1.5 dot diameters, e.g. zoomed\nfar out), the dots are skipped for that frame — they'd merge into a fat\nline and hide the stroke. Zooming back in brings them back.\n\n```\n<LineSeries data={data} options={{ points: { visible: true } }} />\n```",
+                "description": "Dot markers at each data point. Hidden by default.\n\nDots ride the same animated geometry as the stroke (entrance unfurl,\nlive-value smoothing, stacked cumulative), so they glide with the line\ninstead of snapping. When the visible points sit too dense to read as\ndiscrete markers (see `minSpacing`), the dots are skipped for that frame —\nthey'd merge into a fat line and hide the stroke. Zooming back in brings\nthem back.\n\n```\n<LineSeries data={data} options={{ points: { visible: true } }} />\n<LineSeries data={data} options={{ points: { visible: true, pointPainter: ringPoint() } }} />\n```",
                 "see": [],
                 "nested": {
                   "name": "",
@@ -263,6 +263,38 @@
                       "defaultValue": "the layer's resolved series color",
                       "deprecated": null,
                       "description": "Fill color override. Default: the layer's resolved series color.",
+                      "see": []
+                    },
+                    {
+                      "name": "pointPainter",
+                      "type": "PointPainter",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Draws one marker in place of the default dot: a shape preset such as\n`ringPoint()`, a selection helper such as `lastPointOnly()`, or your own\nfunction. A painter that throws falls back to the default dot.",
+                      "see": [],
+                      "nested": {
+                        "name": "PointPainter",
+                        "props": [
+                          {
+                            "name": "selective",
+                            "type": "boolean",
+                            "optional": true,
+                            "defaultValue": null,
+                            "deprecated": null,
+                            "description": "Draws few markers, so the density check of `points.minSpacing` does not apply.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "minSpacing",
+                      "type": "number | false",
+                      "optional": true,
+                      "defaultValue": "1.5 dot diameters",
+                      "deprecated": null,
+                      "description": "Skip the markers when their average spacing is under this many CSS pixels.\n`false` always draws them. Default: 1.5 dot diameters. Painters from\n`pointsWhere`, `lastPointOnly` and `extremaPoints` ignore it.",
                       "see": []
                     }
                   ]
