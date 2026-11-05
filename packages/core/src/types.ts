@@ -1,7 +1,7 @@
 import type { BarIntroFn } from './series/bar-intro';
 import type { CandleIntroFn } from './series/candlestick-intro';
 import type { LineIntroFn } from './series/line-intro';
-import type { BarPainter, CandlePainter, LinePainter } from './series/painters/types';
+import type { BarPainter, CandlePainter, LinePainter, PointPainter } from './series/painters/types';
 import type { RadarIntroFn } from './series/radar-intro';
 import type { RadialLabelPainter, RadialLayout, RingPainter } from './series/radial-progress-styles';
 
@@ -626,12 +626,13 @@ export interface LineSeriesOptions {
    * Dots ride the same animated geometry as the stroke (entrance unfurl,
    * live-value smoothing, stacked cumulative), so they glide with the line
    * instead of snapping. When the visible points sit too dense to read as
-   * discrete markers (average spacing under ~1.5 dot diameters, e.g. zoomed
-   * far out), the dots are skipped for that frame — they'd merge into a fat
-   * line and hide the stroke. Zooming back in brings them back.
+   * discrete markers (see `minSpacing`), the dots are skipped for that frame —
+   * they'd merge into a fat line and hide the stroke. Zooming back in brings
+   * them back.
    *
    * ```
    * <LineSeries data={data} options={{ points: { visible: true } }} />
+   * <LineSeries data={data} options={{ points: { visible: true, pointPainter: ringPoint() } }} />
    * ```
    */
   points?: {
@@ -641,6 +642,18 @@ export interface LineSeriesOptions {
     radius?: number;
     /** Fill color override. Default: the layer's resolved series color. */
     color?: string;
+    /**
+     * Draws one marker in place of the default dot: a shape preset such as
+     * `ringPoint()`, a selection helper such as `lastPointOnly()`, or your own
+     * function. A painter that throws falls back to the default dot.
+     */
+    pointPainter?: PointPainter;
+    /**
+     * Skip the markers when their average spacing is under this many CSS pixels.
+     * `false` always draws them. Default: 1.5 dot diameters. Painters from
+     * `pointsWhere`, `lastPointOnly` and `extremaPoints` ignore it.
+     */
+    minSpacing?: number | false;
   };
 }
 

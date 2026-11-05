@@ -124,9 +124,31 @@ const VAR_REF_NAMES = new Set([
   'logScale()',
 ]);
 
+/** Every `points.pointPainter` expression the Line page can show. */
+function pointPainterRefs(): [string, string[]][] {
+  const hovered = 'pointsWhere((point) => point.hovered';
+  const refs: [string, string[]][] = [
+    ['lastPointOnly()', ['lastPointOnly']],
+    ['extremaPoints()', ['extremaPoints']],
+    [`${hovered})`, ['pointsWhere']],
+  ];
+
+  for (const preset of ['dotPoint', 'ringPoint', 'squarePoint', 'diamondPoint', 'trianglePoint']) {
+    refs.push(
+      [`${preset}()`, [preset]],
+      [`lastPointOnly(${preset}())`, ['lastPointOnly', preset]],
+      [`extremaPoints(${preset}())`, ['extremaPoints', preset]],
+      [`${hovered}, ${preset}())`, ['pointsWhere', preset]],
+    );
+  }
+
+  return refs;
+}
+
 // Library exports a snippet references by value — rendered unquoted, with each
 // callee added to the import list (`data={heikinAshi(ohlcData)}` imports `heikinAshi`).
 const LIBRARY_REFS = new Map<string, string[]>([
+  ...pointPainterRefs(),
   ['hollowCandle', ['hollowCandle']],
   ['ohlcBar', ['ohlcBar']],
   ['heikinAshi(ohlcData)', ['heikinAshi']],

@@ -8,7 +8,9 @@ import {
   InfoBar,
   Legend,
   LineSeries,
+  type LineSeriesOptions,
   Navigator,
+  type PointPainter,
   type StackingMode,
   type TimePoint,
   Title,
@@ -16,7 +18,15 @@ import {
   type TooltipSort,
   XAxis,
   YAxis,
+  diamondPoint,
+  dotPoint,
+  extremaPoints,
+  lastPointOnly,
   perfHud,
+  pointsWhere,
+  ringPoint,
+  squarePoint,
+  trianglePoint,
 } from '@wick-charts/react';
 
 import { Cell } from '../components/Cell';
@@ -62,6 +72,8 @@ interface LineSettings {
   pulse: boolean;
   pointsVisible: boolean;
   pointsRadius: number;
+  pointsShape: PointShape;
+  pointsShow: PointsShow;
   stacking: StackingMode;
   tooltipSort: TooltipSort;
   tooltipCustom: boolean;
@@ -75,6 +87,56 @@ interface LineSettings {
 const MULTI_COUNT = 6;
 
 type LineState = PlaygroundChartProps & LineSettings;
+type PointShape = 'dot' | 'ring' | 'square' | 'diamond' | 'triangle';
+type PointsShow = 'all' | 'last' | 'extrema' | 'hover';
+
+const POINT_SHAPES: Record<PointShape, () => PointPainter> = {
+  dot: dotPoint,
+  ring: ringPoint,
+  square: squarePoint,
+  diamond: diamondPoint,
+  triangle: trianglePoint,
+};
+
+// A stable identity per combination, so a re-render does not count as an options change.
+const pointPainters = new Map<string, PointPainter>();
+
+function pointPainter(shape: PointShape, show: PointsShow): PointPainter | undefined {
+  if (shape === 'dot' && show === 'all') return undefined;
+
+  const key = `${shape}-${show}`;
+  const cached = pointPainters.get(key);
+  if (cached) return cached;
+
+  const inner = POINT_SHAPES[shape]();
+  let painter = inner;
+  if (show === 'last') painter = lastPointOnly(inner);
+  if (show === 'extrema') painter = extremaPoints(inner);
+  if (show === 'hover') painter = pointsWhere((point) => point.hovered, inner);
+  pointPainters.set(key, painter);
+
+  return painter;
+}
+
+/** The `pointPainter` expression the code tab shows; `undefined` for the plain default dots. */
+function pointPainterCode(shape: PointShape, show: PointsShow): string | undefined {
+  if (shape === 'dot' && show === 'all') return undefined;
+
+  const inner = `${shape}Point()`;
+  if (show === 'all') return inner;
+
+  const arg = shape === 'dot' ? '' : inner;
+  if (show === 'last') return `lastPointOnly(${arg})`;
+  if (show === 'extrema') return `extremaPoints(${arg})`;
+
+  return shape === 'dot' ? 'pointsWhere((point) => point.hovered)' : `pointsWhere((point) => point.hovered, ${inner})`;
+}
+
+function pointsOption(s: LineSettings): LineSeriesOptions['points'] {
+  if (!s.pointsVisible) return undefined;
+
+  return { visible: true, radius: s.pointsRadius, pointPainter: pointPainter(s.pointsShape, s.pointsShow) };
+}
 type CardId = 'single' | 'multi' | 'pnl';
 
 interface CardHead {
@@ -188,7 +250,7 @@ function SingleChart(props: LineState & { allData: TimePoint[][]; head: CardHead
           strokeWidth: props.strokeWidth,
           pulse: props.pulse,
           entryAnimation: props.lineEntryAnimation,
-          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
+          points: pointsOption(props),
         }}
       />
       {props.tooltipVisible && renderTooltip(props)}
@@ -255,7 +317,7 @@ function MultiChart(props: LineState & { allData: TimePoint[][]; head: CardHead 
           pulse: props.pulse,
           stacking: props.stacking,
           entryAnimation: props.lineEntryAnimation,
-          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
+          points: pointsOption(props),
         }}
       />
       {props.tooltipVisible && renderTooltip(props)}
@@ -305,7 +367,7 @@ function PnlChart(props: LineState & { head: CardHead }) {
           strokeWidth: props.strokeWidth,
           pulse: props.pulse,
           entryAnimation: props.lineEntryAnimation,
-          points: props.pointsVisible ? { visible: true, radius: props.pointsRadius } : undefined,
+          points: pointsOption(props),
         }}
       />
       {props.tooltipVisible && renderTooltip(props)}
@@ -443,6 +505,41 @@ const SERIES_SECTION: SectionSpec = {
         <Slider value={v as number} min={1} max={6} step={0.5} suffix="px" onChange={onChange as (v: number) => void} />
       ),
     },
+    {
+      key: 'pointsShape',
+      label: 'Point shape',
+      visible: (s) => s.pointsVisible,
+      render: (v, onChange) => (
+        <Select
+          value={v as PointShape}
+          options={[
+            { value: 'dot', label: 'Dot' },
+            { value: 'ring', label: 'Ring' },
+            { value: 'square', label: 'Square' },
+            { value: 'diamond', label: 'Diamond' },
+            { value: 'triangle', label: 'Triangle' },
+          ]}
+          onChange={onChange as (v: PointShape) => void}
+        />
+      ),
+    },
+    {
+      key: 'pointsShow',
+      label: 'Show on',
+      visible: (s) => s.pointsVisible,
+      render: (v, onChange) => (
+        <Select
+          value={v as PointsShow}
+          options={[
+            { value: 'all', label: 'Every point' },
+            { value: 'last', label: 'Last point' },
+            { value: 'extrema', label: 'Min and max' },
+            { value: 'hover', label: 'Hover only' },
+          ]}
+          onChange={onChange as (v: PointsShow) => void}
+        />
+      ),
+    },
   ] as RowSpec[],
 };
 
@@ -555,6 +652,16 @@ function areaCode(area: { visible: boolean; baseline?: number }): Record<string,
   return {};
 }
 
+function pointsCode(s: LineState): Record<string, PropValue> {
+  const painter = pointPainterCode(s.pointsShape, s.pointsShow);
+
+  return {
+    visible: true,
+    ...(s.pointsRadius !== 3 ? { radius: s.pointsRadius } : {}),
+    ...(painter !== undefined ? { pointPainter: painter } : {}),
+  };
+}
+
 /** The series look the panel sets on every card. */
 function lineOptions(s: LineState): Record<string, PropValue> {
   return {
@@ -563,9 +670,7 @@ function lineOptions(s: LineState): Record<string, PropValue> {
     ...(s.curve !== 'straight' ? { curve: s.curve } : {}),
     ...(s.strokeWidth !== 1 ? { strokeWidth: s.strokeWidth } : {}),
     ...(s.pulse ? {} : { pulse: false }),
-    ...(s.pointsVisible
-      ? { points: { visible: true, ...(s.pointsRadius !== 3 ? { radius: s.pointsRadius } : {}) } }
-      : {}),
+    ...(s.pointsVisible ? { points: pointsCode(s) } : {}),
   };
 }
 
@@ -676,6 +781,8 @@ export function LinePage({ theme }: { theme: ChartTheme }) {
         pulse: true,
         pointsVisible: false,
         pointsRadius: 3,
+        pointsShape: 'dot',
+        pointsShow: 'all',
         stacking: 'off',
         tooltipSort: 'desc',
         tooltipCustom: false,
