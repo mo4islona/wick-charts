@@ -5,22 +5,117 @@
 [![codecov](https://codecov.io/gh/mo4islona/wick-charts/branch/main/graph/badge.svg)](https://codecov.io/gh/mo4islona/wick-charts) [![license](https://img.shields.io/github/license/mo4islona/wick-charts.svg)](./LICENSE)
 [![npm @wick-charts/svelte](https://img.shields.io/npm/v/@wick-charts/svelte.svg?label=%40wick-charts%2Fsvelte)](https://www.npmjs.com/package/@wick-charts/svelte)
 
-Realtime, animated charts for **React**, **Vue** and **Svelte**. Canvas-rendered, tree-shakeable, zero runtime dependencies.
+**Charts for data that never stops.** Prices, metrics, sensors, logs.
 
-[Live demo](https://wick-charts.eeff.io/) · [Documentation](https://wick-charts.eeff.io/api/chart-container/) · [License](#license)
+Wick Charts draws realtime, animated charts on canvas for React, Vue and Svelte. Give a series an array. When the array changes, the last point eases to its new value, new points join at the edge, and the view follows them. Zoom, pan, crosshair and tooltips work without extra code. There are no runtime dependencies besides your framework.
 
-## Why Wick Charts
+<a href="https://wick-charts.eeff.io/"><picture><source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/hero-dark.webp"><img alt="Four live charts streaming at once: candlesticks with volume, an area with bands, profit-and-loss bars and a radar" src="https://wick-charts.eeff.io/readme/hero-light.webp"></picture></a>
 
-- **8+ chart types**: candlestick, line, bar, heatmap, pie and more, or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/)
-- **Real-time streaming** — append/update at 60fps with coordinated animations
-- **Themes** — built-in themes, `createTheme()` for your own palette, and a [theme editor](https://wick-charts.eeff.io/use-cases/theme/)
-- **Interactive** — zoom, pan, crosshair, tooltips
-- **Stacking** — normal and percent modes for line/bar
-- **Custom-render slots** — keep the built-in positioning, replace the contents
-- **Tree-shakeable** — import only what you use
-- **TypeScript-first** — type definitions ship with every package
-- **Zero runtime dependencies** — just your framework
-- **Always free and open** — [MIT licensed](#license)
+[Live demo](https://wick-charts.eeff.io/) · [Documentation](https://wick-charts.eeff.io/api/chart-container/) · [Theme editor](https://wick-charts.eeff.io/use-cases/theme/)
+
+## Chart types
+
+Each type has a page in the docs with a live playground. Change a setting, and the **Code** tab next to it shows the code for what you see.
+
+- [Candlestick](https://wick-charts.eeff.io/charts/candlestick/), [order book](https://wick-charts.eeff.io/charts/depth/), [line and area](https://wick-charts.eeff.io/charts/line/), [band](https://wick-charts.eeff.io/charts/band/), [bar](https://wick-charts.eeff.io/charts/bar/)
+- [Pie and donut](https://wick-charts.eeff.io/charts/pie/), [heatmap](https://wick-charts.eeff.io/charts/heatmap/), [Sankey](https://wick-charts.eeff.io/charts/sankey/), [gauge and radial progress](https://wick-charts.eeff.io/charts/gauge/), [radar](https://wick-charts.eeff.io/charts/radar/)
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/charts-series-dark.webp">
+<img alt="Candlesticks with volume, an order book, six overlapping lines, a Bollinger band, stacked bars and sparklines" src="https://wick-charts.eeff.io/readme/charts-series-light.webp">
+</picture>
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/charts-shapes-dark.webp">
+<img alt="A donut, a correlation heatmap, a Sankey diagram, a radar, a gauge and a radial progress chart" src="https://wick-charts.eeff.io/readme/charts-shapes-light.webp">
+</picture>
+
+Lines and bars stack, as values or as percents of the total. The X axis takes [time, plain numbers](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [categories](https://wick-charts.eeff.io/use-cases/category-bars/), and a second series can use its own [Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/).
+
+## Live data
+
+Pass a new array to `data` when the data changes. The series compares it with the previous array:
+
+- A changed last point eases to its new value.
+- A few new points at the end are appended.
+- Anything else replaces the data.
+
+The view follows the newest point. Pan back into history and it stays where you put it; pan back to the end and it follows again. The [Realtime Data guide](https://wick-charts.eeff.io/use-cases/realtime-data/) shows this and the imperative `appendData` / `updateData` calls.
+
+Keep the array immutable. Each framework has one trap:
+
+- **Svelte 5:** keep chart data in `$state.raw` (or a store) and assign a new array: `data = [...data, point]`. With a deep `$state`, the chart reads every point through a proxy, and a large dataset (100k+ points) blocks the main thread for seconds instead of milliseconds. On Svelte 4, assign a new array the same way.
+
+## Read a chart
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/tooltip-dark.webp">
+<img alt="A candlestick chart with the crosshair on one candle and a tooltip with its open, high, low, close and volume" src="https://wick-charts.eeff.io/readme/tooltip-light.webp">
+</picture>
+
+- Move the pointer over the chart. The crosshair follows it, the info bar at the top shows the values under it, and `<Tooltip>` shows them next to the pointer.
+- Scroll to zoom the time axis. Drag to pan. On a touch screen, pinch to zoom and drag with one finger to pan.
+- Double-click to fit all the data in view.
+- Set `interactive={false}` on the container for a chart that only shows data.
+
+To keep several charts in step, pass the visible range and the crosshair of one chart to the others from its `viewportChange` and `crosshairMove` events. See [Multi-chart sync](https://wick-charts.eeff.io/use-cases/multi-chart-sync/).
+
+## Annotations
+
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/annotations-dark.webp">
+<img alt="A line chart with a deploy marker, a shaded incident window, a peak callout, a dashed limit line and a baseline" src="https://wick-charts.eeff.io/readme/annotations-light.webp">
+</picture>
+
+- `<Marker>` pins one moment, such as a deploy or a peak. Give it a `seriesId` and it sits on that series' line.
+- `<TimeRegion>` shades an interval. Leave out `to` and it runs to the right edge.
+- `<ReferenceLine>` draws a level at a `value`, or a vertical line at a `time`.
+
+Annotations are not data: they stay out of the tooltip, the legend and the Y range. See [Annotations](https://wick-charts.eeff.io/use-cases/annotations/).
+
+## Themes
+
+<img alt="The same candlestick chart in six built-in themes, three dark and three light, one with a handwritten font" src="https://wick-charts.eeff.io/readme/themes.webp">
+
+Pick a built-in theme, build your own with `createTheme()`, or change one in the [theme editor](https://wick-charts.eeff.io/use-cases/theme/). A theme sets the colors, the font and the look of every part of the chart. Tooltips, legends and axis labels also take your own render code and keep their built-in position. See [Custom renders](https://wick-charts.eeff.io/use-cases/custom-renders/).
+
+Each series draws itself in when it mounts. Pick an intro animation per series, or [write your own](https://wick-charts.eeff.io/use-cases/custom-intro/).
+
+## Measure performance
+
+Pass `perfHud()` to the `perf` prop to put a small FPS panel on the chart. Click the panel to see frame times, draw calls and the render time of each series.
+
+```svelte
+<script lang="ts">
+  import { ChartContainer, perfHud } from '@wick-charts/svelte';
+</script>
+
+<ChartContainer perf={perfHud()}>
+  <!-- series and overlays -->
+</ChartContainer>
+```
+
+The chart reads `perf` once, when it mounts. The perf code is in your bundle only if you import `perfHud`. To collect the numbers without the panel, pass a `PerfMonitor` instead and read them with `monitor.onFrame((stats) => …)`.
+
+## What it adds to your app
+
+- **Code.** Each series component carries its own renderer, and the packages ship per-module ESM with `sideEffects: false`. Your bundle holds only the chart types you import. Type definitions ship in every package.
+- **Dependencies.** None at runtime. The peer dependency is your framework: React 18+, Vue 3.3+, or Svelte 4 or 5.
+- **DOM.** Each chart is one `div` with a few `<canvas>` layers in it. A `ResizeObserver` keeps them at the size of the container and the pixel ratio of the screen.
+- **Network.** The library makes no requests and sends no telemetry.
+
+Tree-shaken React builds, measured with `pnpm size` (esbuild, minified, browser target, React and ReactDOM external):
+
+| Scenario | Raw | Gzip | Brotli |
+|---|---:|---:|---:|
+| Candlestick only | 174.8 kB | 55.5 kB | 48.6 kB |
+| Line only        | 202.0 kB | 63.8 kB | 55.4 kB |
+
+## Limits
+
+- **Server rendering.** The chart draws in the browser only. On the server, the container renders as an empty element.
+- **Screen readers.** A canvas has no text that a screen reader can read. For a chart that matters, put a text summary or a data table next to it.
+- **Before 1.0.** A minor version can change the API. [MIGRATION.md](https://github.com/mo4islona/wick-charts/blob/main/MIGRATION.md) lists each change with the code to update.
 
 ## Install
 
@@ -55,25 +150,7 @@ This is Svelte 5 with runes. On Svelte 4, declare the prop with `export let data
 
 `ChartContainer` fills its parent (`width` and `height` are `100%`), so give the parent a height. The container also has a 240px `min-height`, so a parent with no height still shows a chart. For a smaller chart, such as a sparkline in a table row, set `min-height: 0` (`minHeight: 0` in React) in the container's `style`.
 
-Each chart page listed below has a Code tab next to its controls: copy, paste, ship.
-
-## Live data
-
-When the data changes, pass a new array to `data`. The series compares it with the previous array: a changed last point eases to its new value, a few new points are appended, anything else replaces the data. The [Realtime Data guide](https://wick-charts.eeff.io/use-cases/realtime-data/) shows both this and the imperative `appendData` / `updateData` calls.
-
-- **Svelte 5:** keep chart data in `$state.raw` (or a store) and assign a new array: `data = [...data, point]`. With a deep `$state`, the chart reads every point through a proxy, and a large dataset (100k+ points) blocks the main thread for seconds instead of milliseconds. On Svelte 4, assign a new array the same way.
-
-## Chart types
-
-- [Candlestick](https://wick-charts.eeff.io/charts/candlestick/) · [Order book](https://wick-charts.eeff.io/charts/depth/)
-- [Line & Area](https://wick-charts.eeff.io/charts/line/) · [Band](https://wick-charts.eeff.io/charts/band/) · [Bar](https://wick-charts.eeff.io/charts/bar/)
-- [Pie & Donut](https://wick-charts.eeff.io/charts/pie/) · [Heatmap](https://wick-charts.eeff.io/charts/heatmap/) · [Sankey](https://wick-charts.eeff.io/charts/sankey/) · [Gauge & Radial progress](https://wick-charts.eeff.io/charts/gauge/) · [Radar](https://wick-charts.eeff.io/charts/radar/)
-
-Put them on [numeric](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [category](https://wick-charts.eeff.io/use-cases/category-bars/) X axes or a [secondary Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/), [sync several charts](https://wick-charts.eeff.io/use-cases/multi-chart-sync/), stream them [in real time](https://wick-charts.eeff.io/use-cases/realtime-data/), or [draw your own](https://wick-charts.eeff.io/use-cases/custom-renders/).
-
-## No framework? Use the engine directly
-
-`ChartInstance` and every series/theme/painter has no framework dependency — it's a plain canvas engine that each of `@wick-charts/react`, `@wick-charts/vue`, and `@wick-charts/svelte` bundles and re-exports in full. Any one of them is a supported vanilla entry point; you don't need React/Vue/Svelte installed to use it this way (`sideEffects: false` + per-module ESM means the framework-specific components tree-shake out when unused):
+## Without a framework
 
 ```ts
 import { CandlestickSeriesDef, ChartInstance, type OHLCInput } from '@wick-charts/react';
@@ -91,11 +168,11 @@ const seriesId = chart.addSeries(CandlestickSeriesDef, {});
 chart.setSeriesData(seriesId, data);
 ```
 
-There's no separate `@wick-charts/core` package on npm — the three framework packages are the supported way to install the engine.
+There is no `@wick-charts/core` package on npm: install the engine through one of the framework packages.
 
 ### Drop-in `<script>` — no build step
 
-For a CodePen, JSFiddle, or a plain HTML page, load the prebuilt UMD bundle from a CDN — no npm, no bundler. It exposes the whole engine (every `ChartInstance`, series def, theme, and painter) as a `WickCharts` global:
+For a CodePen, a JSFiddle or a plain HTML page, load the prebuilt UMD bundle from a CDN. It puts the whole engine on a `WickCharts` global:
 
 ```html
 <div id="chart" style="width: 640px; height: 320px"></div>
@@ -115,43 +192,11 @@ For a CodePen, JSFiddle, or a plain HTML page, load the prebuilt UMD bundle from
 </script>
 ```
 
-The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. ~96 kB gzipped, self-contained.
-
-## Bundle size: ship only what you use
-
-Packages ship per-module ESM with `sideEffects: false`, and each series component carries its own renderer — your bundler only ships the chart types you import.
-
-Tree-shaken React scenarios via `pnpm size` (esbuild, minified, browser target, React/ReactDOM external):
-
-| Scenario | Raw | Gzip | Brotli |
-|---|---:|---:|---:|
-| Candlestick only | 146.3 kB | 45.9 kB | 40.2 kB |
-| Line only        | 170.1 kB | 53.0 kB | 46.1 kB |
-| Full React       | 331.8 kB | 103.0 kB | 86.2 kB |
-
-## Measure performance
-
-Pass `perfHud()` to the `perf` prop to put a small FPS panel on the chart. Click the panel to see frame times, draw calls and the render time of each series.
-
-```svelte
-<script lang="ts">
-  import { ChartContainer, perfHud } from '@wick-charts/svelte';
-</script>
-
-<ChartContainer perf={perfHud()}>
-  <!-- series and overlays -->
-</ChartContainer>
-```
-
-The chart reads `perf` once, when it mounts. The perf code is in your bundle only if you import `perfHud`. To collect the numbers without the panel, pass a `PerfMonitor` instead and read them with `monitor.onFrame((stats) => …)`.
+The same file is on unpkg (`https://unpkg.com/@wick-charts/react/dist/wick-charts.umd.min.js`); pin a version with `@x.y.z` for production. The file is self-contained.
 
 ## Documentation
 
-Every component, prop, type, and slot context lives in the docs site. Start at [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then pick a series or an overlay in the sidebar.
-
-## Migration
-
-Upgrading across versions? See [MIGRATION.md](https://github.com/mo4islona/wick-charts/blob/main/MIGRATION.md) for per-version breaking-change notes and code snippets.
+Every component, prop, type and slot context is in the docs site. Start at [ChartContainer](https://wick-charts.eeff.io/api/chart-container/), then pick a series or an overlay in the sidebar.
 
 ## Contributing
 
