@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   darken,
@@ -148,5 +148,26 @@ describe('deriveGaugeColors', () => {
 
   it('keeps a gray theme gray', () => {
     expect(deriveGaugeColors({ ...base, up: '#111111', down: '#bbbbbb' }).zoneColors).toEqual(['#111111', '#bbbbbb']);
+  });
+});
+
+describe('color caches', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // A pulse passes a new alpha every frame: the caches must not keep every key.
+  it.each([
+    ['hexToRgba', (i: number) => hexToRgba('#336699', i / 1e6)],
+    ['lighten', (i: number) => lighten('#336699', i / 1e6)],
+    ['darken', (i: number) => darken('#336699', i / 1e6)],
+  ])('%s resets its cache instead of growing with every new argument', (_name, call) => {
+    const clear = vi.spyOn(Map.prototype, 'clear');
+
+    for (let i = 0; i < 25_000; i += 1) {
+      call(i);
+    }
+
+    expect(clear).toHaveBeenCalled();
   });
 });

@@ -5,10 +5,21 @@ export function resolveColor(color: ValueColor, value: number): string {
   return typeof color === 'function' ? color(value) : color;
 }
 
-/** Parse-once color cache — hex colors come from theme config and don't change per-frame. */
+/** Keys carry the numeric argument, and animations pass a new one every frame. */
+const COLOR_CACHE_LIMIT = 10_000;
+
 const rgbaCache = new Map<string, string>();
 const lightenCache = new Map<string, string>();
 const darkenCache = new Map<string, string>();
+
+/** Reset on overflow: a rebuild costs one frame of cache misses. */
+function remember(cache: Map<string, string>, key: string, value: string): string {
+  if (cache.size >= COLOR_CACHE_LIMIT) cache.clear();
+
+  cache.set(key, value);
+
+  return value;
+}
 
 function parseHex(hex: string): [number, number, number] {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
@@ -67,32 +78,33 @@ export function isLightColor(color: string): boolean {
 export function hexToRgba(hex: string, alpha: number): string {
   if (hex.startsWith('rgba')) return hex.replace(/[\d.]+\)\s*$/, `${alpha})`);
   if (hex.startsWith('rgb(')) return hex.replace(/^rgb\((.*)\)$/i, `rgba($1, ${alpha})`);
+
   const key = hex + alpha;
   const cached = rgbaCache.get(key);
   if (cached) return cached;
 
   const [r, g, b] = parseHex(expandShorthandHex(hex));
-  // A non-hex color (named, hsl(), oklch(), malformed) parses to NaN channels —
-  // canvas silently rejects `rgba(NaN, …)` and keeps the previous fillStyle. Fall
-  // back to the solid color so the caller still gets the right hue (no alpha blend).
-  const result = Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b) ? hex : `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  rgbaCache.set(key, result);
 
-  return result;
+  // Canvas ignores `rgba(NaN, …)` from a non-hex color, so keep the solid color instead.
+  const unparsed = Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b);
+  const result = unparsed ? hex : `rgba(${r}, ${g}, ${b}, ${alpha})`;
+
+  return remember(rgbaCache, key, result);
 }
 
 export function lighten(hex: string, amount: number): string {
   const key = hex + amount;
-  let result = lightenCache.get(key);
-  if (result) return result;
+  const cached = lightenCache.get(key);
+  if (cached) return cached;
+
   const [r, g, b] = parseHex(hex);
-  result = toHex(
+  const result = toHex(
     Math.min(255, Math.round(r + (255 - r) * amount)),
     Math.min(255, Math.round(g + (255 - g) * amount)),
     Math.min(255, Math.round(b + (255 - b) * amount)),
   );
-  lightenCache.set(key, result);
-  return result;
+
+  return remember(lightenCache, key, result);
 }
 
 // --- Perceptual (OKLab) interpolation --------------------------------------
@@ -102,13 +114,6 @@ export function lighten(hex: string, amount: number): string {
 // perceived lightness moving evenly — the property a sequential magnitude
 // scale depends on.
 
-/**
- * Unlike the lighten/darken caches (keyed by a handful of theme colors),
- * `mixColors` is fed per-cell fills and 256-step quantized `t` values — a
- * long-running live feed with explicit cell colors grows the key space
- * indefinitely. Reset on overflow: a rebuild costs one frame of misses.
- */
-const MIX_CACHE_LIMIT = 10_000;
 const mixCache = new Map<string, string>();
 
 function srgbToLinear(c: number): number {
@@ -192,6 +197,7 @@ export function mixColors(from: string, to: string, t: number): string {
 
   const alphaFrom = parseColorAlpha(from);
   const alphaTo = parseColorAlpha(to);
+
   let result: string;
   if (alphaFrom >= 1 && alphaTo >= 1) {
     result = toHex(r, g, bl);
@@ -200,10 +206,7 @@ export function mixColors(from: string, to: string, t: number): string {
     result = `rgba(${r}, ${g}, ${bl}, ${alpha})`;
   }
 
-  if (mixCache.size >= MIX_CACHE_LIMIT) mixCache.clear();
-  mixCache.set(key, result);
-
-  return result;
+  return remember(mixCache, key, result);
 }
 
 /**
@@ -292,14 +295,15 @@ export function sampleRamp(stops: readonly string[], t: number): string {
 
 export function darken(hex: string, amount: number): string {
   const key = hex + amount;
-  let result = darkenCache.get(key);
-  if (result) return result;
+  const cached = darkenCache.get(key);
+  if (cached) return cached;
+
   const [r, g, b] = parseHex(hex);
-  result = toHex(
+  const result = toHex(
     Math.max(0, Math.round(r * (1 - amount))),
     Math.max(0, Math.round(g * (1 - amount))),
     Math.max(0, Math.round(b * (1 - amount))),
   );
-  darkenCache.set(key, result);
-  return result;
+
+  return remember(darkenCache, key, result);
 }
