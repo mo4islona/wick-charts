@@ -1673,6 +1673,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // by chart-scales-sync.test). Streaming `appendData` ticks don't set
     // this flag, so per-tick Y can ease both directions for a smooth axis.
     this.#dataReplaceSnapPending = !category && !followsFocus;
+    this.#dataMorphPending = category;
 
     // Data of a series' own shape (an order book) isn't a list of X-keyed points.
     const ownShape = data !== null && data !== undefined && !Array.isArray(data);
@@ -3957,6 +3958,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * snaps the Y range (instead of easing) and `yScale.getRange()` reflects
    * the new domain synchronously. Cleared by `onDataChanged` after each run. */
   #dataReplaceSnapPending = false;
+  /** Set by a category replace: the bars morph in place, so Y contracts fast too. */
+  #dataMorphPending = false;
 
   private onDataChanged(): void {
     if (this.#batchDepth > 0) {
@@ -3981,6 +3984,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // "X teleports between batches".
     const replaceSnap = this.#dataReplaceSnapPending;
     this.#dataReplaceSnapPending = false;
+    const morph = this.#dataMorphPending;
+    this.#dataMorphPending = false;
 
     // Capture "was this the first onDataChanged call that actually had
     // data" *before* the engine signal flips `#yInited`. Initial mounts
@@ -4022,6 +4027,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // later tick slides continuously — the visible first-point stutter.
       this.#cadence.seed(now);
       this.#engine.onDataReplaced(now);
+    } else if (morph) {
+      this.#engine.onDataMorphed(now);
     } else {
       this.#engine.onPointAppended(now);
     }
