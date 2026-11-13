@@ -573,6 +573,11 @@ export class PieRenderer implements PieSeriesRenderer {
     return this.#display[0]?.color ?? this.#options.colors?.[0] ?? '#888';
   }
 
+  /** Slices, those still leaving included: the same rows `getSliceInfo` lists. */
+  getTotalLength(): number {
+    return this.#display.length;
+  }
+
   getLayerCount(): number {
     return 1;
   }

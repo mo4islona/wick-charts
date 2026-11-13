@@ -44,6 +44,7 @@ export type {
   SeriesHoverInfo,
 } from './chart';
 export { ChartInstance } from './chart';
+export type { AccessibilityConfig } from './chart/accessibility';
 export type {
   BadgeChartQuery,
   BadgeFrameInput,
@@ -99,6 +100,14 @@ export type { ValueStats } from './data/store';
 // update / replace) and streams without Y-snapping.
 export type { SeriesSyncState, SyncLayersArgs, SyncSeriesLayerArgs } from './data/sync';
 export { EMPTY_SYNC_STATE, syncLayers, syncSeriesLayer, toLayers } from './data/sync';
+export type {
+  AnnotationsDescription,
+  ChartDescription,
+  DescribeIssue,
+  DescribeIssueCode,
+  DescribeSeverity,
+  SeriesDescription,
+} from './describe';
 export {
   HEATMAP_TOOLTIP_HEIGHT,
   HEATMAP_TOOLTIP_WIDTH,

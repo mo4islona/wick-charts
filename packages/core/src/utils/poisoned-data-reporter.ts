@@ -35,15 +35,51 @@ export function isPoisonedNumber(v: number | null | undefined): boolean {
   return typeof v === 'number' && !Number.isFinite(v);
 }
 
+/** How much a data note matters: `error` misreads the data, `warning` drops some of it, `info` fixed it. */
+export type DataNoteSeverity = 'error' | 'warning' | 'info';
+
+/** What the chart dropped, fixed or misread in a series' input. `ChartInstance.describe()` lists these. */
+export interface DataNote {
+  readonly topic: string;
+  readonly severity: DataNoteSeverity;
+  readonly message: string;
+}
+
+export type DataNoteSink = (note: DataNote) => void;
+
+// Set by the chart around each call into a series, so a store or renderer reports without a chart reference.
+let currentSink: DataNoteSink | null = null;
+
+/** Make `sink` receive every {@link noteData} call until the next swap; returns the sink it replaced. */
+export function swapDataNoteSink(sink: DataNoteSink | null): DataNoteSink | null {
+  const previous = currentSink;
+  currentSink = sink;
+
+  return previous;
+}
+
+/** Report `note` to the chart whose call is running; a no-op outside one. */
+export function noteData(note: DataNote): void {
+  currentSink?.(note);
+}
+
 /** Topics each token already warned about. */
 const warned = new WeakMap<object, Set<string>>();
 
 /**
  * `console.warn` `message` once per `token` and `topic`: a renderer or store
  * warns about each kind of bad input once, however often that input arrives.
+ * The chart gets a {@link noteData} every time, so its notes stay current.
  */
-export function warnDataOnce(args: { token: object; topic: string; message: string }): void {
-  const { token, topic, message } = args;
+export function warnDataOnce(args: {
+  token: object;
+  topic: string;
+  message: string;
+  severity?: DataNoteSeverity;
+}): void {
+  const { token, topic, message, severity = 'warning' } = args;
+  noteData({ topic, severity, message });
+
   let topics = warned.get(token);
   if (topics === undefined) {
     topics = new Set();

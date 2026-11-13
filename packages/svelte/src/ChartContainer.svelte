@@ -87,6 +87,14 @@ export let interactive: boolean | undefined = undefined;
  */
 export let grid: GridOptions | undefined = undefined;
 /**
+ * Keep the chart readable without pixels. Live. Default `true`: the canvas gets
+ * `role="img"` with a summary `aria-label`, and a visually hidden element holds
+ * the full `chart.describe()` text. Updates at most once a second.
+ */
+export let accessibility: boolean | undefined = undefined;
+/** Your own `aria-label` for the chart, in place of the generated summary. Live. */
+export let ariaLabel: string | undefined = undefined;
+/**
  * Soft fade-out at the top of the plot area, so series content dissolves
  * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
  * The mask erases canvas alpha rather than painting a cover color, so it
@@ -342,6 +350,8 @@ onMount(() => {
   if (viewport) options.viewport = viewport;
   if (interactive !== undefined) options.interactive = interactive;
   if (grid !== undefined) options.grid = grid;
+  if (accessibility !== undefined) options.accessibility = accessibility;
+  if (ariaLabel !== undefined) options.ariaLabel = ariaLabel;
   if (perfAtMount !== undefined) options.perf = perfAtMount;
   if (onEdgeReachedAtMount) options.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) options.animations = animations;
@@ -404,6 +414,8 @@ $: if (instance && grid !== undefined) {
   instance.setGrid(grid);
 }
 
+$: instance?.setAccessibility({ enabled: accessibility, label: ariaLabel });
+
 // Init-only: a post-mount `animations` VALUE change tears down the instance
 // and rebuilds with the new config. `deepEqual` (not reference equality)
 // gates the rebuild — a caller's brand-new inline literal with the same
@@ -432,6 +444,8 @@ async function rebuildChartFromAnimations() {
   if (viewport) opts.viewport = viewport;
   if (interactive !== undefined) opts.interactive = interactive;
   if (grid !== undefined) opts.grid = grid;
+  if (accessibility !== undefined) opts.accessibility = accessibility;
+  if (ariaLabel !== undefined) opts.ariaLabel = ariaLabel;
   if (perfAtMount !== undefined) opts.perf = perfAtMount;
   if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
   if (animations !== undefined) opts.animations = animations;

@@ -47,6 +47,7 @@ Keep the array immutable. Each framework has one trap:
 - Scroll to zoom the time axis. Drag to pan. On a touch screen, pinch to zoom and drag with one finger to pan.
 - Double-click to fit all the data in view.
 - Set `interactive={false}` on the container for a chart that only shows data.
+- `chart.describe()` returns what the chart shows as text: the ranges, each series, and likely mistakes such as a container with no height or a series outside the view. Use it in a test, or let an agent check its own chart.
 
 To keep several charts in step, pass the visible range and the crosshair of one chart to the others from its `viewportChange` and `crosshairMove` events. See [Multi-chart sync](https://wick-charts.eeff.io/use-cases/multi-chart-sync/).
 
@@ -68,13 +69,13 @@ Each series draws itself in when it mounts. Pick an intro animation per series, 
 
 - **Code:** tree-shaken ESM, so you ship only the chart types you import. A candlestick chart alone is 55 kB gzipped.
 - **Dependencies:** none besides your framework (React 18+, Vue 3.3+, Svelte 4 or 5).
-- **DOM:** one `div` with a few `<canvas>` layers per chart.
+- **DOM:** one `div` with a few `<canvas>` layers and a visually hidden text description per chart.
 - **Network:** no requests, no telemetry.
 
 ## Limits
 
 - **Server rendering.** The chart draws in the browser only. On the server, the container renders as an empty element.
-- **Screen readers.** A canvas has no text that a screen reader can read. For a chart that matters, put a text summary or a data table next to it.
+- **Screen readers.** A chart gives a screen reader a short summary and a full text description, updated at most once a second. A reader cannot step through the points one by one: for a chart that matters, put a data table next to it. `accessibility={false}` turns the text off; `ariaLabel` sets your own summary.
 - **Before 1.0.** A minor version can change the API. [MIGRATION.md](https://github.com/mo4islona/wick-charts/blob/main/MIGRATION.md) lists each change with the code to update.
 
 ## Install

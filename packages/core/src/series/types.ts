@@ -311,7 +311,7 @@ export interface BaseSeriesRenderer {
    */
   getLayerLastSnapshots?(): LayerSnapshot[] | null;
 
-  /** Total data points across all owned stores. Used by Chart for batch-load detection. */
+  /** Total data points across all owned stores. */
   getTotalLength?(): number;
 
   /** `true` when the series holds data and all of it is whole numbers. Picks the default tooltip format. */

@@ -152,6 +152,14 @@ export interface ChartContainerProps {
    */
   grid?: GridOptions;
   /**
+   * Keep the chart readable without pixels. Live. Default `true`: the canvas gets
+   * `role="img"` with a summary `aria-label`, and a visually hidden element holds
+   * the full `chart.describe()` text. Updates at most once a second.
+   */
+  accessibility?: boolean;
+  /** Your own `aria-label` for the chart, in place of the generated summary. Live. */
+  ariaLabel?: string;
+  /**
    * Soft fade-out at the top of the plot area, so series content dissolves
    * under a floating `<Title>` / `<InfoBar>` instead of colliding with it —
    * a Y-axis spring lag, a streaming spike, or a warm-up burst glides into
@@ -370,6 +378,8 @@ export function ChartContainer({
   gradient = false,
   interactive,
   grid,
+  accessibility,
+  ariaLabel,
   fade,
   headerLayout = 'overlay',
   perf,
@@ -451,6 +461,8 @@ export function ChartContainer({
     if (viewport) options.viewport = viewport;
     if (interactive !== undefined) options.interactive = interactive;
     if (grid !== undefined) options.grid = grid;
+    if (accessibility !== undefined) options.accessibility = accessibility;
+    if (ariaLabel !== undefined) options.ariaLabel = ariaLabel;
     if (perfRef.current !== undefined) options.perf = perfRef.current;
     if (stableAnimations !== undefined) options.animations = stableAnimations;
     if (onEdgeReachedRef.current) options.onEdgeReached = onEdgeReachedRef.current;
@@ -589,6 +601,10 @@ export function ChartContainer({
       chartRef.current.setGrid(grid);
     }
   }, [grid?.visible, grid?.horizontal, grid?.vertical]);
+
+  useEffect(() => {
+    chartRef.current?.setAccessibility({ enabled: accessibility, label: ariaLabel });
+  }, [accessibility, ariaLabel]);
 
   const chart = chartRef.current;
   const axisLayout = useAxisLayout(chart);

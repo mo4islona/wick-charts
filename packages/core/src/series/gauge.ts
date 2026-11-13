@@ -387,6 +387,10 @@ export class GaugeRenderer implements GaugeSeriesRenderer {
     this.#theme = theme;
   }
 
+  getTotalLength(): number {
+    return this.#value === null ? 0 : 1;
+  }
+
   getLayerCount(): number {
     return 1;
   }

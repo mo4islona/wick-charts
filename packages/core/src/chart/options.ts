@@ -108,6 +108,15 @@ export interface ChartOptions {
   /** Enable zoom, pan, and crosshair interactions. Defaults to true. */
   interactive?: boolean;
   /**
+   * Keep the chart readable without pixels. Default `true`: the main canvas gets
+   * `role="img"` and an `aria-label` summary, and a visually hidden element holds
+   * the full `describe()` text (with its issues outside production builds).
+   * Updates at most once a second. `chart.setAccessibility()` changes it live.
+   */
+  accessibility?: boolean;
+  /** Your own `aria-label` for the chart, in place of the generated summary. */
+  ariaLabel?: string;
+  /**
    * BCP 47 locale applied to the built-in time-axis / tooltip / crosshair
    * date-time formatting (e.g. `'de-DE'`). Default: `'en-US'`. Live —
    * `chart.setLocale()` updates it after construction. Ignored for a series

@@ -1,7 +1,7 @@
 import { EventEmitter } from '../events';
 import { MAX_VALUE_DECIMALS } from '../utils/format';
 import { binarySearch } from '../utils/math';
-import { warnDataOnce } from '../utils/poisoned-data-reporter';
+import { noteData, warnDataOnce } from '../utils/poisoned-data-reporter';
 
 interface StoreEvents {
   update: () => void;
@@ -125,6 +125,10 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
       }
     }
 
+    if (!sorted) {
+      noteData({ topic: 'unsorted', severity: 'info', message: 'data is not sorted by time; the chart sorted it.' });
+    }
+
     if (!sorted && process.env.NODE_ENV !== 'production' && !this.warnedUnsorted) {
       this.warnedUnsorted = true;
       console.warn(
@@ -146,6 +150,14 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
 
   append(point: T): void {
     if (this.data.length > 0 && point.time <= this.data[this.data.length - 1].time) {
+      noteData({
+        topic: 'append-not-after-last',
+        severity: 'warning',
+        message:
+          `append() got time ${point.time}, not after the last time ${this.data[this.data.length - 1].time}; ` +
+          'the chart overwrote the last point with it.',
+      });
+
       if (process.env.NODE_ENV !== 'production' && !this.warnedOutOfOrderAppend) {
         this.warnedOutOfOrderAppend = true;
         console.warn(
@@ -231,6 +243,7 @@ export class TimeSeriesStore<T extends { time: number }> extends EventEmitter<St
     warnDataOnce({
       token: this,
       topic: 'epoch-seconds',
+      severity: 'error',
       message:
         `series times look like Unix seconds: time ${first.time} is ${new Date(first.time).toISOString()} ` +
         'read as milliseconds. Times are epoch milliseconds: multiply seconds by 1000, or pass `Date` objects.',

@@ -461,6 +461,11 @@ export class RadarRenderer implements RadarSeriesRenderer {
     return this.#layers.filter((layer) => !layer.exiting);
   }
 
+  /** Values across the rows still shown: one per axis per row. */
+  getTotalLength(): number {
+    return this.#current().length * this.#axes.length;
+  }
+
   getLayerCount(): number {
     return Math.max(1, this.#current().length);
   }
