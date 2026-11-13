@@ -4711,6 +4711,24 @@
           }
         },
         {
+          "name": "accessibility",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Keep the chart readable without pixels. Live. Default `true`: the canvas gets\n`role=\"img\"` with a summary `aria-label`, and a visually hidden element holds\nthe full `chart.describe()` text. Updates at most once a second.",
+          "see": []
+        },
+        {
+          "name": "ariaLabel",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Your own `aria-label` for the chart, in place of the generated summary. Live.",
+          "see": []
+        },
+        {
           "name": "fade",
           "type": "boolean | { top?: number; overlap?: number; right?: number; left?: number }",
           "optional": true,

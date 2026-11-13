@@ -2,7 +2,7 @@
  * ViewportEngine — single-responsibility state machine for the chart's X / Y
  * viewport animations.
  *
- * Inputs are push signals from the chart (`onPointAppended`,
+ * Inputs are push signals from the chart (`onPointAppended`, `onDataMorphed`,
  * `onSeriesVisibilityChanged`, `onPanZoom`, `onProgrammaticZoom`,
  * `onAxisReconfig`, `onDataReplaced`, `snap`). Targets are pulled on demand
  * via the two callbacks the chart supplies at construction time —
@@ -312,7 +312,20 @@ export class ViewportEngine {
   // --- Inputs --------------------------------------------------------------
 
   onPointAppended(now?: number): void {
-    const startWall = now ?? performance.now();
+    this.#retargetStream({ now, contractMs: (y, target) => this.#contractMs(y, target) });
+  }
+
+  /**
+   * The values in place changed (a category replace): nothing scrolled out, so
+   * a receding bound is the data itself. Contract as fast as Y expands, in step
+   * with the morphing marks, instead of on the sticky hold.
+   */
+  onDataMorphed(now?: number): void {
+    this.#retargetStream({ now, contractMs: (y) => Math.min(y.settleMs, y.stickyMs) });
+  }
+
+  #retargetStream(args: { now: number | undefined; contractMs: (y: YState, target: YRange) => Milliseconds }): void {
+    const startWall = args.now ?? performance.now();
     if (startWall < this.#x.gestureUntil) return;
 
     const newX = this.#computeX();
@@ -334,7 +347,7 @@ export class ViewportEngine {
       this.#retargetY(y, target, {
         now: startWall,
         expandMs: y.settleMs,
-        contractMs: this.#contractMs(y, target),
+        contractMs: args.contractMs(y, target),
       });
     }
     this.#wake(wasIdle);
