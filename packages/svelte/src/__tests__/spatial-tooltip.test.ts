@@ -68,6 +68,16 @@ function hover(container: HTMLElement, x: number, y: number): void {
   overlay.dispatchEvent(event);
 }
 
+/** Text a sighted user sees: the chart's visually hidden description left out. */
+function shownText(container: HTMLElement): string {
+  const copy = container.cloneNode(true) as HTMLElement;
+  for (const hidden of copy.querySelectorAll('[data-wick-description]')) {
+    hidden.remove();
+  }
+
+  return copy.textContent ?? '';
+}
+
 describe('Svelte spatial tooltips', () => {
   let restore: () => void;
 
@@ -83,13 +93,13 @@ describe('Svelte spatial tooltips', () => {
   it('<PieTooltip> shows the hovered slice', async () => {
     const { container } = render(SpatialTooltipHarness, { props: { variant: 'pie' } });
     await settle();
-    expect(container.textContent).not.toContain('Beta');
+    expect(shownText(container)).not.toContain('Beta');
 
     // Below the center: inside Beta's wedge (60%, clockwise from 12 o'clock after Alpha).
     hover(container, WIDTH / 2, HEIGHT / 2 + 50);
     await settle();
 
-    expect(container.textContent).toContain('Beta');
+    expect(shownText(container)).toContain('Beta');
   });
 
   it('<HeatmapTooltip> shows the hovered cell and follows the pointer to the next one', async () => {
@@ -98,11 +108,11 @@ describe('Svelte spatial tooltips', () => {
 
     hover(container, WIDTH / 4, HEIGHT / 4);
     await settle();
-    const first = container.textContent ?? '';
+    const first = shownText(container);
 
     hover(container, (WIDTH * 3) / 4, (HEIGHT * 3) / 4);
     await settle();
-    const second = container.textContent ?? '';
+    const second = shownText(container);
 
     expect(first).toMatch(/Mon.*AM|AM.*Mon/);
     expect(second).toMatch(/Tue.*PM|PM.*Tue/);

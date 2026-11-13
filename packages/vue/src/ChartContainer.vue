@@ -30,6 +30,8 @@ const props = withDefaults(defineProps<ChartContainerProps>(), {
   // crosshair/click interactivity. `gradient` dodges the same trap only
   // because it already had a default.
   interactive: true,
+  // Same Boolean-cast trap: absent must mean on.
+  accessibility: true,
   headerLayout: 'overlay',
   // Same Boolean-cast trap, opposite goal: an absent `fade` must stay
   // `undefined` (keep the core's default X mask armed) and remain
@@ -235,6 +237,8 @@ onMounted(async () => {
   if (props.viewport) options.viewport = props.viewport;
   if (props.interactive !== undefined) options.interactive = props.interactive;
   if (props.grid !== undefined) options.grid = props.grid;
+  if (props.accessibility !== undefined) options.accessibility = props.accessibility;
+  if (props.ariaLabel !== undefined) options.ariaLabel = props.ariaLabel;
   if (perfAtMount !== undefined) options.perf = perfAtMount;
   if (onEdgeReachedAtMount) options.onEdgeReached = onEdgeReachedAtMount;
   if (props.animations !== undefined) options.animations = props.animations;
@@ -297,6 +301,10 @@ watch([() => props.grid?.visible, () => props.grid?.horizontal, () => props.grid
   if (chart.value && props.grid !== undefined) chart.value.setGrid(props.grid);
 });
 
+watch([() => props.accessibility, () => props.ariaLabel], () => {
+  chart.value?.setAccessibility({ enabled: props.accessibility, label: props.ariaLabel });
+});
+
 // Init-only: a post-mount `animations` VALUE change tears down the instance
 // and rebuilds with the new config. `deepEqual` (not reference equality)
 // gates the rebuild — a caller's brand-new inline literal with the same
@@ -328,6 +336,8 @@ watch(
     if (props.viewport) opts.viewport = props.viewport;
     if (props.interactive !== undefined) opts.interactive = props.interactive;
     if (props.grid !== undefined) opts.grid = props.grid;
+    if (props.accessibility !== undefined) opts.accessibility = props.accessibility;
+    if (props.ariaLabel !== undefined) opts.ariaLabel = props.ariaLabel;
     if (perfAtMount !== undefined) opts.perf = perfAtMount;
     if (onEdgeReachedAtMount) opts.onEdgeReached = onEdgeReachedAtMount;
     if (next !== undefined) opts.animations = next;

@@ -172,6 +172,10 @@ export class RadialProgressRenderer implements RadialProgressSeriesRenderer {
     this.#theme = theme;
   }
 
+  getTotalLength(): number {
+    return this.#data.length;
+  }
+
   getLayerCount(): number {
     return 1;
   }

@@ -163,6 +163,14 @@ export interface ChartContainerProps {
    */
   grid?: GridOptions;
   /**
+   * Keep the chart readable without pixels. Live. Default `true`: the canvas gets
+   * `role="img"` with a summary `aria-label`, and a visually hidden element holds
+   * the full `chart.describe()` text. Updates at most once a second.
+   */
+  accessibility?: boolean;
+  /** Your own `aria-label` for the chart, in place of the generated summary. Live. */
+  ariaLabel?: string;
+  /**
    * Soft fade-out at the top of the plot area, so series content dissolves
    * under a floating `<Title>` / `<InfoBar>` instead of colliding with it.
    * The mask erases canvas alpha rather than painting a cover color, so it

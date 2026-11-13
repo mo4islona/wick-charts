@@ -5,6 +5,7 @@ import { prefersReducedMotion } from './animation/reduced-motion';
 import type { Transition } from './animation/transition';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
+import { type AccessibilityConfig, ChartAccessibility } from './chart/accessibility';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
 import { computeFitToData } from './chart/fit-to-data';
 import { getLastValue, getPreviousClose, getStackedLastValue } from './chart/last-value';
@@ -55,6 +56,7 @@ import {
   renderReferenceLine,
 } from './components/reference-line';
 import { type TimeRegionConfig, renderTimeRegion, resolveTimeRegionColors } from './components/time-region';
+import { type ChartDescription, describeChart } from './describe';
 import { EventEmitter } from './events';
 import { InteractionHandler, type PointerPosition } from './interactions/handler';
 import type { PanZoomTarget } from './interactions/pan-zoom-target';
@@ -120,6 +122,7 @@ import { COMPACT_VALUES_FROM, type ValueFormatter, type ValueStyle } from './uti
 import { clamp } from './utils/math';
 import { crispCenterOffset, crispLineWidth } from './utils/pixel-grid';
 import { isBandPoint, pointValue } from './utils/point';
+import { type DataNote, type DataNoteSink, noteData, swapDataNoteSink } from './utils/poisoned-data-reporter';
 import { detectInterval, normalizeTime } from './utils/time';
 
 export type { ChartOptions, EdgeReachedInfo, EdgeSide, EdgeState, FadeConfig, GridOptions } from './chart/options';
@@ -368,7 +371,14 @@ interface SeriesEntry {
   palette: { type: SeriesType; start: number; count: number };
   /** Each layer's detected time step; `undefined` while the layer has fewer than two points. */
   intervals: (number | undefined)[];
+  /** What the chart dropped, fixed or misread in this series' input, by `${layer}:${topic}`. */
+  notes: Map<string, DataNote>;
+  /** Files render-time notes under {@link RENDER_NOTES}; one per entry so a frame allocates none. */
+  renderNoteSink: DataNoteSink;
 }
+
+/** Note-key prefix of the notes a renderer reports while it paints, not while it takes data. */
+const RENDER_NOTES = 'render';
 
 /** One layer of one series on a category axis. */
 type CategoryLayer = { entry: SeriesEntry; layerIndex: number };
@@ -525,6 +535,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #lastSeriesHover: SeriesHoverInfo | null = null;
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
+
+  readonly #accessibility: ChartAccessibility;
   /** All registered series (candlestick, line, bar, pie). */
   #series: SeriesEntry[] = [];
   /** Point annotations (event markers) drawn on the overlay layer, kept out of the series model. */
@@ -886,6 +898,18 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#syncPerfHudInsets();
     }
 
+    this.#accessibility = new ChartAccessibility({
+      container,
+      canvases: { main: this.#canvasManager.mainCanvas, overlay: this.#canvasManager.overlayCanvas },
+      read: () => this.#describe({ issuesInText: process.env.NODE_ENV !== 'production' }),
+    });
+    this.#accessibility.configure({ enabled: options?.accessibility, label: options?.ariaLabel });
+    const markAccessibleText = () => this.#accessibility.markDirty();
+    this.on('overlayChange', markAccessibleText);
+    this.on('viewportChange', markAccessibleText);
+    this.#canvasManager.on('resize', markAccessibleText);
+    this.#accessibility.markDirty();
+
     const interactive = options?.interactive !== false;
     this.#interactions = interactive
       ? new InteractionHandler(this.#canvasManager.canvas, this, this.timeScale, this.yScale)
@@ -1151,6 +1175,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const seriesId = this.#resolveId(id);
     renderer.onDataChanged?.(() => this.onDataChanged());
     const prevGutters = this.#readGutters();
+    const notes = new Map<string, DataNote>();
     this.#series.push({
       id: seriesId,
       labels: entryLabels,
@@ -1161,6 +1186,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       categoryPoints: [],
       palette: { type: def.type, start: paletteIndex, count: layerCount },
       intervals: [],
+      notes,
+      renderNoteSink: (note) => notes.set(`${RENDER_NOTES}:${note.topic}`, note),
     });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
@@ -1631,6 +1658,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * so it eases like a stream: points that keep their band ease to their new values.
    */
   setSeriesData(id: string, data: unknown, layerIndex?: number): void {
+    this.#withDataNotes({ id, layerIndex, replace: true, run: () => this.#setSeriesData(id, data, layerIndex) });
+  }
+
+  #setSeriesData(id: string, data: unknown, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (!entry) return;
 
@@ -1663,6 +1694,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Append a new data point to the end of a series (real-time tick). */
   appendData(id: string, point: SeriesPointInput, layerIndex?: number): void {
+    this.#withDataNotes({ id, layerIndex, replace: false, run: () => this.#appendData(id, point, layerIndex) });
+  }
+
+  #appendData(id: string, point: SeriesPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.appendPoint === undefined) return;
 
@@ -1746,6 +1781,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    */
   #acceptXPoints(entry: SeriesEntry, points: readonly XKeyedPoint[]): XKeyedPoint[] {
     const accepted: XKeyedPoint[] = [];
+    const misfits: unknown[] = [];
     for (const point of points) {
       const hasX = point.x !== undefined;
       if (hasX) entry.xKeys.x = true;
@@ -1753,6 +1789,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
       const fits = this.#xType === 'category' ? typeof point.x === 'string' : !hasX || typeof point.x === 'number';
       if (!fits) {
+        misfits.push(point.x);
         this.#warnOnce(`x-misfit:${entry.id}`, () =>
           warnXMisfit({ seriesId: entry.id, axisType: this.#xType, x: point.x }),
         );
@@ -1760,6 +1797,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       }
 
       accepted.push(hasX && this.#xType === 'numeric' ? { ...point, time: point.x } : point);
+    }
+
+    if (misfits.length > 0) {
+      const expected = this.#xType === 'category' ? 'a string' : 'a number';
+      noteData({
+        topic: 'x-misfit',
+        severity: 'warning',
+        message:
+          `skipped ${misfits.length} point(s) whose \`x\` is not ${expected}, as the '${this.#xType}' X axis needs ` +
+          `(first: x = ${String(misfits[0])}).`,
+      });
     }
 
     if (entry.xKeys.x && entry.xKeys.time) {
@@ -2033,6 +2081,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * No-op if the renderer doesn't support prepend.
    */
   prependData(id: string, points: SeriesPointInput[], layerIndex?: number): void {
+    this.#withDataNotes({ id, layerIndex, replace: false, run: () => this.#prependData(id, points, layerIndex) });
+  }
+
+  #prependData(id: string, points: SeriesPointInput[], layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.prependPoints === undefined) return;
 
@@ -2071,6 +2123,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** Update the last data point of a series in place (e.g. live candle update). */
   updateData(id: string, point: SeriesPointInput, layerIndex?: number): void {
+    this.#withDataNotes({ id, layerIndex, replace: false, run: () => this.#updateData(id, point, layerIndex) });
+  }
+
+  #updateData(id: string, point: SeriesPointInput, layerIndex?: number): void {
     const entry = this.#series.find((s) => s.id === id);
     if (entry === undefined || entry.renderer.updateLastPoint === undefined) return;
 
@@ -3385,6 +3441,65 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /**
+   * What the chart shows now, as data and as plain text: size, X and Y ranges,
+   * each series, annotations, and likely mistakes such as a container with no
+   * height or a series outside the view. Lets a test, an agent or a screen-reader
+   * summary check a chart without pixels.
+   */
+  describe(): ChartDescription {
+    return this.#describe({ issuesInText: true });
+  }
+
+  /**
+   * Turn the screen-reader text on or off, or set your own `aria-label`.
+   * See {@link ChartOptions.accessibility}.
+   */
+  setAccessibility(config: AccessibilityConfig): void {
+    this.#accessibility.configure(config);
+  }
+
+  #describe(args: { issuesInText: boolean }): ChartDescription {
+    const series = this.#series.map((entry) => ({
+      id: entry.id,
+      renderer: entry.renderer,
+      visible: entry.visible,
+      scale: entry.scale,
+      notes: [...entry.notes.values()],
+    }));
+
+    return describeChart({ chart: this, xType: this.#xType, series, issuesInText: args.issuesInText });
+  }
+
+  /**
+   * Run a data call with notes from its stores and renderers filed on the series.
+   * A replace drops the layer's old notes first: they described data that is gone.
+   */
+  #withDataNotes(args: { id: string; layerIndex: number | undefined; replace: boolean; run: () => void }): void {
+    const { id, layerIndex, replace, run } = args;
+    const entry = this.#series.find((s) => s.id === id);
+    if (entry === undefined) {
+      run();
+
+      return;
+    }
+
+    const layer = String(layerIndex ?? 0);
+    if (replace) {
+      for (const key of entry.notes.keys()) {
+        const stale = key.startsWith(`${layer}:`) || key.startsWith(`${RENDER_NOTES}:`);
+        if (stale) entry.notes.delete(key);
+      }
+    }
+
+    const previous = swapDataNoteSink((note) => entry.notes.set(`${layer}:${note.topic}`, note));
+    try {
+      run();
+    } finally {
+      swapDataNoteSink(previous);
+    }
+  }
+
+  /**
    * Update viewport padding at runtime. Refits the visible time range to
    * current data bounds **only when horizontal padding (left/right) changes**
    * — vertical padding only affects the Y-range computation, so touching it
@@ -3801,6 +3916,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#mainScheduler.destroy();
     this.#overlayScheduler.destroy();
     this.#interactions?.destroy();
+    this.#accessibility.destroy();
     this.#canvasManager.destroy();
     this.#perfHud?.destroy();
     this.#perfHud = null;
@@ -4990,15 +5106,20 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
         const prevAlpha = context.globalAlpha;
         if (alpha < 1) context.globalAlpha = prevAlpha * alpha;
 
-        if (perfMon) {
-          const s0 = performance.now();
-          entry.renderer.render(renderArgs);
-          // Stamp per-series samples with the current frame timestamp so the
-          // monitor's time-window trim picks them up in step with the main
-          // frame sample recorded at the bottom of this callback.
-          perfMon.recordSeries(entry.id, performance.now() - s0, now);
-        } else {
-          entry.renderer.render(renderArgs);
+        const previousSink = swapDataNoteSink(entry.renderNoteSink);
+        try {
+          if (perfMon) {
+            const s0 = performance.now();
+            entry.renderer.render(renderArgs);
+            // Stamp per-series samples with the current frame timestamp so the
+            // monitor's time-window trim picks them up in step with the main
+            // frame sample recorded at the bottom of this callback.
+            perfMon.recordSeries(entry.id, performance.now() - s0, now);
+          } else {
+            entry.renderer.render(renderArgs);
+          }
+        } finally {
+          swapDataNoteSink(previousSink);
         }
 
         if (alpha < 1) context.globalAlpha = prevAlpha;

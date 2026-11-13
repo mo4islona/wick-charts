@@ -497,6 +497,10 @@ export class CandlestickRenderer implements TimeSeriesRenderer {
 
   // --- TimeSeriesRenderer data queries --------------------------------------
 
+  getTotalLength(): number {
+    return this.store.length;
+  }
+
   getTimeBounds(): { first: number; last: number } | null {
     const f = this.store.first();
     const l = this.store.last();
