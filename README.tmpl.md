@@ -30,13 +30,8 @@ Each type has a page in the docs with a live playground. Change a setting, and t
 - [Pie and donut](https://wick-charts.eeff.io/charts/pie/), [heatmap](https://wick-charts.eeff.io/charts/heatmap/), [Sankey](https://wick-charts.eeff.io/charts/sankey/), [gauge and radial progress](https://wick-charts.eeff.io/charts/gauge/), [radar](https://wick-charts.eeff.io/charts/radar/)
 
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/charts-series-dark.webp">
-<img alt="Candlesticks with volume, an order book, six overlapping lines, a Bollinger band, stacked bars and sparklines" src="https://wick-charts.eeff.io/readme/charts-series-light.webp">
-</picture>
-
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/charts-shapes-dark.webp">
-<img alt="A donut, a correlation heatmap, a Sankey diagram, a radar, a gauge and a radial progress chart" src="https://wick-charts.eeff.io/readme/charts-shapes-light.webp">
+<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/dashboard-dark.webp">
+<img alt="A dashboard on real Binance data: BTC candlesticks with a tooltip, the BTC order book, 90-day returns, BTC volume by weekday and hour, and a donut of 24-hour volume" src="https://wick-charts.eeff.io/readme/dashboard-light.webp">
 </picture>
 
 Lines and bars stack, as values or as percents of the total. The X axis takes [time, plain numbers](https://wick-charts.eeff.io/use-cases/x-axis-types/) or [categories](https://wick-charts.eeff.io/use-cases/category-bars/), and a second series can use its own [Y scale](https://wick-charts.eeff.io/use-cases/secondary-scale/).
@@ -69,11 +64,6 @@ For history that does not fit in memory, `<EdgeLoader side="left" onTrigger={…
 
 ## Read a chart
 
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/tooltip-dark.webp">
-<img alt="A candlestick chart with the crosshair on one candle and a tooltip with its open, high, low, close and volume" src="https://wick-charts.eeff.io/readme/tooltip-light.webp">
-</picture>
-
 - Move the pointer over the chart. The crosshair follows it, the info bar at the top shows the values under it, and `<Tooltip>` shows them next to the pointer.
 - Scroll to zoom the time axis. Drag to pan. On a touch screen, pinch to zoom and drag with one finger to pan.
 - Double-click to fit all the data in view.
@@ -83,11 +73,6 @@ To keep several charts in step, pass the visible range and the crosshair of one 
 
 ## Annotations
 
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://wick-charts.eeff.io/readme/annotations-dark.webp">
-<img alt="A line chart with a deploy marker, a shaded incident window, a peak callout, a dashed limit line and a baseline" src="https://wick-charts.eeff.io/readme/annotations-light.webp">
-</picture>
-
 - `<Marker>` pins one moment, such as a deploy or a peak. Give it a `seriesId` and it sits on that series' line.
 - `<TimeRegion>` shades an interval. Leave out `to` and it runs to the right edge.
 - `<ReferenceLine>` draws a level at a `value`, or a vertical line at a `time`.
@@ -95,8 +80,6 @@ To keep several charts in step, pass the visible range and the crosshair of one 
 Annotations are not data: they stay out of the tooltip, the legend and the Y range. See [Annotations](https://wick-charts.eeff.io/use-cases/annotations/).
 
 ## Themes
-
-<img alt="The same candlestick chart in six built-in themes, three dark and three light, one with a handwritten font" src="https://wick-charts.eeff.io/readme/themes.webp">
 
 Pick a built-in theme, build your own with `createTheme()`, or change one in the [theme editor](https://wick-charts.eeff.io/use-cases/theme/). A theme sets the colors, the font and the look of every part of the chart. Tooltips, legends and axis labels also take your own render code and keep their built-in position. See [Custom renders](https://wick-charts.eeff.io/use-cases/custom-renders/).
 
