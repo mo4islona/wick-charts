@@ -1,6 +1,6 @@
 ---
 name: wick-charts
-description: Build and change charts with the Wick Charts library (@wick-charts/react, @wick-charts/vue, @wick-charts/svelte, @wick-charts/nuxt) — candlestick, line, area, bar, band, heatmap, order book, sankey, pie, gauge, radial progress, radar and sparkline charts, live streaming data, tooltips, legends, annotations, axes, themes and the shadcn registry blocks. Use when the code imports @wick-charts/*, or when the user asks for one of these charts in React, Vue, Svelte or Nuxt.
+description: Build and change charts with the Wick Charts library (@wick-charts/react, @wick-charts/vue, @wick-charts/svelte, @wick-charts/nuxt) — candlestick, line, area, bar, band, heatmap, order book, sankey, pie, gauge, radial progress, radar, histogram and sparkline charts, live streaming data, tooltips, legends, annotations, axes, themes and the shadcn registry blocks. Use when the code imports @wick-charts/*, or when the user asks for one of these charts in React, Vue, Svelte or Nuxt.
 ---
 
 # Wick Charts
@@ -96,12 +96,13 @@ defineProps<{ data: TimePoint[] }>();
   - `GaugeSeries`: one number in `value`, not `data`.
   - `RadialProgressSeries`: `{ label, value, color? }[]`, one ring per item.
   - `RadarSeries`: `axes` (names) and `data` as `{ label, data, color? }[]`, one value per axis.
+  - `HistogramSeries`: raw samples `number[]` or bins `{ x0, x1, count }[]`, an array of them, or named layers `{ label?, color?, data }`.
 - **No `label` or `colors` option on `LineSeries` / `BarSeries`.** A layer's name and color ride in the data: `data={{ label: 'Revenue', color: '#22c55e', data: points }}`. A `color` can be a function of the value.
 - **Give a series an `id`** when an overlay targets it (`YLabel seriesId`, `Marker seriesId`) or when your code reads it from the chart instance.
 - **Create mappings and factories once.** `axis.y.scale` compares by identity: a `logScale()` or mapping object made on each render refits the Y range on each render. Make it at module scope or memoize it, and the same for the curve factories (`hermite()`, `spring()`).
 - **Read at mount only:** `axis.x.type`, `viewport`, `interactive`, `perf` and the `onEdgeReached` callback. Remount the chart (a React `key`) to change them; in React, an `onEdgeReached` closure sees the state of the first render, so read state through a ref. A new `animations` value rebuilds the chart by itself.
 - **Spatial series** (pie, heatmap, sankey, gauge, radial progress, radar) have no axes, no crosshair and no `Tooltip`: use `PieTooltip` / `PieLegend`, `HeatmapTooltip`, `SankeyTooltip`, `RadarTooltip`. `PieLegend` also lists radial progress rings; `Legend` lists radar polygons.
-- **Axis types.** Candlestick needs a time X axis, depth a numeric one. `Navigator`, `EdgeLoader` and `TimeRegion` work on a time axis only.
+- **Axis types.** Candlestick needs a time X axis, depth and histogram a numeric one. `Navigator`, `EdgeLoader` and `TimeRegion` work on a time axis only.
 
 ## Props and options: read the installed types
 
@@ -123,10 +124,10 @@ grep -n 'type StackingMode\b' $T
 grep -n -B12 '^    setVisibleRange(' $T
 ```
 
-- **Series options:** `LineSeriesOptions`, `BarSeriesOptions`, `CandlestickSeriesOptions`, `BandSeriesOptions`, `PieSeriesOptions`, `HeatmapSeriesOptions`, `DepthSeriesOptions`, `SankeySeriesOptions`, `GaugeSeriesOptions`, `RadialProgressSeriesOptions`, `RadarSeriesOptions`. A series' `options` prop takes a `Partial` of one.
+- **Series options:** `LineSeriesOptions`, `BarSeriesOptions`, `CandlestickSeriesOptions`, `BandSeriesOptions`, `PieSeriesOptions`, `HeatmapSeriesOptions`, `DepthSeriesOptions`, `SankeySeriesOptions`, `GaugeSeriesOptions`, `RadialProgressSeriesOptions`, `RadarSeriesOptions`, `HistogramSeriesOptions`. A series' `options` prop takes a `Partial` of one.
 - **Component props:** `<Component>Props` — `ChartContainerProps`, `LineSeriesProps`, `TooltipProps`. In Svelte, read the component's `.svelte.d.ts`.
 - **Config:** `AxisConfig` (`XAxisConfig`, `YAxisConfig`), `AnimationsConfig`, `ChartTheme`, `ThemeConfig` (the `createTheme` input), `MarkerConfig`, `ReferenceLineConfig`, `TimeRegionConfig`.
-- **Data and slot payloads:** `TimePointInput`, `OHLCInput`, `BandPointInput`, `HeatmapCellInput`, `PieSliceData`, `SankeyNode`, `SankeyLink`, `GaugeZone`, `RadarLayer`, `DepthLevel`, `NavigatorData`, `SeriesSnapshot`, `LegendItem`, `HoverInfo`.
+- **Data and slot payloads:** `TimePointInput`, `OHLCInput`, `BandPointInput`, `HeatmapCellInput`, `PieSliceData`, `SankeyNode`, `SankeyLink`, `GaugeZone`, `RadarLayer`, `HistogramBin`, `HistogramBinPoint`, `DepthLevel`, `NavigatorData`, `SeriesSnapshot`, `LegendItem`, `HoverInfo`.
 - A name that is not in the file means the package is older than this skill. Then use the API page of the component, `https://wick-charts.eeff.io/api/<component>/` (`/api/line-series/`, `/api/chart-container/`), or the API reference at the end of `https://wick-charts.eeff.io/llms-full.txt`. Those two also serve a reader without `node_modules`.
 
 ## Which file to read
@@ -135,7 +136,8 @@ grep -n -B12 '^    setVisibleRange(' $T
 |---|---|
 | Candlestick (OHLC), volume, indicators on price | [candlestick.md](candlestick.md) |
 | Line or area chart, stacking, threshold colors, P&L baseline | [line.md](line.md) |
-| Bar chart, histogram, grouped or stacked bars, value labels | [bar.md](bar.md) |
+| Bar chart, grouped or stacked bars, value labels | [bar.md](bar.md) |
+| Histogram: distribution of raw samples, quantile lines | [histogram.md](histogram.md) |
 | Range band, percentile band, Bollinger, fan chart | [band.md](band.md) |
 | Heatmap (a matrix of cells) | [heatmap.md](heatmap.md) |
 | Order book (depth chart) | [depth.md](depth.md) |

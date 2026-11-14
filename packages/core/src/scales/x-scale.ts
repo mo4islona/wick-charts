@@ -69,6 +69,8 @@ export class XScale {
 
   /** Custom formatter, installed by `<XAxis format=…>`. */
   private customFormat: XAxisFormatter | null = null;
+  /** Edges numeric ticks keep to (a histogram's bins): the step is a multiple of `step`, ticks start from `origin`. */
+  private tickGrid: { step: number; origin: number } | null = null;
   /** Custom tick generator — bypasses tier resolution in `niceTickValues` when set. */
   private customTickGenerator: TimeTickGenerator | null = null;
   private localeValue: string | undefined;
@@ -122,6 +124,22 @@ export class XScale {
 
   setMinSpacing(px: number | null | undefined): void {
     this.minSpacingValue = normalizeSpacing(px);
+    this.resetHysteresis();
+    this.resolveInterval();
+  }
+
+  /**
+   * Keep numeric ticks on a grid of edges — every tick `origin + k × step × n`
+   * for a nice `n` (1, 2, 5 × 10ⁿ) — so they sit on a histogram's bin edges.
+   * `null` returns to plain nice ticks. Ignored off a numeric axis.
+   */
+  setTickGrid(grid: { step: number; origin: number } | null): void {
+    const valid = grid !== null && Number.isFinite(grid.step) && grid.step > 0 && Number.isFinite(grid.origin);
+    const next = valid ? grid : null;
+    const same = next?.step === this.tickGrid?.step && next?.origin === this.tickGrid?.origin;
+    if (same) return;
+
+    this.tickGrid = next === null ? null : { step: next.step, origin: next.origin };
     this.resetHysteresis();
     this.resolveInterval();
   }
@@ -411,11 +429,12 @@ export class XScale {
       return { ticks, tickInterval: interval };
     }
 
-    const start = Math.ceil(this.from / interval) * interval;
+    const origin = this.tickGrid?.origin ?? 0;
+    const start = origin + Math.ceil((this.from - origin) / interval) * interval;
     const count = Math.max(0, Math.min(MAX_TICKS, Math.floor((this.to - start) / interval) + 1));
 
     const ticks: number[] = [];
-    for (let i = 0; i < count; i++) ticks.push(start + i * interval);
+    for (let i = 0; i < count; i++) ticks.push(cleanTick(start + i * interval));
 
     return { ticks, tickInterval: interval };
   }
@@ -549,11 +568,15 @@ export class XScale {
       }
     }
 
-    let candidate = pickNiceCeiling(want);
+    // On a tick grid the step is a nice multiple of the grid step, never a fraction of it.
+    const unit = this.tickGrid?.step ?? 1;
+    const unitWant = Math.max(want / unit, this.tickGrid === null ? 0 : 1);
+    let candidate = pickNiceCeiling(unitWant) * unit;
     const tooFewTicks = this.labelCountHint != null && this.countTicks(candidate) < this.labelCountHint;
     if (tooFewTicks) {
-      const lower = pickNiceFloor(want);
-      if (lower >= floor) candidate = lower;
+      const lower = pickNiceFloor(unitWant) * unit;
+      const onGrid = this.tickGrid === null || lower >= unit;
+      if (lower >= floor && onGrid) candidate = lower;
     }
 
     this.resolvedInterval = candidate;
@@ -563,10 +586,16 @@ export class XScale {
 
   private countTicks(interval: number): number {
     if (!(interval > 0)) return 0;
-    const start = Math.ceil(this.from / interval) * interval;
+    const origin = this.type === 'numeric' ? (this.tickGrid?.origin ?? 0) : 0;
+    const start = origin + Math.ceil((this.from - origin) / interval) * interval;
 
     return Math.max(0, Math.floor((this.to - start) / interval) + 1);
   }
+}
+
+/** A numeric tick without the float noise of `start + i × step` (`0.30000000000000004` → `0.3`). */
+function cleanTick(value: number): number {
+  return Number.parseFloat(value.toPrecision(12));
 }
 
 /** Cheap cache key — dataInterval values that yield the same niceTimeIntervals() list. */

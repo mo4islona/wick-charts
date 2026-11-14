@@ -2302,6 +2302,163 @@
         }
       ]
     },
+    "HistogramSeries": {
+      "kind": "chart",
+      "file": "packages/react/src/HistogramSeries.tsx",
+      "alias": null,
+      "description": "",
+      "props": [
+        {
+          "name": "data",
+          "type": "HistogramData",
+          "optional": false,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Series data — raw samples (`number[]`), binned by the series, or bins counted\nalready (`{ x0, x1, count }[]`). Several distributions overlay on the same bins:\npass an array of them, or `{ label, color?, data }` layers to name and color\nthem for the legend and tooltip. Needs `axis={{ x: { type: 'numeric' } }}`.",
+          "see": []
+        },
+        {
+          "name": "options",
+          "type": "Partial<HistogramSeriesOptions>",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Binning, `normalize`, quantile lines, gap, opacity and animation timings.",
+          "see": [],
+          "nested": {
+            "name": "HistogramSeriesOptions",
+            "props": [
+              {
+                "name": "bins",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "Sturges' rule",
+                "deprecated": null,
+                "description": "Target bin count for raw samples. The series rounds the width to 1, 2 or 5 × 10ⁿ, so the\ncount comes out near this. Default: Sturges' rule, `⌈log₂ n⌉ + 1` for the largest layer of `n` samples.",
+                "see": []
+              },
+              {
+                "name": "binWidth",
+                "type": "number",
+                "optional": true,
+                "defaultValue": null,
+                "deprecated": null,
+                "description": "Bin width for raw samples, in X units. Wins over bins.",
+                "see": []
+              },
+              {
+                "name": "binOrigin",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "An X that every bin edge of raw samples steps from. Default: `0`, so edges sit on multiples of the width.",
+                "see": []
+              },
+              {
+                "name": "normalize",
+                "type": "HistogramNormalize",
+                "optional": true,
+                "defaultValue": "'count'",
+                "deprecated": null,
+                "description": "What a bar's height shows. Default: `'count'`.",
+                "see": []
+              },
+              {
+                "name": "gap",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "1",
+                "deprecated": null,
+                "description": "Gap between neighbor bars in CSS px. Default: `1`, a hairline. `0` joins them.",
+                "see": []
+              },
+              {
+                "name": "fillOpacity",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "1",
+                "deprecated": null,
+                "description": "Fill opacity of the bars, `0`–`1`. Default: `1` for one layer, `0.55` for overlaid layers.",
+                "see": []
+              },
+              {
+                "name": "cornerRadius",
+                "type": "number",
+                "optional": true,
+                "defaultValue": "0",
+                "deprecated": null,
+                "description": "Top-corner radius in CSS px. Default: `0`.",
+                "see": []
+              },
+              {
+                "name": "quantiles",
+                "type": "readonly (number | HistogramQuantile)[]",
+                "optional": true,
+                "defaultValue": "none",
+                "deprecated": null,
+                "description": "Quantile reference lines per layer, e.g. `[0.5, 0.95]`. A number is the quantile, `0`–`1`;\nan object also sets its label and color. Exact for raw samples, interpolated inside a bin for\npre-binned data. Default: none.",
+                "see": []
+              },
+              {
+                "name": "smoothMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "chart animation config",
+                "deprecated": null,
+                "description": "How long a bar and a quantile line take to ease to new data, in milliseconds. `false` or\n`0` snaps. Default: chart animation config (600).",
+                "see": []
+              },
+              {
+                "name": "entryMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "450",
+                "deprecated": null,
+                "description": "Fade-and-grow of a bin that new data adds, in milliseconds. `false` or `0` turns it off. Default: 450.",
+                "see": []
+              },
+              {
+                "name": "introMs",
+                "type": "number | false",
+                "optional": true,
+                "defaultValue": "900",
+                "deprecated": null,
+                "description": "First-data reveal, a left-to-right wave of bars that fade in and grow, in milliseconds per bar. `false` or `0` turns it off. Default: 900.",
+                "see": []
+              }
+            ]
+          }
+        },
+        {
+          "name": "id",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Stable series ID — same value across remounts.",
+          "see": []
+        },
+        {
+          "name": "visible",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show/hide the series without unmounting it. Default `true`. Live.",
+          "see": []
+        },
+        {
+          "name": "scale",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "the default scale",
+          "deprecated": null,
+          "description": "Named Y scale from the container's `scales`. Default: the default scale. Live.",
+          "see": []
+        }
+      ]
+    },
     "Sparkline": {
       "kind": "chart",
       "file": "packages/react/src/ui/Sparkline.tsx",
@@ -4955,7 +5112,7 @@
               },
               {
                 "name": "series",
-                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; gauge?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radialProgress?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radar?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
+                "type": "false | { line?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; pulse?: AnimationTime; }; candlestick?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; bar?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; histogram?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; band?: | false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }; pie?: | false | { entry?: AnimationTime; update?: AnimationTime; }; heatmap?: | false | { entry?: AnimationTime; update?: AnimationTime; }; depth?: | false | { intro?: AnimationTime; update?: AnimationTime; }; sankey?: | false | { entry?: AnimationTime; update?: AnimationTime; }; gauge?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radialProgress?: | false | { entry?: AnimationTime; update?: AnimationTime; }; radar?: | false | { entry?: AnimationTime; update?: AnimationTime; }; }",
                 "optional": true,
                 "defaultValue": null,
                 "deprecated": null,
@@ -5091,6 +5248,47 @@
                             "defaultValue": "250ms",
                             "deprecated": null,
                             "description": "Live value chase duration on `updateLastPoint`. `false` /\n`0` snaps to the target instantly.",
+                            "see": []
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "histogram",
+                      "type": "false | { entry?: AnimationTime; intro?: AnimationTime; smooth?: AnimationTime; }",
+                      "optional": true,
+                      "defaultValue": null,
+                      "deprecated": null,
+                      "description": "Histogram tweens. `false` disables the first-data reveal, the bin\nentrance and the ease of bars and quantile lines to new data.",
+                      "see": [],
+                      "nested": {
+                        "name": "",
+                        "props": [
+                          {
+                            "name": "entry",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "450ms",
+                            "deprecated": null,
+                            "description": "Fade-and-grow of a bin that new data adds.",
+                            "see": []
+                          },
+                          {
+                            "name": "intro",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "900ms",
+                            "deprecated": null,
+                            "description": "First-data reveal — bars grow from zero in a left-to-right\nwave. The value is the per-bar duration; the wave lasts ~2×.",
+                            "see": []
+                          },
+                          {
+                            "name": "smooth",
+                            "type": "AnimationTime",
+                            "optional": true,
+                            "defaultValue": "600ms",
+                            "deprecated": null,
+                            "description": "Ease of each bar and quantile line to new data.",
                             "see": []
                           }
                         ]

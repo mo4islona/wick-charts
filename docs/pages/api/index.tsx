@@ -24,6 +24,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/gauge-series': 'GaugeSeries',
   'api/radial-progress-series': 'RadialProgressSeries',
   'api/radar-series': 'RadarSeries',
+  'api/histogram-series': 'HistogramSeries',
   'api/sparkline': 'Sparkline',
   // container & overlays
   'api/chart-container': 'ChartContainer',

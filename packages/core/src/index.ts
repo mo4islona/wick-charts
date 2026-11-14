@@ -94,6 +94,8 @@ export type { TimeRegionConfig, TimeRegionEnd } from './components/time-region';
 // Heikin-Ashi — a pure OHLC transform plus an O(1) incremental form for live feeds.
 export type { HeikinAshiStream } from './data/heikin-ashi';
 export { heikinAshi, heikinAshiStream } from './data/heikin-ashi';
+export type { HistogramSyncState, SyncHistogramLayersArgs } from './data/histogram-sync';
+export { EMPTY_HISTOGRAM_SYNC_STATE, syncHistogramLayers, toHistogramLayers } from './data/histogram-sync';
 export type { ValueStats } from './data/store';
 // Series data reconciliation — shared by the React / Vue / Svelte wrappers so
 // every framework picks the same cheapest-correct mutation (append / keepLast /
@@ -202,6 +204,9 @@ export {
 export { DepthSeriesDef } from './series/depth';
 export { GaugeSeriesDef } from './series/gauge';
 export { HeatmapSeriesDef } from './series/heatmap';
+export { HistogramSeriesDef } from './series/histogram';
+export type { BinSamplesOptions } from './series/histogram-bins';
+export { binSamples } from './series/histogram-bins';
 export { LineSeriesDef } from './series/line';
 // LineIntroFn contract for fully custom intros. An intro is a plain function
 // passed to `options.introAnimation`; there is no name registry.
@@ -326,6 +331,7 @@ export type {
   TimeSeriesRenderer,
   ValueRangeOptions,
   XFocus,
+  XTickGrid,
 } from './series/types';
 export { isTimeSeriesRenderer } from './series/types';
 export type {
@@ -349,6 +355,7 @@ export {
   formatRowTime,
   formatRowValue,
   formatTooltipHeader,
+  isHistogramBinPoint,
   rowFormatter,
 } from './snapshots';
 // Testing — a working canvas 2D context + draw-call recorder for a
@@ -419,6 +426,13 @@ export type {
   HeatmapCellInput,
   HeatmapCellLabelsOptions,
   HeatmapSeriesOptions,
+  HistogramBin,
+  HistogramBinPoint,
+  HistogramData,
+  HistogramInput,
+  HistogramNormalize,
+  HistogramQuantile,
+  HistogramSeriesOptions,
   HorizontalPadding,
   LinePointInput,
   LineSeriesOptions,

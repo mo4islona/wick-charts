@@ -178,6 +178,16 @@
       "dependencies": ["@wick-charts/svelte@^0.9.2"],
       "registryDependencies": ["card", "https://wick-charts.eeff.io/r/svelte/wick-chart.json"],
       "files": [{ "path": "blocks/chart-radar.svelte", "type": "registry:component" }]
+    },
+    {
+      "name": "chart-histogram",
+      "type": "registry:block",
+      "title": "Histogram",
+      "description": "Live response times binned into a histogram, with p50 and p95 lines and the bin range, count and share on hover.",
+      "categories": ["charts", "monitoring"],
+      "dependencies": ["@wick-charts/svelte@^0.9.2"],
+      "registryDependencies": ["card", "https://wick-charts.eeff.io/r/svelte/wick-chart.json"],
+      "files": [{ "path": "blocks/chart-histogram.svelte", "type": "registry:component" }]
     }
   ]
 }

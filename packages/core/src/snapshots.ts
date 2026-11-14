@@ -1,6 +1,6 @@
 import type { ChartInstance } from './chart';
 import type { LayerSnapshot } from './series/types';
-import type { BandPoint, OHLCData, TimePoint } from './types';
+import type { BandPoint, HistogramBinPoint, OHLCData, TimePoint } from './types';
 import {
   type TooltipFormatter,
   formatTooltipNumber,
@@ -27,7 +27,8 @@ import { formatDate } from './utils/time';
  * `data` is a shallow clone, frozen along with the snapshot itself — a slot
  * consumer cannot accidentally mutate the chart's internal store. Its shape
  * follows the series: `OHLCData` for a candlestick, `TimePoint` for a line or
- * bar, `BandPoint` (`{ time, low, high }`) for a band.
+ * bar, `BandPoint` (`{ time, low, high }`) for a band, `HistogramBinPoint`
+ * (`{ x0, x1, count, share, … }`) for a histogram.
  */
 export interface SeriesSnapshot {
   readonly id: string;
@@ -86,8 +87,10 @@ function setSlot(chart: ChartInstance, cacheKey: string, slot: CacheSlot): void 
   bucket.set(cacheKey, slot);
 }
 
-/** A layer row's point — a band layer carries its edges, every other layer one value. */
-function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint {
+/** A layer row's point — a band layer carries its edges, a histogram layer its bin, every other layer one value. */
+function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint | HistogramBinPoint {
+  if (layer.bin !== undefined) return { time: layer.time, value: layer.value, x: layer.x, ...layer.bin };
+
   const point: TimePoint | BandPoint =
     layer.low !== undefined && layer.high !== undefined
       ? { time: layer.time, low: layer.low, high: layer.high }
@@ -95,6 +98,29 @@ function layerPoint(layer: LayerSnapshot): TimePoint | BandPoint {
   if (layer.x !== undefined) point.x = layer.x;
 
   return point;
+}
+
+/** Whether a point is a histogram bin. */
+export function isHistogramBinPoint(point: unknown): point is HistogramBinPoint {
+  if (typeof point !== 'object' || point === null) return false;
+
+  return 'x0' in point && 'x1' in point && 'count' in point;
+}
+
+/** The bin of the snapshot nearest to `time` when it is a histogram's, else `null`. */
+function headerBin(time: number, snapshots: readonly SeriesSnapshot[]): HistogramBinPoint | null {
+  const nearest = nearestPointTime(time, snapshots);
+  const snapshot = snapshots.find((s) => s.data.time === nearest);
+
+  return snapshot !== undefined && isHistogramBinPoint(snapshot.data) ? snapshot.data : null;
+}
+
+/** A bin's edges as an X range, `100 – 120`. */
+function formatBinRange(chart: ChartInstance, bin: HistogramBinPoint): string {
+  const from = chart.timeScale.formatPointX(bin.x0, bin.x1 - bin.x0);
+  const to = chart.timeScale.formatPointX(bin.x1, bin.x1 - bin.x0);
+
+  return `${from} – ${to}`;
 }
 
 function candleRising(chart: ChartInstance, seriesId: string, point: SeriesPoint): boolean | undefined {
@@ -262,6 +288,9 @@ export function hoveredPointTime(chart: ChartInstance, time: number): number | n
  * numeric X prints with that value's own decimals.
  */
 export function formatHeaderX(chart: ChartInstance, args: HeaderArgs): string {
+  const bin = headerBin(args.time, args.snapshots);
+  if (bin !== null) return formatBinRange(chart, bin);
+
   const nearest = nearestPointTime(args.time, args.snapshots);
 
   return chart.timeScale.formatPointX(nearest, args.interval);
@@ -286,6 +315,9 @@ function formatPointLabel(chart: ChartInstance, args: { time: number; interval: 
  * day when the data is intraday; elsewhere {@link formatHeaderX}.
  */
 export function formatTooltipHeader(chart: ChartInstance, args: HeaderArgs): string {
+  const bin = headerBin(args.time, args.snapshots);
+  if (bin !== null) return formatBinRange(chart, bin);
+
   return formatPointLabel(chart, { time: nearestPointTime(args.time, args.snapshots), interval: args.interval });
 }
 
@@ -330,9 +362,16 @@ export function rowFormatter(
 
 /**
  * The value a line or bar row prints: on a percent stack its share leads, then
- * the value itself ("42.1% · 25.77M").
+ * the value itself ("42.1% · 25.77M"). A histogram row prints its bin's sample
+ * count and share ("128 · 12.8%").
  */
 export function formatRowValue(snapshot: SeriesSnapshot, format: (value: number) => string): string {
+  if (isHistogramBinPoint(snapshot.data)) {
+    const share = Number(snapshot.data.share.toFixed(1));
+
+    return `${format(snapshot.data.count)} · ${share}%`;
+  }
+
   const value = format(pointValue(snapshot.data));
   if (snapshot.share === undefined) return value;
 

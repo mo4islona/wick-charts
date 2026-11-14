@@ -87,6 +87,7 @@ const CHART_SKETCHES: Partial<Record<Route, SketchName>> = {
   'charts/sankey': 'sankey',
   'charts/gauge': 'gauge',
   'charts/radar': 'radar',
+  'charts/histogram': 'histogram',
   'charts/sparkline': 'sparkline',
 };
 

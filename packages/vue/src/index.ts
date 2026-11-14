@@ -32,6 +32,7 @@ export type {
   BarSeriesOptions,
   BarValueLabelsOptions,
   BaseSeriesRenderer,
+  BinSamplesOptions,
   BitmapCoordinateSpace,
   BuildHoverSnapshotsArgs,
   BuildLastSnapshotsArgs,
@@ -73,6 +74,13 @@ export type {
   HeatmapSeriesOptions,
   HeatmapSeriesRenderer,
   HeikinAshiStream,
+  HistogramBin,
+  HistogramBinPoint,
+  HistogramData,
+  HistogramInput,
+  HistogramNormalize,
+  HistogramQuantile,
+  HistogramSeriesOptions,
   HoverInfo,
   HoverRow,
   LayerSnapshot,
@@ -215,6 +223,7 @@ export {
   DepthSeriesDef,
   GaugeSeriesDef,
   HeatmapSeriesDef,
+  HistogramSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -228,6 +237,7 @@ export {
   autoGradient,
   ayuMirage,
   backfillSweepIntro,
+  binSamples,
   buildHoverSnapshots,
   buildLastSnapshots,
   candleUnfoldIntro,
@@ -265,6 +275,7 @@ export {
   highContrast,
   hollowCandle,
   isDarkBg,
+  isHistogramBinPoint,
   isTimeSeriesRenderer,
   lastPointOnly,
   lavenderMist,
@@ -341,6 +352,7 @@ export { useChartInstance, useTheme } from './context';
 export { default as DepthSeries } from './DepthSeries.vue';
 export { default as GaugeSeries } from './GaugeSeries.vue';
 export { default as HeatmapSeries } from './HeatmapSeries.vue';
+export { default as HistogramSeries } from './HistogramSeries.vue';
 export { default as LineSeries } from './LineSeries.vue';
 export { default as PieSeries } from './PieSeries.vue';
 export type {
@@ -351,6 +363,7 @@ export type {
   DepthSeriesProps,
   GaugeSeriesProps,
   HeatmapSeriesProps,
+  HistogramSeriesProps,
   LineSeriesProps,
   PieSeriesProps,
   RadarSeriesProps,

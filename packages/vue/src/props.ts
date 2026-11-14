@@ -20,6 +20,8 @@ import type {
   GridOptions,
   HeatmapCellInput,
   HeatmapSeriesOptions,
+  HistogramData,
+  HistogramSeriesOptions,
   LineSeriesOptions,
   MultiLayerData,
   PieSeriesOptions,
@@ -70,6 +72,22 @@ export interface BarSeriesProps {
   /** Show/hide the series without unmounting it — excludes it from the Y-range fit and tooltip/legend. Default `true`. Live. */
   visible?: boolean;
   /** Named Y scale from the container's `scales` — autoscales on its own, sharing the time axis. Default: the default scale. Live. */
+  scale?: string;
+}
+
+export interface HistogramSeriesProps {
+  /**
+   * Raw samples (`number[]`), bins counted already (`{ x0, x1, count }[]`), several of
+   * them overlaid, or named `{ label, color?, data }` layers. Needs a numeric X axis.
+   */
+  data: HistogramData;
+  /** Binning, `normalize`, quantile lines, gap, opacity and animation timings. */
+  options?: Partial<HistogramSeriesOptions>;
+  /** Stable series ID — same value across remounts. */
+  id?: string;
+  /** Show/hide the series without unmounting it. Default `true`. Live. */
+  visible?: boolean;
+  /** Named Y scale from the container's `scales`. Default: the default scale. Live. */
   scale?: string;
 }
 
