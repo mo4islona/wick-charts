@@ -11,11 +11,15 @@
  *   3. Once that paint lands, subsequent RAFs leave the DOM alone — no
  *      "everything moves down" reflow on the next frame.
  */
-import { CandlestickSeries, ChartContainer, TimeAxis, YAxis, YLabel } from '@wick-charts/react';
+
 import { act, render } from '@testing-library/react';
+import { CandlestickSeries, ChartContainer, TimeAxis, YAxis, YLabel } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { flushRaf, installRaf, pendingRaf, uninstallRaf } from '../helpers/raf';
+
+/** The default `<YAxis>` column: its width fits the labels, so match the anchoring instead. */
+const Y_AXIS_HOST = 'div[style*="right: 0px"][style*="top: 0px"][style*="bottom: 30px"]';
 
 afterEach(() => {
   try {
@@ -65,7 +69,7 @@ function readFrame(host: HTMLElement): FrameState {
       break;
     }
   }
-  const yAxisHost = host.querySelector('div[style*="right: 0px"][style*="width: 55px"]');
+  const yAxisHost = host.querySelector(Y_AXIS_HOST);
   const yAxisLabels = Array.from(yAxisHost?.querySelectorAll('span') ?? []).map(
     (span) => `${span.textContent}@${(span as HTMLElement).style.top}`,
   );

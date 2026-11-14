@@ -4,6 +4,10 @@
 
 Leaving out `<YAxis />` keeps its empty column; `axis: { y: { visible: false } }` removes it. The X axis is the same: leaving out `<XAxis />` keeps its row, and `axis.x.visible: false` removes it.
 
+## Y axis width
+
+The Y-axis column fits its widest tick label and the `YLabel` badge by default (`width: 'auto'`). It widens as soon as a label needs it, and narrows only when the data, the visible series, the format, the theme or the chart size changes, so streaming doesn't shift the plot. `axis: { y: { width: 60 } }` fixes it; a named scale takes the same `width`.
+
 ## Y axis mapping (log scale)
 
 `axis.y.scale` maps values to the Y axis. Omit it for linear, pass `logScale()` for a log axis (`logScale({ base: 2 })` for powers-of-two ticks), or any `{ forward, inverse, isPlottable?, ticks?, format? }` object. Define it outside the component: a new object refits the Y range.

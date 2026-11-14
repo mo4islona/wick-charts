@@ -12,6 +12,7 @@ export type BarEntryAnim = 'fade' | 'grow' | 'fade-grow' | 'slide' | 'none';
 export type LineEntryAnim = 'grow' | 'fade' | 'none';
 /** Playground's Y-scale switch — `'log'` maps to `axis.y.scale: logScale()`. */
 export type YScaleKind = 'linear' | 'log';
+export type YAxisWidthMode = 'auto' | 'fixed';
 
 export type AnimationKind = 'candle' | 'bar' | 'line' | 'band' | 'pie';
 
@@ -40,6 +41,7 @@ export interface CommonState {
   yAxisPosition: YAxisPosition;
   yScaleType: YScaleKind;
   xAxisVisible: boolean;
+  yAxisWidthMode: YAxisWidthMode;
   yAxisWidth: number;
   xAxisHeight: number;
   minBound: string;
@@ -115,6 +117,7 @@ export const COMMON_DEFAULTS: CommonState = {
   yAxisPosition: 'right',
   yScaleType: 'linear',
   xAxisVisible: true,
+  yAxisWidthMode: 'auto',
   yAxisWidth: 55,
   xAxisHeight: 30,
   minBound: 'auto',

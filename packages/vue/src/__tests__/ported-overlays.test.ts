@@ -201,7 +201,7 @@ describe('Vue overlays — ported props', () => {
     const App = defineComponent({
       setup() {
         return () =>
-          h(ChartContainer, { theme: catppuccin.theme, axis: { y: { position: position.value } } }, () => [
+          h(ChartContainer, { theme: catppuccin.theme, axis: { y: { position: position.value, width: 55 } } }, () => [
             h(CandlestickSeries, { data: ohlc }),
             h(YAxis),
             h(TimeAxis),

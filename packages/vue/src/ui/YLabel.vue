@@ -279,7 +279,7 @@ const BADGE_SHRINK_DELAY = 1000;
         }"
       />
       <div
-        v-axis-label-cover="chart"
+        v-axis-label-cover.fit="chart"
         :style="{
           position: 'absolute',
           [side]: '4px',

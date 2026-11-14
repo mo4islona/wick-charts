@@ -1,7 +1,7 @@
 import { LineSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { mountChart } from '../helpers/mount-chart';
+import { type MountedChart, mountPinnedAxisChart } from '../helpers/mount-chart';
 
 /**
  * Content panned toward a right Y-axis column slides 12px under it, where the
@@ -13,7 +13,7 @@ import { mountChart } from '../helpers/mount-chart';
  * 12px, so the series clip spans 757×370.
  */
 describe('series under the right Y-axis column', () => {
-  let mounted: ReturnType<typeof mountChart> | null = null;
+  let mounted: MountedChart | null = null;
 
   afterEach(() => {
     mounted?.unmount();
@@ -25,7 +25,7 @@ describe('series under the right Y-axis column', () => {
   const data = Array.from({ length: 300 }, (_, i) => ({ time: T0 + i * STEP, value: 100 + (i % 7) }));
 
   it('draws a panned line out to the clip edge, not one point past the pane', () => {
-    mounted = mountChart(<LineSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<LineSeries data={data} />, { width: 800, height: 400 });
 
     // 200 steps over 745px: ~3.7px a step, so the 12px strip holds three points.
     mounted.chart.setVisibleRange({ from: T0, to: T0 + 200 * STEP });
@@ -41,7 +41,7 @@ describe('series under the right Y-axis column', () => {
   });
 
   it('clips the pulse with the series and fades it out across the strip', () => {
-    mounted = mountChart(<LineSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<LineSeries data={data} />, { width: 800, height: 400 });
 
     // The last point lands 2px past the pane edge; its widest halo (7px) reaches 9px into the strip.
     const span = 200 * STEP;
@@ -63,7 +63,7 @@ describe('series under the right Y-axis column', () => {
   });
 
   it('leaves the faded crosshair alone: no overlay erase over the strip', () => {
-    mounted = mountChart(<LineSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<LineSeries data={data} />, { width: 800, height: 400 });
     mounted.overlaySpy.reset();
     mounted.chart.setCrosshair({ time: data[data.length - 1].time, y: 103 });
     mounted.flushScheduler();

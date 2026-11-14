@@ -86,7 +86,7 @@ interface BadgeFrame {
 
 export function YLabel({ seriesId, color, format, animate, children, scale }: YLabelProps) {
   const chart = useChartInstance();
-  const coverRef = useAxisLabelCover(chart);
+  const coverRef = useAxisLabelCover(chart, { fitColumn: true });
 
   // Notify chart that YLabel is present (affects right padding).
   useEffect(() => {

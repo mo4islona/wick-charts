@@ -346,3 +346,28 @@ export function mountChart(children: ReactNode, opts: MountChartOptions = {}): M
 
   return api;
 }
+
+/** The Y-axis column width the geometry suites below were written against. */
+const PINNED_AXIS_WIDTH = 55;
+
+function pinAxisWidth<T extends Partial<MountChartOptions>>(opts: T): T {
+  const scales = opts.scales;
+  const pinnedScales =
+    scales === undefined
+      ? undefined
+      : Object.fromEntries(Object.entries(scales).map(([id, config]) => [id, { width: PINNED_AXIS_WIDTH, ...config }]));
+
+  return { ...opts, axis: { ...opts.axis, y: { width: PINNED_AXIS_WIDTH, ...opts.axis?.y } }, scales: pinnedScales };
+}
+
+/**
+ * {@link mountChart} with every Y-axis column pinned at 55 px instead of
+ * fitting its labels, for suites that assert pixel geometry.
+ */
+export function mountPinnedAxisChart(children: ReactNode, opts: MountChartOptions = {}): MountedChart {
+  const mounted = mountChart(children, pinAxisWidth(opts));
+  const rerender = mounted.rerender;
+  mounted.rerender = (nextChildren, next) => rerender(nextChildren, next === undefined ? next : pinAxisWidth(next));
+
+  return mounted;
+}

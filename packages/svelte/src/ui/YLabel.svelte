@@ -250,7 +250,7 @@ export type { YLabelDirection } from './types.js';
       style="position:absolute;left:{chart.plotLeft}px;right:{chart.getAxisColumnWidth('right')}px;top:{y}px;height:0;border-top:1px dashed {bgColor};opacity:{opacity * 0.5};pointer-events:none;z-index:2;"
     ></div>
     <div
-      use:axisLabelCover={{ chart, at: [side, y] }}
+      use:axisLabelCover={{ chart, at: [side, y], fitColumn: true }}
       style="position:absolute;{side}:4px;top:{y}px;transform:translateY(-50%);opacity:{opacity};pointer-events:auto;z-index:3;background:{bgColor};color:{theme.yLabel.textColor};font-size:{theme.yLabel.fontSize}px;font-family:{theme.typography.fontFamily};padding:3px 8px;border-radius:3px;white-space:nowrap;transition:background-color 0.3s ease;"
     >
       <NumberFlow value={textValue} format={effectiveFormat} spinDuration={350} shrinkDelay={BADGE_SHRINK_DELAY} />

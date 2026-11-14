@@ -4536,11 +4536,11 @@
                     },
                     {
                       "name": "width",
-                      "type": "number",
+                      "type": "number | 'auto'",
                       "optional": true,
-                      "defaultValue": "55",
+                      "defaultValue": "'auto'",
                       "deprecated": null,
-                      "description": "Width in CSS pixels. Default: 55, or 0 when every series is spatial (pie, heatmap).",
+                      "description": "Width in CSS pixels, or `'auto'` to fit the widest tick label and a value\nbadge (`YLabel`). An `'auto'` column widens as soon as a label needs it, and\nnarrows only when the data, the visible series, the format, the theme or\nthe plot size changes, so streaming ticks don't shift the plot.\nDefault: `'auto'`, or 0 when every series is spatial (pie, heatmap).",
                       "see": []
                     },
                     {

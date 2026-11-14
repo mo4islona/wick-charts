@@ -21,6 +21,7 @@ import type { YAxisPosition } from '../types';
 import { clamp } from '../utils/math';
 import { renderNumberText } from '../utils/number-text';
 import { isNewYearsDay } from '../utils/time';
+import { Y_LABEL_INSET_PX } from './column-width';
 
 export interface MountAxisLabelsOptions {
   readonly chart: ChartInstance;
@@ -201,7 +202,7 @@ export function mountAxisLabels(opts: MountAxisLabelsOptions): () => void {
   function applyYAnchor(el: HTMLSpanElement, side: YAxisPosition): void {
     const outer = side === 'left' ? 'left' : 'right';
     const inner = side === 'left' ? 'right' : 'left';
-    el.style[outer] = '8px';
+    el.style[outer] = `${Y_LABEL_INSET_PX}px`;
     el.style[inner] = '';
   }
 

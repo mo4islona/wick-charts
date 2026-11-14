@@ -3,7 +3,7 @@ import { CandlestickSeries, Title } from '@wick-charts/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CanvasRecorder, RecordedCall } from '../../../../core/src/testing/recording-context';
-import { mountChart } from '../helpers/mount-chart';
+import { type MountedChart, mountPinnedAxisChart } from '../helpers/mount-chart';
 
 /**
  * Integration coverage for the edge fade masks (`fade` prop → `chart.setFade`).
@@ -19,7 +19,7 @@ import { mountChart } from '../helpers/mount-chart';
  * the one destination-out fill anchored at y = 370) melt at the edges too.
  */
 describe('edge fade masks', () => {
-  let mounted: ReturnType<typeof mountChart> | null = null;
+  let mounted: MountedChart | null = null;
 
   afterEach(() => {
     mounted?.unmount();
@@ -59,7 +59,7 @@ describe('edge fade masks', () => {
   }
 
   it('headerless default: no top mask, X mask rides under the axis column', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     expect(topFadeRects(mounted.mainSpy, 800)).toHaveLength(0);
 
@@ -72,7 +72,7 @@ describe('edge fade masks', () => {
   });
 
   it('the right mask erases nothing at the pane edge and everything at the canvas edge', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     const rects = rightFadeRects(mounted.mainSpy);
     const last = rects[rects.length - 1];
@@ -82,7 +82,7 @@ describe('edge fade masks', () => {
   });
 
   it('widens the pane clip by the X intrusion so content can reach under the axis', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     // The clip rect spans pane + the 12px end gap when the X fade is armed —
     // content past the completed ramp is total-erased anyway, so the clip
@@ -101,7 +101,7 @@ describe('edge fade masks', () => {
   });
 
   it('fade={{right}} overrides the intrusion depth and 0 disables it', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: { right: 20 },
@@ -120,7 +120,7 @@ describe('edge fade masks', () => {
   });
 
   it('fade={{left}} erases a strip at the left pane edge', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: { left: 32 },
@@ -132,7 +132,7 @@ describe('edge fade masks', () => {
   });
 
   it('runs the vertical gridline stubs past the pane floor with an opacity taper', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     // The taper is a destination-out fill over the below-pane strip: 9px
     // deep, anchored at the 370px pane floor, spanning the bitmap width.
@@ -148,7 +148,7 @@ describe('edge fade masks', () => {
   });
 
   it('skips the gridline stubs when the grid is hidden', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       grid: { visible: false },
@@ -158,7 +158,7 @@ describe('edge fade masks', () => {
   });
 
   it('skips the gridline stubs when the time axis is hidden — nothing to point at', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       axis: { x: { visible: false } },
@@ -169,7 +169,7 @@ describe('edge fade masks', () => {
   });
 
   it('hides the X mask when the Y axis is hidden — no column to ride under', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       axis: { y: { visible: false } },
@@ -179,7 +179,7 @@ describe('edge fade masks', () => {
   });
 
   it('erases an explicit top zone with a top-anchored alpha gradient, after the series', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: { top: 80 },
@@ -211,7 +211,7 @@ describe('edge fade masks', () => {
   });
 
   it('applies and clears the top zone live through setFade', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     mounted.mainSpy.reset();
     mounted.chart.setFade({ top: 40 });
@@ -230,7 +230,7 @@ describe('edge fade masks', () => {
   });
 
   it('fade={true} without a header falls back to the 24px top run-out band', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: true,
@@ -242,7 +242,7 @@ describe('edge fade masks', () => {
   });
 
   it('clamps an oversized top zone to the pane height', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: { top: 5000 },
@@ -255,7 +255,7 @@ describe('edge fade masks', () => {
   });
 
   it('top mask stays off by default, header or not — only the X mask is armed', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC</Title>
         <CandlestickSeries data={data} />
@@ -268,7 +268,7 @@ describe('edge fade masks', () => {
   });
 
   it('fade={true} with a header enables the auto top zone', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC</Title>
         <CandlestickSeries data={data} />
@@ -284,7 +284,7 @@ describe('edge fade masks', () => {
   });
 
   it('fade={false} turns every mask off, header or not', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC</Title>
         <CandlestickSeries data={data} />
@@ -301,7 +301,7 @@ describe('edge fade masks', () => {
 
     // The rect patch makes the overlay header measure as the full 400px
     // host, so half of it (200) must come off the fold-in: 20 + 400 - 200.
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC</Title>
         <CandlestickSeries data={data} />
@@ -321,7 +321,7 @@ describe('edge fade masks', () => {
     // mount-chart's rect patch makes the overlay header measure as the full
     // 400px host — a jsdom artifact, but a deterministic one: without
     // overlap the fold-in lands at 20 + 400, with overlap 15 at 20 + 385.
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC</Title>
         <CandlestickSeries data={data} />
@@ -336,7 +336,7 @@ describe('edge fade masks', () => {
   });
 
   it('a pure X config leaves the top mask on its header-driven default', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       fade: { right: 20 },
@@ -347,7 +347,7 @@ describe('edge fade masks', () => {
   });
 
   it('scales the zones by the device pixel ratio', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, {
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
       width: 800,
       height: 400,
       dpr: 2,

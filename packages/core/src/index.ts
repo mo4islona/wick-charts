@@ -34,6 +34,7 @@ export { mountAxisLabels } from './axis/dom-labels';
 export type { BitmapCoordinateSpace } from './canvas-manager';
 export type {
   AxisLabelCover,
+  AxisLabelCoverOptions,
   ChartOptions,
   EdgeReachedInfo,
   EdgeSide,

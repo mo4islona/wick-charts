@@ -24,7 +24,7 @@ The root component. It creates the `ChartInstance`, sizes the canvas to its pare
 - **`axis.y.position: 'left'`** moves the Y axis and shifts the plot area past it; the built-in overlays follow. A custom overlay sizes itself to `chart.getLayout().chartArea` (or offsets scale output by `chart.plotLeft`) instead of assuming a right axis.
 - **`headerLayout`:** `'overlay'` (default) floats `Title` / `InfoBar` over the top of the canvas and adds their height to `padding.top`; `'inline'` puts them above the canvas.
 - **`fade`:** content that pans under the Y axis fades out (on by default). `fade={true}` — or `fade={{ top: 40 }}` for a fixed height — also fades the plot under a floating header. `fade={false}` turns every fade off.
-- **An overlay of your own on an axis** (a price pill, a badge) calls `const cover = chart.coverAxisLabels(el)`: the tick labels under it hide while it shows. Call `cover.update()` after it moves and `cover.remove()` on unmount. `Crosshair` and `YLabel` do this already.
+- **An overlay of your own on an axis** (a price pill, a badge) calls `const cover = chart.coverAxisLabels(el)`: the tick labels under it hide while it shows. Call `cover.update()` after it moves and `cover.remove()` on unmount. `Crosshair` and `YLabel` do this already. An overlay pinned to the chart's edge passes `{ fitColumn: true }`, so an `'auto'` Y-axis column widens to hold it, as `YLabel` does.
 
 ## Visible range
 

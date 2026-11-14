@@ -119,7 +119,7 @@ describe('NavigatorController', () => {
   it('reserves the Y-axis column on whichever side it sits', () => {
     const raf = installRaf();
     try {
-      chart.setAxis({ y: { position: 'left' } });
+      chart.setAxis({ y: { position: 'left', width: 55 } });
       const nav = new NavigatorController({ container: navContainer, chart, data: lineData(chart) });
       const canvas = navContainer.querySelector('canvas');
       const overlay = navContainer.querySelector<HTMLElement>('[data-chart-navigator-overlay]');
@@ -130,7 +130,7 @@ describe('NavigatorController', () => {
       expect(overlay.style.left).toBe('55px');
 
       // A flip at runtime re-anchors on the next frame.
-      chart.setAxis({ y: { position: 'right' } });
+      chart.setAxis({ y: { position: 'right', width: 55 } });
       raf.flush();
 
       expect(canvas.style.left).toBe('0px');

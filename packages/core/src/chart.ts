@@ -4,6 +4,7 @@ import { easeOutCubic } from './animation/easing';
 import { prefersReducedMotion } from './animation/reduced-motion';
 import type { Transition } from './animation/transition';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
+import { AxisLabelMeter, type ColumnReach, measureColumnReach } from './axis/column-width';
 import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
 import { type AccessibilityConfig, ChartAccessibility } from './chart/accessibility';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
@@ -79,7 +80,7 @@ import {
   type XTickGrid,
   isTimeSeriesRenderer,
 } from './series/types';
-import { resolveAxisTextColor } from './theme/resolve';
+import { resolveAxisFontSize, resolveAxisTextColor } from './theme/resolve';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
 import type {
@@ -173,8 +174,14 @@ const NO_EDGE_SIDES: readonly EdgeSide[] = [];
 const LEFT_EDGE_SIDE: readonly EdgeSide[] = ['left'];
 const RIGHT_EDGE_SIDE: readonly EdgeSide[] = ['right'];
 
-/** Default Y-axis column width in CSS px — the default axis and named scales alike. */
+/** Y-axis column width in CSS px before an `'auto'` column first measures its labels, or where it can't. */
 const DEFAULT_Y_AXIS_WIDTH = 55;
+
+/**
+ * Time in ms after a shrink request in which a narrower column cover still narrows
+ * its column. A `YLabel` badge holds a removed digit's width for 1 s, then collapses.
+ */
+const COVER_SETTLE_MS = 2000;
 
 /** A series up to this long re-reads every step on each data change; a longer one reads its tail on an append. */
 const FULL_INTERVAL_SCAN_POINTS = 2_000;
@@ -203,6 +210,8 @@ interface YScaleSlot {
   /** {@link range} as the last main paint drew it; NaN before the first. */
   paintedMin: number;
   paintedMax: number;
+  /** Width of an `'auto'` axis column, CSS px; NaN before the first measure. */
+  fitWidth: number;
 }
 
 /** A named scale from `options.scales`. */
@@ -249,6 +258,7 @@ function createScaleSlot(yScale: YScale, config: YAxisConfig | undefined): YScal
     prevMax: Number.NaN,
     paintedMin: Number.NaN,
     paintedMax: Number.NaN,
+    fitWidth: Number.NaN,
   };
 }
 
@@ -343,6 +353,16 @@ interface ChartEvents {
   seriesFrame: () => void;
   /** An element registered with {@link ChartInstance.coverAxisLabels} came, moved or left. */
   axisLabelCoverChange: () => void;
+}
+
+/** Options of {@link ChartInstance.coverAxisLabels}. */
+export interface AxisLabelCoverOptions {
+  /**
+   * Widen an `'auto'` Y-axis column to hold the element — for an overlay
+   * pinned to the chart's edge, such as a value badge. The column on the
+   * side nearer the element grows to the element's inner edge.
+   */
+  fitColumn?: boolean;
 }
 
 /** Handle {@link ChartInstance.coverAxisLabels} returns. */
@@ -598,6 +618,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** See {@link coverAxisLabels}. */
   #labelCovers = new Set<HTMLElement>();
   #labelCoverChangePending = false;
+  /** Covers an `'auto'` axis column widens to hold, such as a value badge. */
+  #columnCovers = new Set<HTMLElement>();
+  /** How far {@link #columnCovers} reach in from each side, as last measured. */
+  #coverReach: ColumnReach = { left: 0, right: 0 };
+  readonly #container: HTMLElement;
+  readonly #labelMeter = new AxisLabelMeter();
+  /** An `'auto'` column only widens while this is off, so streaming ticks can't make the plot breathe. */
+  #columnShrinkPending = false;
+  /** Until this `performance.now()` time, a narrower column cover renews {@link #columnShrinkPending}. */
+  #coverSettleUntil = 0;
   /** Memoized destination-out mask gradients, one per edge, keyed by the
    *  zone's bitmap geometry so a resize / DPR change / `setFade` rebuilds
    *  them and steady frames reuse them. */
@@ -682,7 +712,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
   /** CSS px of the default Y-axis column. The default collapses to `0` on a spatial-only chart. */
   get yAxisWidth(): number {
-    return this.#columnWidthOf(this.#axis.y);
+    return this.#columnWidthOf({ config: this.#axis.y, slot: this.#defaultSlot });
   }
 
   /** Side of the plot area the default Y-axis column sits on. */
@@ -707,7 +737,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (side === this.yAxisPosition && this.yAxisWidth > 0) return this.yAxisWidth;
 
     for (const slot of this.#scales.values()) {
-      if (slot.column === side) return this.#columnWidthOf(slot.config);
+      if (slot.column === side) return this.#columnWidthOf({ config: slot.config, slot });
     }
 
     return 0;
@@ -728,11 +758,93 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /** Column width a Y-axis config asks for; `0` when hidden, and by default on a spatial-only chart. */
-  #columnWidthOf(config: YAxisConfig | undefined): number {
+  #columnWidthOf(params: { config: YAxisConfig | undefined; slot: YScaleSlot }): number {
+    const { config, slot } = params;
     if (config?.visible === false) return 0;
-    if (config?.width !== undefined) return config.width;
+    if (typeof config?.width === 'number') return config.width;
+    if (this.#isSpatialOnly()) return 0;
 
-    return this.#isSpatialOnly() ? 0 : DEFAULT_Y_AXIS_WIDTH;
+    return Number.isNaN(slot.fitWidth) ? DEFAULT_Y_AXIS_WIDTH : slot.fitWidth;
+  }
+
+  /**
+   * Size each `'auto'` Y-axis column to its tick labels and the badges in it.
+   * A column widens at once but narrows only after {@link #allowColumnShrink},
+   * on a frame Y rests on: streaming ticks would otherwise make the plot breathe.
+   */
+  #fitAxisColumns(): void {
+    if (this.#isSpatialOnly()) return;
+
+    const prevGutters = this.#readGutters();
+    const shrink = this.#columnShrinkPending && !this.#engine.yAnimating;
+    const theme = this.#theme;
+    const font = `${resolveAxisFontSize(theme, 'y')}px ${theme.typography.fontFamily}`;
+
+    this.#fitColumn({ slot: this.#defaultSlot, config: this.#axis.y, side: this.yAxisPosition, font, shrink });
+    for (const slot of this.#scales.values()) {
+      if (slot.column === null) continue;
+
+      this.#fitColumn({ slot, config: slot.config, side: slot.column, font, shrink });
+    }
+
+    if (shrink) this.#columnShrinkPending = false;
+
+    this.#syncGutters(prevGutters, { repaint: false });
+  }
+
+  #fitColumn(params: {
+    slot: YScaleSlot;
+    config: YAxisConfig | undefined;
+    side: YAxisPosition;
+    font: string;
+    shrink: boolean;
+  }): void {
+    const { slot, config } = params;
+    const auto = (config?.width ?? 'auto') === 'auto';
+    if (!auto || config?.visible === false) return;
+
+    const yScale = slot.yScale;
+    const labels = yScale.niceTickValues().map((value) => yScale.formatTick(value));
+    // No ticks before the first data: a column sized for nothing would only widen again.
+    if (labels.length === 0) return;
+
+    const labelsWidth = this.#labelMeter.columnWidth({ labels, font: params.font });
+    if (labelsWidth === null) return;
+
+    const needed = Math.max(labelsWidth, Math.ceil(this.#coverReach[params.side]));
+    const unmeasured = Number.isNaN(slot.fitWidth);
+    if (unmeasured || params.shrink || needed > slot.fitWidth) slot.fitWidth = needed;
+  }
+
+  /** Let `'auto'` columns narrow on the next frame Y rests on: what their labels show was replaced. */
+  #allowColumnShrink(): void {
+    this.#columnShrinkPending = true;
+    this.#coverSettleUntil = performance.now() + COVER_SETTLE_MS;
+    this.#mainScheduler.markDirty();
+  }
+
+  /** A web font that loads after the first measure changes every label's width. */
+  #onFontsLoaded = (): void => {
+    this.#labelMeter.clear();
+    this.#allowColumnShrink();
+  };
+
+  /**
+   * Re-read how far the {@link #columnCovers} reach into the chart. A farther reach widens
+   * its column; a shorter one narrows it only within {@link COVER_SETTLE_MS} of a shrink request.
+   */
+  #measureCoverReach(): void {
+    const reach = measureColumnReach({ host: this.#container, elements: this.#columnCovers });
+    const prev = this.#coverReach;
+    if (reach.left === prev.left && reach.right === prev.right) return;
+
+    this.#coverReach = reach;
+    // The badge can narrow after Y rests, when the shrink request is already spent.
+    const narrowed = reach.left < prev.left || reach.right < prev.right;
+    const settling = performance.now() < this.#coverSettleUntil;
+    if (narrowed && settling) this.#columnShrinkPending = true;
+
+    this.#mainScheduler.markDirty();
   }
 
   /** CSS px height of the floating Title / InfoBar header, `0` without one. A left
@@ -887,7 +999,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#perfMonitor = resolvedPerf.monitor;
     this.#ownsPerfMonitor = resolvedPerf.ownsMonitor;
 
+    this.#container = container;
     this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
+    if (typeof document !== 'undefined') document.fonts?.addEventListener('loadingdone', this.#onFontsLoaded);
     this.timeScale = new XScale();
     this.timeScale.setType(this.#xType);
     this.timeScale.setBandPadding(this.#axis.x?.padding);
@@ -946,6 +1060,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // height changed: the next setYRange call inside renderMain picks up
       // the new pixel padding so labels reposition without an explicit emit.
       this.syncScales();
+      // A new plot height re-picks the ticks, so an `'auto'` column may narrow.
+      this.#allowColumnShrink();
       this.#renderFrame();
       // Notify React components — yScale changed due to new canvas dimensions
       // (e.g. Legend appeared and shrank the chart area).
@@ -1221,6 +1337,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     });
     this.#seriesIdCache = null;
     this.#syncInteractionMode();
+    this.#allowColumnShrink();
     this.#syncGutters(prevGutters);
     this.emit('seriesChange');
     this.#bumpOverlayVersion();
@@ -1263,6 +1380,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       this.#seriesIdCache = null;
       if (this.#xType === 'category') this.#syncCategories();
       this.#syncInteractionMode();
+      this.#allowColumnShrink();
       this.#syncGutters(prevGutters);
       this.#mainScheduler.markDirty();
       this.emit('seriesChange');
@@ -2305,6 +2423,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#yInited = true;
     const now = performance.now();
+    this.#allowColumnShrink();
     this.#engine.onSeriesVisibilityChanged(now);
     this.#applyEngineState(now);
   }
@@ -2331,6 +2450,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           this.#batchVisualDirty = false;
           this.#yInited = true;
           const now = performance.now();
+          this.#allowColumnShrink();
           this.#engine.onSeriesVisibilityChanged(now);
           this.#applyEngineState(now);
           this.#mainScheduler.markDirty();
@@ -2375,6 +2495,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Y reflow still flows through the engine; renderer owns the alpha fade.
     this.#yInited = true;
     const now = performance.now();
+    this.#allowColumnShrink();
     this.#engine.onSeriesVisibilityChanged(now);
     this.#applyEngineState(now);
   }
@@ -2431,6 +2552,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.#yInited = true;
     const now = performance.now();
+    this.#allowColumnShrink();
     this.#engine.onSeriesVisibilityChanged(now);
     this.#applyEngineState(now);
   }
@@ -2875,8 +2997,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   }
 
   /** Reassign the Y-axis columns, then resync the scales if the gutters moved
-   *  and let DOM axis / label components re-read the layout, as they do after a resize. */
-  #syncGutters(prev: AxisGutters): void {
+   *  and let DOM axis / label components re-read the layout, as they do after a resize.
+   *  `repaint: false` is for the main render, which paints the new layout itself. */
+  #syncGutters(prev: AxisGutters, opts?: { repaint?: boolean }): void {
     this.#assignColumns();
 
     const next = this.#readGutters();
@@ -2890,7 +3013,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     this.syncScales();
     this.emit('viewportChange');
-    this.#mainScheduler.markDirty();
+    if (opts?.repaint !== false) this.#mainScheduler.markDirty();
   }
 
   /**
@@ -3125,7 +3248,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       entry.renderer.applyTheme(theme, prev);
     }
     this.#perfHud?.setTheme?.(theme);
-    this.#mainScheduler.markDirty();
+    this.#allowColumnShrink();
     this.#bumpOverlayVersion();
   }
 
@@ -3196,6 +3319,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#engine.onAxisReconfig(now);
     this.#applyEngineState(now);
 
+    this.#allowColumnShrink();
     this.#syncGutters(prevGutters);
     this.#syncInteractionMode();
     if (bandsMoved && this.#xType === 'category') this.fitContent();
@@ -3229,6 +3353,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#engine.onAxisReconfig(now);
     this.#applyEngineState(now);
 
+    this.#allowColumnShrink();
     this.#syncGutters(prevGutters);
     this.emit('viewportChange');
     this.#bumpOverlayVersion();
@@ -3287,7 +3412,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const fallbackSide = oppositeSide(this.yAxisPosition);
     for (const [id, slot] of this.#scales) {
       slot.column = null;
-      if (this.#columnWidthOf(slot.config) <= 0) continue;
+      if (this.#columnWidthOf({ config: slot.config, slot }) <= 0) continue;
 
       const side = slot.config.position ?? fallbackSide;
       if (taken.has(side)) {
@@ -3344,7 +3469,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const slot = this.#scales.get(scaleId);
     if (slot === undefined || slot.column === null) return null;
 
-    return { position: slot.column, width: this.#columnWidthOf(slot.config) };
+    return { position: slot.column, width: this.#columnWidthOf({ config: slot.config, slot }) };
   }
 
   /** The named scale a series maps through, `undefined` for the default scale. */
@@ -3395,6 +3520,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (params.scale !== undefined && !this.#scales.has(params.scale)) return;
 
     this.getYScale(params.scale).setFormat(params.format);
+    this.#allowColumnShrink();
     this.#bumpOverlayVersion();
     // Bar value labels follow the format on the main canvas.
     this.#mainScheduler.markDirty();
@@ -3422,8 +3548,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
     if (dirty) {
       this.syncScales();
+      this.#allowColumnShrink();
       this.emit('viewportChange');
-      this.#mainScheduler.markDirty();
     }
   }
 
@@ -3618,8 +3744,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * a crosshair pill or a value badge. `<Crosshair>` and `<YLabel>` register
    * their own; a custom overlay calls `update()` after each move.
    */
-  coverAxisLabels(element: HTMLElement): AxisLabelCover {
+  coverAxisLabels(element: HTMLElement, options?: AxisLabelCoverOptions): AxisLabelCover {
     this.#labelCovers.add(element);
+    if (options?.fitColumn === true) this.#columnCovers.add(element);
     this.#announceLabelCoverChange();
     // A size change needs no `update()`: a rolling badge digit or a new font can resize it between moves.
     const resize =
@@ -3630,6 +3757,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       update: () => this.#announceLabelCoverChange(),
       remove: () => {
         resize?.disconnect();
+        if (this.#columnCovers.delete(element)) this.#allowColumnShrink();
         if (this.#labelCovers.delete(element)) this.#announceLabelCoverChange();
       },
     };
@@ -3648,6 +3776,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#labelCoverChangePending = true;
     queueMicrotask(() => {
       this.#labelCoverChangePending = false;
+      this.#measureCoverReach();
       this.emit('axisLabelCoverChange');
     });
   }
@@ -3956,6 +4085,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#overlayScheduler.destroy();
     this.#interactions?.destroy();
     this.#accessibility.destroy();
+    if (typeof document !== 'undefined') document.fonts?.removeEventListener('loadingdone', this.#onFontsLoaded);
     this.#canvasManager.destroy();
     this.#perfHud?.destroy();
     this.#perfHud = null;
@@ -4066,8 +4196,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       // settles before the next tick (a bell curve that stops) while every
       // later tick slides continuously — the visible first-point stutter.
       this.#cadence.seed(now);
+      this.#allowColumnShrink();
       this.#engine.onDataReplaced(now);
     } else if (morph) {
+      this.#allowColumnShrink();
       this.#engine.onDataMorphed(now);
     } else {
       this.#engine.onPointAppended(now);
@@ -5037,6 +5169,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     }
 
     this.syncScales();
+    this.#fitAxisColumns();
 
     // Scales are fresh — reconcile the crosshair with the (possibly moved)
     // viewport so hover state never paints stale.
