@@ -76,6 +76,7 @@ import {
   type SliceInfo,
   type TimeSeriesRenderer,
   type XFocus,
+  type XTickGrid,
   isTimeSeriesRenderer,
 } from './series/types';
 import { resolveAxisTextColor } from './theme/resolve';
@@ -95,6 +96,9 @@ import type {
   DepthSeriesOptions,
   GaugeSeriesOptions,
   HeatmapSeriesOptions,
+  HistogramBin,
+  HistogramSeriesOptions,
+  HorizontalPadding,
   LineSeriesOptions,
   OHLCData,
   OHLCInput,
@@ -387,7 +391,16 @@ type CategoryLayer = { entry: SeriesEntry; layerIndex: number };
 type XKeyedPoint = { x?: unknown; time?: unknown };
 
 /** Any point `appendData` / `prependData` / `updateData` take. */
-type SeriesPointInput = OHLCInput | TimePointInput | BandPointInput | XPointInput | XBandPointInput | DepthBookDelta;
+/** A histogram takes a raw sample, or a bin on a pre-binned layer. */
+type SeriesPointInput =
+  | OHLCInput
+  | TimePointInput
+  | BandPointInput
+  | XPointInput
+  | XBandPointInput
+  | DepthBookDelta
+  | number
+  | HistogramBin;
 
 /** Internal bookkeeping for a registered marker. `time` is normalized to epoch ms; `shape`/`pulse` carry resolved defaults. */
 interface MarkerEntry {
@@ -472,6 +485,14 @@ function labelsEqual(a: (string | undefined)[] | undefined, b: (string | undefin
 function valueRangeKey(renderer: SeriesRenderer): string | undefined {
   return isTimeSeriesRenderer(renderer) ? renderer.valueRangeKey : undefined;
 }
+
+/** Whether a time series re-shapes on any data change (a histogram re-bins). */
+function reshapesOnData(renderer: SeriesRenderer): boolean {
+  return isTimeSeriesRenderer(renderer) && renderer.reshapesOnData === true;
+}
+
+/** Side padding of a whole-data fit a histogram's app left unset: half a bin past each outer edge. */
+const WHOLE_DATA_PADDING: HorizontalPadding = { intervals: 1 };
 
 /** A time series' stacking mode; `undefined` for spatial kinds. */
 function seriesStacking(renderer: SeriesRenderer): unknown {
@@ -799,6 +820,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #autoScroll = true;
   /** Resolved viewport padding (top/bottom px + left/right pixels-or-intervals). */
   #padding: ResolvedPadding;
+  /** `padding` as the app passed it — a side left unset can take a series-specific default. */
+  #paddingInput: ChartOptions['padding'];
   /** Cached chart width — passed by interactions on every call; kept for the rare
    *  call that omits it (e.g. programmatic `chart.pan(...)` without explicit width). */
   #lastChartWidth = 0;
@@ -826,6 +849,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#animationsConfig = AnimationConfig.resolve(options?.animations);
     this.#maxVisibleBars = resolveMaxVisibleBars(options?.viewport?.maxVisibleBars);
     this.#padding = resolvePadding(options?.padding);
+    this.#paddingInput = options?.padding;
 
     // Viewport state machine — owns X / Y animation. Other animation
     // timelines (per-series alpha, pulse, axis tick fade, per-point entry,
@@ -1098,6 +1122,12 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     options?: Partial<RadialProgressSeriesOptions & { id?: string; label?: string }>,
   ): string;
   addSeries(type: 'radar', options?: Partial<RadarSeriesOptions & { id?: string }>): string;
+  addSeries(
+    type: 'histogram',
+    options?: Partial<
+      HistogramSeriesOptions & { layers?: number; id?: string; label?: string; labels?: (string | undefined)[] }
+    >,
+  ): string;
   addSeries<O>(
     def: SeriesDefinition<O>,
     // A key the series options define (a sankey's `labels`) keeps the series' own type.
@@ -1668,11 +1698,13 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const category = this.#xType === 'category' && this.#takesXKeys(entry);
     // An order-book snapshot is a stream tick: the book morphs, so Y eases too.
     const followsFocus = entry.renderer.getXFocus !== undefined;
+    // New data re-shapes a series that already holds some (a histogram re-bins): it morphs too.
+    const reshapes = reshapesOnData(entry.renderer) && (entry.renderer.getTotalLength?.() ?? 0) > 0;
     // Bulk replace → onDataChanged should snap the Y range so yScale reflects
     // the new domain synchronously (the long-standing public contract pinned
     // by chart-scales-sync.test). Streaming `appendData` ticks don't set
     // this flag, so per-tick Y can ease both directions for a smooth axis.
-    this.#dataReplaceSnapPending = !category && !followsFocus;
+    this.#dataReplaceSnapPending = !category && !followsFocus && !reshapes;
     this.#dataMorphPending = category;
 
     // Data of a series' own shape (an order book) isn't a list of X-keyed points.
@@ -2190,6 +2222,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       | Partial<GaugeSeriesOptions>
       | Partial<RadialProgressSeriesOptions>
       | Partial<RadarSeriesOptions>
+      | Partial<HistogramSeriesOptions>
     ) & { scale?: string },
   ): void {
     const entry = this.#series.find((s) => s.id === id);
@@ -2226,7 +2259,11 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const forceOff = this.#animationsConfig.overrides(entry.renderer.kind);
     const prevFocusWidth = entry.renderer.getXFocus?.()?.halfWidth;
     const prevRangeKey = valueRangeKey(entry.renderer);
+    // An option that re-shapes the data (a histogram's `normalize`) changes its units: Y snaps to them.
+    const reshapes = reshapesOnData(entry.renderer);
+    if (reshapes) this.#dataReplaceSnapPending = true;
     entry.renderer.updateOptions({ ...rendererOptions, ...forceOff });
+    if (reshapes) this.#dataReplaceSnapPending = false;
 
     // A new default width from the app (a depth `span`) wins over the user's zoom, even on a static book.
     const focus = entry.visible ? (entry.renderer.getXFocus?.() ?? null) : null;
@@ -3511,6 +3548,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   setPadding(padding: ChartOptions['padding']): void {
     const prev = this.#padding;
     this.#padding = resolvePadding(padding);
+    this.#paddingInput = padding;
     const next = this.#padding;
     const horizontalChanged =
       !isSameHorizontalPadding(prev.left, next.left) || !isSameHorizontalPadding(prev.right, next.right);
@@ -3984,7 +4022,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // "X teleports between batches".
     const replaceSnap = this.#dataReplaceSnapPending;
     this.#dataReplaceSnapPending = false;
-    const morph = this.#dataMorphPending;
+    // A series that re-shapes on any data change (a histogram) re-fits X and eases Y as for a morph.
+    const reshaped = !replaceSnap && this.#series.some((entry) => entry.visible && reshapesOnData(entry.renderer));
+    const morph = this.#dataMorphPending || reshaped;
     this.#dataMorphPending = false;
 
     // Capture "was this the first onDataChanged call that actually had
@@ -4017,7 +4057,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // `#yInited` flips optimistically — `#computeYTarget` self-clears
     // it when no series has data in the window, so the next paint with
     // values lands as a first-paint snap.
-    this.#pendingFitToData = replaceSnap;
+    this.#pendingFitToData = replaceSnap || reshaped;
     const now = performance.now();
     if (replaceSnap || isFirstDataPaint) {
       // Seed the cadence baseline at paint/replace time so the first streaming
@@ -4077,7 +4117,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       if (!isTimeSeriesRenderer(entry.renderer)) continue;
 
       this.#updateLayerIntervals({ entry, renderer: entry.renderer, full: opts.full });
-      const interval = seriesInterval(entry);
+      const interval = entry.renderer.getXStep?.() ?? seriesInterval(entry);
       if (interval !== null && (finest === null || interval < finest)) finest = interval;
     }
 
@@ -4366,6 +4406,38 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * holds, else every bar up to `maxVisibleBars`. Runs on the first data, on a
    * bulk replace and on a horizontal padding change.
    */
+  /** Whether a visible series re-shapes on any data change (a histogram). */
+  #reshapingInView(): boolean {
+    return this.#series.some((entry) => entry.visible && reshapesOnData(entry.renderer));
+  }
+
+  /**
+   * Side padding of a fit to the data. A histogram has no streaming edge to leave room
+   * at, so a side the app left unset gets half a bin of air past the outer bin edge.
+   */
+  #fitPadding(): { left: HorizontalPadding; right: HorizontalPadding } {
+    if (!this.#reshapingInView()) return { left: this.#padding.left, right: this.#padding.right };
+
+    return {
+      left: this.#paddingInput?.left ?? WHOLE_DATA_PADDING,
+      right: this.#paddingInput?.right ?? WHOLE_DATA_PADDING,
+    };
+  }
+
+  /** The bin edges of the first visible series that has them, for the X ticks; `null` off a numeric axis. */
+  #xTickGrid(): XTickGrid | null {
+    if (this.#xType !== 'numeric') return null;
+
+    for (const entry of this.#series) {
+      if (!entry.visible) continue;
+
+      const grid = isTimeSeriesRenderer(entry.renderer) ? (entry.renderer.getXTickGrid?.() ?? null) : null;
+      if (grid !== null) return grid;
+    }
+
+    return null;
+  }
+
   #autoFit(chartWidth: number): void {
     const spec = this.#initialVisibleRange;
     if (typeof spec === 'object') {
@@ -4401,14 +4473,16 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const barCount = typeof spec === 'number' ? spec : null;
     const bars = barCount ?? this.#maxVisibleBars;
     const firstTime = Math.max(first, last - (bars - 1) * this.#dataInterval);
+    // A histogram is read whole, so its default fit is not capped either.
+    const whole = barCount !== null || this.#reshapingInView();
     const range = computeFitToData({
       firstTime: barCount === null ? first : firstTime,
       lastTime: last,
       dataInterval: this.#dataInterval,
       // An explicit bar count is shown whole; only the default fit is capped.
-      maxVisibleBars: barCount === null ? this.#maxVisibleBars : Number.POSITIVE_INFINITY,
+      maxVisibleBars: whole ? Number.POSITIVE_INFINITY : this.#maxVisibleBars,
       chartWidth,
-      padding: { left: this.#padding.left, right: this.#padding.right },
+      padding: this.#fitPadding(),
     });
 
     return { range, filling: firstTime === first };
@@ -4475,7 +4549,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       dataInterval: this.#dataInterval,
       maxVisibleBars: Number.POSITIVE_INFINITY,
       chartWidth,
-      padding: { left: this.#padding.left, right: this.#padding.right },
+      padding: this.#fitPadding(),
     });
 
     return this.#commitLogical(range, { emitChange: true });
@@ -4663,13 +4737,14 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       timeDelta,
       chartWidth,
       dataInterval: this.#dataInterval,
-      padding: { left: this.#padding.left, right: this.#padding.right },
+      padding: this.#fitPadding(),
       dataStart: this.#dataStart,
       dataEnd: this.#dataEnd,
     });
     if (result.newLogical === null) return;
 
-    this.#autoScroll = !result.autoScrollOff;
+    // A histogram has no live tail to follow: a pan holds the view until a zoom-out or a double-click fits it again.
+    this.#autoScroll = !result.autoScrollOff && !this.#reshapingInView();
     if (this.#commitLogical(result.newLogical, { emitChange: true })) this.#gestureMoved = true;
 
     this.#cadence.pause();
@@ -4739,7 +4814,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       factor,
       chartWidth,
       dataInterval: this.#dataInterval,
-      padding: { left: this.#padding.left, right: this.#padding.right },
+      padding: this.#fitPadding(),
       dataStart: this.#dataStart,
       dataEnd: this.#dataEnd,
     });
@@ -4747,7 +4822,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     let newLogical = result.newLogical;
 
-    if (this.#autoScroll && this.#dataEnd !== null) {
+    if (this.#reshapingInView()) {
+      // A histogram has no live tail: the zoom stays at the cursor, and new samples re-fit only the whole view.
+      this.#autoScroll = this.#coversWholeFit({ range: newLogical, chartWidth });
+    } else if (this.#autoScroll && this.#dataEnd !== null) {
       const span = newLogical.to - newLogical.from;
       const prTime = resolvePaddingTime(this.#padding.right, span, this.#dataInterval, chartWidth);
       const desiredTo = this.#dataEnd + prTime;
@@ -4766,6 +4844,17 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     if (this.#commitLogical(newLogical, { emitChange: true })) this.#gestureMoved = true;
     this.#cadence.pause();
     this.#emitGestureToEngine();
+  }
+
+  /** Whether `range` is zoomed out to the width of the chart's own fit, so new data may re-fit it. */
+  #coversWholeFit(args: { range: XRange; chartWidth: number }): boolean {
+    const fit = this.#autoWindow(args.chartWidth);
+    if (fit === null) return true;
+
+    const tolerance = this.#dataInterval * 0.01;
+    const fitWidth = fit.range.to - fit.range.from;
+
+    return args.range.to - args.range.from >= fitWidth - tolerance;
   }
 
   /** Whether a visible time series has a value inside `window`. */
@@ -4900,6 +4989,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     const chartWidth = size.media.width - this.#columnsWidth();
     const chartHeight = size.media.height - this.xAxisHeight;
 
+    this.timeScale.setTickGrid(this.#xTickGrid());
     this.timeScale.update(
       this.#viewXRange(this.#engine.getAnimationState().xRange),
       chartWidth,
@@ -4957,7 +5047,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // dataEnd inside the window is no longer enough — the previous rule
     // let any clamp-to-edge pan flip autoScroll back on and streaming
     // would visibly drag the viewport back to the tail.
-    if (this.#dataEnd !== null && !this.#autoScroll) {
+    // A histogram follows no tail: only a zoom-out or a fit brings its re-fit back.
+    if (this.#dataEnd !== null && !this.#autoScroll && !this.#reshapingInView()) {
       const logical = this.#engine.lastXTarget ?? this.#logical;
       const range = logical.to - logical.from;
       if (range > 0) {
@@ -5106,6 +5197,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
           // Its own step, so monthly bars keep their width next to a daily line.
           dataInterval: seriesInterval(entry) ?? this.#dataInterval,
           padding,
+          headerHeight: this.#headerHeight,
           state: scaleId === undefined ? seriesState : this.#scaleAnimationState(animationState, scaleId),
           seriesId: entry.id,
         };

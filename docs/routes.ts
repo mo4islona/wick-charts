@@ -16,6 +16,7 @@ export type Route =
   | 'charts/sankey'
   | 'charts/gauge'
   | 'charts/radar'
+  | 'charts/histogram'
   | 'charts/sparkline'
   // TODO(use-cases): only realtime-data and multi-chart-sync ship today. Page
   // files for 'use-cases/load-on-scroll' and 'use-cases/custom-overlay' live on
@@ -48,6 +49,7 @@ export type Route =
   | 'api/gauge-series'
   | 'api/radial-progress-series'
   | 'api/radar-series'
+  | 'api/histogram-series'
   | 'api/radar-tooltip'
   | 'api/sparkline'
   | 'api/chart-container'
@@ -137,6 +139,7 @@ const CHARTS: RouteEntry[] = [
   { route: 'charts/sankey', label: 'Sankey', title: 'Sankey' },
   { route: 'charts/gauge', label: 'Gauge & Radial', title: 'Gauge & Radial' },
   { route: 'charts/radar', label: 'Radar', title: 'Radar' },
+  { route: 'charts/histogram', label: 'Histogram', title: 'Histogram' },
   { route: 'charts/sparkline', label: 'Sparkline', title: 'Sparkline' },
 ];
 
@@ -168,6 +171,7 @@ const API_CHARTS: RouteEntry[] = [
   { route: 'api/depth-series', label: 'DepthSeries', title: '' },
   { route: 'api/gauge-series', label: 'GaugeSeries', title: '' },
   { route: 'api/heatmap-series', label: 'HeatmapSeries', title: '' },
+  { route: 'api/histogram-series', label: 'HistogramSeries', title: '' },
   { route: 'api/line-series', label: 'LineSeries', title: '' },
   { route: 'api/pie-series', label: 'PieSeries', title: '' },
   { route: 'api/radar-series', label: 'RadarSeries', title: '' },
@@ -412,6 +416,7 @@ export const CHART_API_TO_DEMO: Record<string, Route> = {
   'api/radial-progress-series': 'charts/gauge',
   'api/gauge-series': 'charts/gauge',
   'api/radar-series': 'charts/radar',
+  'api/histogram-series': 'charts/histogram',
   'api/sparkline': 'charts/sparkline',
 };
 
@@ -443,6 +448,7 @@ export const CHART_GUIDES: Partial<Record<Route, Route[]>> = {
   'charts/sankey': ['use-cases/realtime-data'],
   'charts/gauge': ['use-cases/realtime-data'],
   'charts/radar': ['use-cases/realtime-data'],
+  'charts/histogram': ['use-cases/x-axis-types', 'use-cases/realtime-data'],
 };
 
 /** The guides before and after `route` in sidebar order, for the Previous / Next links. */

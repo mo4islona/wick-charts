@@ -108,6 +108,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Canvas gauges for one live value against its range, with zones, an arc or a needle and a center label, and radial progress rings for a few related values. Values glide on update.',
   },
+  'charts/histogram': {
+    title: 'Histograms for React, Vue & Svelte — Wick Charts',
+    description:
+      'Canvas histograms of raw samples on a numeric axis: automatic or fixed binning, count, percent or density, overlaid distributions, quantile lines and bins that ease as samples stream in.',
+  },
   'charts/radar': {
     title: 'Radar Charts for React, Vue & Svelte — Wick Charts',
     description:
@@ -167,7 +172,7 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
   'api/band-series':
     'Band (range) series that fills between a low and a high edge — percentile bands, min/max envelopes, Bollinger bands and fan charts.',
   'api/bar-series':
-    'Bar and histogram series with multi-layer data, stacking, per-layer colors, rounded corners and entry animations.',
+    'Bar series with multi-layer data, stacking, per-layer colors, rounded corners and entry animations.',
   'api/candlestick-series':
     'OHLC candlestick series with volume bars, body width and corner radius options, entry animations and custom painters.',
   'api/line-series':
@@ -181,6 +186,8 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
     'Sankey series — nodes and links drawn as flows between stages with bands sized by volume, node labels, morphing updates and hover highlight.',
   'api/gauge-series':
     'Gauge series — one value on an arc between min and max, with zones, an arc or needle style, a center label and a glide on update.',
+  'api/histogram-series':
+    'Histogram series — raw samples binned into contiguous bars, or bins counted already, with count, percent or density heights, overlaid layers, quantile lines and a tooltip with the bin range, count and share.',
   'api/radar-series':
     'Radar series — axes plus one filled polygon per compared series on a shared scale, with a polygon or circle web, ring values, hover focus and morphing updates.',
   'api/radial-progress-series':

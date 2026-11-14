@@ -32,6 +32,7 @@ export type {
   BarSeriesOptions,
   BarValueLabelsOptions,
   BaseSeriesRenderer,
+  BinSamplesOptions,
   BitmapCoordinateSpace,
   BuildHoverSnapshotsArgs,
   BuildLastSnapshotsArgs,
@@ -73,6 +74,13 @@ export type {
   HeatmapSeriesOptions,
   HeatmapSeriesRenderer,
   HeikinAshiStream,
+  HistogramBin,
+  HistogramBinPoint,
+  HistogramData,
+  HistogramInput,
+  HistogramNormalize,
+  HistogramQuantile,
+  HistogramSeriesOptions,
   HoverInfo,
   HoverRow,
   LayerSnapshot,
@@ -215,6 +223,7 @@ export {
   DepthSeriesDef,
   GaugeSeriesDef,
   HeatmapSeriesDef,
+  HistogramSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -228,6 +237,7 @@ export {
   autoGradient,
   ayuMirage,
   backfillSweepIntro,
+  binSamples,
   buildHoverSnapshots,
   buildLastSnapshots,
   candleUnfoldIntro,
@@ -265,6 +275,7 @@ export {
   highContrast,
   hollowCandle,
   isDarkBg,
+  isHistogramBinPoint,
   isTimeSeriesRenderer,
   lastPointOnly,
   lavenderMist,
@@ -349,6 +360,8 @@ export type { GaugeSeriesProps } from './GaugeSeries';
 export { GaugeSeries } from './GaugeSeries';
 export type { HeatmapSeriesProps } from './HeatmapSeries';
 export { HeatmapSeries } from './HeatmapSeries';
+export type { HistogramSeriesProps } from './HistogramSeries';
+export { HistogramSeries } from './HistogramSeries';
 export type { LineSeriesProps } from './LineSeries';
 export { LineSeries } from './LineSeries';
 export type { PieSeriesProps } from './PieSeries';

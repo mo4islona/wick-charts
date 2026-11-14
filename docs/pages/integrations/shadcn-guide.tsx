@@ -111,6 +111,16 @@ const BLOCK_SERIES: Record<string, BlockSeries> = {
       </>
     ),
   },
+  'chart-histogram': {
+    series: 'HistogramSeries',
+    chart: 'charts/histogram',
+    sketch: 'histogram',
+    input: (
+      <>
+        your samples as <code>data</code>
+      </>
+    ),
+  },
 };
 
 /** How to put your data into a block; `file` is the block file the CLI added. */

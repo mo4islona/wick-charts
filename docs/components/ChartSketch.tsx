@@ -49,6 +49,12 @@ const SKETCHES = {
       <path d="M3 14l10-2 10 3 10-4 12 3" />
     </>
   ),
+  histogram: (
+    <>
+      <path d="M4 25V19h5v-6h5V7h5V4h5v6h5v5h5v4h5v6z" fill="currentColor" fillOpacity="0.25" strokeWidth="1" />
+      <path d="M2 25.5h44" strokeWidth="1" />
+    </>
+  ),
   'bar-grouped': (
     <>
       <path d="M4 25V12M9 25V6M18 25V15M23 25V9M32 25V10M37 25V4" strokeWidth="4" strokeLinecap="butt" />

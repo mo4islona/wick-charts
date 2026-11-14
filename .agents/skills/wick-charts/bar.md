@@ -1,6 +1,6 @@
-# Bar chart / histogram
+# Bar chart
 
-`<BarSeries>` draws bars over time (or over categories), with several layers, stacking, colors by sign and value labels. A dataset with negative values gets a zero line by itself. Every option with its default: `BarSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/bar-series/>.
+`<BarSeries>` draws bars over time (or over categories), with several layers, stacking, colors by sign and value labels. A dataset with negative values gets a zero line by itself. Every option with its default: `BarSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/bar-series/>. For the distribution of raw samples, use `<HistogramSeries>` ([histogram.md](histogram.md)).
 
 ## Data and colors
 
@@ -42,7 +42,7 @@ Text just past the free end of each bar: above a positive bar, below a negative 
 ```tsx
 import { BarSeries, ChartContainer, Crosshair, TimeAxis, type TimePoint, Tooltip, YAxis } from '@wick-charts/react';
 
-export function Histogram({ data }: { data: TimePoint[] }) {
+export function BarChart({ data }: { data: TimePoint[] }) {
   return (
     <ChartContainer style={{ height: 400 }}>
       <BarSeries data={data} options={{ barWidthRatio: 0.6 }} />

@@ -36,6 +36,8 @@ export interface SeriesRenderContext {
   dataInterval: number;
   /** Vertical padding in **CSS pixels** — see {@link RenderPadding}. */
   padding: RenderPadding;
+  /** Height in CSS px of the header (title, info bar) floating over the plot top; `0` or absent without one. */
+  headerHeight?: number;
   /**
    * Engine-owned animation state — pulse phase, live values, entry
    * progress. Optional during the Phase 2 migration: renderers that
@@ -113,6 +115,14 @@ export interface LayerSnapshot {
   x?: number | string;
   /** On a percent stack, the row's percent of the rows listed with it. Absent elsewhere, and when they sum to 0. */
   share?: number;
+  /** The hovered histogram bin: its edges, its sample count and its share of the layer's samples (0–100). */
+  bin?: { x0: number; x1: number; count: number; share: number };
+}
+
+/** Bin edges as a tick grid: X ticks step by a multiple of `step` from `origin`, so they sit on edges. */
+export interface XTickGrid {
+  step: number;
+  origin: number;
 }
 
 /** See {@link BaseSeriesRenderer.getXFocus}. */
@@ -141,6 +151,7 @@ export type SeriesKind =
   | 'gauge'
   | 'radialProgress'
   | 'radar'
+  | 'histogram'
   | (string & {});
 
 /**
@@ -432,6 +443,19 @@ export interface TimeSeriesRenderer extends BaseSeriesRenderer {
   getValueRange(from: number, to: number, opts?: ValueRangeOptions): { min: number; max: number } | null;
   /** Whether a finite value lies in `[from, to]`. Without it the chart reads a non-null {@link getValueRange} as one. */
   hasValueIn?(from: number, to: number): boolean;
+  /**
+   * Every data change reshapes the whole series (a histogram re-bins its samples),
+   * so on a replace or an append alike the chart re-fits X to the data and eases
+   * Y as for a morph, instead of snapping or following the right edge. Optional.
+   */
+  readonly reshapesOnData?: boolean;
+  /**
+   * The X step the series knows from its own shape (a histogram's narrowest bin), or `null`.
+   * It wins over the step the chart reads from point spacing, which needs two points. Optional.
+   */
+  getXStep?(): number | null;
+  /** Edges the X ticks should sit on (a histogram's bin edges), or `null` for the axis' own nice ticks. Optional. */
+  getXTickGrid?(): XTickGrid | null;
   /** Stacking mode of a multi-layer series — the chart rejects `'percent'` on a Y scale with no 0. */
   readonly stacking?: StackingMode;
   /**

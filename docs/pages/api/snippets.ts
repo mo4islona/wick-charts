@@ -53,6 +53,7 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
   // ── chart series ─────────────────────────────────────────────
   LineSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
   BarSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
+  HistogramSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
   CandlestickSeries: { required: [{ name: 'data', valueExpr: 'data' }], selfClosingWhenEmpty: true },
   PieSeries: { required: [{ name: 'data', valueExpr: 'pieData' }], selfClosingWhenEmpty: true },
   HeatmapSeries: { required: [{ name: 'data', valueExpr: 'heatmapData' }], selfClosingWhenEmpty: true },

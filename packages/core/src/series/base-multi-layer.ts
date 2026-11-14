@@ -64,8 +64,8 @@ const scalarLerp = (a: number, b: number, t: number): number => a + (b - a) * t;
  * by {@link CommonSeriesOptions}.
  */
 export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements TimeSeriesRenderer {
-  /** Concrete subclass discriminant — `'line'` or `'bar'`. */
-  abstract readonly kind: 'line' | 'bar';
+  /** Concrete subclass discriminant. */
+  abstract readonly kind: 'line' | 'bar' | 'histogram';
 
   /**
    * Common-slice view of the subclass's options. Each subclass widens the
@@ -234,9 +234,10 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
   /**
    * Replace a layer like {@link setData}, but ease each point that keeps its
    * `time` from the value on screen to its new one over `smoothMs`; a point
-   * with a new `time` plays its entrance.
+   * with a new `time` plays its entrance. `opts.from` moves where an ease
+   * starts, from the value on screen (`shown`) to another one.
    */
-  morphData(data: unknown, layerIndex = 0): void {
+  morphData(data: unknown, layerIndex = 0, opts?: { from?: (point: { time: number; shown: number }) => number }): void {
     const store = this.stores[layerIndex];
     if (!store) return;
 
@@ -250,7 +251,8 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
 
     const shown = new Map<number, number>();
     for (const point of store.getAll()) {
-      shown.set(point.time, this.liveValue(layerIndex, point.time, point.value));
+      const live = this.liveValue(layerIndex, point.time, point.value);
+      shown.set(point.time, opts?.from?.({ time: point.time, shown: live }) ?? live);
     }
 
     const normalized = normalizeTimePointArray((data ?? []) as TimePointInput[]) as unknown as TData[];
@@ -274,7 +276,9 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
       if (settled) continue;
 
       // An ease still in flight keeps its velocity; retargeting it to the same value would restart its clock.
-      const spring = previous.get(point.time) ?? new ScalarSpring(from);
+      // A moved start (`opts.from`) is in other units than the ease in flight, so it starts afresh.
+      const inFlight = opts?.from === undefined ? previous.get(point.time) : undefined;
+      const spring = inFlight ?? new ScalarSpring(from);
       if (spring.target !== target) spring.retarget(target, { settleMs: smoothMs });
       morphs.set(point.time, spring);
     }

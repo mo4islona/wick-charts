@@ -32,6 +32,7 @@ export type {
   BarSeriesOptions,
   BarValueLabelsOptions,
   BaseSeriesRenderer,
+  BinSamplesOptions,
   BitmapCoordinateSpace,
   BuildHoverSnapshotsArgs,
   BuildLastSnapshotsArgs,
@@ -73,6 +74,13 @@ export type {
   HeatmapSeriesOptions,
   HeatmapSeriesRenderer,
   HeikinAshiStream,
+  HistogramBin,
+  HistogramBinPoint,
+  HistogramData,
+  HistogramInput,
+  HistogramNormalize,
+  HistogramQuantile,
+  HistogramSeriesOptions,
   HoverInfo,
   HoverRow,
   LayerSnapshot,
@@ -215,6 +223,7 @@ export {
   DepthSeriesDef,
   GaugeSeriesDef,
   HeatmapSeriesDef,
+  HistogramSeriesDef,
   LineSeriesDef,
   NavigatorController,
   PerfMonitor,
@@ -228,6 +237,7 @@ export {
   autoGradient,
   ayuMirage,
   backfillSweepIntro,
+  binSamples,
   buildHoverSnapshots,
   buildLastSnapshots,
   candleUnfoldIntro,
@@ -265,6 +275,7 @@ export {
   highContrast,
   hollowCandle,
   isDarkBg,
+  isHistogramBinPoint,
   isTimeSeriesRenderer,
   lastPointOnly,
   lavenderMist,
@@ -340,6 +351,7 @@ export { getChartContext, getThemeContext } from './context.js';
 export { default as DepthSeries } from './DepthSeries.svelte';
 export { default as GaugeSeries } from './GaugeSeries.svelte';
 export { default as HeatmapSeries } from './HeatmapSeries.svelte';
+export { default as HistogramSeries } from './HistogramSeries.svelte';
 export { default as LineSeries } from './LineSeries.svelte';
 export { default as PieSeries } from './PieSeries.svelte';
 export type {
@@ -351,6 +363,7 @@ export type {
   GaugeSeriesProps,
   HeatmapSeriesProps,
   HeatmapTooltipProps,
+  HistogramSeriesProps,
   InfoBarProps,
   LegendProps,
   LineSeriesProps,

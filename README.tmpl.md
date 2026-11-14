@@ -23,7 +23,7 @@ Wick Charts draws realtime, animated charts on canvas for React, Vue and Svelte.
 
 Each type has a page in the docs with a live playground. Change a setting, and the **Code** tab next to it shows the code for what you see.
 
-- [Candlestick](https://wick-charts.eeff.io/charts/candlestick/), [order book](https://wick-charts.eeff.io/charts/depth/), [line and area](https://wick-charts.eeff.io/charts/line/), [band](https://wick-charts.eeff.io/charts/band/), [bar](https://wick-charts.eeff.io/charts/bar/)
+- [Candlestick](https://wick-charts.eeff.io/charts/candlestick/), [order book](https://wick-charts.eeff.io/charts/depth/), [line and area](https://wick-charts.eeff.io/charts/line/), [band](https://wick-charts.eeff.io/charts/band/), [bar](https://wick-charts.eeff.io/charts/bar/), [histogram](https://wick-charts.eeff.io/charts/histogram/)
 <!-- @only:react -->
 - [Sparkline](https://wick-charts.eeff.io/charts/sparkline/), a small chart with no axes for a table row or a card
 <!-- @/only -->

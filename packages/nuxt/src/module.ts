@@ -22,6 +22,7 @@ const COMPONENTS = [
   'DepthSeries',
   'GaugeSeries',
   'HeatmapSeries',
+  'HistogramSeries',
   'LineSeries',
   'PieSeries',
   'RadarSeries',

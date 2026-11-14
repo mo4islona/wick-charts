@@ -242,6 +242,7 @@ export type SeriesType =
   | 'gauge'
   | 'radialProgress'
   | 'radar'
+  | 'histogram'
   | (string & {});
 
 /**
@@ -920,6 +921,92 @@ export interface BarSeriesOptions {
 export interface BarValueLabelsOptions {
   /** Label text. Default: the Y axis format (`<YAxis format>`), else the axis tick format. */
   format?: (value: number) => string;
+}
+
+/** One histogram bin: `count` samples in `[x0, x1)`. The last bin also holds a sample at its `x1`. */
+export interface HistogramBin {
+  x0: number;
+  x1: number;
+  count: number;
+}
+
+/** One histogram layer: raw samples, which the series bins, or bins counted already. */
+export type HistogramInput = number[] | HistogramBin[];
+
+/**
+ * `data` shape for a histogram series. Accepts, interchangeably:
+ * - `number[]` — raw samples of one distribution, binned by the series;
+ * - `HistogramBin[]` — one distribution binned already, drawn as-is;
+ * - `SeriesLayer` — one named / colored distribution;
+ * - an array of the above — several distributions overlaid on the same bins.
+ */
+export type HistogramData =
+  | HistogramInput
+  | SeriesLayer<number>
+  | SeriesLayer<HistogramBin>
+  | Array<HistogramInput | SeriesLayer<number> | SeriesLayer<HistogramBin>>;
+
+/**
+ * What a histogram bar's height shows.
+ * - `'count'` — the samples in the bin.
+ * - `'percent'` — the bin's share of the layer's samples, 0–100.
+ * - `'density'` — share per X unit (`count / (total × width)`), so the bars' area sums to 1.
+ */
+export type HistogramNormalize = 'count' | 'percent' | 'density';
+
+/** A quantile reference line of a histogram layer. */
+export interface HistogramQuantile {
+  /** The quantile, `0`–`1` (`0.95` is p95). */
+  q: number;
+  /** Chip text. Default: `p` and the percentile (`p95`). */
+  label?: string;
+  /** Line and chip color. Default: the layer color. */
+  color?: string;
+}
+
+/** A hovered histogram bin, as the tooltip and the info bar read it: `value` is the bar height. */
+export interface HistogramBinPoint extends TimePoint {
+  x0: number;
+  x1: number;
+  count: number;
+  /** The bin's share of its layer's samples, 0–100. */
+  share: number;
+}
+
+/** Visual and binning options for a histogram series. */
+export interface HistogramSeriesOptions {
+  /**
+   * Target bin count for raw samples. The series rounds the width to 1, 2 or 5 × 10ⁿ, so the
+   * count comes out near this. Default: Sturges' rule, `⌈log₂ n⌉ + 1` for the largest layer of `n` samples.
+   */
+  bins?: number;
+  /** Bin width for raw samples, in X units. Wins over {@link bins}. */
+  binWidth?: number;
+  /** An X that every bin edge of raw samples steps from. Default: `0`, so edges sit on multiples of the width. */
+  binOrigin?: number;
+  /** What a bar's height shows. Default: `'count'`. */
+  normalize?: HistogramNormalize;
+  /** Gap between neighbor bars in CSS px. Default: `1`, a hairline. `0` joins them. */
+  gap?: number;
+  /** Fill opacity of the bars, `0`–`1`. Default: `1` for one layer, `0.55` for overlaid layers. */
+  fillOpacity?: number;
+  /** Top-corner radius in CSS px. Default: `0`. */
+  cornerRadius?: number;
+  /**
+   * Quantile reference lines per layer, e.g. `[0.5, 0.95]`. A number is the quantile, `0`–`1`;
+   * an object also sets its label and color. Exact for raw samples, interpolated inside a bin for
+   * pre-binned data. Default: none.
+   */
+  quantiles?: readonly (number | HistogramQuantile)[];
+  /**
+   * How long a bar and a quantile line take to ease to new data, in milliseconds. `false` or
+   * `0` snaps. Default: chart animation config (600).
+   */
+  smoothMs?: number | false;
+  /** Fade-and-grow of a bin that new data adds, in milliseconds. `false` or `0` turns it off. Default: 450. */
+  entryMs?: number | false;
+  /** First-data reveal, a left-to-right wave of bars that fade in and grow, in milliseconds per bar. `false` or `0` turns it off. Default: 900. */
+  introMs?: number | false;
 }
 
 /**

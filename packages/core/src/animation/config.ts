@@ -61,6 +61,13 @@ export const DEFAULT_BAR_SMOOTH = DEFAULT_SERIES_SMOOTH;
 /** Bar initial-load reveal — per-bar wave duration; the full intro lasts ~2×. */
 export const DEFAULT_BAR_INTRO = DEFAULT_SERIES_INTRO;
 
+/** Histogram fade-and-grow of a bin that new data adds — longer than a bar's, so a new bin reads as one. */
+export const DEFAULT_HISTOGRAM_ENTRY = 450;
+/** Histogram ease of each bar and quantile line to new data — slow enough to follow the shape change. */
+export const DEFAULT_HISTOGRAM_SMOOTH = 600;
+/** Histogram first-data reveal — per-bar wave duration; the full wave lasts ~2×. */
+export const DEFAULT_HISTOGRAM_INTRO = 900;
+
 /** Band entrance tween duration. */
 export const DEFAULT_BAND_ENTRY = DEFAULT_SERIES_ENTRY;
 /** Band live-edge chase duration. */
@@ -189,7 +196,7 @@ export const DEFAULT_GRID_MS = 400;
  * - `axis.ticks` — axis tick label cross-fade.
  * - `toggle` — series visibility (alpha fade + Y re-fit, locked to one
  *   duration so they finish on the same frame).
- * - `series.{line,candlestick,bar,band,pie,heatmap,depth,sankey,gauge,radialProgress,radar}` — per-series-type data tweens.
+ * - `series.{line,candlestick,bar,band,pie,heatmap,depth,sankey,gauge,radialProgress,radar,histogram}` — per-series-type data tweens.
  *
  * Top-level `false` disables every animation category. `axis: false`
  * disables both axes and ticks. `axis.y: false` / `axis.x: false` disables
@@ -413,6 +420,33 @@ export interface AnimationsConfig {
               smooth?: AnimationTime;
             };
         /**
+         * Histogram tweens. `false` disables the first-data reveal, the bin
+         * entrance and the ease of bars and quantile lines to new data.
+         */
+        histogram?:
+          | false
+          | {
+              /**
+               * Fade-and-grow of a bin that new data adds.
+               *
+               * @default {@link DEFAULT_HISTOGRAM_ENTRY}
+               */
+              entry?: AnimationTime;
+              /**
+               * First-data reveal — bars grow from zero in a left-to-right
+               * wave. The value is the per-bar duration; the wave lasts ~2×.
+               *
+               * @default {@link DEFAULT_HISTOGRAM_INTRO}
+               */
+              intro?: AnimationTime;
+              /**
+               * Ease of each bar and quantile line to new data.
+               *
+               * @default {@link DEFAULT_HISTOGRAM_SMOOTH}
+               */
+              smooth?: AnimationTime;
+            };
+        /**
          * Band-series tweens. `false` disables band entrance, intro and
          * edge chase.
          */
@@ -629,6 +663,7 @@ export interface ResolvedSeriesAnimations {
   gauge: { entryMs: number; updateMs: number };
   radialProgress: { entryMs: number; updateMs: number };
   radar: { entryMs: number; updateMs: number };
+  histogram: { entryMs: number; smoothMs: number; introMs: number };
 }
 
 const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
@@ -643,6 +678,7 @@ const ZERO_SERIES_ANIMATIONS: ResolvedSeriesAnimations = {
   gauge: { entryMs: 0, updateMs: 0 },
   radialProgress: { entryMs: 0, updateMs: 0 },
   radar: { entryMs: 0, updateMs: 0 },
+  histogram: { entryMs: 0, smoothMs: 0, introMs: 0 },
 };
 
 /**
@@ -838,6 +874,12 @@ export class AnimationConfig {
       return { entryMs, smoothMs, introMs };
     }
 
+    if (kind === 'histogram') {
+      const { entryMs, smoothMs, introMs } = this.series.histogram;
+
+      return { entryMs, smoothMs, introMs };
+    }
+
     if (kind === 'band') {
       const { entryMs, smoothMs, introMs } = this.series.band;
 
@@ -942,6 +984,7 @@ export class AnimationConfig {
     if (kind === 'candlestick') return this.series.candlestick;
     if (kind === 'bar') return this.series.bar;
     if (kind === 'band') return this.series.band;
+    if (kind === 'histogram') return this.series.histogram;
 
     return null;
   }
@@ -953,6 +996,7 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
   const rawLine = raw?.line;
   const rawCandle = raw?.candlestick;
   const rawBar = raw?.bar;
+  const rawHistogram = raw?.histogram;
   const rawBand = raw?.band;
   const rawPie = raw?.pie;
   const rawHeatmap = raw?.heatmap;
@@ -988,6 +1032,15 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           entryMs: resolveAnimationTime(rawBar?.entry, DEFAULT_BAR_ENTRY),
           smoothMs: resolveAnimationTime(rawBar?.smooth, DEFAULT_BAR_SMOOTH),
           introMs: resolveAnimationTime(rawBar?.intro, DEFAULT_BAR_INTRO),
+        };
+
+  const histogram =
+    rawHistogram === false
+      ? { entryMs: 0, smoothMs: 0, introMs: 0 }
+      : {
+          entryMs: resolveAnimationTime(rawHistogram?.entry, DEFAULT_HISTOGRAM_ENTRY),
+          smoothMs: resolveAnimationTime(rawHistogram?.smooth, DEFAULT_HISTOGRAM_SMOOTH),
+          introMs: resolveAnimationTime(rawHistogram?.intro, DEFAULT_HISTOGRAM_INTRO),
         };
 
   const band =
@@ -1055,5 +1108,5 @@ function resolveSeriesAnimations(raw: AnimationsConfig['series'] | undefined): R
           updateMs: resolveAnimationTime(rawRadar?.update, DEFAULT_RADAR_UPDATE),
         };
 
-  return { line, candlestick, bar, band, pie, heatmap, depth, sankey, gauge, radialProgress, radar };
+  return { line, candlestick, bar, band, pie, heatmap, depth, sankey, gauge, radialProgress, radar, histogram };
 }
