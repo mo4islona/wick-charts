@@ -703,7 +703,7 @@ describe('ChartInstance X axis types', () => {
 
         return Number.isNaN(cap) ? 100 : Math.min(100, cap);
       });
-      makeChart({ axis: { x: { type: 'category' } } });
+      makeChart({ axis: { x: { type: 'category' }, y: { width: 55 } } });
       const id = chart.addSeries('bar');
       chart.setSeriesData(
         id,

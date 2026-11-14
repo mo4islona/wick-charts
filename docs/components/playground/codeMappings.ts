@@ -7,7 +7,6 @@ import type { PlaygroundChartProps } from './Playground';
 
 export type CartesianSeriesKind = 'line' | 'bar' | 'candle' | 'band';
 
-const AXIS_Y_WIDTH_DEFAULT = 55;
 const AXIS_X_HEIGHT_DEFAULT = 30;
 
 // Defaults — keep in sync with `packages/core/src/animation/config.ts`.
@@ -220,9 +219,7 @@ export function buildCartesianContainerProps(s: PlaygroundChartProps): Record<st
   const y: Record<string, PropValue> = {};
   if (s.axis?.y?.position === 'left') y.position = 'left';
   if (s.axis?.y?.scale !== undefined) y.scale = 'logScale()';
-  if (s.axis?.y?.width !== undefined && s.axis.y.width !== AXIS_Y_WIDTH_DEFAULT) {
-    y.width = s.axis.y.width;
-  }
+  if (typeof s.axis?.y?.width === 'number') y.width = s.axis.y.width;
   if (s.axis?.y?.min !== undefined) y.min = s.axis.y.min as PropValue;
   if (s.axis?.y?.max !== undefined) y.max = s.axis.y.max as PropValue;
 

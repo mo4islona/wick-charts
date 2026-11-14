@@ -140,7 +140,7 @@ describe('ChartInstance with named Y scales', () => {
   });
 
   it('shrinks the plot by an axis column on each side', () => {
-    makeChart({ scales: { rsi: {} } });
+    makeChart({ axis: { y: { width: 55 } }, scales: { rsi: { width: 55 } } });
     chart.addSeries('line');
 
     expect(chart.getAxisColumnWidth('right')).toBe(55);

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CanvasRecorder, RecordedCall } from '../../../../core/src/testing/recording-context';
 import { useChartInstance } from '../../context';
-import { mountChart } from '../helpers/mount-chart';
+import { type MountedChart, mountPinnedAxisChart } from '../helpers/mount-chart';
 
 /**
  * Price on the default right axis, RSI on a named left scale pinned to 0..100.
@@ -13,7 +13,7 @@ import { mountChart } from '../helpers/mount-chart';
  * [55, 745) × 370, right column [745, 800).
  */
 describe('named Y scales', () => {
-  let mounted: ReturnType<typeof mountChart> | null = null;
+  let mounted: MountedChart | null = null;
 
   afterEach(() => {
     mounted?.unmount();
@@ -45,7 +45,7 @@ describe('named Y scales', () => {
   }
 
   function mountRsiChart() {
-    return mountChart(
+    return mountPinnedAxisChart(
       <>
         <LineSeries data={price} />
         <LineSeries id="rsi" data={rsi} scale="rsi" />
@@ -94,7 +94,7 @@ describe('named Y scales', () => {
   });
 
   it('places a YLabel and a ReferenceLine on the named scale', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <LineSeries data={price} />
         <LineSeries id="rsi" data={rsi} scale="rsi" />
@@ -133,7 +133,7 @@ describe('named Y scales', () => {
         <YLabel seriesId="rsi" animate={false} />
       </>
     );
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       chartOf((v) => `${v.toFixed(0)}%`),
       { scales },
     );
@@ -158,7 +158,10 @@ describe('named Y scales', () => {
       </>
     );
     const hidden = { y: { visible: false } };
-    mounted = mountChart(children, { axis: hidden, scales: { a: { position: 'left' }, b: { position: 'right' } } });
+    mounted = mountPinnedAxisChart(children, {
+      axis: hidden,
+      scales: { a: { position: 'left' }, b: { position: 'right' } },
+    });
     mounted.flushScheduler();
 
     // The axis containers in render order — `a`'s first. Tick labels fade in on
@@ -178,7 +181,10 @@ describe('named Y scales', () => {
     const logAxis = { y: { scale: logScale() } };
     const linear = { lin: {} };
     const bars = price.map((p) => ({ time: p.time, value: 10 + (p.value % 7) }));
-    mounted = mountChart(<BarSeries data={bars} options={{ stacking: 'normal' }} />, { axis: logAxis, scales: linear });
+    mounted = mountPinnedAxisChart(<BarSeries data={bars} options={{ stacking: 'normal' }} />, {
+      axis: logAxis,
+      scales: linear,
+    });
 
     expect(() => {
       mounted?.rerender(<BarSeries data={bars} scale="lin" options={{ stacking: 'percent' }} />, {
@@ -202,7 +208,7 @@ describe('named Y scales', () => {
 
       return <YAxis format={(v) => v.toFixed(1)} />;
     }
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <LineSeries data={price} />
         <CursorState />
@@ -224,7 +230,7 @@ describe('named Y scales', () => {
         <Crosshair />
       </>
     );
-    mounted = mountChart(chartOf(' a'));
+    mounted = mountPinnedAxisChart(chartOf(' a'));
     mounted.dispatchMouse('mousemove', { clientX: 300, clientY: 185 }, mounted.overlayCanvas);
     mounted.flushScheduler();
 
@@ -237,7 +243,7 @@ describe('named Y scales', () => {
   });
 
   it('keeps the slide-under fade on the right and the left-axis treatment on the left', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <LineSeries data={price} />
         <LineSeries data={rsi} scale="rsi" />

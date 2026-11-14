@@ -23,6 +23,7 @@ import {
   type LineEntryAnim,
   type RowSpec,
   type SectionSpec,
+  type YAxisWidthMode,
   type YScaleKind,
 } from './sections';
 import { themeSurfaceVars } from './themeSurface';
@@ -176,7 +177,7 @@ function stateToChartProps<TExtra extends object>(
   const axis: AxisConfig = {
     y: {
       position: state.yAxisPosition,
-      width: state.yAxisWidth,
+      width: state.yAxisWidthMode === 'auto' ? 'auto' : state.yAxisWidth,
       scale: state.yScaleType === 'log' ? logScale() : undefined,
       min: parseBound(state.minBound),
       max: parseBound(state.maxBound),
@@ -430,9 +431,24 @@ function buildBuiltinSections({
           ),
         } as RowSpec,
         {
-          key: 'yAxisWidth',
+          key: 'yAxisWidthMode',
           label: 'Width',
           visible: (s) => s.yAxisVisible === true,
+          render: (v, onChange) => (
+            <ToggleGroup<YAxisWidthMode>
+              value={v as YAxisWidthMode}
+              options={[
+                { value: 'auto', label: 'Auto' },
+                { value: 'fixed', label: 'Fixed' },
+              ]}
+              onChange={onChange as (v: YAxisWidthMode) => void}
+            />
+          ),
+        } as RowSpec,
+        {
+          key: 'yAxisWidth',
+          label: 'Fixed width',
+          visible: (s) => s.yAxisVisible === true && s.yAxisWidthMode === 'fixed',
           render: (v, onChange) => (
             <Slider
               value={v as number}

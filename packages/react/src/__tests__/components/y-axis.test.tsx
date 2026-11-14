@@ -3,6 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { mountChart } from '../helpers/mount-chart';
 
+/** The default `<YAxis>` column: its width fits the labels, so match the anchoring instead. */
+const Y_AXIS_HOST = 'div[style*="right: 0px"][style*="top: 0px"][style*="bottom: 30px"]';
+
 describe('YAxis', () => {
   let mounted: ReturnType<typeof mountChart> | null = null;
 
@@ -29,7 +32,7 @@ describe('YAxis', () => {
       </>,
     );
 
-    const yAxisHost = mounted.container.querySelector('div[style*="right: 0px"][style*="width: 55px"]');
+    const yAxisHost = mounted.container.querySelector(Y_AXIS_HOST);
     expect(yAxisHost).not.toBeNull();
     const labels = yAxisHost!.querySelectorAll('span');
     expect(labels.length).toBeGreaterThan(0);
@@ -43,7 +46,7 @@ describe('YAxis', () => {
       </>,
     );
 
-    const yAxisHost = mounted.container.querySelector('div[style*="right: 0px"][style*="width: 55px"]');
+    const yAxisHost = mounted.container.querySelector(Y_AXIS_HOST);
     const labels = yAxisHost!.querySelectorAll('span');
     // Nice-tick heuristic yields 3-10 ticks for typical ranges — lenient bounds.
     expect(labels.length).toBeGreaterThanOrEqual(2);
@@ -57,9 +60,7 @@ describe('YAxis', () => {
         <YAxis />
       </>,
     );
-    const before = mounted.container
-      .querySelector('div[style*="right: 0px"][style*="width: 55px"]')!
-      .querySelectorAll('span').length;
+    const before = mounted.container.querySelector(Y_AXIS_HOST)!.querySelectorAll('span').length;
     expect(before).toBeGreaterThan(0);
 
     // Grow the Y range 10x.
@@ -77,7 +78,7 @@ describe('YAxis', () => {
       </>,
     );
 
-    const host = mounted.container.querySelector('div[style*="right: 0px"][style*="width: 55px"]');
+    const host = mounted.container.querySelector(Y_AXIS_HOST);
     const labels = Array.from(host!.querySelectorAll('span')) as HTMLSpanElement[];
     // After a range change, at least one new tick covers the new high end
     // (>100). The new labels may still be fading in (opacity < 1) — that's
@@ -115,7 +116,7 @@ describe('YAxis', () => {
       </>,
     );
 
-    const host = mounted.container.querySelector('div[style*="right: 0px"][style*="width: 55px"]');
+    const host = mounted.container.querySelector(Y_AXIS_HOST);
     expect(host).not.toBeNull();
     if (host === null) return;
 

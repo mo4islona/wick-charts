@@ -2,7 +2,7 @@ import { CandlestickSeries, Crosshair, TimeAxis, Title, YAxis, YLabel } from '@w
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CanvasRecorder, RecordedCall } from '../../../../core/src/testing/recording-context';
-import { mountChart } from '../helpers/mount-chart';
+import { type MountedChart, mountPinnedAxisChart } from '../helpers/mount-chart';
 
 /**
  * `axis.y.position: 'left'` mirrors the layout: the 55px axis column moves to
@@ -15,7 +15,7 @@ import { mountChart } from '../helpers/mount-chart';
  * fade masks (drawn untranslated) are in canvas coordinates.
  */
 describe('left Y axis', () => {
-  let mounted: ReturnType<typeof mountChart> | null = null;
+  let mounted: MountedChart | null = null;
 
   afterEach(() => {
     mounted?.unmount();
@@ -57,7 +57,7 @@ describe('left Y axis', () => {
   }
 
   it('reports the plot area offset by the axis width', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     expect(mounted.chart.yAxisPosition).toBe('left');
     expect(mounted.chart.plotLeft).toBe(55);
@@ -65,7 +65,7 @@ describe('left Y axis', () => {
   });
 
   it('draws the pane translated past the axis column', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     expect(mounted.mainSpy.callsOf('translate').some((c) => c.args[0] === 55 && c.args[1] === 0)).toBe(true);
   });
@@ -74,7 +74,7 @@ describe('left Y axis', () => {
   // past the visible range — a clip reaching under the column would show that
   // lone segment and cut it off each time a point leaves (a jittering tail).
   it('clips at the pane edge and fades out fully there while older data sits off-screen', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     // Default 60px ramp, entirely in the pane: none at x = 115, total at the
     // pane edge (x = 55). The gradient is memoized, so read it off the first paint.
@@ -100,7 +100,10 @@ describe('left Y axis', () => {
   });
 
   it('fade={{ left }} sizes the axis ramp, fade={{ right }} adds a plain right-edge zone', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis, fade: { left: 20, right: 40 } });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, {
+      axis: leftAxis,
+      fade: { left: 20, right: 40 },
+    });
 
     const rects = fadeRects(mounted.mainSpy);
     expect(rects.some((c) => c.args[0] === 55 && c.args[2] === 20)).toBe(true);
@@ -114,7 +117,7 @@ describe('left Y axis', () => {
   // The data ramp finishes at the pane edge; fading the grid with it would
   // leave the lines stopping short of their labels.
   it('lays the gridlines under the data and tapers them 12px into the column', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     const gridStarts = mounted.mainSpy.callsOf('moveTo').filter((c) => c.args[0] === -12);
     expect(gridStarts.length).toBeGreaterThan(0);
@@ -127,14 +130,14 @@ describe('left Y axis', () => {
   });
 
   it('keeps a right-axis grid in the data pass', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />);
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />);
 
     const behind = mounted.mainSpy.callsOf('moveTo').filter((c) => c.globalCompositeOperation === 'destination-over');
     expect(behind).toEqual([]);
   });
 
   it('runs the gridline tail stubs under the pane, not under the axis column', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     const stubs = mounted.mainSpy.callsOf('moveTo').filter((c) => c.args[1] === 370);
     expect(stubs.length).toBeGreaterThan(0);
@@ -142,7 +145,7 @@ describe('left Y axis', () => {
   });
 
   it('maps the pointer through the offset pane', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     mounted.overlaySpy.reset();
     mounted.dispatchMouse('mousemove', { clientX: 300, clientY: 200 }, mounted.overlayCanvas);
@@ -161,7 +164,7 @@ describe('left Y axis', () => {
   });
 
   it('a pointer over the left axis column keeps only the horizontal hairline', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     mounted.overlaySpy.reset();
     mounted.dispatchMouse('mousemove', { clientX: 20, clientY: 200 }, mounted.overlayCanvas);
@@ -172,7 +175,7 @@ describe('left Y axis', () => {
   });
 
   it('setCrosshair projects the time into container coordinates', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { axis: leftAxis });
 
     const time = 1_000_000 + 15 * 60_000;
     mounted.chart.setCrosshair({ time, y: 110 });
@@ -181,7 +184,7 @@ describe('left Y axis', () => {
   });
 
   it('anchors the axis overlays to the left column', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <CandlestickSeries data={data} />
         <YAxis />
@@ -222,7 +225,7 @@ describe('left Y axis', () => {
   });
 
   it('pins the overlay header to the left edge and reports its height to the chart', () => {
-    mounted = mountChart(
+    mounted = mountPinnedAxisChart(
       <>
         <Title>BTC/USD</Title>
         <CandlestickSeries data={data} />
@@ -244,7 +247,7 @@ describe('left Y axis', () => {
         <YAxis />
       </>
     );
-    mounted = mountChart(children, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(children, { axis: leftAxis });
     mounted.flushScheduler();
     mounted.chart.setHeaderHeight(150);
     mounted.flushScheduler();
@@ -274,7 +277,7 @@ describe('left Y axis', () => {
         <TimeAxis />
       </>
     );
-    mounted = mountChart(children, { axis: leftAxis });
+    mounted = mountPinnedAxisChart(children, { axis: leftAxis });
     mounted.flushScheduler();
 
     mounted.rerender(children, { axis: { y: { position: 'right' } } });

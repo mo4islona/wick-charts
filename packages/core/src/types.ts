@@ -1622,8 +1622,14 @@ export interface YAxisConfig {
    * whichever side it's on. Default: 'right'.
    */
   position?: YAxisPosition;
-  /** Width in CSS pixels. Default: 55, or 0 when every series is spatial (pie, heatmap). */
-  width?: number;
+  /**
+   * Width in CSS pixels, or `'auto'` to fit the widest tick label and a value
+   * badge (`YLabel`). An `'auto'` column widens as soon as a label needs it, and
+   * narrows only when the data, the visible series, the format, the theme or
+   * the plot size changes, so streaming ticks don't shift the plot.
+   * Default: `'auto'`, or 0 when every series is spatial (pie, heatmap).
+   */
+  width?: number | 'auto';
   /**
    * Value mapping. Omitted: linear. `logScale()` gives each power of ten equal
    * height — for series spanning orders of magnitude; `logScale({ base: 2 })`

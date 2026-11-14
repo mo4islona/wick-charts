@@ -2,7 +2,7 @@ import { CandlestickSeries } from '@wick-charts/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CanvasRecorder, RecordedCall } from '../../../../core/src/testing/recording-context';
-import { mountChart } from '../helpers/mount-chart';
+import { type MountedChart, mountPinnedAxisChart } from '../helpers/mount-chart';
 
 /**
  * The crosshair hairlines melt at the pane edges in step with the main-layer
@@ -17,7 +17,7 @@ import { mountChart } from '../helpers/mount-chart';
  * = [697, 757), gridline tail = 9px, so the crosshair clip spans 757×379.
  */
 describe('crosshair edge melt', () => {
-  let mounted: ReturnType<typeof mountChart> | null = null;
+  let mounted: MountedChart | null = null;
 
   afterEach(() => {
     mounted?.unmount();
@@ -41,12 +41,12 @@ describe('crosshair edge melt', () => {
     return overlayEraseRects(spy).filter((c) => c.args[1] === 370);
   }
 
-  function showCrosshair(chart: ReturnType<typeof mountChart>['chart']): void {
+  function showCrosshair(chart: MountedChart['chart']): void {
     chart.setCrosshair({ time: 1_000_000 + 15 * 60_000, y: 110 });
   }
 
   it('overruns the pane floor and tapers toward the time-axis labels', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     mounted.overlaySpy.reset();
     showCrosshair(mounted.chart);
@@ -68,7 +68,7 @@ describe('crosshair edge melt', () => {
   });
 
   it('rides under the Y-axis column through the shared right-fade ramp', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     mounted.overlaySpy.reset();
     showCrosshair(mounted.chart);
@@ -80,7 +80,7 @@ describe('crosshair edge melt', () => {
   });
 
   it('melts under a configured top fade zone too', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400, fade: { top: 80 } });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400, fade: { top: 80 } });
 
     mounted.overlaySpy.reset();
     showCrosshair(mounted.chart);
@@ -91,7 +91,7 @@ describe('crosshair edge melt', () => {
   });
 
   it('fade={false} keeps the floor taper but drops the X masks', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400, fade: false });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400, fade: false });
 
     mounted.overlaySpy.reset();
     showCrosshair(mounted.chart);
@@ -108,7 +108,7 @@ describe('crosshair edge melt', () => {
   });
 
   it('a pointer parked over an axis strip keeps only the in-pane hairline', () => {
-    mounted = mountChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
+    mounted = mountPinnedAxisChart(<CandlestickSeries data={data} />, { width: 800, height: 400 });
 
     // Over the time-axis row: the vertical line still points at its time
     // label, the horizontal line has no in-pane anchor and is skipped.

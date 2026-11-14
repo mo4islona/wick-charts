@@ -530,6 +530,11 @@ export class ViewportEngine {
     return this.#x.transition.animating || this.#yAnimating();
   }
 
+  /** Whether any Y range — the default scale's or a named one's — is still easing. */
+  get yAnimating(): boolean {
+    return this.#yAnimating();
+  }
+
   get lastXTarget(): XRange | null {
     return this.#x.lastTarget;
   }

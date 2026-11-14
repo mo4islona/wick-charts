@@ -65,7 +65,7 @@ export let yAxisPosition: 'left' | 'right' = 'right';
     <CandlestickSeries data={candlestickData} />
   </ChartContainer>
 {:else if variant === 'header-overlay'}
-  <ChartContainer theme={catppuccin.theme} headerLayout="overlay">
+  <ChartContainer theme={catppuccin.theme} headerLayout="overlay" axis={{ y: { width: 55 } }}>
     <Title>BTC<svelte:fragment slot="sub">Live</svelte:fragment></Title>
     <InfoBar />
     <CandlestickSeries data={candlestickData} />
@@ -102,7 +102,7 @@ export let yAxisPosition: 'left' | 'right' = 'right';
     <YAxis labelCount={yLabelCount} />
   </ChartContainer>
 {:else if variant === 'y-axis-position'}
-  <ChartContainer theme={catppuccin.theme} axis={{ y: { position: yAxisPosition } }}>
+  <ChartContainer theme={catppuccin.theme} axis={{ y: { position: yAxisPosition, width: 55 } }}>
     <CandlestickSeries data={candlestickData} />
     <YAxis />
     <TimeAxis />

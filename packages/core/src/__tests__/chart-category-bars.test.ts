@@ -62,7 +62,7 @@ describe('bars on a category axis', () => {
     container = makeChartContainer();
     chart = new ChartInstance(container, {
       animations: false,
-      axis: { x: { type: 'category', padding: { inner: 0.2, outer: 0.2 } } },
+      axis: { x: { type: 'category', padding: { inner: 0.2, outer: 0.2 } }, y: { width: 55 } },
       ...options,
     });
     const recorder = container.querySelector('canvas')?.__spy;
