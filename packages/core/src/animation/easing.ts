@@ -6,6 +6,9 @@ export const easeOutCubic: Easing = (t) => 1 - (1 - t) ** 3;
 
 export const easeInOutCubic: Easing = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
 
+/** `3t² − 2t³`: the Y Hermite curve when Y starts and ends at rest. */
+export const smoothstep: Easing = (t) => t * t * (3 - 2 * t);
+
 /** Decelerating with a soft ~7% overshoot past the target before settling.
  *  `c1` is deliberately below the canonical 1.70158 — series geometry
  *  overshoots in *pixels*, and the full-strength back curve reads as a
