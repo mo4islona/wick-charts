@@ -4,18 +4,20 @@ import {
   type AxisConfig,
   ChartInstance,
   type ChartOptions,
-  type ChartTheme,
   type CrosshairPosition,
   type EdgeReachedInfo,
   type FadeConfig,
   type GridOptions,
   type PointClickInfo,
   type SeriesHoverInfo,
+  type ChartTheme,
+  type ThemePreset,
   type VisibleRange,
   type VisibleRangeSpec,
   type YAxisConfig,
   catppuccin,
   deepEqual,
+  resolveTheme,
 } from '@wick-charts/core';
 import { onDestroy, onMount, tick } from 'svelte';
 
@@ -35,8 +37,8 @@ export let children: unknown = undefined;
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
 
-/** Visual theme. Live — changing this at runtime updates all themed elements. */
-export let theme: ChartTheme = catppuccin.theme;
+/** Visual theme: a preset (`githubLight`) or its `.theme`. Live — changing this at runtime updates all themed elements. */
+export let theme: ChartTheme | ThemePreset = catppuccin.theme;
 /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
 export let axis: AxisConfig | undefined = undefined;
 /**
@@ -204,7 +206,8 @@ let legendRightAnchorEl: HTMLDivElement;
 let navigatorAnchorEl: HTMLDivElement;
 
 const chartStore = initChartContext();
-const themeStore = initThemeContext(theme);
+// JS callers can pass `null` while a theme loads; the chart then uses its default.
+const themeStore = initThemeContext(theme ? resolveTheme(theme) : catppuccin.theme);
 const titleAnchorStore = initTitleAnchor();
 const infoBarAnchorStore = initInfoBarAnchor();
 const legendAnchorStore = initLegendAnchor();
@@ -394,7 +397,7 @@ onDestroy(() => {
 });
 
 // The prop default applies at init only — a later `undefined` means the default theme too.
-$: resolvedTheme = theme ?? catppuccin.theme;
+$: resolvedTheme = theme ? resolveTheme(theme) : catppuccin.theme;
 
 $: if (instance) {
   instance.setTheme(resolvedTheme);

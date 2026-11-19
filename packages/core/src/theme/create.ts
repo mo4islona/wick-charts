@@ -14,6 +14,22 @@ export interface ThemePreset {
   backgroundSize?: string;
 }
 
+/** A `theme` prop or option takes a preset (`githubLight`) or its `.theme`. */
+export type ThemeInput = ChartTheme | ThemePreset;
+
+function isThemePreset(input: ThemeInput): input is ThemePreset {
+  // A plain theme can carry extra `theme` and `dark` keys. Its required keys tell it apart.
+  const isPlainTheme = 'background' in input && 'chartGradient' in input;
+  if (isPlainTheme) return false;
+
+  return 'theme' in input && typeof input.theme === 'object' && input.theme !== null;
+}
+
+/** The {@link ChartTheme} of a preset, or the theme itself. */
+export function resolveTheme(input: ThemeInput): ChartTheme {
+  return isThemePreset(input) ? input.theme : input;
+}
+
 /**
  * Input config for {@link createTheme}. Mirrors the structure of {@link ChartTheme}
  * but everything is optional except `background`. Missing values are derived automatically.

@@ -368,8 +368,8 @@ export {
 export type { CanvasRecorder, RecordedCall, RecordingContext } from './testing/recording-context';
 export { createRecordingContext } from './testing/recording-context';
 // Data
-export type { ThemeConfig, ThemePreset } from './theme/palettes';
-export { autoGradient, createTheme, isDarkBg } from './theme/palettes';
+export type { ThemeConfig, ThemeInput, ThemePreset } from './theme/palettes';
+export { autoGradient, createTheme, isDarkBg, resolveTheme } from './theme/palettes';
 export { resolveAxisFontSize, resolveAxisTextColor, resolveCandlestickBodyColor } from './theme/resolve';
 export {
   andromeda,

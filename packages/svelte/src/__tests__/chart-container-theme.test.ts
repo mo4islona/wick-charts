@@ -32,4 +32,34 @@ describe('Svelte <ChartContainer> theme prop', () => {
     expect(root.getAttribute('style')).toContain(`background:${catppuccin.theme.background}`);
     result.unmount();
   });
+
+  it('takes a theme preset as well as its .theme', async () => {
+    let chart: ChartInstance | null = null;
+    const result = render(ThemeHarness, {
+      theme: githubLight,
+      onChart: (c: ChartInstance) => {
+        chart = c;
+      },
+    });
+    await settle();
+
+    const root = result.container.firstElementChild as HTMLElement;
+    expect((chart as ChartInstance | null)?.getTheme()).toBe(githubLight.theme);
+    expect(root.getAttribute('style')).toContain(`background:${githubLight.theme.background}`);
+    result.unmount();
+  });
+
+  it('mounts with an explicit null theme (JS caller) and uses the default theme', async () => {
+    let chart: ChartInstance | null = null;
+    const result = render(ThemeHarness, {
+      theme: null as unknown as undefined,
+      onChart: (c: ChartInstance) => {
+        chart = c;
+      },
+    });
+    await settle();
+
+    expect((chart as ChartInstance | null)?.getTheme()).toBe(catppuccin.theme);
+    result.unmount();
+  });
 });

@@ -148,7 +148,8 @@ grep -n -B12 '^    setVisibleRange(' $T
 | Inline mini chart with a value (React) | [sparkline.md](sparkline.md) |
 | `ChartContainer` props: padding, grid, header, viewport, fade, events, perf HUD | [chart-container.md](chart-container.md) |
 | Y scales (log, a second scale), numeric and category X axes | [axes.md](axes.md) |
-| Live data, history on scroll, `Navigator`, several synced charts | [realtime.md](realtime.md) |
+| Live data, history on scroll, `Navigator` | [realtime.md](realtime.md) |
+| Several charts that pan, zoom and hover together (price + volume / RSI panes) | [realtime.md](realtime.md#several-linked-charts) |
 | Tooltip, InfoBar, Legend, YLabel, number format, custom tooltip content | [overlays.md](overlays.md) |
 | Markers, threshold lines, shaded time regions | [annotations.md](annotations.md) |
 | Your own component inside a chart, the chart instance, events | [custom-overlays.md](custom-overlays.md) |

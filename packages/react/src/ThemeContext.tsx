@@ -1,9 +1,10 @@
 import { createContext, useContext } from 'react';
 
-import type { ChartTheme } from '@wick-charts/core';
+import { type ChartTheme, type ThemeInput, resolveTheme } from '@wick-charts/core';
 
-const ThemeCtx = createContext<ChartTheme | null>(null);
+const ThemeCtx = createContext<ThemeInput | null>(null);
 
+/** Gives one theme (a preset or its `.theme`) to every chart inside it. */
 export const ThemeProvider = ThemeCtx.Provider;
 
 /** Read the current chart theme from context. Must be inside a ThemeProvider. */
@@ -12,10 +13,13 @@ export function useTheme(): ChartTheme {
   if (!theme) {
     throw new Error('useTheme must be used within <ThemeProvider>');
   }
-  return theme;
+
+  return resolveTheme(theme);
 }
 
 /** Read the theme from context, or return null if no provider. */
 export function useThemeOptional(): ChartTheme | null {
-  return useContext(ThemeCtx);
+  const theme = useContext(ThemeCtx);
+
+  return theme ? resolveTheme(theme) : null;
 }

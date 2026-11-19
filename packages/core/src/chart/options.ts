@@ -13,7 +13,7 @@ import type { AnimationsConfig } from '../animation/config';
 // module into every bundle. The chart receives perf code via the option.
 import type { PerfConfig } from '../perf/perf-hud';
 import type { PerfMonitor } from '../perf/perf-monitor';
-import type { ChartTheme } from '../theme/types';
+import type { ThemeInput } from '../theme/create';
 import type { AxisConfig, HorizontalPadding, VisibleRangeSpec, YAxisConfig } from '../types';
 import { DEFAULT_MAX_VISIBLE_BARS, MIN_VISIBLE_BARS } from './pan-zoom-math';
 
@@ -55,7 +55,8 @@ export function resolveGridLines(grid: GridOptions | undefined): { horizontal: b
 
 /** Options passed when creating a new ChartInstance. */
 export interface ChartOptions {
-  theme?: ChartTheme;
+  /** A preset (`githubLight`) or its `.theme`. */
+  theme?: ThemeInput;
   axis?: AxisConfig;
   /**
    * Named secondary Y scales, keyed by id — a time series opts in with its

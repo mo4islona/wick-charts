@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { ChartInstance } from '@wick-charts/core';
+import { ChartInstance, type ChartTheme } from '@wick-charts/core';
 import {
   CandlestickSeries,
   ChartContainer,
@@ -9,7 +9,9 @@ import {
   Title,
   YLabel,
   catppuccin,
+  githubLight,
   useChartInstance,
+  useTheme,
 } from '@wick-charts/vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineComponent, h, nextTick } from 'vue';
@@ -90,6 +92,56 @@ describe('Vue <ChartContainer> ported props', () => {
     restore();
     host.remove();
     uninstallRaf();
+  });
+
+  it('takes a theme preset as well as its .theme', async () => {
+    let chart: ChartInstance | null = null;
+    let contextTheme: unknown = null;
+    const Probe = defineComponent({
+      setup() {
+        const theme = useTheme();
+
+        return () => {
+          contextTheme = theme.value;
+
+          return null;
+        };
+      },
+    });
+    const App = defineComponent({
+      setup() {
+        const onReady = (c: ChartInstance) => {
+          chart = c;
+        };
+
+        return () =>
+          h(ChartContainer, { theme: githubLight, onReady }, () => [h(CandlestickSeries, { data: ohlc }), h(Probe)]);
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect((chart as ChartInstance | null)?.getTheme()).toBe(githubLight.theme);
+    expect(contextTheme).toBe(githubLight.theme);
+    wrapper.unmount();
+  });
+
+  it('mounts with an explicit null theme (JS caller) and uses the default theme', async () => {
+    let chart: ChartInstance | null = null;
+    const App = defineComponent({
+      setup() {
+        const onReady = (c: ChartInstance) => {
+          chart = c;
+        };
+
+        return () => h(ChartContainer, { theme: null as unknown as ChartTheme, onReady });
+      },
+    });
+    const wrapper = mount(App, { attachTo: host });
+    await settle();
+
+    expect((chart as ChartInstance | null)?.getTheme()).toBe(catppuccin.theme);
+    wrapper.unmount();
   });
 
   it('omitted gradient (default) renders the flat background colour', async () => {
