@@ -105,6 +105,79 @@ describe('PieRenderer.render', () => {
   });
 });
 
+describe('PieRenderer — single visible slice', () => {
+  const SOLE: PieSliceData[] = [
+    { label: 'Total', value: 100 },
+    { label: 'Empty 1', value: 0 },
+    { label: 'Empty 2', value: 0 },
+  ];
+
+  it('pie: draws one full circle with no pad seam, no fillets and no line to the center', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    r.setData(SOLE);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    const arcs = spy.callsOf('arc');
+    expect(arcs).toHaveLength(1);
+
+    const [, , , start, end] = arcs[0].args as number[];
+    expect(end - start).toBeCloseTo(Math.PI * 2, 6);
+    expect(spy.countOf('lineTo')).toBe(0);
+    expect(spy.countOf('fill')).toBe(1);
+  });
+
+  it('donut: draws a full outer and a reverse full inner circle', () => {
+    const r = new PieRenderer({ innerRadiusRatio: 0.6, sliceLabels: { mode: 'none' } });
+    r.setData(SOLE);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    const arcs = spy.callsOf('arc');
+    expect(arcs).toHaveLength(2);
+
+    const [, , outerR, outerStart, outerEnd] = arcs[0].args as number[];
+    const [, , innerR, innerStart, innerEnd] = arcs[1].args as number[];
+    expect(outerEnd - outerStart).toBeCloseTo(Math.PI * 2, 6);
+    expect(innerStart - innerEnd).toBeCloseTo(Math.PI * 2, 6);
+    expect(innerR).toBeLessThan(outerR);
+    expect(arcs[1].args[5]).toBe(true);
+  });
+
+  it('two visible slices keep a padAngle gap at both seams', () => {
+    const padAngle = 2;
+    const r = new PieRenderer({ padAngle, cornerRadius: 0, sliceLabels: { mode: 'none' } });
+    r.setData([
+      { label: 'A', value: 60 },
+      { label: 'B', value: 40 },
+    ]);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    const arcs = spy.callsOf('arc');
+    expect(arcs).toHaveLength(2);
+
+    const [, , , startA, endA] = arcs[0].args as number[];
+    const [, , , startB, endB] = arcs[1].args as number[];
+    const pad = (padAngle * Math.PI) / 180;
+    expect(startB - endA).toBeCloseTo(pad, 6);
+    expect(startA + Math.PI * 2 - endB).toBeCloseTo(pad, 6);
+  });
+
+  it('two visible slices keep the rounded corners', () => {
+    const r = new PieRenderer({ sliceLabels: { mode: 'none' } });
+    r.setData([
+      { label: 'A', value: 60 },
+      { label: 'B', value: 40 },
+    ]);
+    const { ctx, spy } = buildRenderContext();
+    r.render(ctx);
+
+    // 1 main arc + 2 fillets per slice.
+    expect(spy.countOf('arc')).toBe(6);
+  });
+});
+
 describe('PieRenderer.hitTest', () => {
   it('returns correct slice index for a point inside the pie', () => {
     const r = new PieRenderer({ padAngle: 0 });
