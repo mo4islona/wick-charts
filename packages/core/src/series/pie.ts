@@ -1349,7 +1349,10 @@ export class PieRenderer implements PieSeriesRenderer {
 
     const outerR = maxR;
     const innerR = outerR * this.#options.innerRadiusRatio;
-    const pad = this.#options.padAngle * DEG_TO_RAD;
+    // A sole visible slice is a full disk: a pad would cut a seam at 12 o'clock.
+    const visibleSliceCount = this.#display.filter((slice) => this.#sliceValue(slice.value) > 0).length;
+    const soleSlice = visibleSliceCount === 1;
+    const pad = soleSlice ? 0 : this.#options.padAngle * DEG_TO_RAD;
     const requestedCornerRadius = (this.#options.cornerRadius ?? 3) * horizontalPixelRatio;
     const explodeDistance = 8 * horizontalPixelRatio;
     const shadow = this.#options.shadow ?? false;
@@ -1398,13 +1401,21 @@ export class PieRenderer implements PieSeriesRenderer {
       const sliceCx = cx + ox;
       const sliceCy = cy + oy;
 
+      const fullRing = soleSlice && endAngle - startAngle >= TWO_PI - 1e-6;
       const cornerRadius =
-        requestedCornerRadius > 0.5
+        requestedCornerRadius > 0.5 && !fullRing
           ? Math.min(requestedCornerRadius, maxCornerRadius({ outerR, innerR, halfSpan: (endAngle - startAngle) / 2 }))
           : 0;
 
       context.beginPath();
-      if (cornerRadius > 0.5) {
+      if (fullRing) {
+        context.arc(sliceCx, sliceCy, outerR, 0, TWO_PI);
+        if (innerR > 0) {
+          // Opposite winding cuts the hole under the default nonzero fill rule.
+          context.moveTo(sliceCx + innerR, sliceCy);
+          context.arc(sliceCx, sliceCy, innerR, TWO_PI, 0, true);
+        }
+      } else if (cornerRadius > 0.5) {
         this.#traceRoundedSlice(context, { sliceCx, sliceCy, outerR, innerR, startAngle, endAngle, cornerRadius });
       } else {
         context.arc(sliceCx, sliceCy, outerR, startAngle, endAngle);
