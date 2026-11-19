@@ -14,3 +14,7 @@ packages/*/LICENSE
 
 # Internal planning docs (kept locally, purged from git history)
 planning/
+
+# Agent-success eval: installed template apps and per-run results
+evals/agent-success/.cache/
+evals/agent-success/results/

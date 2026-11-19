@@ -8,7 +8,9 @@
       "!**/dist",
       "!docs-dist",
       "!coverage",
-      "!docs/data/api-manifest.json"
+      "!docs/data/api-manifest.json",
+      "!evals/agent-success/results",
+      "!evals/agent-success/.cache"
     ]
   },
   "linter": {
