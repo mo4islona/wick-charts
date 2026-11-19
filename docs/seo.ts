@@ -53,6 +53,11 @@ const CURATED: Partial<Record<Route, RouteMeta>> = {
     description:
       'Add realtime canvas charts to Nuxt with the @wick-charts/nuxt module: auto-imported components and composables, server rendering with no layout shift.',
   },
+  'integrations/server-render': {
+    title: 'Server-side Chart Rendering to PNG & SVG — Wick Charts',
+    description:
+      'Render Wick Charts to PNG or SVG in Node with @wick-charts/render: the same chart as in your app, for Slack, pull requests, reports and emails. Includes a CLI and an MCP server.',
+  },
   'use-cases/theme': {
     title: 'Theming & Custom Themes — Wick Charts',
     description:

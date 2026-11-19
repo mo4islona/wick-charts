@@ -6,6 +6,26 @@ interface CanvasManagerEvents {
   resize: (size: CanvasSize) => void;
 }
 
+/**
+ * A fixed-size drawing target with no DOM, for a chart that renders outside a
+ * browser. Both layers draw into `context`, so a frame paints the main layer
+ * and then the overlay on top of it.
+ */
+export interface ChartSurface {
+  /** Chart width in CSS px. */
+  readonly width: number;
+  /** Chart height in CSS px. */
+  readonly height: number;
+  /** Device px per CSS px. Default: `1`. */
+  readonly pixelRatio?: number;
+  /** A 2D context on a transparent bitmap of at least `width × pixelRatio` by `height × pixelRatio` device px. */
+  readonly context: CanvasRenderingContext2D;
+}
+
+export function isChartSurface(target: HTMLElement | ChartSurface): target is ChartSurface {
+  return 'context' in target && !('nodeType' in target);
+}
+
 export interface BitmapCoordinateSpace {
   context: CanvasRenderingContext2D;
   bitmapSize: { width: number; height: number };
@@ -27,26 +47,51 @@ function createCanvas(container: HTMLElement, zIndex: number, alpha: boolean): H
 }
 
 export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
-  /** Bottom layer: background, grid, series (redraws only on data/viewport change) */
-  readonly mainCanvas: HTMLCanvasElement;
+  /** Bottom layer: background, grid, series (redraws only on data/viewport change). `null` on a {@link ChartSurface}. */
+  readonly mainCanvas: HTMLCanvasElement | null;
   private mainCtx: CanvasRenderingContext2D;
 
-  /** Top layer: crosshair (redraws on mousemove, cheap) */
-  readonly overlayCanvas: HTMLCanvasElement;
+  /** Top layer: crosshair (redraws on mousemove, cheap). `null` on a {@link ChartSurface}. */
+  readonly overlayCanvas: HTMLCanvasElement | null;
   private overlayCtx: CanvasRenderingContext2D;
 
-  private resizeObserver: ResizeObserver;
+  private resizeObserver: ResizeObserver | null = null;
   private _size: CanvasSize;
   private supportsDevicePixelContentBox = false;
+  /** Both layers share one bitmap: the overlay must not clear the main layer under it. */
+  private readonly sharedBitmap: boolean;
 
-  constructor(container: HTMLElement, perfMonitor?: PerfMonitor) {
+  constructor(target: HTMLElement | ChartSurface, perfMonitor?: PerfMonitor) {
     super();
 
-    this.mainCanvas = createCanvas(container, 0, true);
-    this.overlayCanvas = createCanvas(container, 1, true);
+    if (isChartSurface(target)) {
+      const ratio = target.pixelRatio ?? 1;
+      const context = perfMonitor ? perfMonitor.wrapContext(target.context, 'main') : target.context;
+      this.mainCanvas = null;
+      this.overlayCanvas = null;
+      this.mainCtx = context;
+      this.overlayCtx = context;
+      this.sharedBitmap = true;
+      this._size = {
+        media: { width: target.width, height: target.height },
+        bitmap: { width: Math.round(target.width * ratio), height: Math.round(target.height * ratio) },
+        horizontalPixelRatio: ratio,
+        verticalPixelRatio: ratio,
+      };
 
-    const rawMain = this.mainCanvas.getContext('2d', { alpha: true });
-    const rawOverlay = this.overlayCanvas.getContext('2d', { alpha: true });
+      return;
+    }
+
+    const container = target;
+    this.sharedBitmap = false;
+
+    const mainCanvas = createCanvas(container, 0, true);
+    const overlayCanvas = createCanvas(container, 1, true);
+    this.mainCanvas = mainCanvas;
+    this.overlayCanvas = overlayCanvas;
+
+    const rawMain = mainCanvas.getContext('2d', { alpha: true });
+    const rawOverlay = overlayCanvas.getContext('2d', { alpha: true });
     if (!rawMain || !rawOverlay) {
       throw new Error('CanvasManager: failed to acquire 2D rendering context');
     }
@@ -61,15 +106,16 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
       verticalPixelRatio: dpr,
     };
 
-    this.resizeObserver = new ResizeObserver((entries) => {
+    const resizeObserver = new ResizeObserver((entries) => {
       this.handleResize(entries[0]);
     });
+    this.resizeObserver = resizeObserver;
 
     try {
-      this.resizeObserver.observe(container, { box: 'device-pixel-content-box' as ResizeObserverBoxOptions });
+      resizeObserver.observe(container, { box: 'device-pixel-content-box' as ResizeObserverBoxOptions });
       this.supportsDevicePixelContentBox = true;
     } catch {
-      this.resizeObserver.observe(container, { box: 'content-box' });
+      resizeObserver.observe(container, { box: 'content-box' });
     }
 
     // Measure initial size synchronously — forces layout reflow but ensures
@@ -81,10 +127,10 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
       const dprH = dprW;
       const bw = Math.round(rect.width * dprW);
       const bh = Math.round(rect.height * dprH);
-      this.mainCanvas.width = bw;
-      this.mainCanvas.height = bh;
-      this.overlayCanvas.width = bw;
-      this.overlayCanvas.height = bh;
+      mainCanvas.width = bw;
+      mainCanvas.height = bh;
+      overlayCanvas.width = bw;
+      overlayCanvas.height = bh;
       this._size = {
         media: { width: rect.width, height: rect.height },
         bitmap: { width: bw, height: bh },
@@ -95,6 +141,9 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
   }
 
   private handleResize(entry: ResizeObserverEntry): void {
+    const { mainCanvas, overlayCanvas } = this;
+    if (mainCanvas === null || overlayCanvas === null) return;
+
     let bitmapWidth: number;
     let bitmapHeight: number;
     let mediaWidth: number;
@@ -124,10 +173,10 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
 
     if (bitmapWidth === 0 || bitmapHeight === 0) return;
 
-    this.mainCanvas.width = bitmapWidth;
-    this.mainCanvas.height = bitmapHeight;
-    this.overlayCanvas.width = bitmapWidth;
-    this.overlayCanvas.height = bitmapHeight;
+    mainCanvas.width = bitmapWidth;
+    mainCanvas.height = bitmapHeight;
+    overlayCanvas.width = bitmapWidth;
+    overlayCanvas.height = bitmapHeight;
 
     const hpr = bitmapWidth / mediaWidth;
     const vpr = bitmapHeight / mediaHeight;
@@ -162,7 +211,8 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
   /** Draw on the overlay (top) layer — crosshair */
   useOverlayLayer(callback: (scope: BitmapCoordinateSpace) => void): void {
     const { width, height } = this._size.bitmap;
-    this.overlayCtx.clearRect(0, 0, width, height);
+    if (!this.sharedBitmap) this.overlayCtx.clearRect(0, 0, width, height);
+
     this.overlayCtx.save();
     callback({
       context: this.overlayCtx,
@@ -175,14 +225,14 @@ export class CanvasManager extends EventEmitter<CanvasManagerEvents> {
   }
 
   // Keep backward compat for now
-  get canvas(): HTMLCanvasElement {
+  get canvas(): HTMLCanvasElement | null {
     return this.overlayCanvas; // interactions attach to the top layer
   }
 
   destroy(): void {
-    this.resizeObserver.disconnect();
-    this.mainCanvas.remove();
-    this.overlayCanvas.remove();
+    this.resizeObserver?.disconnect();
+    this.mainCanvas?.remove();
+    this.overlayCanvas?.remove();
     this.removeAllListeners();
   }
 }

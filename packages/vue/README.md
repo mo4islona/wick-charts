@@ -65,6 +65,18 @@ Pick a built-in theme, build your own with `createTheme()`, or change one in the
 
 Each series draws itself in when it mounts. Pick an intro animation per series, or [write your own](https://wick-charts.eeff.io/use-cases/custom-intro/).
 
+## Images for reports
+
+`@wick-charts/render` draws the same chart to a PNG or an SVG in Node, with no browser, for a Slack message, a pull request, a report or an email. The spec takes the props of the components as data, so the image matches the chart in your app.
+
+```ts
+import { renderChart } from '@wick-charts/render';
+
+const { data } = await renderChart({ title: 'Revenue', series: [{ type: 'line', data: points }] }, { format: 'png' });
+```
+
+The package also runs as an MCP server with a `render_chart` tool, so an agent can put a chart in what it writes: `npx -y @wick-charts/render mcp`. See the [package README](https://github.com/mo4islona/wick-charts/tree/main/packages/render).
+
 ## What it adds to your app
 
 - **Code:** tree-shaken ESM, so you ship only the chart types you import. A candlestick chart alone is 55 kB gzipped.
@@ -74,7 +86,7 @@ Each series draws itself in when it mounts. Pick an intro animation per series, 
 
 ## Limits
 
-- **Server rendering.** The chart draws in the browser only. On the server, the container renders as an empty element.
+- **Server rendering.** In a server-rendered app, the container renders as an empty element and the chart draws in the browser. For a static image on the server, use `@wick-charts/render`.
 - **Screen readers.** A chart gives a screen reader a short summary and a full text description, updated at most once a second. A reader cannot step through the points one by one: for a chart that matters, put a data table next to it. `accessibility={false}` turns the text off; `ariaLabel` sets your own summary.
 - **Before 1.0.** A minor version can change the API. [MIGRATION.md](https://github.com/mo4islona/wick-charts/blob/main/MIGRATION.md) lists each change with the code to update.
 

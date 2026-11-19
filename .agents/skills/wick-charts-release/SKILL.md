@@ -20,14 +20,15 @@ Confirm before starting:
 
 ### 1. Bump versions
 
-Update **all five** packages to the same version:
+Update **all six** packages to the same version:
 - `packages/core/package.json`
 - `packages/react/package.json`
 - `packages/vue/package.json`
 - `packages/svelte/package.json`
 - `packages/nuxt/package.json`
+- `packages/render/package.json`
 
-The release workflow's `Verify versions` step rejects mismatches between react/vue/svelte/nuxt and the tag. `@wick-charts/nuxt` depends on `@wick-charts/vue` through `workspace:^`, so the publish pins it to the same version. Core is private (workspace-internal) but bump it too for consistency.
+The release workflow's `Verify versions` step rejects mismatches between react/vue/svelte/nuxt/render and the tag. `@wick-charts/nuxt` depends on `@wick-charts/vue` through `workspace:^`, so the publish pins it to the same version. Core is private (workspace-internal) but bump it too for consistency.
 
 If `registry/shadcn` uses API new in this release, raise its `@wick-charts/react@^X.Y.Z` pin in `registry/shadcn/registry.json` to the new version in the same commit. The shadcn CLI installs that range, so a stale pin installs a version the blocks do not compile against. The same rule holds for `registry/shadcn-vue` and its `@wick-charts/vue@^X.Y.Z` pin in `registry/shadcn-vue/registry.json`, and for `registry/shadcn-svelte` and its `@wick-charts/svelte@^X.Y.Z` pin on every item of `registry/shadcn-svelte/registry.json`.
 

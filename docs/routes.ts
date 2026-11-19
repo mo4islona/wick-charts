@@ -38,6 +38,7 @@ export type Route =
   | 'integrations/shadcn/vue'
   | 'integrations/shadcn/svelte'
   | 'integrations/nuxt'
+  | 'integrations/server-render'
   | 'api/line-series'
   | 'api/band-series'
   | 'api/bar-series'
@@ -224,10 +225,11 @@ const MIGRATION: RouteEntry = { route: 'migration', label: 'Migration Guide', ti
 // Theme editor lives at the bottom of the menu (a reference, not part of the main
 // learning flow). Route stays `use-cases/theme` — only its menu slot moved.
 const THEME: RouteEntry = { route: 'use-cases/theme', label: 'Theme editor', title: 'Theme editor' };
-// How Wick Charts fits a framework or a UI kit around it, one page per integration.
+// How Wick Charts fits a framework, a UI kit or a runtime around it, one page per integration.
 const INTEGRATIONS: RouteEntry[] = [
   { route: 'integrations/shadcn', label: 'Shadcn', title: 'shadcn/ui' },
   { route: 'integrations/nuxt', label: 'Nuxt', title: 'Nuxt' },
+  { route: 'integrations/server-render', label: 'Server render', title: 'Server render' },
 ];
 // The shadcn page's Vue and Svelte views: URLs of their own to prerender and rank, no menu items of their own.
 const SHADCN_VUE: RouteEntry = { route: 'integrations/shadcn/vue', label: 'shadcn-vue', title: 'shadcn-vue' };

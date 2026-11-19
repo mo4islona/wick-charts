@@ -4,6 +4,7 @@ import type { ChartTheme } from '@wick-charts/react';
 
 import type { Route } from '../../routes';
 import { NUXT_STEPS, NuxtPage } from './nuxt';
+import { SERVER_RENDER_STEPS, ServerRenderPage } from './server-render';
 import { SHADCN_STEPS, ShadcnPage } from './shadcn';
 
 interface IntegrationPageProps {
@@ -17,12 +18,14 @@ const INTEGRATIONS: Partial<Record<Route, FC<IntegrationPageProps>>> = {
   'integrations/shadcn/vue': ShadcnPage,
   'integrations/shadcn/svelte': ShadcnPage,
   'integrations/nuxt': NuxtPage,
+  'integrations/server-render': ServerRenderPage,
 };
 
 /** Walkthrough step headings per integration, for the docs search index. */
 export const INTEGRATION_STEPS: Partial<Record<Route, string[]>> = {
   'integrations/shadcn': SHADCN_STEPS,
   'integrations/nuxt': NUXT_STEPS.map((step) => step.heading),
+  'integrations/server-render': SERVER_RENDER_STEPS.map((step) => step.heading),
 };
 
 export function IntegrationsRoutePage({ route, theme }: IntegrationPageProps) {

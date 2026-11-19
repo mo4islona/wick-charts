@@ -27,5 +27,5 @@
   },
   "include": ["packages", "docs", "registry"],
   // Svelte 5 code: svelte-check covers it, and its types would clash with the Svelte 4 ones here.
-  "exclude": ["node_modules", "dist", "registry/shadcn-svelte", "docs/demos/shadcn-svelte"]
+  "exclude": ["node_modules", "dist", "registry/shadcn-svelte", "docs/demos/shadcn-svelte", "packages/render/type-tests"]
 }
