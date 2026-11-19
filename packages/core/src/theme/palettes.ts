@@ -1,5 +1,5 @@
-export type { ThemeConfig, ThemePreset } from './create';
-export { autoGradient, createTheme, isDarkBg } from './create';
+export type { ThemeConfig, ThemeInput, ThemePreset } from './create';
+export { autoGradient, createTheme, isDarkBg, resolveTheme } from './create';
 export {
   andromeda,
   ayuMirage,

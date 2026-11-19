@@ -19,7 +19,7 @@ data={[
 ## Options with a trap
 
 - **`innerRadiusRatio`** makes a donut: the hole as a fraction of the radius. `0` is a pie (default), `0.6` a usual donut, `0.85` a thin ring.
-- **`other`** is on by default: with more than `maxSlices` slices (default 8), the largest `maxSlices - 1` keep their order and the rest sum into one "Other" slice at the end, in the theme's muted `pie.otherColor`. It acts as a normal slice in the labels, the legend and the tooltip. `other: false` shows every slice; `other: { maxSlices: 5, label: 'Rest' }` tunes it.
+- **`other`** is on by default: with more than `maxSlices` slices (default 8), the largest `maxSlices - 1` keep their order and the rest sum into one "Other" slice at the end, in the theme's muted `pie.otherColor`. It acts as a normal slice in the labels, the legend and the tooltip. `other: false` shows every slice; `other: { maxSlices: 5, label: 'Rest' }` tunes it. Data with its own "Other" slice and 8 slices or fewer needs no change: nothing groups.
 - **`animate`** is off by default: the chart paints in its final state and a hovered slice stays in place. `animate: true` draws the labels in and moves a hovered slice outward.
 - **`sliceLabels`:** `{ mode: 'outside' }` (default, with leader lines), `'inside'` (on the slice, skipped where the text does not fit) or `'none'` (use `PieLegend` / `PieTooltip` instead); `content: 'percent' | 'label' | 'both'`. Crowded outside labels: raise `sliceLabels.minSliceAngle` to leave out the labels of the smallest slices, or `sliceLabels.labelGap` to spread them.
 - **`gradient`** (on by default) gives each slice a soft radial shade; `gradient: false` paints flat slices.

@@ -24,11 +24,13 @@ import {
   type GridOptions,
   type PointClickInfo,
   type SeriesHoverInfo,
+  type ThemePreset,
   type VisibleRange,
   type VisibleRangeSpec,
   type YAxisConfig,
   catppuccin,
   deepEqual,
+  resolveTheme,
 } from '@wick-charts/core';
 
 type PerfOption = NonNullable<ChartOptions['perf']>;
@@ -60,8 +62,8 @@ import { useStableOptions } from './use-stable-options';
 export interface ChartContainerProps {
   /** Series components and UI overlays (Tooltip, XAxis, etc.) rendered inside the chart. */
   children?: ReactNode;
-  /** Visual theme. Live — changing this at runtime updates all themed elements. */
-  theme?: ChartTheme;
+  /** Visual theme: a preset (`githubLight`) or its `.theme`. Live — changing this at runtime updates all themed elements. */
+  theme?: ChartTheme | ThemePreset;
   /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
   axis?: AxisConfig;
   /**
@@ -417,7 +419,7 @@ export function ChartContainer({
   const onCrosshairMoveRef = useRef(onCrosshairMove);
   onCrosshairMoveRef.current = onCrosshairMove;
   const contextTheme = useThemeOptional();
-  const resolvedTheme = theme ?? contextTheme ?? undefined;
+  const resolvedTheme = theme ? resolveTheme(theme) : (contextTheme ?? undefined);
   // What the chart and its overlays show: the prop, else the default the chart starts with.
   const activeTheme = resolvedTheme ?? catppuccin.theme;
 

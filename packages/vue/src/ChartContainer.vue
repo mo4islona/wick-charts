@@ -7,6 +7,7 @@ import {
   type VisibleRangeSpec,
   catppuccin,
   deepEqual,
+  resolveTheme,
 } from '@wick-charts/core';
 import { computed, nextTick, onMounted, onUnmounted, provide, ref, shallowRef, watch } from 'vue';
 
@@ -45,7 +46,8 @@ const props = withDefaults(defineProps<ChartContainerProps>(), {
 const rootRef = ref<HTMLDivElement>();
 const containerRef = ref<HTMLDivElement>();
 const chart = shallowRef<ChartInstance | null>(null);
-const themeRef = shallowRef<ChartTheme>(props.theme);
+// JS callers can pass `null` while a theme loads; the chart then uses its default.
+const themeRef = shallowRef<ChartTheme>(props.theme ? resolveTheme(props.theme) : catppuccin.theme);
 
 // Capture perf at mount only — mirrors React's perfRef so a new object
 // identity later doesn't recreate the chart.
@@ -275,7 +277,7 @@ watch(
   (newTheme) => {
     if (chart.value && newTheme) {
       chart.value.setTheme(newTheme);
-      themeRef.value = newTheme;
+      themeRef.value = resolveTheme(newTheme);
     }
   },
 );

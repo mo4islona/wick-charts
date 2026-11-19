@@ -1,6 +1,6 @@
 # Themes
 
-A theme preset is a named export: `{ name, theme, dark, fontUrl, backgroundImage?, backgroundSize? }`. Pass its `.theme` to `ChartContainer`:
+A theme preset is a named export: `{ name, theme, dark, fontUrl, backgroundImage?, backgroundSize? }`. Pass its `.theme` to `ChartContainer`. From 0.9.4, `theme` also takes the preset itself (`theme={githubLight}`), and so do `setTheme`, `ThemeProvider` and `Sparkline`:
 
 ```tsx
 import { ChartContainer, githubLight } from '@wick-charts/react';

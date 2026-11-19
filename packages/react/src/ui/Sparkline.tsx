@@ -3,12 +3,14 @@ import { type CSSProperties, useLayoutEffect, useMemo, useRef, useState } from '
 import {
   type AxisBound,
   type ChartTheme,
+  type ThemePreset,
   type TimePointInput,
   type ValueFormatter,
   catppuccin,
   formatCompact,
   normalizeTime,
   resolveCandlestickBodyColor,
+  resolveTheme,
 } from '@wick-charts/core';
 
 import { BarSeries } from '../BarSeries';
@@ -43,7 +45,7 @@ export interface SparklineProps {
    * Visual theme. Drives series colour, background gradient, and the change-direction colours used in the value block.
    * Defaults to the `ThemeProvider` theme, else the default theme of `ChartContainer`.
    */
-  theme?: ChartTheme;
+  theme?: ChartTheme | ThemePreset;
   /** 'line' (default) or 'bar' */
   variant?: SparklineVariant;
   /** Where to show the value label */
@@ -142,7 +144,7 @@ export function Sparkline({
   style,
 }: SparklineProps) {
   const contextTheme = useThemeOptional();
-  const theme = themeProp ?? contextTheme ?? catppuccin.theme;
+  const theme = themeProp ? resolveTheme(themeProp) : (contextTheme ?? catppuccin.theme);
 
   // Default area-visible = true. `area` wins if caller passes it; otherwise
   // fall back to the deprecated flat `areaFill` flag for backward compatibility.

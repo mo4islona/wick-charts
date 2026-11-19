@@ -2508,7 +2508,7 @@
         },
         {
           "name": "theme",
-          "type": "ChartTheme",
+          "type": "ChartTheme | ThemePreset",
           "optional": true,
           "defaultValue": "to the `ThemeProvider` theme",
           "deprecated": null,
@@ -3601,11 +3601,11 @@
         },
         {
           "name": "theme",
-          "type": "ChartTheme",
+          "type": "ChartTheme | ThemePreset",
           "optional": true,
           "defaultValue": null,
           "deprecated": null,
-          "description": "Visual theme. Live — changing this at runtime updates all themed elements.",
+          "description": "Visual theme: a preset (`githubLight`) or its `.theme`. Live — changing this at runtime updates all themed elements.",
           "see": [],
           "nested": {
             "name": "ChartTheme",

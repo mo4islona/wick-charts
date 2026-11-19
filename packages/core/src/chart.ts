@@ -80,6 +80,7 @@ import {
   type XTickGrid,
   isTimeSeriesRenderer,
 } from './series/types';
+import { type ThemeInput, resolveTheme } from './theme/create';
 import { resolveAxisFontSize, resolveAxisTextColor } from './theme/resolve';
 import { catppuccin } from './theme/themes/catppuccin';
 import type { ChartTheme } from './theme/types';
@@ -954,7 +955,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // Support both new `axis` API and legacy flat props
     if (options?.axis) this.#axis = options.axis;
     this.#xType = this.#axis.x?.type ?? 'time';
-    this.#theme = options?.theme ?? catppuccin.theme;
+    this.#theme = options?.theme ? resolveTheme(options.theme) : catppuccin.theme;
     this.#grid = options?.grid?.visible !== false;
     this.#gridLines = resolveGridLines(options?.grid);
     this.#fade = resolveFade(options?.fade);
@@ -3238,8 +3239,9 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return entry?.renderer.getHoverInfo?.(this.#theme) ?? null;
   }
 
-  /** Apply a new theme and update series colors where appropriate. */
-  setTheme(theme: ChartTheme): void {
+  /** Apply a new theme (a preset or its `.theme`) and update series colors where appropriate. */
+  setTheme(input: ThemeInput): void {
+    const theme = resolveTheme(input);
     const prev = this.#theme;
     this.#theme = theme;
     for (const entry of this.#series) {

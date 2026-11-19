@@ -35,6 +35,14 @@ describe('ChartContainer props', () => {
     expect(root.getAttribute('style')).not.toContain(githubLight.theme.background);
   });
 
+  it('takes a theme preset as well as its .theme', () => {
+    mounted = mountChart(<CandlestickSeries data={ohlc} />, { theme: githubLight });
+
+    const root = mounted.container.firstElementChild as HTMLElement;
+    expect(mounted.chart.getTheme()).toBe(githubLight.theme);
+    expect(root.getAttribute('style')).toContain(githubLight.theme.background);
+  });
+
   it('interactive=false does not install InteractionHandler (no crosshair cursor)', () => {
     mounted = mountChart(<CandlestickSeries data={ohlc} />, { interactive: false });
     // InteractionHandler sets `cursor: crosshair` on the overlay canvas during

@@ -34,6 +34,7 @@ import type {
   SankeyNode,
   SankeySeriesOptions,
   SeriesHoverInfo,
+  ThemePreset,
   VisibleRange,
   VisibleRangeSpec,
   YAxisConfig,
@@ -104,8 +105,8 @@ export interface CandlestickSeriesProps {
 }
 
 export interface ChartContainerProps {
-  /** Visual theme. Live — changing this at runtime updates all themed elements. */
-  theme?: ChartTheme;
+  /** Visual theme: a preset (`githubLight`) or its `.theme`. Live — changing this at runtime updates all themed elements. */
+  theme?: ChartTheme | ThemePreset;
   /** Grouped axis configuration (Y/X visibility, bounds, sizing). Live. */
   axis?: AxisConfig;
   /**
