@@ -1,6 +1,6 @@
 // Shared with the components so `index.ts` can export them: `tsc` reads a `.svelte` import as a bare `SvelteComponent`.
 
-import type { HoverInfo, SeriesSnapshot, SliceInfo, ValueFormatter } from '@wick-charts/core';
+import type { HoverInfo, PieHole, SeriesSnapshot, SliceInfo, ValueFormatter } from '@wick-charts/core';
 
 /**
  * Minimal visual shape the `<Legend items>` override accepts — just what the
@@ -35,6 +35,18 @@ export interface InfoBarRenderContext {
   readonly time: number;
   /** `true` while the user's pointer is over the chart (hover mode). */
   readonly isHover: boolean;
+}
+
+/** Props of the `<PieCenter>` default slot (`let:` or `{#snippet children(ctx)}`). */
+export interface PieCenterRenderContext {
+  /** Sum of the slice values. */
+  readonly total: number;
+  readonly slices: readonly SliceInfo[];
+  /** The slice under the pointer, or null. */
+  readonly hovered: HoverInfo | null;
+  readonly format: ValueFormatter;
+  /** The disk and hole, in CSS pixels. */
+  readonly hole: PieHole;
 }
 
 /** Props of the `<PieLegend>` default slot (`let:` or `{#snippet children(ctx)}`). */

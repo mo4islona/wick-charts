@@ -146,6 +146,8 @@ export type {
   PerfStats,
 } from './perf';
 export { PerfMonitor, perfHud } from './perf';
+export type { PieCenterBox, PieCenterText } from './pie-center';
+export { pieCenterBox, pieCenterText, pieCenterValueFontSize, pieTotal } from './pie-center';
 export {
   RADAR_TOOLTIP_HEADER_HEIGHT,
   RADAR_TOOLTIP_ROW_HEIGHT,
@@ -320,6 +322,7 @@ export type {
   HoverRow,
   LayerSnapshot,
   OverlayRenderContext,
+  PieHole,
   PieSeriesRenderer,
   RadarSeriesRenderer,
   RadialProgressSeriesRenderer,

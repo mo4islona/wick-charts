@@ -117,6 +117,7 @@ export type {
   PerfHudOptions,
   PerfMonitorOptions,
   PerfStats,
+  PieHole,
   PieSeriesOptions,
   PieSeriesRenderer,
   PieSliceData,
@@ -380,6 +381,7 @@ export { default as Legend } from './ui/Legend.vue';
 export { default as Marker } from './ui/Marker.vue';
 export { default as Navigator } from './ui/Navigator.vue';
 export { default as NumberFlow } from './ui/NumberFlow.vue';
+export { default as PieCenter } from './ui/PieCenter.vue';
 export { default as PieLegend } from './ui/PieLegend.vue';
 export { default as PieTooltip } from './ui/PieTooltip.vue';
 export type {
@@ -392,6 +394,8 @@ export type {
   MarkerProps,
   NavigatorProps,
   NumberFlowProps,
+  PieCenterProps,
+  PieCenterRenderContext,
   PieLegendMode,
   PieLegendPosition,
   PieLegendProps,

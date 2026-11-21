@@ -7,6 +7,7 @@ import type {
   MarkerShape,
   NavigatorDataInput,
   NumberFlowFormat,
+  PieHole,
   ReferenceLineStyle,
   SeriesSnapshot,
   SliceInfo,
@@ -54,6 +55,18 @@ export interface InfoBarRenderContext {
   readonly time: number;
   /** `true` while the user's pointer is over the chart (hover mode). */
   readonly isHover: boolean;
+}
+
+/** Payload of the `<PieCenter>` default slot. */
+export interface PieCenterRenderContext {
+  /** Sum of the slice values. */
+  readonly total: number;
+  readonly slices: readonly SliceInfo[];
+  /** The slice under the pointer, or null. */
+  readonly hovered: HoverInfo | null;
+  readonly format: ValueFormatter;
+  /** The disk and hole, in CSS pixels. */
+  readonly hole: PieHole;
 }
 
 /** Payload of the `<PieLegend>` default slot. */
@@ -183,6 +196,20 @@ export interface PieLegendProps {
   format?: ValueFormatter;
   /** Layout placement. Default: `'bottom'`. */
   position?: PieLegendPosition;
+}
+
+export interface PieCenterProps {
+  /**
+   * Owning series id. **Optional** — when omitted, the first visible pie
+   * series is picked.
+   */
+  seriesId?: string;
+  /** Caption under the total, e.g. `'Total sessions'`. Default: none. */
+  label?: string;
+  /** Formatter for the total and the hovered value. Default: shared `formatCompact`. */
+  format?: ValueFormatter;
+  /** Show the hovered slice instead of the total while the pointer is on a slice. Default `true`. */
+  followHover?: boolean;
 }
 
 export interface PieTooltipProps {

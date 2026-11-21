@@ -6,7 +6,7 @@ import { isLightColor, lighten } from '../utils/color';
 import { clamp, smoothToward } from '../utils/math';
 import { warnDataOnce } from '../utils/poisoned-data-reporter';
 import type { SeriesDefinition } from './definition';
-import type { HoverInfo, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
+import type { HoverInfo, PieHole, PieSeriesRenderer, RenderPadding, SeriesRenderContext, SliceInfo } from './types';
 
 const DEFAULT_LABELS: Required<PieLabelsOptions> = {
   mode: 'outside',
@@ -413,6 +413,7 @@ export class PieRenderer implements PieSeriesRenderer {
    * the painted frame.
    */
   #renderedLabelReserve = 0;
+  #hole: PieHole | null = null;
   /** Subscribers notified on setData (pie has no TimeSeriesStore to piggy-back on). */
   #dataListeners: Array<() => void> = [];
 
@@ -674,6 +675,10 @@ export class PieRenderer implements PieSeriesRenderer {
       percent: total > 0 ? (this.#sliceValue(slice.value) / total) * 100 : 0,
       color: this.#sliceColor({ index: this.#hoverIndex, palette, theme }),
     };
+  }
+
+  getHole(): PieHole | null {
+    return this.#hole;
   }
 
   getSliceInfo(theme: ChartTheme): SliceInfo[] | null {
@@ -1263,6 +1268,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
   render(ctx: SeriesRenderContext): void {
     if (this.#display.length === 0) {
+      this.#hole = null;
       this.#settleRevealState();
 
       return;
@@ -1281,6 +1287,7 @@ export class PieRenderer implements PieSeriesRenderer {
 
     const total = this.#total();
     if (total <= 0) {
+      this.#hole = null;
       this.#settleRevealState();
 
       return;
@@ -1349,6 +1356,12 @@ export class PieRenderer implements PieSeriesRenderer {
 
     const outerR = maxR;
     const innerR = outerR * this.#options.innerRadiusRatio;
+    this.#hole = {
+      x: cx / horizontalPixelRatio,
+      y: cy / verticalPixelRatio,
+      innerRadius: innerR / horizontalPixelRatio,
+      outerRadius: outerR / horizontalPixelRatio,
+    };
     // A sole visible slice is a full disk: a pad would cut a seam at 12 o'clock.
     const visibleSliceCount = this.#display.filter((slice) => this.#sliceValue(slice.value) > 0).length;
     const soleSlice = visibleSliceCount === 1;

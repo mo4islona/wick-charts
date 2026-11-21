@@ -72,6 +72,7 @@ import {
   type HoverInfo,
   type HoverLookupOptions,
   type LayerSnapshot,
+  type PieHole,
   type SeriesKind,
   type SeriesRenderer,
   type SliceInfo,
@@ -948,6 +949,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #perfHud: PerfHudHandle | null = null;
   /** Y-axis column widths last sent to the HUD, `null` before the first. */
   #perfHudInsets: { left: number; right: number } | null = null;
+  #holeKey = '';
 
   constructor(container: HTMLElement, options?: ChartOptions) {
     super();
@@ -3232,6 +3234,31 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     return entry?.renderer.getSliceInfo?.(this.#theme) ?? null;
   }
 
+  /**
+   * The disk and hole that a pie series drew last, or null (not a pie, no data, not rendered yet).
+   * An `overlayChange` follows each move: a resize, a padding change, outside labels.
+   */
+  getPieHole(seriesId: string): PieHole | null {
+    const entry = this.#series.find((s) => s.id === seriesId);
+    const hole = entry?.renderer.getHole?.() ?? null;
+    if (!hole) return null;
+
+    return { ...hole, x: hole.x + this.plotLeft };
+  }
+
+  // Overlays read the hole between frames, so a move must reach them as an event.
+  #announceHoleChange(): void {
+    let key = '';
+    for (const entry of this.#series) {
+      const hole = entry.renderer.getHole?.();
+      if (hole) key += `${entry.id}:${hole.x},${hole.y},${hole.innerRadius},${hole.outerRadius};`;
+    }
+    if (key === this.#holeKey) return;
+
+    this.#holeKey = key;
+    this.#bumpOverlayVersion();
+  }
+
   /** Get hover info (label/value/percent/color) for the currently hovered element, or null. */
   getHoverInfo(seriesId: string): HoverInfo | null {
     const entry = this.#series.find((s) => s.id === seriesId);
@@ -5386,6 +5413,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // (which re-arms the global intro front) would blink the by-then-settled
     // annotations out and sweep them back in.
     this.#overlayIntroFront();
+    this.#announceHoleChange();
 
     // Generic animation poll — any renderer that still needs a frame keeps us going.
     let seriesNeedsAnim = false;

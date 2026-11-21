@@ -15,7 +15,7 @@ export const INTROS: Record<string, string> = {
   DepthSeries:
     "Renders an order book chart on a numeric price axis — set `axis={{ x: { type: 'numeric' } }}` on `<ChartContainer>`. Pass `bids` and `asks` as `[price, size]` levels in any order; the series sorts them and draws cumulative size as two stepped walls, bids left of mid and asks right, with a dashed mid line and a `mid · spread` label (the `midLine` and `midLabel` options turn them off). The fill fades out toward the left and right edges of the plot: `fillFade` sets the width in CSS px, `0` turns it off. The view stays centered on mid: it eases to each new mid, wheel and pinch zoom around mid, and drag-pan is off. A new book morphs from the shape on screen, the walls grow out from mid on the first data, and `<Tooltip>` shows the hovered side, level price and cumulative size. For level deltas, call `chart.updateData(id, { bids?, asks? })` — a size of 0 removes a level.",
   PieSeries:
-    'Renders a pie or donut chart. Slices animate on enter/exit, support hover lift, and optionally show inline labels at the slice midpoints. Datasets past 8 slices group the smallest into a single "Other" slice by default — tune or disable via `options.other`. Use `<PieLegend>` and `<PieTooltip>` for accompanying overlays.',
+    'Renders a pie or donut chart. Slices animate on enter/exit, support hover lift, and optionally show inline labels at the slice midpoints. Datasets past 8 slices group the smallest into a single "Other" slice by default — tune or disable via `options.other`. Use `<PieLegend>`, `<PieTooltip>` and `<PieCenter>` (the total in a donut hole) for accompanying overlays.',
   Sparkline:
     'A self-contained miniature chart for tables, KPIs, and dashboards. Renders without any of the chrome (`<YAxis>`, `<TimeAxis>`, etc.) and includes a lightweight value badge.',
 
@@ -40,6 +40,8 @@ export const INTROS: Record<string, string> = {
     'Persistent header strip showing the last-known values from each series, including direction arrows and percent change. Stays visible when no hover is active — the companion to `<Tooltip>`.',
   HeatmapSeries:
     'Renders a matrix heatmap — `(x, y)` category cells colored by value on a perceptual (OKLab) sequential ramp derived from the theme. Cells reveal with a diagonal entrance wave, morph smoothly when values update in place, and lift on hover. Pass 3 ramp stops via `options.colors` for a diverging scale. Use `<HeatmapTooltip>` for the hover overlay.',
+  PieCenter:
+    'Content in the hole of a donut (`<PieSeries>` with `innerRadiusRatio` above 0): the total of the slices with an optional `label` caption, and the hovered slice while the pointer is on one (`followHover={false}` keeps the total). The renderer places and sizes it, so it stays in the hole when outside labels move the disk. Renders nothing for a pie without a hole. The render-prop gets the total, the slices, the hovered slice, the formatter and the hole geometry.',
   PieLegend:
     'Companion to `<PieSeries>` and `<RadialProgressSeries>` — renders slice labels with their value or percent, anchored to one of three positions (`bottom`, `right`, `overlay`).',
   HeatmapTooltip:

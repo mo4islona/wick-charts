@@ -65,6 +65,7 @@ export type Route =
   | 'api/navigator'
   | 'api/title'
   | 'api/info-bar'
+  | 'api/pie-center'
   | 'api/pie-legend'
   | 'api/pie-tooltip'
   | 'api/heatmap-tooltip'
@@ -190,6 +191,7 @@ const API_COMPONENTS: RouteEntry[] = [
   { route: 'api/marker', label: 'Marker', title: '' },
   { route: 'api/navigator', label: 'Navigator', title: '' },
   { route: 'api/number-flow', label: 'NumberFlow', title: '' },
+  { route: 'api/pie-center', label: 'PieCenter', title: '' },
   { route: 'api/pie-legend', label: 'PieLegend', title: '' },
   { route: 'api/pie-tooltip', label: 'PieTooltip', title: '' },
   { route: 'api/reference-line', label: 'ReferenceLine', title: '' },

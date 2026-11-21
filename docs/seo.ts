@@ -213,6 +213,7 @@ const API_SUMMARIES: Partial<Record<Route, string>> = {
     'Series legend below or beside the chart with toggle / isolate visibility modes and a custom render slot.',
   'api/navigator': 'Overview mini-chart with a draggable window for panning and zooming the visible range.',
   'api/number-flow': 'Standalone animated number that rolls digits on change, with format and spin-duration props.',
+  'api/pie-center': 'The total in the hole of a donut chart, the hovered slice on hover, and a custom render slot.',
   'api/pie-legend':
     'Slice list for pie charts showing value or percent per slice, with formatting and a custom render slot.',
   'api/pie-tooltip': 'Hover tooltip for pie slices with formatting and a custom render slot.',

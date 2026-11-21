@@ -117,6 +117,7 @@ export type {
   PerfHudOptions,
   PerfMonitorOptions,
   PerfStats,
+  PieHole,
   PieSeriesOptions,
   PieSeriesRenderer,
   PieSliceData,
@@ -370,6 +371,7 @@ export type {
   MarkerProps,
   NavigatorProps,
   NumberFlowProps,
+  PieCenterProps,
   PieLegendProps,
   PieSeriesProps,
   PieTooltipProps,
@@ -403,6 +405,7 @@ export { default as Legend } from './ui/Legend.svelte';
 export { default as Marker } from './ui/Marker.svelte';
 export { default as Navigator } from './ui/Navigator.svelte';
 export { default as NumberFlow } from './ui/NumberFlow.svelte';
+export { default as PieCenter } from './ui/PieCenter.svelte';
 export { default as PieLegend } from './ui/PieLegend.svelte';
 export { default as PieTooltip } from './ui/PieTooltip.svelte';
 export { default as RadarTooltip } from './ui/RadarTooltip.svelte';
@@ -416,6 +419,7 @@ export type {
   InfoBarRenderContext,
   LegendItemOverride,
   LegendToggleInfo,
+  PieCenterRenderContext,
   PieLegendMode,
   PieLegendPosition,
   PieLegendRenderContext,

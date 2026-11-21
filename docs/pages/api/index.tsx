@@ -40,6 +40,7 @@ const ROUTE_TO_COMPONENT: Record<string, string> = {
   'api/navigator': 'Navigator',
   'api/title': 'Title',
   'api/info-bar': 'InfoBar',
+  'api/pie-center': 'PieCenter',
   'api/pie-legend': 'PieLegend',
   'api/pie-tooltip': 'PieTooltip',
   'api/heatmap-tooltip': 'HeatmapTooltip',

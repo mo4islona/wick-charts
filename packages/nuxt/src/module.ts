@@ -35,6 +35,7 @@ const COMPONENTS = [
   'Marker',
   'Navigator',
   'NumberFlow',
+  'PieCenter',
   'PieLegend',
   'PieTooltip',
   'ReferenceLine',

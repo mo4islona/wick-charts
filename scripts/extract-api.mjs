@@ -52,6 +52,7 @@ const COMPONENTS = [
   { name: 'Navigator', file: 'packages/react/src/ui/Navigator.tsx', kind: 'subcomponent' },
   { name: 'Title', file: 'packages/react/src/ui/Title.tsx', kind: 'subcomponent' },
   { name: 'InfoBar', file: 'packages/react/src/ui/InfoBar.tsx', kind: 'subcomponent' },
+  { name: 'PieCenter', file: 'packages/react/src/ui/PieCenter.tsx', kind: 'subcomponent' },
   { name: 'PieLegend', file: 'packages/react/src/ui/PieLegend.tsx', kind: 'subcomponent' },
   { name: 'PieTooltip', file: 'packages/react/src/ui/PieTooltip.tsx', kind: 'subcomponent' },
   { name: 'HeatmapTooltip', file: 'packages/react/src/ui/HeatmapTooltip.tsx', kind: 'subcomponent' },

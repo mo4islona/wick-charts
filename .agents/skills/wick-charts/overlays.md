@@ -14,13 +14,14 @@ Overlays are children of `ChartContainer`. Their props are in the installed type
 | `YLabel` | `{ value, y, bgColor, isLive, direction, format, opacity }` | Badge with the last value of a series, and a dashed line |
 | `NumberFlow` | — | Animated number, also usable outside a chart |
 | `PieTooltip` / `PieLegend` | `{ info, format }` / `{ slices, mode, format }` | Pie hover tooltip / slice list |
+| `PieCenter` | `{ total, slices, hovered, format, hole }` | Content in the donut hole |
 | `HeatmapTooltip` | — | Heatmap cell tooltip |
 | `SankeyTooltip` | `{ info, format }` | Sankey node or link tooltip |
 
 Annotations (`Marker`, `ReferenceLine`, `TimeRegion`): [annotations.md](annotations.md). `Navigator`: [realtime.md](realtime.md#navigator).
 
 - **`InfoBar` and `Tooltip` show every visible series**; they have no `seriesId`. Filter the rows in a custom slot.
-- **`seriesId` is optional** on `YLabel`, `PieTooltip`, `PieLegend`, `HeatmapTooltip` and `SankeyTooltip`. Without it they use the first visible series that fits (for `YLabel`, a time series that is not a band).
+- **`seriesId` is optional** on `YLabel`, `PieTooltip`, `PieLegend`, `PieCenter`, `HeatmapTooltip` and `SankeyTooltip`. Without it they use the first visible series that fits (for `YLabel`, a time series that is not a band).
 - **`Tooltip` and `InfoBar` work together:** the tooltip floats at the cursor, the info bar sits in the header.
 - **Header:** `Title` and `InfoBar` float over the top of the plot and push the data down by their height (`headerLayout` on `ChartContainer` changes this). The tooltip draws above them.
 - **`Legend`:** `position="bottom" | "right"`; `mode="toggle"` (default) hides and shows a series, `mode="isolate"` shows only the clicked one and a second click shows all. `onToggle(info)` reports each click; `items` replaces the list with static `{ label, color }` entries.
@@ -41,7 +42,7 @@ The Y ticks, the `YLabel` badge, the crosshair label, `Tooltip` and `InfoBar` co
 
 ## Custom content
 
-Each overlay with a slot context lets you replace its content and keep the position, the crosshair wiring and the data in the library. React uses a function child, Vue a default scoped slot, Svelte a `let:` slot or, on Svelte 5, `{#snippet children(ctx)}`. The context is the same in the three, and each package exports its type: `TooltipRenderContext`, `InfoBarRenderContext`, `PieLegendRenderContext`, `PieTooltipRenderContext`, `SankeyTooltipRenderContext`, `YLabelRenderContext`.
+Each overlay with a slot context lets you replace its content and keep the position, the crosshair wiring and the data in the library. React uses a function child, Vue a default scoped slot, Svelte a `let:` slot or, on Svelte 5, `{#snippet children(ctx)}`. The context is the same in the three, and each package exports its type: `TooltipRenderContext`, `InfoBarRenderContext`, `PieCenterRenderContext`, `PieLegendRenderContext`, `PieTooltipRenderContext`, `SankeyTooltipRenderContext`, `YLabelRenderContext`.
 
 `snapshot.data` is an `OHLCData`, a `TimePoint` or a `BandPoint`: narrow it before you read a field.
 
