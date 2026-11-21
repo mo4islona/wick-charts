@@ -16,6 +16,7 @@ export default defineConfig({
       'packages/vue/src/**/*.test.ts',
       'packages/svelte/src/**/*.test.ts',
       'packages/nuxt/src/**/*.test.ts',
+      'packages/render/src/**/*.test.ts',
       'docs/__tests__/**/*.test.{ts,tsx}',
       'registry/__tests__/**/*.test.ts',
     ],

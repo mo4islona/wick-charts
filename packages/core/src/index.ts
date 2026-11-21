@@ -31,7 +31,7 @@ export { snap } from './animation/y-range-snap';
 export type { MountAxisLabelsOptions } from './axis/dom-labels';
 export { mountAxisLabels } from './axis/dom-labels';
 // Bitmap-space geometry a custom series' `render(ctx)` draws into — see `ctx.scope`.
-export type { BitmapCoordinateSpace } from './canvas-manager';
+export type { BitmapCoordinateSpace, ChartSurface } from './canvas-manager';
 export type {
   AxisLabelCover,
   AxisLabelCoverOptions,
@@ -509,4 +509,4 @@ export {
   renderNumberText,
 } from './utils/number-text';
 export type { TimeFormatOptions } from './utils/time';
-export { detectInterval, formatDate, formatTime, normalizeTime } from './utils/time';
+export { detectInterval, formatDate, formatTime, isNewYearsDay, normalizeTime } from './utils/time';

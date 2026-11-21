@@ -5,7 +5,7 @@ import { prefersReducedMotion } from './animation/reduced-motion';
 import type { Transition } from './animation/transition';
 import { type AnimationState, type ViewportEngine, createViewportEngine } from './animation/viewport-engine';
 import { AxisLabelMeter, type ColumnReach, measureColumnReach } from './axis/column-width';
-import { type BitmapCoordinateSpace, CanvasManager } from './canvas-manager';
+import { type BitmapCoordinateSpace, CanvasManager, type ChartSurface, isChartSurface } from './canvas-manager';
 import { type AccessibilityConfig, ChartAccessibility } from './chart/accessibility';
 import { drawEdgeIndicators, resolveEdgeAnchorValue, resolveEdgeBoundary } from './chart/edge-indicators';
 import { computeFitToData } from './chart/fit-to-data';
@@ -578,7 +578,10 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Zoom, pan, crosshair — null when interactive=false. */
   #interactions: InteractionHandler | null;
 
-  readonly #accessibility: ChartAccessibility;
+  /** `null` on a {@link ChartSurface}: no DOM to describe the chart in. */
+  readonly #accessibility: ChartAccessibility | null;
+  /** On a {@link ChartSurface}, only {@link flush} paints: a target such as SVG cannot erase a frame. */
+  readonly #paintsOnFlushOnly: boolean;
   /** All registered series (candlestick, line, bar, pie). */
   #series: SeriesEntry[] = [];
   /** Point annotations (event markers) drawn on the overlay layer, kept out of the series model. */
@@ -623,8 +626,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   #columnCovers = new Set<HTMLElement>();
   /** How far {@link #columnCovers} reach in from each side, as last measured. */
   #coverReach: ColumnReach = { left: 0, right: 0 };
-  readonly #container: HTMLElement;
-  readonly #labelMeter = new AxisLabelMeter();
+  readonly #container: HTMLElement | null;
+  readonly #labelMeter: AxisLabelMeter;
   /** An `'auto'` column only widens while this is off, so streaming ticks can't make the plot breathe. */
   #columnShrinkPending = false;
   /** Until this `performance.now()` time, a narrower column cover renews {@link #columnShrinkPending}. */
@@ -835,6 +838,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * its column; a shorter one narrows it only within {@link COVER_SETTLE_MS} of a shrink request.
    */
   #measureCoverReach(): void {
+    if (this.#container === null) return;
+
     const reach = measureColumnReach({ host: this.#container, elements: this.#columnCovers });
     const prev = this.#coverReach;
     if (reach.left === prev.left && reach.right === prev.right) return;
@@ -950,8 +955,15 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
   /** Y-axis column widths last sent to the HUD, `null` before the first. */
   #perfHudInsets: { left: number; right: number } | null = null;
 
-  constructor(container: HTMLElement, options?: ChartOptions) {
+  /**
+   * @param target The element the chart fills, or a {@link ChartSurface} to
+   *   render with no DOM. A chart on a surface has no frame loop and no
+   *   pointer input: it paints only on {@link flush}.
+   */
+  constructor(target: HTMLElement | ChartSurface, options?: ChartOptions) {
     super();
+    const surface = isChartSurface(target) ? target : null;
+    const container = isChartSurface(target) ? null : target;
     // Support both new `axis` API and legacy flat props
     if (options?.axis) this.#axis = options.axis;
     this.#xType = this.#axis.x?.type ?? 'time';
@@ -1001,7 +1013,8 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#ownsPerfMonitor = resolvedPerf.ownsMonitor;
 
     this.#container = container;
-    this.#canvasManager = new CanvasManager(container, this.#perfMonitor ?? undefined);
+    this.#canvasManager = new CanvasManager(target, this.#perfMonitor ?? undefined);
+    this.#labelMeter = new AxisLabelMeter(surface?.context);
     if (typeof document !== 'undefined') document.fonts?.addEventListener('loadingdone', this.#onFontsLoaded);
     this.timeScale = new XScale();
     this.timeScale.setType(this.#xType);
@@ -1028,31 +1041,23 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
       lerp: (from, to, t) => from + (to - from) * t,
     });
 
-    this.#mainScheduler = new RenderScheduler((t) => this.#renderFrame(t));
-    this.#overlayScheduler = new RenderScheduler((t) =>
-      this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
+    const manual = surface !== null;
+    this.#paintsOnFlushOnly = manual;
+    this.#mainScheduler = new RenderScheduler((t) => this.#renderFrame(t), { manual });
+    this.#overlayScheduler = new RenderScheduler(
+      (t) => this.#measuredRender('overlay', t, () => this.renderOverlay(t)),
+      { manual },
     );
-    if (this.#perfMonitor && resolvedPerf.hud) {
+    if (container !== null && this.#perfMonitor && resolvedPerf.hud) {
       this.#perfHud = resolvedPerf.hud(container, this.#perfMonitor, this.#theme);
       this.#syncPerfHudInsets();
     }
 
-    this.#accessibility = new ChartAccessibility({
-      container,
-      canvases: { main: this.#canvasManager.mainCanvas, overlay: this.#canvasManager.overlayCanvas },
-      read: () => this.#describe({ issuesInText: process.env.NODE_ENV !== 'production' }),
-    });
-    this.#accessibility.configure({ enabled: options?.accessibility, label: options?.ariaLabel });
-    const markAccessibleText = () => this.#accessibility.markDirty();
-    this.on('overlayChange', markAccessibleText);
-    this.on('viewportChange', markAccessibleText);
-    this.#canvasManager.on('resize', markAccessibleText);
-    this.#accessibility.markDirty();
+    this.#accessibility = this.#mountAccessibility(container, options);
 
-    const interactive = options?.interactive !== false;
-    this.#interactions = interactive
-      ? new InteractionHandler(this.#canvasManager.canvas, this, this.timeScale, this.yScale)
-      : null;
+    const pointerTarget = this.#canvasManager.canvas;
+    const interactive = options?.interactive !== false && pointerTarget !== null;
+    this.#interactions = interactive ? new InteractionHandler(pointerTarget, this, this.timeScale, this.yScale) : null;
 
     this.#canvasManager.on('resize', () => {
       // Render synchronously — canvas.width/height assignment clears the canvas,
@@ -1103,6 +1108,37 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
 
     // `axis.x.categories` lays out its bands before any data arrives.
     if (this.#xType === 'category') this.#syncCategories();
+  }
+
+  #mountAccessibility(container: HTMLElement | null, options: ChartOptions | undefined): ChartAccessibility | null {
+    const { mainCanvas, overlayCanvas } = this.#canvasManager;
+    if (container === null || mainCanvas === null || overlayCanvas === null) return null;
+
+    const accessibility = new ChartAccessibility({
+      container,
+      canvases: { main: mainCanvas, overlay: overlayCanvas },
+      read: () => this.#describe({ issuesInText: process.env.NODE_ENV !== 'production' }),
+    });
+    accessibility.configure({ enabled: options?.accessibility, label: options?.ariaLabel });
+
+    const markAccessibleText = () => accessibility.markDirty();
+    this.on('overlayChange', markAccessibleText);
+    this.on('viewportChange', markAccessibleText);
+    this.#canvasManager.on('resize', markAccessibleText);
+    accessibility.markDirty();
+
+    return accessibility;
+  }
+
+  /**
+   * Paint the frame now, synchronously, instead of on the next animation
+   * frame. A chart on a {@link ChartSurface} paints only here. A frame
+   * mid-animation paints its current step: call again while
+   * {@link getAnimationState} reports `animating`.
+   */
+  flush(): void {
+    this.#mainScheduler.consume();
+    this.#renderFrame();
   }
 
   /** A pointer position on a category axis snaps to the nearest band; `x` is the coordinate in the axis domain. */
@@ -3621,7 +3657,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
    * See {@link ChartOptions.accessibility}.
    */
   setAccessibility(config: AccessibilityConfig): void {
-    this.#accessibility.configure(config);
+    this.#accessibility?.configure(config);
   }
 
   #describe(args: { issuesInText: boolean }): ChartDescription {
@@ -4086,7 +4122,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     this.#mainScheduler.destroy();
     this.#overlayScheduler.destroy();
     this.#interactions?.destroy();
-    this.#accessibility.destroy();
+    this.#accessibility?.destroy();
     if (typeof document !== 'undefined') document.fonts?.removeEventListener('loadingdone', this.#onFontsLoaded);
     this.#canvasManager.destroy();
     this.#perfHud?.destroy();
@@ -4223,7 +4259,7 @@ export class ChartInstance extends EventEmitter<ChartEvents> implements PanZoomT
     // same browser paint. Subsequent updates go through `markDirty` so
     // streaming ticks coalesce per RAF and Y-range easing gets at least
     // one frame to advance before painting.
-    if (isFirstDataPaint) {
+    if (isFirstDataPaint && !this.#paintsOnFlushOnly) {
       this.#renderFrame();
     } else {
       this.#mainScheduler.markDirty();

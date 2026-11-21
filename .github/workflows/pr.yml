@@ -38,6 +38,8 @@ jobs:
           fail_ci_if_error: false
           use_oidc: true
       - run: pnpm build
+      # @wick-charts/render types in a Node project with no `dom` lib, for the import and the require entry.
+      - run: pnpm --filter @wick-charts/render typecheck:consumer
       # The registry files against the built types, under the stricter tsconfig of a new Nuxt or Vite app.
       - run: pnpm registry:typecheck
       - run: pnpm svelte:compat

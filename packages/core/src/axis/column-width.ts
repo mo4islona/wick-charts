@@ -23,6 +23,11 @@ export class AxisLabelMeter {
   #font = '';
   #widths = new Map<string, number>();
 
+  /** @param context A context to measure on, for a chart with no DOM. It can be the one the chart draws on. */
+  constructor(context?: CanvasRenderingContext2D) {
+    if (context !== undefined) this.#context = context;
+  }
+
   /** Column width that holds the widest of `labels`; `null` without a canvas to measure on. */
   columnWidth(params: { labels: readonly string[]; font: string }): number | null {
     const context = this.#resolveContext();
@@ -53,8 +58,10 @@ export class AxisLabelMeter {
 
     if (this.#widths.size >= MAX_CACHED_TEXTS) this.#widths.clear();
 
+    context.save();
     context.font = this.#font;
     const width = context.measureText(text).width;
+    context.restore();
     this.#widths.set(text, width);
 
     return width;

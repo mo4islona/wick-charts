@@ -1,6 +1,6 @@
 ---
 name: wick-charts
-description: Build and change charts with the Wick Charts library (@wick-charts/react, @wick-charts/vue, @wick-charts/svelte, @wick-charts/nuxt) — candlestick, line, area, bar, band, heatmap, order book, sankey, pie, gauge, radial progress, radar, histogram and sparkline charts, live streaming data, tooltips, legends, annotations, axes, themes and the shadcn registry blocks. Use when the code imports @wick-charts/*, or when the user asks for one of these charts in React, Vue, Svelte or Nuxt.
+description: Build and change charts with the Wick Charts library (@wick-charts/react, @wick-charts/vue, @wick-charts/svelte, @wick-charts/nuxt) — candlestick, line, area, bar, band, heatmap, order book, sankey, pie, gauge, radial progress, radar, histogram and sparkline charts, live streaming data, tooltips, legends, annotations, axes, themes, the shadcn registry blocks, and PNG or SVG chart images in Node (@wick-charts/render, its CLI and MCP server). Use when the code imports @wick-charts/*, when the user asks for one of these charts in React, Vue, Svelte or Nuxt, or for a chart image for a report, Slack, a pull request or an email.
 ---
 
 # Wick Charts
@@ -18,6 +18,7 @@ npx nuxi module add @wick-charts/nuxt
 
 - Each framework package carries the whole engine; there is no `@wick-charts/core` package to install. Import components, types, themes and helpers from the framework package.
 - A shadcn/ui, shadcn-vue or shadcn-svelte project installs the registry items instead: [shadcn.md](shadcn.md). Nuxt: [nuxt.md](nuxt.md).
+- A chart image in Node (PNG or SVG, no browser) uses `@wick-charts/render`: [server-render.md](server-render.md).
 
 ## A first chart
 
@@ -157,6 +158,7 @@ grep -n -B12 '^    setVisibleRange(' $T
 | Themes, custom theme | [themes.md](themes.md) |
 | shadcn/ui, shadcn-vue, shadcn-svelte | [shadcn.md](shadcn.md) |
 | Nuxt | [nuxt.md](nuxt.md) |
+| PNG or SVG in Node, the render CLI, the `render_chart` MCP tool | [server-render.md](server-render.md) |
 
 ## Framework differences
 

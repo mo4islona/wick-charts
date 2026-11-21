@@ -5,9 +5,13 @@ export class RenderScheduler {
   private rafId: number | null = null;
   private readonly callback: RenderCallback;
   private readonly onVisibilityChange: (() => void) | null = null;
+  /** No frame loop: the owner paints on its own call, and `markDirty` only records the debt. */
+  private readonly manual: boolean;
 
-  constructor(callback: RenderCallback) {
+  constructor(callback: RenderCallback, opts?: { manual?: boolean }) {
     this.callback = callback;
+    this.manual = opts?.manual ?? false;
+    if (this.manual) return;
 
     // Browsers pause RAF in hidden tabs, but some embedders (Electron with
     // backgroundThrottling off, certain webviews) keep firing it — a
@@ -27,6 +31,7 @@ export class RenderScheduler {
   markDirty(): void {
     if (this.dirty) return;
     this.dirty = true;
+    if (this.manual) return;
 
     if (typeof document !== 'undefined' && document.hidden) return; // re-armed on visibilitychange
 
