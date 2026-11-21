@@ -188,6 +188,18 @@ export const SNIPPETS: Record<string, ComponentSnippet> = {
     },
   },
 
+  PieCenter: {
+    slot: {
+      ctxBindings: ['total', 'hovered', 'format'],
+      bodyExample: {
+        react: '<strong>{format(hovered ? hovered.value : total)}</strong>',
+        vue: '<strong>{{ format(hovered ? hovered.value : total) }}</strong>',
+        svelte: '<strong>{format(hovered ? hovered.value : total)}</strong>',
+      },
+      ctxTypeName: 'PieCenterRenderContext',
+    },
+  },
+
   PieLegend: {
     required: [{ name: 'seriesId', valueExpr: "'pie'" }],
     slot: {

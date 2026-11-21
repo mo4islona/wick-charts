@@ -78,6 +78,18 @@ export interface OverlayRenderContext {
   seriesId?: string;
 }
 
+/** The disk and hole of a pie or donut, in CSS pixels, in the space of `CrosshairPosition.mediaX` / `mediaY`. */
+export interface PieHole {
+  /** Center X. */
+  x: number;
+  /** Center Y. */
+  y: number;
+  /** Radius of the hole; 0 for a pie without one. */
+  innerRadius: number;
+  /** Radius of the disk. */
+  outerRadius: number;
+}
+
 /** Shape returned by {@link SeriesRenderer.getHoverInfo} / per-slice entries of {@link SeriesRenderer.getSliceInfo}. */
 export interface HoverInfo {
   label: string;
@@ -281,6 +293,8 @@ export interface BaseSeriesRenderer {
 
   /** Pie-style breakdown of all elements. Optional. */
   getSliceInfo?(theme: ChartTheme): SliceInfo[] | null;
+  /** The disk and hole that the last render drew, or null before a render with data. Optional. */
+  getHole?(): PieHole | null;
   /** Last data value for the series, or null if empty. Optional. */
   getLastValue?(): number | null;
   /** Nearest data point to a given time, or null. Optional. */

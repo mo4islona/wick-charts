@@ -117,6 +117,7 @@ export type {
   PerfHudOptions,
   PerfMonitorOptions,
   PerfStats,
+  PieHole,
   PieSeriesOptions,
   PieSeriesRenderer,
   PieSliceData,
@@ -397,6 +398,8 @@ export type { NavigatorProps } from './ui/Navigator';
 export { Navigator } from './ui/Navigator';
 export type { NumberFlowProps } from './ui/NumberFlow';
 export { NumberFlow } from './ui/NumberFlow';
+export type { PieCenterProps, PieCenterRenderContext } from './ui/PieCenter';
+export { PieCenter } from './ui/PieCenter';
 export type { PieLegendMode, PieLegendPosition, PieLegendProps, PieLegendRenderContext } from './ui/PieLegend';
 export { PieLegend } from './ui/PieLegend';
 export type { PieTooltipProps, PieTooltipRenderContext } from './ui/PieTooltip';

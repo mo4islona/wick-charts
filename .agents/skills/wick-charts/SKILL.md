@@ -101,7 +101,7 @@ defineProps<{ data: TimePoint[] }>();
 - **Give a series an `id`** when an overlay targets it (`YLabel seriesId`, `Marker seriesId`) or when your code reads it from the chart instance.
 - **Create mappings and factories once.** `axis.y.scale` compares by identity: a `logScale()` or mapping object made on each render refits the Y range on each render. Make it at module scope or memoize it, and the same for the curve factories (`hermite()`, `spring()`).
 - **Read at mount only:** `axis.x.type`, `viewport`, `interactive`, `perf` and the `onEdgeReached` callback. Remount the chart (a React `key`) to change them; in React, an `onEdgeReached` closure sees the state of the first render, so read state through a ref. A new `animations` value rebuilds the chart by itself.
-- **Spatial series** (pie, heatmap, sankey, gauge, radial progress, radar) have no axes, no crosshair and no `Tooltip`: use `PieTooltip` / `PieLegend`, `HeatmapTooltip`, `SankeyTooltip`, `RadarTooltip`. `PieLegend` also lists radial progress rings; `Legend` lists radar polygons.
+- **Spatial series** (pie, heatmap, sankey, gauge, radial progress, radar) have no axes, no crosshair and no `Tooltip`: use `PieTooltip` / `PieLegend` / `PieCenter`, `HeatmapTooltip`, `SankeyTooltip`, `RadarTooltip`. `PieLegend` also lists radial progress rings; `Legend` lists radar polygons.
 - **Axis types.** Candlestick needs a time X axis, depth and histogram a numeric one. `Navigator`, `EdgeLoader` and `TimeRegion` work on a time axis only.
 
 ## Props and options: read the installed types
@@ -144,7 +144,7 @@ grep -n -B12 '^    setVisibleRange(' $T
 | Sankey (flows between stages) | [sankey.md](sankey.md) |
 | Gauge (one value on an arc), radial progress rings | [gauge.md](gauge.md) |
 | Radar (spider) chart: series compared across axes | [radar.md](radar.md) |
-| Pie or donut | [pie.md](pie.md) |
+| Pie or donut, the total in the donut hole | [pie.md](pie.md) |
 | Inline mini chart with a value (React) | [sparkline.md](sparkline.md) |
 | `ChartContainer` props: padding, grid, header, viewport, fade, events, perf HUD | [chart-container.md](chart-container.md) |
 | Y scales (log, a second scale), numeric and category X axes | [axes.md](axes.md) |

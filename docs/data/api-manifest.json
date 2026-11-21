@@ -6158,6 +6158,59 @@
         }
       ]
     },
+    "PieCenter": {
+      "kind": "subcomponent",
+      "file": "packages/react/src/ui/PieCenter.tsx",
+      "alias": null,
+      "description": "Content in the hole of a donut: the total by default, the hovered slice while\nthe pointer is on one. Renders nothing for a pie without a hole\n(`innerRadiusRatio: 0`).",
+      "props": [
+        {
+          "name": "seriesId",
+          "type": "string",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Owning series id. **Optional** — when omitted, the first visible pie\nseries is picked.",
+          "see": []
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "optional": true,
+          "defaultValue": "none",
+          "deprecated": null,
+          "description": "Caption under the total, e.g. `'Total sessions'`. Default: none.",
+          "see": []
+        },
+        {
+          "name": "format",
+          "type": "ValueFormatter",
+          "optional": true,
+          "defaultValue": "shared `formatCompact`",
+          "deprecated": null,
+          "description": "Formatter for the total and the hovered value. Default: shared `formatCompact`.",
+          "see": []
+        },
+        {
+          "name": "followHover",
+          "type": "boolean",
+          "optional": true,
+          "defaultValue": "true",
+          "deprecated": null,
+          "description": "Show the hovered slice instead of the total while the pointer is on a slice. Default `true`.",
+          "see": []
+        },
+        {
+          "name": "children",
+          "type": "(ctx: PieCenterRenderContext) => ReactNode",
+          "optional": true,
+          "defaultValue": null,
+          "deprecated": null,
+          "description": "Render-prop escape hatch — replaces the default text; the hole still positions and sizes the box.",
+          "see": []
+        }
+      ]
+    },
     "PieLegend": {
       "kind": "subcomponent",
       "file": "packages/react/src/ui/PieLegend.tsx",

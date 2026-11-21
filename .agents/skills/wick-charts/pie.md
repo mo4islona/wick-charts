@@ -1,6 +1,6 @@
 # Pie / donut chart
 
-`<PieSeries>` draws slices of a whole, as a pie or a donut, with labels on the pie and small slices grouped into "Other". It is a spatial series: use `PieTooltip` and `PieLegend`, not `Tooltip`, `Crosshair`, `YAxis`, `TimeAxis` or `YLabel`. Every option with its default: `PieSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/pie-series/>.
+`<PieSeries>` draws slices of a whole, as a pie or a donut, with labels on the pie and small slices grouped into "Other". It is a spatial series: use `PieTooltip`, `PieLegend` and `PieCenter`, not `Tooltip`, `Crosshair`, `YAxis`, `TimeAxis` or `YLabel`. Every option with its default: `PieSeriesOptions` in the installed types ([how to read them](SKILL.md#props-and-options-read-the-installed-types)), or <https://wick-charts.eeff.io/api/pie-series/>.
 
 ## Data
 
@@ -106,17 +106,23 @@ Vue and Svelte take the same context: `v-slot="{ info, format }"`, `let:info let
 
 ## Content in the donut hole
 
-The chart draws on a canvas, so put the center text in an element over it:
+`PieCenter` (from 0.9.4) puts the total in the hole of a donut, and the hovered slice while the pointer is on one. The chart places and sizes it, so it stays in the hole when a legend or outside labels move the disk. It renders nothing on a pie without a hole (`innerRadiusRatio: 0`).
 
 ```tsx
-<div style={{ position: 'relative', width: 400, height: 400 }}>
-  <ChartContainer style={{ width: '100%', height: '100%' }}>
-    <PieSeries data={data} options={{ innerRadiusRatio: 0.65 }} />
-    <PieTooltip />
-  </ChartContainer>
-  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', pointerEvents: 'none' }}>
-    <div style={{ fontSize: 24, fontWeight: 'bold' }}>$9,000</div>
-    <div style={{ fontSize: 12, opacity: 0.6 }}>Total</div>
-  </div>
-</div>
+<ChartContainer>
+  <PieSeries data={data} options={{ innerRadiusRatio: 0.65 }} />
+  <PieCenter label="Total sessions" format={(v) => v.toLocaleString()} />
+  <PieLegend position="bottom" />
+</ChartContainer>
 ```
+
+- `followHover={false}` keeps the total while the pointer is on a slice. With the default, the center already shows the hovered slice, so a `PieTooltip` next to it repeats the same data: keep one of the two.
+- Custom content: a render-prop in React, `v-slot="{ total, slices, hovered, format, hole }"` in Vue, `let:total let:hovered` in Svelte. The context has the total, the slices, the hovered slice or `null`, the formatter and the hole geometry (`hole.innerRadius` in CSS pixels).
+
+```tsx
+<PieCenter>
+  {({ total, hovered, format }) => <strong>{format(hovered ? hovered.value : total)}</strong>}
+</PieCenter>
+```
+
+Before 0.9.4, put an absolutely positioned element over the chart, centered on the plot. It drifts off the hole when a `PieLegend` or outside labels take space.
