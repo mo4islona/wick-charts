@@ -1,4 +1,5 @@
 import { Animator } from '../animation/animator';
+import { smoothstep } from '../animation/easing';
 import { IntroWave } from '../animation/intro-wave';
 import { ScalarSpring } from '../animation/scalar-spring';
 import { TimeSeriesStore, type ValueStats, mergeValueStats } from '../data/store';
@@ -130,9 +131,11 @@ export abstract class BaseMultiLayerSeries<TData extends TimePoint> implements T
     this.#liveAnimators = new Array(layerCount).fill(null);
     this.#pinnedChases = new Array(layerCount).fill(null);
     this.#morphs = Array.from({ length: layerCount }, () => new Map<number, ScalarSpring>());
+    // A stack collapses with its layer's alpha while Y eases to the new range:
+    // the same curve keeps the layers above from dropping and growing back.
     this.#layerAlphaAnimators = Array.from(
       { length: layerCount },
-      () => new Animator<number>({ initial: 1, duration: 0, lerp: scalarLerp }),
+      () => new Animator<number>({ initial: 1, duration: 0, lerp: scalarLerp, easing: smoothstep }),
     );
   }
 
